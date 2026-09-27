@@ -22,6 +22,9 @@ const TurnBody = z.object({
   history: z.array(z.any()).default([]),
   playerText: z.string().trim().min(1).max(1500),
   offer: OfferSchema.optional(),
+  // Кнопки интерфейса: «принять то, что на столе» и «встать и уйти» — без угадывания по тексту.
+  accept: z.boolean().optional(),
+  walkAway: z.boolean().optional(),
 })
 const ReportBody = z.object({ scenario: z.any().optional(), scenarioId: z.string().optional(), history: z.array(z.any()) })
 
@@ -94,7 +97,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
 
     const a = await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
-    const analysis = withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
+    let analysis = withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
+    if (body.accept) analysis = { ...analysis, accepts: true }
+    if (body.walkAway) analysis = { ...analysis, walksAway: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
     const v = await voice(llm, sc, history, body.playerText, r.decision, r.state)
     const record: TurnRecord = {
