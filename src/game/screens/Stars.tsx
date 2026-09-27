@@ -13,7 +13,7 @@ function Star({ on, px = 2 }: { on: boolean; px?: number }) {
   return (
     <svg width={7 * px} height={7 * px} viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true">
       {STAR.flatMap((row, y) =>
-        [...row].map((c, x) => (c === '#' ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={on ? 'var(--c-brass)' : 'var(--c-steel)'} /> : null)),
+        [...row].map((c, x) => (c === '#' ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={on ? 'var(--star-on, var(--c-brass))' : 'var(--star-off, var(--c-steel))'} /> : null)),
       )}
     </svg>
   )

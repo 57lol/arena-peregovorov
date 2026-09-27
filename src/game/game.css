@@ -1829,3 +1829,8 @@ body {
   color: var(--c-ink);
   box-shadow: inset 0 0 0 var(--u) var(--c-stamp);
 }
+
+.g-folder {
+  --star-on: var(--c-wood-3);
+  --star-off: color-mix(in srgb, var(--c-wood) 45%, var(--c-brass-hi));
+}
