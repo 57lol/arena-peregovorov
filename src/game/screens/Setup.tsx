@@ -130,7 +130,7 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
     setFallback(null)
     try {
       const r = await generate(req)
-      if (r.source === 'llm') return onOpen({ scenario: r.scenario, fromLibrary: false })
+      if (r.source === 'llm') return onOpen({ scenario: tidy(r.scenario), fromLibrary: false })
       setFallback({
         message: offline
           ? 'Без нейросети новое дело не собрать. Можно сыграть похожее из папки — с тем характером и сложностью, что вы выбрали.'
@@ -269,6 +269,13 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       {children}
     </button>
   )
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** Нейросеть иногда пишет названия со строчной — в папке дела так не бывает. */
+function tidy(sc: Scenario): Scenario {
+  return { ...sc, title: cap(sc.title), issues: sc.issues.map((i) => ({ ...i, title: cap(i.title) })) }
 }
 
 /** Что сказать человеку, если дело не собралось: без технических подробностей. */

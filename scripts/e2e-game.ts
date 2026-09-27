@@ -204,6 +204,38 @@ async function generateCase(page: Page, size: number) {
   await shot(page, `09-generate-wait-${size}`, true)
   await page.waitForSelector('.g-dossier, .g-error', { timeout: 170_000 })
   await shot(page, `10-generate-result-${size}`, true)
+  if (!(await page.locator('.g-dossier').isVisible())) return
+  // короткая партия на сгенерированном деле: спросить, положить на стол, принять или уйти
+  await page.getByRole('button', { name: 'Войти в переговорку' }).click()
+  await page.waitForSelector('.px-dialog')
+  const lines = [
+    'Добрый день. Прежде чем обсуждать цифры, расскажите, что для вас в этой сделке главное и почему?',
+    'Правильно ли я понимаю, что для вас это важно? Для нас главное — надёжность и понятные условия.',
+  ]
+  for (const line of lines) {
+    await page.locator('textarea').fill(line)
+    await page.keyboard.press('Enter')
+    await waitReply(page)
+  }
+  for (let n = 0; n < 14 && !(await ended(page)); n++) {
+    const accept = page.getByRole('button', { name: 'Принять' })
+    if (n > 0 && (await accept.isVisible())) await accept.click()
+    else if (n < 3) {
+      if (size < 900 && !(await page.locator('.g-notebook-wrap[data-open="true"]').count())) await page.getByRole('button', { name: 'Блокнот' }).click()
+      await page.getByRole('button', { name: 'Положить на стол' }).click()
+      const sure = page.getByRole('button', { name: 'Всё равно положить' })
+      if (await sure.isVisible()) await sure.click()
+    } else {
+      await page.getByRole('button', { name: 'Встать и уйти' }).click()
+      await page.getByRole('button', { name: 'Встать и уйти' }).click()
+    }
+    await waitReply(page)
+  }
+  await shot(page, `10-generate-play-end-${size}`)
+  await page.getByRole('button', { name: 'Разбор встречи' }).click()
+  await page.waitForSelector('.g-ledger')
+  await page.waitForTimeout(500)
+  await shot(page, `10-generate-report-${size}`, true)
 }
 
 /** Ссылка для команды: по id из библиотеки и целиком зашитое в адрес дело. */

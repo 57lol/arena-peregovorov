@@ -1585,12 +1585,13 @@ body {
 }
 .g-beh-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: calc(4 * var(--u));
+  column-gap: calc(4 * var(--u));
   margin: 0 0 calc(2 * var(--u));
 }
 .g-beh-count {
-  flex: none;
+  margin-left: auto;
   color: var(--c-steel-2);
 }
 .g-beh-verdict {
@@ -1815,4 +1816,12 @@ body {
 }
 .g-map-pick b {
   color: var(--c-paper);
+}
+
+.g-low {
+  margin: 0 0 calc(4 * var(--u));
+  padding: calc(2 * var(--u)) calc(4 * var(--u));
+  background: color-mix(in srgb, var(--c-coral) 25%, var(--c-paper));
+  color: var(--c-ink);
+  box-shadow: inset 0 0 0 var(--u) var(--c-stamp);
 }

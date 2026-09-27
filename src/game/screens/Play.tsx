@@ -93,7 +93,13 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
     }
   }
 
-  const putOnTable = () => send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
+  const [lowSure, setLowSure] = useState(false)
+  const putOnTable = () => {
+    // своё же предложение хуже запасного варианта — переспросим один раз
+    if (myTotal < P.batna && !lowSure) return setLowSure(true)
+    setLowSure(false)
+    send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
+  }
   const accept = () => send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
   const walk = () => {
     if (!leaving) return setLeaving(true)
@@ -250,8 +256,8 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                 title="Мой блокнот"
                 footer={
                   <>
-                    <Button variant="brass" icon="pen" disabled={done || !!pending} onClick={putOnTable}>
-                      Положить на стол
+                    <Button variant={lowSure ? 'stamp' : 'brass'} icon="pen" disabled={done || !!pending} onClick={putOnTable}>
+                      {lowSure ? 'Всё равно положить' : 'Положить на стол'}
                     </Button>
                     <span className={`g-total${myTotal < P.batna ? ' is-low' : ''}`}>
                       мне <b>{myTotal}</b>
@@ -262,6 +268,12 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                 <p className="px-note">
                   Запасной вариант даёт мне <b>{P.batna}</b>. Меньше брать нет смысла.
                 </p>
+                {lowSure && (
+                  <p className="g-low" role="alert">
+                    Это предложение даёт вам {myTotal} — меньше, чем запасной вариант ({P.batna}). Если {name} согласится, вы
+                    проиграете по сравнению с тем, чтобы просто уйти.
+                  </p>
+                )}
                 <Notes sc={sc} state={state} issue={undefined} fresh={revealedNow} name={name} />
                 {sc.issues.map((i) => (
                   <div key={i.id} className="g-issue">
@@ -270,7 +282,10 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                       options={i.options}
                       points={P.points[i.id]}
                       value={picks[i.id]}
-                      onChange={(v) => setPicks((p) => ({ ...p, [i.id]: v }))}
+                      onChange={(v) => {
+                        setLowSure(false)
+                        setPicks((p) => ({ ...p, [i.id]: v }))
+                      }}
                     />
                     <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
                   </div>
