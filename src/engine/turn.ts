@@ -50,7 +50,9 @@ export function moveDeltas(
   const prev = past[past.length - 1]?.behaviors ?? []
   const recent = new Set(prev.map((b) => b.id))
   const badBefore = prev.some((b) => dict[b.id]?.kind === 'bad')
-  const askedBefore = new Set(past.flatMap((a) => a.asksAbout ?? []))
+  // Общий вопрос «что для вас важно» размечается как вопрос почти обо всех пунктах — новизну он не съедает,
+  // иначе следующий вопрос про конкретный пункт считался бы повтором.
+  const askedBefore = new Set(past.flatMap((a) => (isGeneral(sc, a) ? [] : a.asksAbout ?? [])))
   const asksNew = (analysis.asksAbout ?? []).some((id) => !askedBefore.has(id))
   const seen = new Set<string>()
   for (const hit of analysis.behaviors) {
@@ -115,15 +117,23 @@ function asksInterest(analysis: MoveAnalysis, dict: BehaviorDict): boolean {
   return !!analysis.asksAbout?.length || analysis.behaviors.some((b) => dict[b.id]?.asksInterest)
 }
 
-function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveAnalysis) {
-  // Спросили почти обо всём сразу — это общий вопрос «что для вас важно», а не про конкретный пункт.
-  const list = analysis.asksAbout ?? []
-  const asked = new Set(list.length * 2 > sc.issues.length ? [] : list)
+/** Спросили почти обо всём сразу — это общий вопрос «что для вас важно», а не про конкретный пункт. */
+function isGeneral(sc: Scenario, a: MoveAnalysis): boolean {
+  return (a.asksAbout?.length ?? 0) * 2 > sc.issues.length
+}
+
+/**
+ * Что собеседник готов рассказать в ответ на вопрос: сначала про то, о чём спросили; если спросили в общем —
+ * про самое главное из доступного. Если про этот пункт уже всё рассказано, вопрос работает как общий.
+ * Возвращает очередь от самого лёгкого к самому глубокому и первое, на что хватает доверия.
+ */
+export function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveAnalysis) {
+  const asked = new Set(isGeneral(sc, analysis) ? [] : analysis.asksAbout ?? [])
   const pool = sc.opponent.profile.interests.filter((i) => !state.revealed.includes(i.id))
-  // Сначала про то, о чём спросили; если спросили в общем — про самое главное из доступного.
-  const about = asked.size ? pool.filter((i) => !i.issue || asked.has(i.issue)) : pool
+  const onTopic = pool.filter((i) => i.issue && asked.has(i.issue))
+  const about = onTopic.length ? onTopic : pool
   const ordered = [...about].sort((a, b) => a.trustToReveal - b.trustToReveal)
-  return { ready: ordered.find((i) => i.trustToReveal <= state.trust), any: ordered.length > 0 }
+  return { ready: ordered.find((i) => i.trustToReveal <= state.trust), queue: ordered }
 }
 
 export interface StepResult {

@@ -155,3 +155,25 @@ describe('сложность 3', () => {
     expect(easy[0].decision).not.toHaveProperty('feigned')
   })
 })
+
+describe('вежливый исследователь в «Таре»', () => {
+  it('общий вопрос не делает следующий вопрос о пункте «повтором», а вопрос о рассказанном пункте открывает другое', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const ask = (asksAbout: string[], extra: string[] = []) => ({
+      text: '',
+      analysis: { behaviors: [{ id: 'ask_interest', quote: 'почему' }, ...extra.map((id) => ({ id, quote: 'так' }))], asksAbout },
+    })
+    const h = playAnalyses(tara, [
+      ask(['price', 'payment', 'rush', 'term']),   // «что для вас главное?»
+      ask(['payment'], ['check']),
+      ask(['rush']),
+      ask(['term'], ['check']),
+      ask(['schedule']),                            // про график уже рассказал — расскажет другое
+    ], BEHAVIOR_DICT)
+    // вопрос о новом пункте после общего вопроса — в полную силу
+    expect(h[1].deltas.find((d) => d.because.startsWith('Вопрос об интересах') && d.field === 'trust')?.by).toBe(4)
+    expect(h[h.length - 1].decision.kind).toBe('reveal')
+    expect(h[h.length - 1].stateAfter.revealed.length).toBeGreaterThanOrEqual(3)
+  })
+})

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { Case } from '../../App'
 import { BEHAVIOR_DICT } from '../../engine/behaviors'
-import { initialState } from '../../engine/turn'
+import { initialState, pickInterest } from '../../engine/turn'
 import type { Decision, Offer, OpponentState, Scenario, TurnRecord } from '../../engine/types'
 import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer } from '../../engine/utility'
 import { ApiError, playTurn } from '../api'
@@ -461,9 +461,8 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
   const decision = d ? (d.kind === 'hold' ? HOLD_RU(sc)[d.reason ?? 'no_offer'] : DECISION_RU(sc)[d.kind]) : null
   // «не расскажет»: о чём спросили — и сколько доверия для этого нужно
   let closed = ''
-  if (d?.kind === 'hold' && d.reason === 'not_ready_to_reveal') {
-    const asked = new Set(last?.analysis.asksAbout ?? [])
-    const about = hidden.filter((i) => !asked.size || !i.issue || asked.has(i.issue)).sort((a, b) => a.trustToReveal - b.trustToReveal)[0]
+  if (d?.kind === 'hold' && d.reason === 'not_ready_to_reveal' && last) {
+    const about = pickInterest(sc, state, last.analysis).queue[0]
     closed = about
       ? `Об этом ${g(sc, 'он', 'она')} расскажет при доверии от ${about.trustToReveal}, сейчас ${state.trust}.`
       : `Об этом ${g(sc, 'он', 'она')} уже всё ${g(sc, 'сказал', 'сказала')} — спросите о другом.`
