@@ -8,4 +8,4 @@ export function getScenario(id: string): Scenario | undefined {
   return SCENARIOS.find((s) => s.id === id)
 }
 
-export { checkScenario, type ScenarioCheck } from './analyze'
+export { auditScenario, type ScenarioAudit } from './analyze'

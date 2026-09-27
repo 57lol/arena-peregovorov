@@ -2,7 +2,7 @@
 // Печатает зону соглашения, границу Парето и сравнение «всё посередине» против лучшего размена.
 // Код выхода 1, если хоть в одном сценарии есть проблемы.
 
-import { SCENARIOS, checkScenario } from '../src/content/scenarios'
+import { SCENARIOS, auditScenario } from '../src/content/scenarios'
 import type { Scenario } from '../src/engine/types'
 import type { FullOffer } from '../src/engine/utility'
 
@@ -10,7 +10,7 @@ const describe = (sc: Scenario, o: FullOffer) => sc.issues.map((i) => `${i.title
 
 let failed = false
 for (const sc of SCENARIOS) {
-  const c = checkScenario(sc)
+  const c = auditScenario(sc)
   const P = sc.player.profile
   const O = sc.opponent.profile
   console.log(`\n== ${sc.title} (${sc.id}) ==`)

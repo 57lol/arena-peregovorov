@@ -14,7 +14,7 @@ export interface IssueCheck {
   opponentBest: number
 }
 
-export interface ScenarioCheck {
+export interface ScenarioAudit {
   id: string
   deals: number
   zopa: number               // сделок, где обоим лучше, чем их BATNA
@@ -44,7 +44,7 @@ function middles(sc: Scenario): FullOffer[] {
   return acc
 }
 
-export function checkScenario(sc: Scenario, minGain = 1.2): ScenarioCheck {
+export function auditScenario(sc: Scenario, minGain = 1.2): ScenarioAudit {
   const problems: string[] = []
   const P = sc.player.profile
   const O = sc.opponent.profile
@@ -133,7 +133,7 @@ export function checkScenario(sc: Scenario, minGain = 1.2): ScenarioCheck {
   }
 }
 
-function empty(sc: Scenario, problems: string[]): ScenarioCheck {
+function empty(sc: Scenario, problems: string[]): ScenarioAudit {
   const p: Point = { offer: {}, player: 0, opponent: 0 }
   return {
     id: sc.id, deals: 0, zopa: 0, zopaShare: 0, maxJoint: 0, best: p, middle: p, logrollGain: 0,

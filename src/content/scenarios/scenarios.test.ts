@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { SCENARIOS, checkScenario } from './index'
+import { SCENARIOS, auditScenario } from './index'
 import { openingAnchor } from '../../engine/policy'
 
 describe('библиотека сценариев', () => {
   for (const sc of SCENARIOS) {
     it(`${sc.id}: есть зона соглашения, размен лучше компромисса посередине`, () => {
-      const c = checkScenario(sc)
+      const c = auditScenario(sc)
       expect(c.problems).toEqual([])
       expect(c.zopa).toBeGreaterThan(0)
       expect(c.logrollGain).toBeGreaterThanOrEqual(1.2)
