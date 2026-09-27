@@ -44,14 +44,17 @@ export function moveDeltas(
   past: MoveAnalysis[],
 ): Delta[] {
   const deltas: Delta[] = []
-  const recent = new Set(past.slice(-2).flatMap((a) => a.behaviors.map((b) => b.id)))
+  // Повтор = тот же приём на прошлом ходу. Вопрос о новом пункте повтором не считается.
+  const recent = new Set(past.slice(-1).flatMap((a) => a.behaviors.map((b) => b.id)))
+  const askedBefore = new Set(past.flatMap((a) => a.asksAbout ?? []))
+  const asksNew = (analysis.asksAbout ?? []).some((id) => !askedBefore.has(id))
   const seen = new Set<string>()
   for (const hit of analysis.behaviors) {
     const rule = dict[hit.id]
     if (!rule || seen.has(hit.id)) continue
     seen.add(hit.id)
     // Повтор одного и того же приёма подряд работает вдвое слабее.
-    const k = recent.has(hit.id) ? 0.5 : 1
+    const k = recent.has(hit.id) && !(rule.asksInterest && asksNew) ? 0.5 : 1
     const why = `${rule.label}${hit.quote ? `: «${hit.quote}»` : ''}${k < 1 ? ' (повтор, слабее)' : ''}`
     if (rule.trust) deltas.push({ field: 'trust', by: Math.trunc(rule.trust * k), because: why })
     if (rule.tension) deltas.push({ field: 'tension', by: Math.trunc(rule.tension * k), because: why })
@@ -100,7 +103,9 @@ function asksInterest(analysis: MoveAnalysis, dict: BehaviorDict): boolean {
 }
 
 function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveAnalysis) {
-  const asked = new Set(analysis.asksAbout ?? [])
+  // Спросили почти обо всём сразу — это общий вопрос «что для вас важно», а не про конкретный пункт.
+  const list = analysis.asksAbout ?? []
+  const asked = new Set(list.length * 2 > sc.issues.length ? [] : list)
   const pool = sc.opponent.profile.interests.filter((i) => !state.revealed.includes(i.id))
   // Сначала про то, о чём спросили; если спросили в общем — про самое главное из доступного.
   const about = asked.size ? pool.filter((i) => !i.issue || asked.has(i.issue)) : pool

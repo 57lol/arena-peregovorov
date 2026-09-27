@@ -2,6 +2,7 @@
 // потом — подбор из библиотеки.
 
 import { z } from 'zod'
+import { auditScenario } from '../content/scenarios'
 import { checkScenario } from '../engine/validate'
 import type { Difficulty, Scenario, Tone } from '../engine/types'
 import { hashOf } from './cache'
@@ -154,8 +155,10 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
         const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
         const sc = toScenario(raw, req)
         const check = checkScenario(sc)
-        if (check.ok) return { scenario: check.scenario, source: 'llm', attempts, problems: [] }
-        problems = check.problems
+        // Вторая проверка — аудит методиста из content: размен ≥ ×1.1, ловушка, стартовый якорь.
+        const audit = check.problems.length ? [] : auditScenario(check.scenario, 1.1).problems.filter((p) => !p.includes('compatible'))
+        problems = [...check.problems, ...audit]
+        if (!problems.length) return { scenario: check.scenario, source: 'llm', attempts, problems: [] }
       } catch (e) {
         problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 200)}`]
       }

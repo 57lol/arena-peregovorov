@@ -8,7 +8,7 @@ import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const PROMPT_VERSION = 'a3'
+export const PROMPT_VERSION = 'a4'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -73,7 +73,7 @@ ${issues}
 ${behaviors}
 
 Правила разметки:
-1. behaviors — только индикаторы, которые явно есть в реплике. quote — точная цитата из реплики (дословный фрагмент, 3–15 слов). Если ничего нет — пустой массив.
+1. behaviors — только индикаторы, которые явно есть в реплике. quote — точная короткая цитата из реплики (дословный фрагмент, 3–12 слов, только то, где проявился индикатор). Если ничего нет — пустой массив.
 2. offer — только то, что игрок предлагает сейчас сам (не то, что он отвергает, и не пересказ слов оппонента). option — номер ближайшего варианта. Пункты, о которых игрок не говорит, не включай.
 3. accepts = true, только если игрок явно соглашается на последнее предложение оппонента целиком («договорились», «согласен», «по рукам»). Вопрос или условное согласие — false.
 4. walksAway = true, только если игрок явно прекращает переговоры.
@@ -112,7 +112,8 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   const out: MoveAnalysis = {
     behaviors: r.behaviors
       .filter((b) => dict[b.id] && quoteFits(b.quote, text))
-      .filter((b, n, a) => a.findIndex((x) => x.id === b.id) === n),
+      .filter((b, n, a) => a.findIndex((x) => x.id === b.id) === n)
+      .map((b) => ({ id: b.id, quote: b.quote.length > 90 ? b.quote.slice(0, 88).replace(/\s+\S*$/, '') + '…' : b.quote })),
   }
   const offer: Offer = {}
   for (const o of r.offer) {

@@ -89,6 +89,20 @@ export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: 
   return true
 }
 
+/** Эмоцию модели берём, только если она не спорит с состоянием: спрайт не должен злиться при доверии 80. */
+function pickEmotion(e: string, d: Decision, s: OpponentState, engine: Emotion): Emotion {
+  if (d.kind === 'accept' || d.kind === 'walk_away' || d.kind === 'warn_tone') return engine
+  const ok: Record<Emotion, boolean> = {
+    neutral: true,
+    thinking: true,
+    pleased: s.trust >= 50 && s.tension < 50,
+    happy: false,
+    annoyed: s.tension >= 40,
+    angry: s.tension >= 70,
+  }
+  return EMOTIONS.includes(e as Emotion) && ok[e as Emotion] ? (e as Emotion) : engine
+}
+
 export interface VoiceResult {
   line: string
   emotion: Emotion
@@ -135,9 +149,7 @@ ${instruction(sc, d, state)}
         const line = r.line.trim().replace(/^[«"]|[»"]$/g, '')
         if (lineFits(sc, d, state, line, dict)) {
           // Эмоцию для ключевых решений задаёт движок, чтобы спрайт не улыбался при уходе.
-          const forced = d.kind === 'accept' || d.kind === 'walk_away' || d.kind === 'warn_tone'
-          const emotion = !forced && EMOTIONS.includes(r.emotion as Emotion) ? (r.emotion as Emotion) : fallback.emotion
-          return { line, emotion }
+          return { line, emotion: pickEmotion(r.emotion, d, state, fallback.emotion) }
         }
       }
       throw new Error('Реплика не прошла проверку')
