@@ -79,8 +79,16 @@ export function parseOffer(sc: Scenario, text: string): Offer {
   const offer: Offer = {}
   const lower = text.toLowerCase()
 
+  // Пересказ чужих слов («Правильно понимаю: у вас лизинг каждый месяц?») — не предложение игрока.
+  const echo: [number, number][] = []
+  for (const m of text.matchAll(/[^.!?\n]*\?/gu))
+    if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)/iu.test(m[0]))
+      echo.push([m.index!, m.index! + m[0].length])
+  const echoed = (at: number) => echo.some(([a, b]) => at >= a && at < b)
+
   // 1. Числа с единицами → пункт той же размерности (если таких несколько — по ближайшему ключевому слову).
   for (const q of quantities(text)) {
+    if (echoed(q.at)) continue
     let cands = infos.filter((i) => i.dim === q.dim)
     if (!cands.length && q.dim === 'plain') {
       // «1,1» без единиц: подходит к пункту, если попадает в его диапазон (в т.ч. в тысячах/миллионах)
