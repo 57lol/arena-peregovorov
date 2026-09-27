@@ -65,13 +65,18 @@ const SCHEMA = {
       opponentBrief: str, opponentBatnaText: str, opening: str,
       issues: {
         type: 'array',
+        // без границ YandexGPT иногда уходит в бесконечный список пунктов и обрывается посреди JSON
+        minItems: 4,
+        maxItems: 5,
         items: {
           type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options'],
-          properties: { id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) }, options: { type: 'array', items: str } },
+          properties: { id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) }, options: { type: 'array', minItems: 3, maxItems: 5, items: str } },
         },
       },
       interests: {
         type: 'array',
+        minItems: 2,
+        maxItems: 5,
         items: { type: 'object', additionalProperties: false, required: ['issue', 'text'], properties: { issue: str, text: str } },
       },
     },
