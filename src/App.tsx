@@ -20,10 +20,32 @@ export interface Case {
   fromLibrary: boolean
 }
 
+// Партия живёт в sessionStorage вкладки: случайная перезагрузка страницы не стирает встречу.
+const SESSION = 'peregovorka.session.v1'
+interface Saved {
+  screen: Screen
+  current: Case | null
+  history: TurnRecord[]
+  recorded?: string
+}
+function loadSession(): Saved | null {
+  try {
+    if (/[?#&]case=/.test(location.search + location.hash)) return null // ссылка на дело важнее
+    const s = JSON.parse(sessionStorage.getItem(SESSION) ?? 'null') as Saved | null
+    return s?.current ? s : null
+  } catch {
+    return null
+  }
+}
+const saved = loadSession()
+/** Подпись партии: разбор одной и той же партии записываем в прогресс один раз. */
+const runKey = (c: Case | null, h: TurnRecord[]) => (c ? `${c.scenario.id}:${h.map((x) => x.playerText).join('|')}` : '')
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('title')
-  const [current, setCurrent] = useState<Case | null>(null)
-  const [history, setHistory] = useState<TurnRecord[]>([])
+  const [screen, setScreen] = useState<Screen>(saved?.screen ?? 'title')
+  const [current, setCurrent] = useState<Case | null>(saved?.current ?? null)
+  const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
+  const [recorded, setRecorded] = useState(saved?.recorded ?? '')
   const [progress, setProgress] = useState<Progress>(loadProgress)
   const [invited, setInvited] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -31,6 +53,14 @@ export default function App() {
   // ход, с которого переигрываем: в поле ввода подставится прошлая реплика
   const [redo, setRedo] = useState<string>('')
   const [playKey, setPlayKey] = useState(0)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded } satisfies Saved))
+    } catch {
+      // нет хранилища — после перезагрузки начнём с титула
+    }
+  }, [screen, current, history, recorded])
 
   useEffect(() => {
     health().then(setServer)
@@ -136,7 +166,11 @@ export default function App() {
     <Debrief
       game={current}
       history={history}
-      onRecorded={setProgress}
+      recorded={recorded === runKey(current, history)}
+      onRecorded={(p) => {
+        setProgress(p)
+        setRecorded(runKey(current, history))
+      }}
       onReplayFrom={rewindTo}
       onAgain={start}
       onOther={() => go('setup')}

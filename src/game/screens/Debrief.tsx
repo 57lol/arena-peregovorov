@@ -15,6 +15,8 @@ import { Stars } from './Stars'
 interface Props {
   game: Case
   history: TurnRecord[]
+  /** эту партию уже записали в прогресс (например, разбор открыт после перезагрузки) */
+  recorded: boolean
   onRecorded: (p: Progress) => void
   onReplayFrom: (turn: number) => void
   onAgain: () => void
@@ -22,7 +24,7 @@ interface Props {
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, onRecorded, onReplayFrom, onAgain, onOther }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onOther }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
@@ -30,14 +32,15 @@ export function Debrief({ game, history, onRecorded, onReplayFrom, onAgain, onOt
   const [improved, setImproved] = useState<number | null>(null)
 
   useEffect(() => {
-    if (recorded.current || !history.length) return
+    if (recorded.current || alreadyRecorded || !history.length) return
     recorded.current = true
     const prev = JSON.parse(localStorageSafe() ?? '{}')?.cases?.[sc.id]
     const p = recordRun(sc.id, sc.title, report)
     const now = countStars(starsOf(report))
     if (prev && now > (prev.bestStars ?? 0)) setImproved(now)
     onRecorded(p)
-  }, [history.length, onRecorded, report, sc.id, sc.title])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- записываем один раз при открытии разбора
+  }, [history.length, report, sc.id, sc.title])
 
   const stars = starsOf(report)
   const last = history[history.length - 1]
