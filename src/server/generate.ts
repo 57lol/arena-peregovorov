@@ -36,6 +36,8 @@ const Raw = z.object({
   playerBrief: z.string(),
   playerBatnaText: z.string(),
   opponentName: z.string(),
+  // пол — чтобы портрет и «встал/встала» совпадали с именем; в старых ответах его нет
+  opponentGender: z.enum(['m', 'f']).optional(),
   opponentRole: z.string(),
   opponentCompany: z.string(),
   opponentSpeech: z.string(),
@@ -61,7 +63,7 @@ const SCHEMA = {
     required: Object.keys(Raw.shape),
     properties: {
       title: str, playerRole: str, playerBrief: str, playerBatnaText: str,
-      opponentName: str, opponentRole: str, opponentCompany: str, opponentSpeech: str, opponentBio: str,
+      opponentName: str, opponentGender: { type: 'string', enum: ['m', 'f'] }, opponentRole: str, opponentCompany: str, opponentSpeech: str, opponentBio: str,
       opponentBrief: str, opponentBatnaText: str, opening: str,
       issues: {
         type: 'array',
@@ -96,11 +98,14 @@ const SYSTEM = `Ты — методист, который придумывает
     Интерес оппонента по shared должен объяснять, почему ему выгоден тот же вариант, что и игроку.
 - options — 3–5 конкретных вариантов («30 дней», «1,2 млн ₽», «раз в неделю»), СТРОГО по порядку: первый — лучший для игрока, последний — худший для игрока. Для shared первый — тот, который на самом деле нужен обоим.
 - id пунктов — латиницей, коротко (price, payment, term...).
-- opponentName — только имя и фамилия. Должность — в opponentRole, компания — в opponentCompany.
+- opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
+- opponentGender — m или f, по имени.
 - playerBrief — к игроку на «вы»; что знает игрок: ситуация и что важно ему (про mine — прямо, про shared — пусть думает, что оппонент против).
 - opponentBrief — как оппонент выглядит снаружи.
 - playerBatnaText, opponentBatnaText — запасной вариант каждой стороны словами, конкретно.
 - interests — 2–4 скрытых интереса оппонента: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs и про shared).
+  text — от первого лица, так, как он сам признался бы собеседнику: «склад у меня старый, каждый ремонт съедает прибыль», «мне важнее деньги сразу — плачу за кредит».
+  Без его имени, без «он/она/ему», без канцелярита («минимизировать риски», «обеспечить стабильный доход»).
 - opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по split и theirs (максимум в свою пользу).
 - opponentSpeech — манера речи в двух-трёх фразах; opponentBio — пара живых деталей о человеке.`
 
@@ -145,6 +150,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
   const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
   const oMax = maxScore({ points: op, batna: 0, batnaText: '', interests: [] }, issues)
   const d = req.difficulty as Difficulty
+  const name = raw.opponentName.split(',')[0].trim()
 
   const sc: Scenario = {
     id: `gen-${hashOf({ raw, req }).slice(0, 10)}`,
@@ -160,8 +166,10 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     },
     opponent: {
       character: {
-        name: raw.opponentName, role: raw.opponentRole, company: raw.opponentCompany,
-        tone: req.opponentTone as Tone, portrait: `tone-${req.opponentTone}`, speech: raw.opponentSpeech, bio: raw.opponentBio,
+        name, role: raw.opponentRole, company: raw.opponentCompany,
+        tone: req.opponentTone as Tone,
+        portrait: raw.opponentGender === 'f' ? 'olga' : raw.opponentGender === 'm' ? 'rinat' : `tone-${req.opponentTone}`,
+        speech: raw.opponentSpeech, bio: raw.opponentBio,
       },
       brief: raw.opponentBrief,
       profile: {
@@ -170,7 +178,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
         batnaText: raw.opponentBatnaText,
         interests: raw.interests.map((it, n) => {
           const k = raw.issues.findIndex((i) => i.id === it.issue)
-          return { id: `i${n + 1}`, text: it.text, issue: k >= 0 ? ids[k] : undefined, trustToReveal: k >= 0 ? TRUST[raw.issues[k].role] : 70 }
+          return { id: `i${n + 1}`, text: it.text.trim().replace(/[.!\s]+$/u, ''), issue: k >= 0 ? ids[k] : undefined, trustToReveal: k >= 0 ? TRUST[raw.issues[k].role] : 70 }
         }),
       },
     },
@@ -186,6 +194,19 @@ export function scenarioProblems(sc: Scenario): { problems: string[]; scenario: 
   return { problems: auditScenario(check.scenario, 1.1).problems, scenario: check.scenario }
 }
 
+/**
+ * Замечания к тексту, из-за которых дело не ломается, но звучит плохо: интерес от третьего лица
+ * («Игорь хочет…») нельзя вложить в уста самому Игорю. Просим переписать, но если попытки кончились — берём как есть.
+ */
+export function storyProblems(raw: z.infer<typeof Raw>): string[] {
+  const first = raw.opponentName.trim().split(/[\s,]+/)[0] ?? ''
+  const stem = first.length >= 5 ? first.slice(0, first.length - 1).toLowerCase() : ''
+  const third = /^(он|она|ему|ей|его|её|для него|для неё|хочет|стремится|боится|опасается|заинтересован\p{L}*)(?![\p{L}])/iu
+  return raw.interests
+    .filter((it) => third.test(it.text.trim()) || (stem && it.text.toLowerCase().includes(stem)))
+    .map((it) => `интерес «${it.text.slice(0, 60)}…» написан от третьего лица — перепиши от первого, как сам ${first || 'оппонент'} сказал бы собеседнику`)
+}
+
 export interface GenerateResult {
   scenario: Scenario
   source: 'llm' | 'library'
@@ -196,17 +217,21 @@ export interface GenerateResult {
 export async function generateScenario(llm: LLM, req: GenerateRequest, library: Scenario[]): Promise<GenerateResult> {
   let problems: string[] = []
   let attempts = 0
+  let passable: Scenario | undefined // прошло проверки движка, но с замечаниями к тексту
   while (llm.name !== 'offline' && attempts < 3) {
     attempts++
     try {
       const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
       const r = scenarioProblems(toScenario(raw, req))
-      problems = r.problems
+      const soft = r.problems.length ? [] : storyProblems(raw)
+      if (!r.problems.length) passable = r.scenario
+      problems = [...r.problems, ...soft]
       if (!problems.length) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
     } catch (e) {
       problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
     }
   }
+  if (passable) return { scenario: passable, source: 'llm', attempts, problems: [] }
   return { scenario: pickFromLibrary(req, library), source: 'library', attempts, problems }
 }
 

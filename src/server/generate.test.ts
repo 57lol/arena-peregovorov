@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GenerateRequest, scenarioProblems, toScenario } from './generate'
+import { GenerateRequest, scenarioProblems, storyProblems, toScenario } from './generate'
 
 const raw = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -21,5 +21,19 @@ describe('генерация сценария', () => {
       const sc = toScenario(raw, GenerateRequest.parse({ difficulty }))
       expect(scenarioProblems(sc).problems).toEqual([])
     }
+  })
+
+  it('портрет по полу, имя без должности, интерес без точки в конце', () => {
+    const sc = toScenario({ ...raw, opponentName: 'Алсу Галиева, владелица склада', opponentGender: 'f', interests: [{ issue: 'deposit', text: 'кредит под склад.' }, raw.interests[1]] }, GenerateRequest.parse({}))
+    expect(sc.opponent.character.name).toBe('Алсу Галиева')
+    expect(sc.opponent.character.portrait).toBe('olga')
+    expect(sc.opponent.profile.interests[0].text).toBe('кредит под склад')
+  })
+
+  it('интерес от третьего лица — замечание, от первого — нет', () => {
+    const third = { ...raw, opponentName: 'Игорь Петров', interests: [{ issue: 'deposit', text: 'Игорь хочет залог' }, { issue: 'ramp', text: 'Для него важны пандусы' }] }
+    expect(storyProblems(third)).toHaveLength(2)
+    const first = { ...raw, opponentName: 'Игорь Петров', interests: [{ issue: 'deposit', text: 'мне нужен залог: кредит под склад' }, { issue: 'ramp', text: 'пандусы я и сам давно хочу поменять' }] }
+    expect(storyProblems(first)).toEqual([])
   })
 })
