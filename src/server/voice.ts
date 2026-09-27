@@ -3,13 +3,14 @@
 
 import { z } from 'zod'
 import { analyzeOffline, parseOffer, templateLine } from '../engine/offline'
-import type { Decision, Emotion, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
+import { initialState } from '../engine/turn'
+import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
 import type { BehaviorDict } from '../engine/dictionary'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const VOICE_VERSION = 'v3'
+export const VOICE_VERSION = 'v4'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({ line: z.string().min(2).max(600), emotion: z.string() })
@@ -37,6 +38,7 @@ ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.
 - Живая устная речь делового человека. 1–3 коротких предложения, до 35 слов.
 - Никакого канцелярита: не «не представляется возможным», а «не могу»; не «осуществить поставку», а «привезти»; не «данный вопрос», а «это».
 - Не извиняйся, не благодари за вопрос, не пересказывай всё сказанное. Без смайликов.
+- Не повторяй свои прошлые фразы и обороты — каждый раз говори по-новому.
 - Деловой тон обязателен: без мата и оскорблений, даже если игрок грубит.
 - Ты не знаешь про очки, таблицы и движок. Никогда не упоминай их.
 
@@ -50,24 +52,30 @@ ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.
 Ответ — JSON {"line": "...", "emotion": "${EMOTIONS.join('|')}"}.`
 }
 
-function instruction(sc: Scenario, d: Decision, state: OpponentState): string {
+function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offer): string {
   const offer = (o: Record<string, number | undefined>) => formatOffer(sc, o)
   switch (d.kind) {
     case 'accept':
       return `Решение: СОГЛАСИТЬСЯ. Подтверди сделку на условиях: ${offer(state.deal ?? state.tableOffer)}.`
     case 'counter':
-      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Назови ровно эти условия: ${offer(d.offer)}.${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ''} Можно коротко обосновать, не раскрывая внутренних причин.`
+    {
+      const changed = sc.issues.filter((i) => d.offer[i.id] !== prev[i.id]).map((i) => i.id)
+      const moved = changed.length && changed.length < sc.issues.length
+        ? ` По сравнению с твоим прошлым предложением изменилось: ${offer(Object.fromEntries(changed.map((id) => [id, d.offer[id]])))}. Скажи про изменения и главное, остальное — «как было». Не зачитывай весь список.`
+        : ' Назови условия по-человечески, не списком через тире.'
+      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Полностью оно такое: ${offer(d.offer)}.${moved}${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ''} Можно коротко обосновать, не раскрывая внутренних причин.`
+    }
     case 'reveal': {
       const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
       return `Решение: ЧЕСТНО РАССКАЗАТЬ, что тебе на самом деле важно: «${it?.text}».${d.offer ? ` И предложить: ${offer(d.offer)}.` : ' Своё предложение не меняй.'}`
     }
     case 'hold':
       switch (d.reason) {
-        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Предложение не меняй.'
+        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Условия заново не перечисляй.'
         case 'no_movement': return `Решение: ДЕРЖАТЬ ПОЗИЦИЮ. Двигаться не готов. Твоё предложение прежнее: ${offer(state.lastOpponentOffer ?? {})}.`
         case 'player_left': return 'Решение: собеседник уходит. Коротко попрощайся, без сделки.'
         case 'timeout': return 'Решение: время вышло, сделки нет. Коротко закончи встречу.'
-        default: return 'Решение: ЖДАТЬ КОНКРЕТИКИ. Игрок не сделал предложения — попроси назвать условия. Своё предложение не меняй.'
+        default: return 'Решение: ЖДАТЬ КОНКРЕТИКИ. Игрок не сделал предложения — попроси назвать его условия. Свои условия заново не перечисляй.'
       }
     case 'warn_tone':
       return 'Решение: ОДЁРНУТЬ за тон. Твёрдо, без ответной грубости: ещё раз — и разговор окончен. Про условия ничего не говори.'
@@ -127,7 +135,7 @@ export async function voice(
     .join('\n')
   const user = `${recent ? `Разговор до этого:\n${recent}\n\n` : `Ты начал встречу словами: «${sc.opening}»\n\n`}Игрок сейчас сказал: «${playerText}»
 
-${instruction(sc, d, state)}
+${instruction(sc, d, state, history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {})}
 Настроение: доверие к игроку ${Math.round(state.trust)}/100, раздражение ${Math.round(state.tension)}/100.`
   const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys: system(sc), user }
   try {

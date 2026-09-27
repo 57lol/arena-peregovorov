@@ -1,5 +1,6 @@
 // Итог и разбор. Всё считается из сценария и истории — никакой оценки «на глаз».
 
+import { axisScores, behaviorProfile, type Axis, type ProfileRow } from './behaviors'
 import type { BehaviorDict } from './dictionary'
 import type { Decision, IssueId, Outcome, Scenario, TurnRecord } from './types'
 import { allDeals, bestOption, formatOffer, isComplete, issueWeight, maxScore, paretoFrontier, type FullOffer, type Point } from './utility'
@@ -53,6 +54,8 @@ export interface Report {
   issues: IssueLine[]
   traps: TrapCheck[]
   profile: { counts: Record<string, number>; good: number; bad: number; neutral: number; labels: Record<string, string> }
+  benchmark: ProfileRow[]  // профиль против эталона сильных переговорщиков (Rackham & Carlisle)
+  axes: Record<Axis, number>
   keyMoments: KeyMoment[]
   explanation: string[]
 }
@@ -184,6 +187,8 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
     issues,
     traps,
     profile: { counts, good, bad, neutral, labels },
+    benchmark: behaviorProfile(history.map((h) => h.analysis)),
+    axes: axisScores(history.map((h) => h.analysis)),
     keyMoments,
     explanation: [],
   }

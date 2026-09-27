@@ -1,10 +1,10 @@
 import type { BehaviorDict } from '../dictionary'
 import { stateAfter, step } from '../turn'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../types'
-import { analyzeOffline } from './analyze'
+import { analyzeOffline, withContext } from './analyze'
 import { templateLine } from './lines'
 
-export { analyzeOffline, isRude } from './analyze'
+export { analyzeOffline, isRude, withContext } from './analyze'
 export { parseOffer, mentionedIssues } from './parseOffer'
 export { templateLine, emotionFor } from './lines'
 export { quantities } from './numbers'
@@ -23,8 +23,8 @@ export function offlineTurn(
   dict: BehaviorDict,
   formalOffer?: Offer,
 ): TurnRecord {
-  const analysis = withFormalOffer(analyzeOffline(sc, playerText, dict), formalOffer)
   const before = stateAfter(sc, history, dict)
+  const analysis = withContext(withFormalOffer(analyzeOffline(sc, playerText, dict), formalOffer), before, history, dict)
   const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
   const { line, emotion } = templateLine(sc, r.decision, r.state)
   return {

@@ -47,7 +47,7 @@ describe('движок', () => {
       for (const p of deals) {
         // Много тёплых ходов подряд, чтобы доверие было максимальным, и одно и то же предложение до конца.
         const moves = Array.from({ length: s.turnLimit + 1 }, () =>
-          move(p.offer, { behaviors: [{ id: 'paraphrase', quote: '' }, { id: 'package', quote: '' }] }),
+          move(p.offer, { behaviors: [{ id: 'check', quote: '' }, { id: 'package', quote: '' }] }),
         )
         const h = playAnalyses(s, moves, testDict)
         const last = h[h.length - 1].stateAfter
@@ -110,7 +110,7 @@ describe('движок', () => {
   })
 
   it('каждая дельта объяснена', () => {
-    const h = playAnalyses(sc, [move(middle, { behaviors: [{ id: 'pressure', quote: 'берите или уходите' }] })], testDict)
+    const h = playAnalyses(sc, [move(middle, { behaviors: [{ id: 'ultimatum', quote: 'берите или уходите' }] })], testDict)
     expect(h[0].deltas.length).toBeGreaterThan(0)
     for (const d of h[0].deltas) expect(d.because).toBeTruthy()
   })

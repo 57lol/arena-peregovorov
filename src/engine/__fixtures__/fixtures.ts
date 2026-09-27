@@ -1,22 +1,8 @@
-// Временные словарь и сценарий для тестов движка. Боевые — в behaviors.ts и src/content.
-import { toDict, type BehaviorRule } from '../dictionary'
+// Тестовый сценарий для движка. Словарь — боевой, из behaviors.ts.
+import { BEHAVIOR_DICT } from '../behaviors'
 import type { Scenario } from '../types'
 
-export const testRules: BehaviorRule[] = [
-  { id: 'ask_interest', label: 'Спросил о причинах', trust: 4, tension: -2, kind: 'good', asksInterest: true,
-    markers: [/почему|зачем|что для вас (важн|главн)|что вам важн|расскажите|в ч[её]м сложность/i] },
-  { id: 'paraphrase', label: 'Пересказал, чтобы проверить', trust: 5, tension: -2, kind: 'good',
-    markers: [/правильно (ли )?(я )?понимаю|то есть вы|если я верно понял/i] },
-  { id: 'package', label: 'Пакетное предложение', trust: 3, tension: -1, kind: 'good',
-    markers: [/в обмен на|взамен|если вы .{0,40}(то )?мы|давайте так/i] },
-  { id: 'split', label: 'Делит пополам', trust: 0, tension: 1, kind: 'neutral',
-    markers: [/посередине|пополам|середин/i] },
-  { id: 'pressure', label: 'Давит ультиматумом', trust: -6, tension: 12, kind: 'bad',
-    markers: [/последнее предложение|берите или|у вас нет выбора|иначе/i] },
-  { id: 'dismiss', label: 'Обесценивает', trust: -8, tension: 12, kind: 'bad',
-    markers: [/несерь[её]зно|смешно|бред|ерунда|чушь/i] },
-]
-export const testDict = toDict(testRules)
+export const testDict = BEHAVIOR_DICT
 
 // Поставка оборудования: игрок — покупатель.
 // price — делимый; delivery — важен игроку, дёшев поставщику; payment — важен поставщику, дёшев игроку;

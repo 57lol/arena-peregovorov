@@ -1,12 +1,11 @@
 // Откуда сервер берёт словарь индикаторов и библиотеку сценариев.
 
 import { SCENARIOS } from '../content/scenarios'
-import { testDict } from '../engine/__fixtures__/fixtures'
+import { BEHAVIOR_DICT } from '../engine/behaviors'
 import type { BehaviorDict } from '../engine/dictionary'
 import type { Scenario } from '../engine/types'
 
-// Пока нет боевого behaviors.ts — временный словарь из тестов движка.
-export const dict: BehaviorDict = testDict
+export const dict: BehaviorDict = BEHAVIOR_DICT
 export const scenarios: Scenario[] = SCENARIOS
 
 export function findScenario(id: string): Scenario | undefined {

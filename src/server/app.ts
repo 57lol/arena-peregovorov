@@ -6,7 +6,7 @@ import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { withFormalOffer } from '../engine/offline'
+import { withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { dict, findScenario, scenarios } from './library'
@@ -94,7 +94,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
 
     const a = await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
-    const analysis = withFormalOffer(a.analysis, body.offer)
+    const analysis = withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
     const v = await voice(llm, sc, dict, history, body.playerText, r.decision, r.state)
     const record: TurnRecord = {
