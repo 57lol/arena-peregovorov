@@ -317,7 +317,7 @@ def build_olga(emotion, frame):
     part = cx + 6
     left = np.clip((part - xs) / (part - (cx - rx)), 0, 1.3)
     right = np.clip((xs - part) / (cx + rx - part), 0, 1.3)
-    hairline = 24 + 11 * left ** 1.3 + 3 * right
+    hairline = 27 + 10 * left ** 1.2 + 3 * right
     front = ellipse_mask(cx, cy - 1, rx + 2.5, ry + 2)
     fringe = front & (ys < hairline)
     cur_l = front & (xs < cx - rx + 3.5) & (ys < 64)
@@ -371,7 +371,7 @@ def build_olga(emotion, frame):
         'annoyed': ['.......', 'MMMMMMM', '.rrrrr.', '.......'],
         'thinking':   ['....mm.', '.MMMMM.', '.rrRr..', '.......'],
         'happy':   ['m.....m', 'MtttttM', '.MoooM.', '..rrr..'],
-        'angry':   ['.mmmmm.', 'MtMtMtM', '.rrrrr.', '.......'],
+        'angry':   ['.......', 'MMMMMMM', 'M.rrr.M', '.......'],
     }
     talk = {
         'neutral': ['.mmmmm.', 'MoooooM', '.rrRrr.', '..rrr..'],
