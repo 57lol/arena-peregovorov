@@ -822,8 +822,18 @@ body {
   --label: var(--c-paper);
 }
 @media (max-width: 420px) {
+  /* часы, «Рентген» и «Уйти» должны влезть в 358 px без горизонтальной прокрутки */
   .g-hud-actions .px-btn {
-    padding-inline: calc(4 * var(--u));
+    padding-inline: calc(3 * var(--u));
+    margin-inline: 0;
+    gap: calc(3 * var(--u));
+  }
+  .g-hud-actions .g-leave {
+    padding-inline: calc(2 * var(--u));
+  }
+  /* «Точно уйти?» на пару секунд занимает место подписи рентгена */
+  .g-hud-actions:has(.g-leave.is-sure) .g-xray-btn-label {
+    display: none;
   }
   .g-hud-actions {
     gap: 0;

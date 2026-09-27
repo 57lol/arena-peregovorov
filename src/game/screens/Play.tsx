@@ -158,6 +158,8 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
               <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} />
               <div className="g-hud-actions">
                 <Button
+                  className="g-xray-btn"
+                  aria-label="Рентген"
                   variant={xray ? 'brass' : 'paper'}
                   icon="eye"
                   aria-pressed={xray}
@@ -168,7 +170,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                     if (!xray) setTimeout(() => sideRef.current?.scrollTo({ top: 0 }), 0)
                   }}
                 >
-                  Рентген
+                  <span className="g-xray-btn-label">Рентген</span>
                 </Button>
                 {!done && (
                   <Button variant="ghost" icon="leave" className={`g-leave${leaving ? ' is-sure' : ''}`} onClick={walk} aria-label="Встать и уйти">
