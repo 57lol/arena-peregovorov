@@ -85,7 +85,9 @@ export function emotionFor(d: Decision, state: OpponentState): Emotion {
 export function templateLine(sc: Scenario, d: Decision, state: OpponentState): { line: string; emotion: Emotion } {
   const k = kindOf(d, state)
   const tone = sc.opponent.character.tone
-  const pool = [...(T[k][tone] ?? []), ...T[k].any]
+  // Свои реплики персонажа (из сценария) важнее общих по тону.
+  const own = sc.opponent.character.lines?.[k as keyof NonNullable<typeof sc.opponent.character.lines>]
+  const pool = own?.length ? own : [...(T[k][tone] ?? []), ...T[k].any]
   let line = pool[state.turn % pool.length]
   const offer =
     d.kind === 'counter' ? d.offer

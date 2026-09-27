@@ -7,6 +7,7 @@ import { optionQuantity, quantities, type Dim } from './numbers'
 export const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
+const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз)/
 const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также'])
 
 interface IssueInfo {
@@ -21,13 +22,16 @@ const infoCache = new WeakMap<Scenario, IssueInfo[]>()
 function issueInfo(sc: Scenario): IssueInfo[] {
   const hit = infoCache.get(sc)
   if (hit) return hit
-  const out = sc.issues.map((issue) => {
+  // Слова из вариантов, которые встречаются только в этом пункте («квартира», «общежитие», «через»)
+  const optStems = sc.issues.map((i) => new Set(i.options.flatMap((o) => words(o)).map(stem)))
+  const out = sc.issues.map((issue, n) => {
     const values = issue.options.map(optionQuantity)
     const dims = values.filter((v) => v && v.dim !== 'plain').map((v) => v!.dim)
     const dim = dims[0] ?? (values.every((v) => v) ? 'plain' : undefined)
     // «без гарантии» = 0 в той же размерности, что и остальные варианты
     const fixed = values.map((v) => (v && v.dim === 'plain' && dim ? { value: v.value, dim } : v))
     const keys = new Set(words(issue.title).map(stem).filter((w) => !STOP.has(w)))
+    for (const w of optStems[n]) if (!optStems.some((o, m) => m !== n && o.has(w)) && !UNIT_WORDS.test(w)) keys.add(w)
     return { issue, keys, values: fixed, dim }
   })
   infoCache.set(sc, out)
@@ -131,18 +135,21 @@ export function parseOffer(sc: Scenario, text: string): Offer {
     if (n >= 0) offer[c.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
   }
 
-  // 2. Текстовые варианты («самовывоз», «удалёнка») — по словам, которые есть только у этого варианта.
+  // 2. Текстовые варианты («по факту отгрузки», «квартира», «ведёт запуск») — по словам, которые есть
+  //    только у этого варианта. Числовые варианты тут не трогаем, их уже разобрали выше.
+  const flat = lower.replace(/ё/g, 'е')
   for (const info of infos) {
-    if (info.values.every((v) => v)) continue
-    const optWords = info.issue.options.map((o) => new Set(words(o).map(stem)))
+    const optWords = info.issue.options.map((o) => new Set(words(o).map(stem).filter((w) => w.length >= 4)))
     let found = -1
     let foundAt = -1
-    info.issue.options.forEach((_, n) => {
+    info.issue.options.forEach((opt, n) => {
+      const q = optionQuantity(opt)
+      if (q && q.dim !== 'plain') return
       const own = [...optWords[n]].filter((w) => !optWords.some((s, m) => m !== n && s.has(w)) && !STOP.has(w))
-      for (const w of own) {
-        const at = lower.replace(/ё/g, 'е').search(new RegExp(`(?<!\\p{L})${w}`, 'u'))
-        if (at >= 0 && at > foundAt) { found = n; foundAt = at }
-      }
+      const hits = own.map((w) => flat.search(new RegExp(`(?<!\\p{L})${w}`, 'u'))).filter((at) => at >= 0)
+      if (!own.length || hits.length < Math.min(2, own.length)) return
+      const at = Math.max(...hits)
+      if (at > foundAt) { found = n; foundAt = at }
     })
     if (found >= 0 && offer[info.issue.id] === undefined) offer[info.issue.id] = found
   }
