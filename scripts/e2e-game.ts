@@ -129,9 +129,9 @@ async function playCase(page: Page, sc: Scenario, size: number) {
 
   for (let n = 0; n < sc.turnLimit + 2; n++) {
     if (await ended(page)) break
-    const lastCall = await page.locator('.g-slip.is-last').isVisible()
+    const lastCall = (await page.locator('.g-slip.is-last >> visible=true').count()) > 0
     const accept = page.getByRole('button', { name: 'Принять' })
-    const mineText = await page.locator('.g-slip-foot b').first().textContent().catch(() => null)
+    const mineText = await page.locator('.g-slip-foot b >> visible=true').first().textContent({ timeout: 500 }).catch(() => null)
     const mine = mineText ? Number(mineText) : -1
     if ((lastCall || n >= s.acceptFrom) && (await accept.isVisible()) && mine >= sc.player.profile.batna) {
       console.log(`  ход ${n + 1}: принимаю (${mine})`)
@@ -164,8 +164,9 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
   await page.waitForSelector('.g-ledger')
   await page.waitForTimeout(700)
-  await shot(page, `08-report-${tag}`, true)
   await shot(page, `08-report-top-${tag}`)
+  await page.getByRole('button', { name: /Перевернуть/ }).click()
+  await shot(page, `08-report-${tag}`, true)
 }
 
 async function generateCase(page: Page, size: number) {

@@ -10,10 +10,10 @@ interface Props {
   name: string
 }
 
-const PAD_L = 34
-const PAD_B = 30
-const PAD_T = 14
-const PAD_R = 14
+const PAD_L = 28
+const PAD_B = 26
+const PAD_T = 8
+const PAD_R = 6
 
 /**
  * Карта всех возможных сделок: по горизонтали ваши очки, по вертикали — собеседника.
@@ -130,11 +130,11 @@ export function DealMap({ sc, report, history, name }: Props) {
             ))}
             {better && <Marker x={X(better.x)} y={Y(better.y)} k={k} color="var(--c-leaf-hi)" hollow />}
             {deal && <Marker x={X(deal.x)} y={Y(deal.y)} k={k} color="var(--c-coral)" />}
-            <text x={X(batna.player) + 6} y={Y(maxO + 1) + 12} className="g-map-note">
+            <text x={X(batna.player) + 6} y={Y(0) - 6} className="g-map-note">
               ваш запасной
             </text>
-            <text x={X(maxP + 1)} y={Y(batna.opponent) - 6} className="g-map-note" textAnchor="end">
-              запасной: {name}
+            <text x={X(0) + 4} y={Y(batna.opponent) - 6} className="g-map-note">
+              {name}: запасной
             </text>
           </svg>
         )}

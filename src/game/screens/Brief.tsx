@@ -1,6 +1,6 @@
 import type { Case } from '../../App'
 import { maxScore } from '../../engine/utility'
-import { DIFFICULTY_RU, TONE_RU, firstName, plural, portraitFor } from '../cast'
+import { DIFFICULTY_RU, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait } from '../ui'
 import { ShareButton } from './ShareButton'
 
@@ -22,6 +22,9 @@ export function Brief({ game, onStart, onBack }: Props) {
         <header className="g-bar">
           <Button variant="ghost" icon="left" onClick={onBack}>
             К делам
+          </Button>
+          <Button variant="brass" icon="send" className="g-bar-go" onClick={onStart}>
+            Войти
           </Button>
         </header>
 
@@ -69,7 +72,7 @@ export function Brief({ game, onStart, onBack }: Props) {
           <section className="g-table">
             <h2 className="g-h3">Ваша таблица очков</h2>
             <p className="g-muted">
-              Сколько вам даёт каждый вариант. У {firstName(sc)} своя таблица, и её вы не видите.
+              Сколько вам даёт каждый вариант. У {g(sc, 'него', 'неё')} своя таблица, и её вы не видите.
             </p>
             {sc.issues.map((i) => {
               const pts = P.points[i.id]

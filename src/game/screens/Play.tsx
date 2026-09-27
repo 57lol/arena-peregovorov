@@ -54,6 +54,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   const [seen, setSeen] = useState<Set<HintId>>(new Set())
   const [source, setSource] = useState<string>('')
   const notebookRef = useRef<HTMLDivElement>(null)
+  const maxScale = useSceneMax()
 
   const line = pending ? '…' : last?.opponentLine || sc.opening
   const emotion = pending ? 'thinking' : toPortraitEmotion(last?.emotion)
@@ -134,7 +135,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
               </div>
             </div>
 
-            <Scene scene={sceneFor(sc)} character={portraitFor(sc)} emotion={emotion} talking={talking && !pending} maxScale={4}>
+            <Scene scene={sceneFor(sc)} character={portraitFor(sc)} emotion={emotion} talking={talking && !pending} maxScale={maxScale}>
               {stamp && <Stamp kind={stamp} />}
             </Scene>
 
@@ -145,7 +146,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
               onTalkingChange={setTalking}
             />
 
-            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} />
+            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="stage" />
 
             {hint && (
               <aside className="g-mentor" aria-label="Подсказка наставника">
@@ -231,6 +232,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
           </div>
 
           <aside className="g-side">
+            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="side" />
             <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
               <Notebook
                 title="Мой блокнот"
@@ -307,6 +309,18 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   )
 }
 
+/** На ноутбуке с невысоким экраном сцена ×3, иначе поле ввода уезжает за край. */
+function useSceneMax() {
+  const pick = () => (typeof window === 'undefined' || window.innerHeight >= 1000 || window.innerWidth < 900 ? 4 : 3)
+  const [m, setM] = useState(pick)
+  useEffect(() => {
+    const on = () => setM(pick())
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  return m
+}
+
 function startPicks(sc: Scenario, state: OpponentState): FullOffer {
   const out: FullOffer = {}
   for (const i of sc.issues) out[i.id] = state.playerStance?.[i.id] ?? state.lastOpponentOffer?.[i.id] ?? bestOption(sc.player.profile, i.id)
@@ -329,6 +343,7 @@ function Slip({
   name,
   canAccept,
   onAccept,
+  where,
 }: {
   sc: Scenario
   state: OpponentState
@@ -336,6 +351,7 @@ function Slip({
   name: string
   canAccept: boolean
   onAccept: () => void
+  where: 'stage' | 'side'
 }) {
   const offer = state.tableOffer
   const P = sc.player.profile
@@ -343,9 +359,9 @@ function Slip({
   const silent = sc.issues.filter((i) => typeof offer[i.id] !== 'number')
   const full = isComplete(sc, offer)
   const mine = full ? score(P, offer) : null
-  const from = state.status === 'deal' ? 'Подписано' : theirs ? (state.lastCall ? `Последнее предложение: ${name}` : `На столе предложение: ${name}`) : 'На столе ваше предложение'
+  const from = state.status === 'deal' ? 'Подписано' : theirs ? (state.lastCall ? `${name}: последнее предложение, да или нет` : `${name} предлагает`) : 'Вы предлагаете'
   return (
-    <aside className={`px-slip g-slip${state.lastCall ? ' is-last' : ''}`} aria-label="Предложение на столе">
+    <aside className={`px-slip g-slip g-slip--${where}${state.lastCall ? ' is-last' : ''}`} aria-label="Предложение на столе">
       <p className="px-slip-from">{from}</p>
       <dl className="px-slip-rows">
         {rows.map((i) => (
@@ -416,6 +432,15 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
   const next = [...hidden].sort((a, b) => a.trustToReveal - b.trustToReveal)[0]
   const d = last?.decision
   const decision = d ? (d.kind === 'hold' ? HOLD_RU(sc)[d.reason ?? 'no_offer'] : DECISION_RU(sc)[d.kind]) : null
+  // «не расскажет»: о чём спросили — и сколько доверия для этого нужно
+  let closed = ''
+  if (d?.kind === 'hold' && d.reason === 'not_ready_to_reveal') {
+    const asked = new Set(last?.analysis.asksAbout ?? [])
+    const about = hidden.filter((i) => !asked.size || !i.issue || asked.has(i.issue)).sort((a, b) => a.trustToReveal - b.trustToReveal)[0]
+    closed = about
+      ? `Об этом ${g(sc, 'он', 'она')} расскажет при доверии от ${about.trustToReveal}, сейчас ${state.trust}.`
+      : `Об этом ${g(sc, 'он', 'она')} уже всё ${g(sc, 'сказал', 'сказала')} — спросите о другом.`
+  }
   const bad = last?.analysis.behaviors.filter((b) => BEHAVIOR_DICT[b.id]?.kind === 'bad') ?? []
   return (
     <section className="g-xray" aria-label="Рентген: что чувствует собеседник">
@@ -436,16 +461,16 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
           <p className="g-xray-sub">Ход {last.turn}: {name} {decision}.</p>
           {last.deltas.length > 0 && (
             <ul className="g-xray-deltas">
-              {last.deltas.slice(0, 6).map((x, k) => (
-                <li key={k}>
-                  <span className={(x.field === 'trust') === x.by > 0 ? 'is-up' : 'is-down'}>
-                    {signed(x.by)} {x.field === 'trust' ? 'доверие' : 'напряжение'}
-                  </span>{' '}
+              {groupDeltas(last.deltas).map((x) => (
+                <li key={x.because}>
+                  {x.trust !== 0 && <span className={x.trust > 0 ? 'is-up' : 'is-down'}>{signed(x.trust)} доверие </span>}
+                  {x.tension !== 0 && <span className={x.tension < 0 ? 'is-up' : 'is-down'}>{signed(x.tension)} напряжение </span>}
                   {x.because}
                 </li>
               ))}
             </ul>
           )}
+          {closed && <p className="g-xray-sub">{closed}</p>}
           {bad.length > 0 && <p className="g-xray-sub">Слабые приёмы: {bad.map((b) => BEHAVIOR_DICT[b.id]?.label).join(', ').toLowerCase()}.</p>}
         </>
       ) : (
@@ -458,6 +483,17 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
       </p>
     </section>
   )
+}
+
+/** Сдвиги с одной причиной — в одну строку: «+4 доверие −1 напряжение Открытый приоритет». */
+function groupDeltas(ds: TurnRecord['deltas']) {
+  const out: { because: string; trust: number; tension: number }[] = []
+  for (const d of ds) {
+    let row = out.find((r) => r.because === d.because)
+    if (!row) out.push((row = { because: d.because, trust: 0, tension: 0 }))
+    row[d.field] += d.by
+  }
+  return out
 }
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`)

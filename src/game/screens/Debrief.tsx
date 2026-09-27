@@ -32,10 +32,10 @@ export function Debrief({ game, history, onRecorded, onReplayFrom, onAgain, onOt
   useEffect(() => {
     if (recorded.current || !history.length) return
     recorded.current = true
-    const before = JSON.parse(localStorageSafe() ?? '{}')?.cases?.[sc.id]?.bestStars ?? 0
+    const prev = JSON.parse(localStorageSafe() ?? '{}')?.cases?.[sc.id]
     const p = recordRun(sc.id, sc.title, report)
     const now = countStars(starsOf(report))
-    if (now > before) setImproved(now)
+    if (prev && now > (prev.bestStars ?? 0)) setImproved(now)
     onRecorded(p)
   }, [history.length, onRecorded, report, sc.id, sc.title])
 
@@ -46,30 +46,31 @@ export function Debrief({ game, history, onRecorded, onReplayFrom, onAgain, onOt
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
       <main className="px-desk g-desk g-report">
         <div className="g-report-top">
+          <div className="g-report-left">
           <Ledger sc={sc} report={report} history={history} name={name} improved={improved} />
+          <section className="g-sheet g-why" aria-labelledby="why-h">
+            <h2 id="why-h" className="g-sheet-title">
+              Почему такой итог
+            </h2>
+            <ul className="g-why-list">
+              {report.explanation.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+            <Stars stars={stars} labels />
+          </section>
+          </div>
           <section className="g-panel g-map-panel" aria-labelledby="map-h">
             <h2 id="map-h" className="g-panel-title">
               Карта всех возможных сделок
             </h2>
             <p className="g-panel-lead">
-              Каждая точка — один вариант договора: правее — лучше вам, выше — лучше {name}. Всё, что под золотой лестницей,
+              Каждая точка — один вариант договора: правее — лучше вам, выше — лучше {g(sc, 'ему', 'ей')}. Всё, что под золотой лестницей,
               можно было улучшить обоим сразу.
             </p>
             <DealMap sc={sc} report={report} history={history} name={name} />
           </section>
         </div>
-
-        <section className="g-sheet g-why" aria-labelledby="why-h">
-          <h2 id="why-h" className="g-sheet-title">
-            Почему такой итог
-          </h2>
-          <ul className="g-why-list">
-            {report.explanation.map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-          <Stars stars={stars} labels />
-        </section>
 
         <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} />
 
@@ -114,9 +115,6 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
     o.status === 'walked_away' ? (state?.endedBy === 'opponent' ? `${name} ${g(sc, 'ушёл', 'ушла')}` : 'вы ушли') : o.status === 'timeout' ? 'время вышло' : ''
   return (
     <section className="g-sheet g-ledger" aria-labelledby="ledger-h">
-      <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
-        <span>{STATUS[o.status]}</span>
-      </div>
       <div className="g-ledger-head">
         <div className="g-ledger-face" aria-hidden="true">
           <Portrait id={portraitFor(sc)} emotion={toPortraitEmotion(history[history.length - 1]?.emotion)} scale={1} />
@@ -129,6 +127,9 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
             {sc.opponent.character.name}, {history.length} {plural(history.length, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}
             {who ? `, ${who}` : ''}.
           </p>
+        </div>
+        <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
+          <span>{STATUS[o.status]}</span>
         </div>
       </div>
 
@@ -260,6 +261,23 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
   const deal = report.deal
   const better = report.betterDeal?.offer
   const revealed = new Set(state?.revealed ?? [])
+  const [open, setOpen] = useState(false)
+  const told = sc.opponent.profile.interests.filter((i) => revealed.has(i.id)).length
+  if (!open)
+    return (
+      <section className="g-sheet g-under is-closed" aria-labelledby="under-h">
+        <h2 id="under-h" className="g-sheet-title">
+          Что было под столом
+        </h2>
+        <p className="g-under-teaser">
+          У {g(sc, 'него', 'неё')} была своя таблица очков и {sc.opponent.profile.interests.length} причин, о которых {g(sc, 'он', 'она')} молчал{g(sc, '', 'а')}.
+          Вы узнали {told}. Переверните листок — там всё.
+        </p>
+        <Button variant="brass" icon="eye" onClick={() => setOpen(true)}>
+          Перевернуть {g(sc, 'его', 'её')} листок
+        </Button>
+      </section>
+    )
   return (
     <section className="g-sheet g-under" aria-labelledby="under-h">
       <h2 id="under-h" className="g-sheet-title">
@@ -277,6 +295,11 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
                 {line.title} <span className={`g-kind g-kind--${line.kind}`}>{KIND_RU(sc, line)}</span>
               </h3>
               <ol className="g-under-opts">
+                <li className="g-under-hd" aria-hidden="true">
+                  <span />
+                  <b>вам</b>
+                  <b>{g(sc, 'ему', 'ей')}</b>
+                </li>
                 {issue.options.map((o, k) => {
                   const isDeal = deal?.[line.id] === k
                   const isBetter = better?.[line.id] === k && !isDeal
@@ -368,10 +391,12 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
             <li key={r.id}>
               <p className="g-beh-head">
                 <b>{r.title}</b>
-                <span className="g-beh-count">{kind === 'missing' ? 'ни разу' : `${r.count} из ${n}`}</span>
+                <span className="g-beh-count">
+                  {kind === 'missing' ? 'ни разу' : `${r.count} из ${n}`}
+                  {r.verdict && kind !== 'missing' ? `, ${VERDICT[r.verdict]}` : ''}
+                </span>
               </p>
               {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} />}
-              {r.verdict && kind !== 'missing' && <p className="g-beh-verdict">{VERDICT[r.verdict]}</p>}
               {q && <blockquote className="g-quote g-quote--small">{q}</blockquote>}
               {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{def.advice}</p>}
             </li>
@@ -397,10 +422,9 @@ function Bench({ row }: { row: ProfileRow }) {
         <i className="g-bench-mark g-bench-mark--average" style={{ left: pct(b.average) }} />
       </div>
       <p className="g-bench-legend">
-        вы {fmt(v)}
-        {unit}, сильные {fmt(b.skilled)}
-        {unit}, средние {fmt(b.average)}
-        {unit}
+        <span className="g-bench-l-you">вы {fmt(v)}{unit}</span>
+        <span className="g-bench-l-skilled">сильные {fmt(b.skilled)}{unit}</span>
+        <span className="g-bench-l-average">средние {fmt(b.average)}{unit}</span>
       </p>
     </div>
   )
