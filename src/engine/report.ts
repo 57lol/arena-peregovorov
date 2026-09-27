@@ -81,7 +81,7 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
     let bestN = -Infinity
     for (const p of all) {
       const n = (p.player - P.batna) * (p.opponent - O.batna)
-      if (p.player >= P.batna && p.opponent >= O.batna && n > bestN) (bestN = n), (better = p)
+      if (p.player >= P.batna && p.opponent >= O.batna && n > bestN) { bestN = n; better = p }
     }
   }
   for (const p of deal ? all : []) {

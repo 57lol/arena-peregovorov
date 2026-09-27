@@ -4,6 +4,7 @@
 export interface BehaviorRule {
   id: string
   label: string            // «Спросил об интересах»
+  hint?: string            // как распознать — для промпта разметчика
   trust: number            // сдвиг доверия за одно проявление
   tension: number          // сдвиг напряжения
   kind: 'good' | 'bad' | 'neutral'

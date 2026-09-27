@@ -65,7 +65,7 @@ function nearest(values: IssueInfo['values'], v: number): number {
   values.forEach((o, n) => {
     if (!o) return
     const d = Math.abs(o.value - v)
-    if (d < bestD) (bestD = d), (best = n)
+    if (d < bestD) { bestD = d; best = n }
   })
   return best
 }
@@ -109,7 +109,7 @@ export function parseOffer(sc: Scenario, text: string): Offer {
           for (const m of lower.replace(/ё/g, 'е').matchAll(re)) {
             const inSeg = m.index! >= segStart && m.index! < segEnd
             const d = (m.index! < q.at ? q.at - m.index! : m.index! - q.end) + (inSeg ? 0 : 1000)
-            if (d < bestD && d <= 1040) (bestD = d), (pick = c)
+            if (d < bestD && d <= 1040) { bestD = d; pick = c }
           }
         }
       }
@@ -141,7 +141,7 @@ export function parseOffer(sc: Scenario, text: string): Offer {
       const own = [...optWords[n]].filter((w) => !optWords.some((s, m) => m !== n && s.has(w)) && !STOP.has(w))
       for (const w of own) {
         const at = lower.replace(/ё/g, 'е').search(new RegExp(`(?<!\\p{L})${w}`, 'u'))
-        if (at >= 0 && at > foundAt) (found = n), (foundAt = at)
+        if (at >= 0 && at > foundAt) { found = n; foundAt = at }
       }
     })
     if (found >= 0 && offer[info.issue.id] === undefined) offer[info.issue.id] = found

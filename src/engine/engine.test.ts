@@ -115,3 +115,16 @@ describe('движок', () => {
     for (const d of h[0].deltas) expect(d.because).toBeTruthy()
   })
 })
+
+import { checkScenario } from './validate'
+describe('проверка сценария', () => {
+  it('тестовый сценарий проходит, типы пунктов выводятся из очков', () => {
+    const r = checkScenario(sc)
+    expect(r.problems).toEqual([])
+    expect(r.scenario.issues.map((i) => i.kind)).toEqual(['distributive', 'integrative', 'integrative', 'compatible'])
+  })
+  it('без зоны соглашения — отказ', () => {
+    const bad = { ...sc, opponent: { ...sc.opponent, profile: { ...sc.opponent.profile, batna: 99 } } }
+    expect(checkScenario(bad).ok).toBe(false)
+  })
+})
