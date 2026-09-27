@@ -94,6 +94,13 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState): {
     : d.kind === 'accept' ? state.deal ?? state.tableOffer
     : state.lastOpponentOffer ?? {}
   line = line.replace('{offer}', formatOffer(sc, offer))
+  if (d.kind === 'counter' && d.feigned?.length) {
+    const what = d.feigned
+      .map((id) => sc.issues.find((i) => i.id === id)!)
+      .map((i) => `${i.title.toLowerCase()} — ${i.options[d.offer[i.id]!]}`)
+      .join(', ')
+    line += ` И заметьте: ${what} — это я вам уступаю.`
+  }
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
     line = line.replace('{interest}', lowerFirst(it?.text ?? ''))

@@ -10,7 +10,7 @@ import type { BehaviorDict } from '../engine/dictionary'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const VOICE_VERSION = 'v4'
+export const VOICE_VERSION = 'v5'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({ line: z.string().min(2).max(600), emotion: z.string() })
@@ -63,7 +63,10 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
       const moved = changed.length && changed.length < sc.issues.length
         ? ` По сравнению с твоим прошлым предложением изменилось: ${offer(Object.fromEntries(changed.map((id) => [id, d.offer[id]])))}. Скажи про изменения и главное, остальное — «как было». Не зачитывай весь список.`
         : ' Назови условия по-человечески, не списком через тире.'
-      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Полностью оно такое: ${offer(d.offer)}.${moved}${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ''} Можно коротко обосновать, не раскрывая внутренних причин.`
+      const feigned = d.feigned?.length
+        ? ` Хитрость: пункт ${d.feigned.map((id) => `«${sc.issues.find((i) => i.id === id)?.title}»`).join(', ')} подай как свою уступку, будто он тебе чего-то стоит. Что тебе самому так выгодно — не признавайся.`
+        : ''
+      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Полностью оно такое: ${offer(d.offer)}.${moved}${feigned}${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ''} Можно коротко обосновать, не раскрывая внутренних причин.`
     }
     case 'reveal': {
       const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
@@ -82,6 +85,19 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     case 'walk_away':
       return 'Решение: УЙТИ. Ты заканчиваешь переговоры, сделки не будет. Одна-две фразы.'
   }
+}
+
+// В промпт озвучки — только решение движка, раскрытые интересы и настроение словами.
+// Никаких очков, BATNA и нераскрытых интересов: их можно выудить из модели prompt injection.
+function mood(s: OpponentState): string {
+  const t = s.trust >= 65 ? 'доверяешь собеседнику' : s.trust >= 45 ? 'присматриваешься к собеседнику' : 'не доверяешь собеседнику'
+  const x = s.tension >= 70 ? 'на грани, раздражён' : s.tension >= 40 ? 'напряжён' : 'спокоен'
+  return `${t}, ${x}`
+}
+
+function revealedLine(sc: Scenario, s: OpponentState): string {
+  const told = sc.opponent.profile.interests.filter((i) => s.revealed.includes(i.id)).map((i) => `«${i.text}»`)
+  return told.length ? `Ты уже рассказал собеседнику: ${told.join('; ')}.\n` : ''
 }
 
 /** Проверяем, что реплика не противоречит решению движка. */
@@ -136,7 +152,7 @@ export async function voice(
   const user = `${recent ? `Разговор до этого:\n${recent}\n\n` : `Ты начал встречу словами: «${sc.opening}»\n\n`}Игрок сейчас сказал: «${playerText}»
 
 ${instruction(sc, d, state, history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {})}
-Настроение: доверие к игроку ${Math.round(state.trust)}/100, раздражение ${Math.round(state.tension)}/100.`
+${revealedLine(sc, state)}Настроение: ${mood(state)}.`
   const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys: system(sc), user }
   try {
     const { value, hit } = await cached('voice', key, async () => {

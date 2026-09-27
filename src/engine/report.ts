@@ -32,6 +32,7 @@ export interface TrapCheck {
   got?: string
   avoided: boolean
   asked: boolean
+  feigned: boolean         // оппонент выдал этот пункт за свою уступку
 }
 
 export interface KeyMoment {
@@ -144,6 +145,7 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
         got: deal ? i.options[deal[i.id]] : undefined,
         avoided: !!deal && deal[i.id] === both,
         asked: asked.has(i.id),
+        feigned: history.some((h) => h.decision.kind === 'counter' && !!h.decision.feigned?.includes(i.id)),
       }
     })
 
@@ -295,6 +297,10 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
         : `Ловушка: по пункту «${t.title}» вы оба хотели «${t.bothWant}», но записали «${t.got}». Оба потеряли очки, хотя спорить было не о чем.`,
     )
   }
+
+  for (const t of r.traps)
+    if (t.feigned)
+      out.push(`Оппонент подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. Проверяйте вопросом, чего уступка стоит на самом деле.`)
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0

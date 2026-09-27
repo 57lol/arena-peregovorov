@@ -29,6 +29,8 @@ const WALK = new RegExp(
   'iu',
 )
 
+const CONDITIONAL = /(?<![\p{L}])(если|не нравится|не устраивает|не согласны|не хотите|иначе|или|либо|тогда)(?![\p{L}])/iu
+
 const QUESTION = /^(а\s+)?(почему|зачем|расскажите|поясните|объясните|интересно|хочу понять|помогите понять)(?![\p{L}])/iu
 
 function clauses(text: string): string[] {
@@ -61,7 +63,8 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
 
   const offer = parseOffer(sc, text)
   const toneViolation = RUDE.test(text)
-  const walksAway = WALK.test(text)
+  // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
+  const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
 
   const out: MoveAnalysis = { behaviors }
   if (Object.keys(offer).length) out.offer = offer

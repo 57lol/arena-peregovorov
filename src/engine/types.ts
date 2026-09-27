@@ -92,7 +92,7 @@ export interface OpponentState {
 
 export type Decision =
   | { kind: 'accept' }
-  | { kind: 'counter'; offer: Offer; final?: boolean }
+  | { kind: 'counter'; offer: Offer; final?: boolean; feigned?: IssueId[] } // feigned: совместимые пункты, выданные за уступку
   | { kind: 'reveal'; interestId: string; offer?: Offer }
   | { kind: 'hold'; reason?: HoldReason }
   | { kind: 'warn_tone' }

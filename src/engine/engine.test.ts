@@ -130,3 +130,28 @@ describe('проверка сценария', () => {
     expect(checkScenario(bad).ok).toBe(false)
   })
 })
+
+describe('повторы приёмов', () => {
+  it('хороший приём подряд слабеет, плохой после плохого — усиливается', () => {
+    const ask = move(undefined, { behaviors: [{ id: 'summarize', quote: 'итак' }] })
+    const h = playAnalyses(sc, [ask, ask], testDict)
+    const t1 = h[0].deltas.find((d) => d.field === 'trust')!.by
+    const t2 = h[1].deltas.find((d) => d.field === 'trust')!.by
+    expect(t2).toBeLessThan(t1)
+    const bad = move(undefined, { behaviors: [{ id: 'attack', quote: 'бред' }] })
+    const b = playAnalyses(sc, [bad, bad], testDict)
+    const x1 = b[0].deltas.find((d) => d.field === 'tension')!.by
+    const x2 = b[1].deltas.find((d) => d.field === 'tension')!.by
+    expect(x2).toBeGreaterThan(x1)
+  })
+})
+
+describe('сложность 3', () => {
+  it('оппонент выдаёт совместимый пункт за свою уступку', () => {
+    const hard: Scenario = { ...sc, difficulty: 3 }
+    const h = playAnalyses(hard, [move({ price: 0, delivery: 0, payment: 3 })], testDict)
+    expect(h[0].decision).toMatchObject({ kind: 'counter', feigned: ['warranty'] })
+    const easy = playAnalyses(sc, [move({ price: 0, delivery: 0, payment: 3 })], testDict)
+    expect(easy[0].decision).not.toHaveProperty('feigned')
+  })
+})

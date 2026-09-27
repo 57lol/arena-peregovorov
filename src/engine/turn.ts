@@ -4,7 +4,7 @@
 import type { BehaviorDict } from './dictionary'
 import { makeCounter, openingAnchor, targetUtility, wouldAccept } from './policy'
 import type { Decision, Delta, MoveAnalysis, Offer, OpponentState, Scenario, Tone, TurnRecord } from './types'
-import { isComplete, sameOffer, score, type FullOffer } from './utility'
+import { bestOption, isComplete, sameOffer, score, type FullOffer } from './utility'
 
 const START: Record<Tone, { trust: number; tension: number }> = {
   friendly: { trust: 55, tension: 10 },
@@ -44,8 +44,12 @@ export function moveDeltas(
   past: MoveAnalysis[],
 ): Delta[] {
   const deltas: Delta[] = []
-  // Повтор = тот же приём на прошлом ходу. Вопрос о новом пункте повтором не считается.
-  const recent = new Set(past.slice(-1).flatMap((a) => a.behaviors.map((b) => b.id)))
+  // Хорошие приёмы при повторе подряд слабеют вдвое (вопрос о новом пункте повтором не считается).
+  // Плохие — наоборот: спираль атаки и защиты раскручивается (Brett et al., 1998), поэтому если на прошлом
+  // ходу уже был плохой приём, вредная часть нового — в полтора раза сильнее.
+  const prev = past[past.length - 1]?.behaviors ?? []
+  const recent = new Set(prev.map((b) => b.id))
+  const badBefore = prev.some((b) => dict[b.id]?.kind === 'bad')
   const askedBefore = new Set(past.flatMap((a) => a.asksAbout ?? []))
   const asksNew = (analysis.asksAbout ?? []).some((id) => !askedBefore.has(id))
   const seen = new Set<string>()
@@ -53,11 +57,20 @@ export function moveDeltas(
     const rule = dict[hit.id]
     if (!rule || seen.has(hit.id)) continue
     seen.add(hit.id)
-    // Повтор одного и того же приёма подряд работает вдвое слабее.
-    const k = recent.has(hit.id) && !(rule.asksInterest && asksNew) ? 0.5 : 1
-    const why = `${rule.label}${hit.quote ? `: «${hit.quote}»` : ''}${k < 1 ? ' (повтор, слабее)' : ''}`
-    if (rule.trust) deltas.push({ field: 'trust', by: Math.trunc(rule.trust * k), because: why })
-    if (rule.tension) deltas.push({ field: 'tension', by: Math.trunc(rule.tension * k), because: why })
+    let kTrust = 1, kTension = 1, note = ''
+    if (rule.kind === 'bad') {
+      if (badBefore) {
+        if (rule.trust < 0) kTrust = 1.5
+        if (rule.tension > 0) kTension = 1.5
+        if (kTrust > 1 || kTension > 1) note = ' (спираль: плохой приём подряд, сильнее)'
+      }
+    } else if (recent.has(hit.id) && !(rule.asksInterest && asksNew)) {
+      kTrust = kTension = 0.5
+      note = ' (повтор, слабее)'
+    }
+    const why = `${rule.label}${hit.quote ? `: «${hit.quote}»` : ''}${note}`
+    if (rule.trust) deltas.push({ field: 'trust', by: Math.trunc(rule.trust * kTrust), because: why })
+    if (rule.tension) deltas.push({ field: 'tension', by: Math.trunc(rule.tension * kTension), because: why })
   }
 
   if (analysis.toneViolation) {
@@ -204,9 +217,25 @@ export function step(
     const offer = counterNow()
     if (prevCounter && sameOffer(offer, prevCounter) && !isLast)
       return end({ kind: 'hold', reason: 'no_movement' }, { tableOffer: offer })
-    return end({ kind: 'counter', offer, ...(isLast ? { final: true } : {}) }, { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast })
+    const feigned = feignedConcessions(sc, offer, prevCounter)
+    return end(
+      { kind: 'counter', offer, ...(isLast ? { final: true } : {}), ...(feigned.length ? { feigned } : {}) },
+      { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast },
+    )
   }
   return end({ kind: 'hold', reason: 'no_offer' }, {})
+}
+
+/**
+ * Сложность 3: совместимый пункт, который оппонент впервые кладёт на стол в выгодном обоим варианте,
+ * он выдаёт за свою уступку — хотя сам этого хотел (Lewis et al., 2017, «Deal or no deal?»).
+ */
+function feignedConcessions(sc: Scenario, offer: FullOffer, prev: FullOffer | undefined): string[] {
+  if (sc.difficulty < 3) return []
+  return sc.issues
+    .filter((i) => i.kind === 'compatible')
+    .filter((i) => offer[i.id] === bestOption(sc.opponent.profile, i.id) && prev?.[i.id] !== offer[i.id])
+    .map((i) => i.id)
 }
 
 /** Пересчитать всё с нуля по разборам ходов. Возвращает состояние после каждого хода. */

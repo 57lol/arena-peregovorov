@@ -50,3 +50,11 @@ describe('офлайн-разметчик: пересказ и частоты', 
     expect(parseOffer(sc, 'Мы платим каждый месяц, это удобно.')).toEqual({})
   })
 })
+
+describe('офлайн-разметчик: уход', () => {
+  it('условное «до свидания» — ультиматум, а не уход', () => {
+    expect(analyzeOffline(sc, 'Цена 1 млн. Не нравится — до свидания.', testDict).walksAway).toBeUndefined()
+    expect(analyzeOffline(sc, 'Или так, или я ухожу.', testDict).walksAway).toBeUndefined()
+    expect(analyzeOffline(sc, 'Спасибо, но мы не договоримся. Всего доброго.', testDict).walksAway).toBe(true)
+  })
+})
