@@ -170,8 +170,12 @@ body {
 }
 .g-lead {
   margin: 0 0 calc(8 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(4 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-dialog.png') 4 fill stretch;
+  image-rendering: pixelated;
   font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
-  color: var(--on-desk);
+  color: var(--c-paper);
   text-wrap: pretty;
 }
 .g-invite {
