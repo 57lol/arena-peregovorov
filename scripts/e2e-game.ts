@@ -23,6 +23,8 @@ const TAG = arg('tag', '')
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'game')
 const GENERATE = process.argv.includes('--generate')
 const LINKS = process.argv.includes('--links')
+// rude — грубый торг с ультиматумами: проверяем, что уход оппонента и разбор без сделки тоже рисуются
+const STYLE = arg('style', 'explorer')
 mkdirSync(OUT, { recursive: true })
 
 interface Script {
@@ -67,6 +69,19 @@ const SCRIPTS: Record<string, Script> = {
   },
 }
 
+const RUDE: Script = {
+  lines: [
+    'Значит так. Ваши цифры — грабёж. Называю свои, и это последнее предложение.',
+    'Вы что, издеваетесь? Это бред, а не предложение. Либо так, либо никак.',
+    'Хватит ерунду нести. Последний раз повторяю: или соглашаетесь, или я ухожу.',
+    'Это ваши проблемы. Моё предложение окончательное.',
+    'Ну и тупой же разговор.',
+  ],
+  offerAt: -1,
+  offer: {},
+  acceptFrom: 99,
+}
+
 async function shot(page: Page, name: string, full = false) {
   const file = join(OUT, `${name}${TAG ? '-' + TAG : ''}.png`)
   await page.screenshot({ path: file, fullPage: full })
@@ -108,8 +123,8 @@ async function setNotebook(page: Page, sc: Scenario, offer: Offer, mobile: boole
 
 async function playCase(page: Page, sc: Scenario, size: number) {
   const mobile = size < 900
-  const s = SCRIPTS[sc.id]
-  const tag = `${sc.id}-${size}`
+  const s = STYLE === 'rude' ? RUDE : SCRIPTS[sc.id]
+  const tag = `${sc.id}-${size}${STYLE === 'rude' ? '-rude' : ''}`
   console.log(`\n${sc.title}, ${size}px`)
 
   await page.goto(URL)

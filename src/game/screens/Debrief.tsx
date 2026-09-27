@@ -112,7 +112,14 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
   const diff = o.playerPoints - report.batna.player
   const state = history[history.length - 1]?.stateAfter
   const who =
-    o.status === 'walked_away' ? (state?.endedBy === 'opponent' ? `${name} ${g(sc, 'ушёл', 'ушла')}` : 'вы ушли') : o.status === 'timeout' ? 'время вышло' : ''
+    o.status === 'walked_away'
+      ? state?.endedBy === 'opponent'
+        ? `${g(sc, 'он', 'она')} встал${g(sc, '', 'а')} из-за стола`
+        : 'вы ушли без сделки'
+      : o.status === 'timeout'
+        ? 'время вышло'
+        : 'сделка подписана'
+  const could = !deal && report.betterDeal ? report.betterDeal : null
   return (
     <section className="g-sheet g-ledger" aria-labelledby="ledger-h">
       <div className="g-ledger-head">
@@ -124,8 +131,7 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
             Разбор: {sc.title}
           </h1>
           <p className="g-muted">
-            {sc.opponent.character.name}, {history.length} {plural(history.length, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}
-            {who ? `, ${who}` : ''}.
+            {sc.opponent.character.name}. {history.length} {plural(history.length, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}, {who}.
           </p>
         </div>
         <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
@@ -133,15 +139,26 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
         </div>
       </div>
 
-      <dl className="g-ledger-rows">
-        <Row label={deal ? 'Вы взяли' : 'У вас остаётся запасной'} value={o.playerPoints} strong />
-        <Row label="Ваш запасной вариант" value={report.batna.player} />
-        {deal && <Row label="Сделка против запасного" value={diff >= 0 ? `+${diff}` : `−${-diff}`} tone={diff >= 0 ? 'good' : 'bad'} />}
-        <Row label={`Взял${g(sc, '', 'а')} ${name}`} value={o.opponentPoints} />
-        {deal && <Row label="Осталось на столе" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />}
-        {deal && <Row label="Эффективность по Парето" value={`${Math.round(o.paretoEfficiency * 100)}%`} />}
-        <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
-      </dl>
+      {deal ? (
+        <dl className="g-ledger-rows">
+          <Row label="Вы взяли" value={o.playerPoints} strong />
+          <Row label="Ваш запасной вариант" value={report.batna.player} />
+          <Row label="Сделка против запасного" value={diff >= 0 ? `+${diff}` : `−${-diff}`} tone={diff >= 0 ? 'good' : 'bad'} />
+          <Row label={`Взял${g(sc, '', 'а')} ${name}`} value={o.opponentPoints} />
+          <Row label="Осталось на столе" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />
+          <Row label="Эффективность по Парето" value={`${Math.round(o.paretoEfficiency * 100)}%`} />
+          <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
+        </dl>
+      ) : (
+        <dl className="g-ledger-rows">
+          <Row label="Вы остаётесь с запасным" value={o.playerPoints} strong />
+          {could && <Row label="Могли бы взять, не обидев никого" value={could.player} tone="bad" />}
+          <Row label={`${name} остаётся с запасным`} value={o.opponentPoints} />
+          {could && <Row label={`А ${g(sc, 'ему', 'ей')} можно было дать`} value={could.opponent} />}
+          <Row label="Вариантов, устраивавших обоих" value={report.zopa} />
+          <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
+        </dl>
+      )}
       {improved !== null && (
         <p className="g-ledger-new">
           Новый личный рекорд по делу: {improved} {plural(improved, 'звезда', 'звезды', 'звёзд')} из 3.

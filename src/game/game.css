@@ -1710,10 +1710,14 @@ body {
     gap: 0;
   }
   .g-slip--side .px-slip-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: calc(4 * var(--u));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: calc(4 * var(--u));
     padding: var(--u) 0;
+  }
+  .g-slip--side .px-slip-row dd {
+    margin-left: auto;
   }
   .g-slip--side .px-slip-row + .px-slip-row {
     border-top: var(--u) dotted var(--c-mist);
