@@ -70,3 +70,12 @@ describe('мгновенное встречное по контексту', () =
     expect(t.analysis.behaviors.map((b) => b.id)).not.toContain('instant_counter')
   })
 })
+
+describe('цитаты в разборе', () => {
+  it('мат прячем, обычные слова не трогаем', async () => {
+    const { censor } = await import('./index')
+    expect(censor('ну это пиздец а не цена, давайте 196')).toBe('ну это п*** а не цена, давайте 196')
+    expect(censor('Вы идиот?')).toBe('Вы и***?')
+    expect(censor('Давайте обсудим график')).toBe('Давайте обсудим график')
+  })
+})

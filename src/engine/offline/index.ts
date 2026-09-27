@@ -4,7 +4,7 @@ import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../types'
 import { analyzeOffline, withContext } from './analyze'
 import { templateLine } from './lines'
 
-export { analyzeOffline, isRude, withContext } from './analyze'
+export { analyzeOffline, censor, isRude, withContext } from './analyze'
 export { parseOffer, mentionedIssues } from './parseOffer'
 export { templateLine, emotionFor } from './lines'
 export { quantities } from './numbers'

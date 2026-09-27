@@ -229,7 +229,7 @@ function pickMoments(sc: Scenario, history: TurnRecord[]): KeyMoment[] {
     const weight = Math.abs(trust) + Math.abs(tension) + DECISION_WEIGHT[h.decision.kind] + move
     const top = [...h.deltas].sort((a, b) => Math.abs(b.by) - Math.abs(a.by))[0]
     const why =
-      h.decision.kind === 'reveal' ? 'Собеседник рассказал, что ему на самом деле важно'
+      h.decision.kind === 'reveal' ? 'Вы узнали, что на самом деле важно собеседнику'
       : h.decision.kind === 'walk_away' ? 'Собеседник встал из-за стола'
       : h.decision.kind === 'accept' ? 'Сделка'
       : h.decision.kind === 'warn_tone' ? 'Собеседник одёрнул вас за тон'
@@ -259,8 +259,9 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     const hot = history
       .flatMap((h) => h.deltas.filter((d) => d.field === 'tension' && d.by > 0))
       .sort((a, b) => b.by - a.by)
+      .map((d) => d.because.replace(/ \((спираль|повтор)[^)]*\)$/u, ''))
+      .filter((b, n, all) => all.indexOf(b) === n)
       .slice(0, 2)
-      .map((d) => d.because)
     out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
   } else if (o.status === 'walked_away') {
     out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${r.zopa ? ` При этом было ${r.zopa} вариантов, которые устроили бы обоих.` : ''}`)
@@ -288,7 +289,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     const mine = i.playerWeight > i.opponentWeight
     const got = i.player / Math.max(1, i.playerMax)
     if (mine && got < 0.6)
-      out.push(`«${i.title}» важнее вам, чем собеседнику, — тут можно было добиться большего, уступив ему в том, что важно ему.`)
+      out.push(`«${i.title}» важнее вам, чем собеседнику, — тут можно было добиться большего, уступив в том, что важнее ему.`)
     if (!mine && got > 0.6)
       out.push(`«${i.title}» для собеседника важнее, чем для вас. Уступив здесь, можно было выторговать больше в своих главных пунктах.`)
   }
@@ -308,7 +309,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0
-  if (!asked) out.push('Вы ни разу не спросили собеседника, что ему важно и почему. Вопросы об интересах — самый дешёвый способ найти размен.')
+  if (!asked) out.push('Вы ни разу не спросили, что важно собеседнику и почему. Вопросы об интересах — самый дешёвый способ найти размен.')
   else if (!revealed) out.push('Вопросы были, но доверия не хватило, чтобы собеседник раскрылся.')
   else out.push(`Собеседник раскрыл ${revealed} из ${sc.opponent.profile.interests.length} своих интересов.`)
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Case } from '../../App'
 import { BEHAVIOR_DICT, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
 import type { ProfileRow } from '../../engine/behaviors'
+import { censor } from '../../engine/offline'
 import { buildReport, type Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { firstName, g, plural, portraitFor, sceneFor } from '../cast'
@@ -57,7 +58,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
             </h2>
             <ul className="g-why-list">
               {report.explanation.map((e) => (
-                <li key={e}>{e}</li>
+                <li key={e}>{censor(e)}</li>
               ))}
             </ul>
             <Stars stars={stars} labels />
@@ -203,7 +204,7 @@ function Moments({ sc, report, history, onReplayFrom }: { sc: Scenario; report: 
           return (
             <li key={m.turn} className="g-moment">
               <p className="g-moment-turn">Ход {m.turn}</p>
-              <blockquote className="g-quote">{m.quote}</blockquote>
+              <blockquote className="g-quote">{censor(m.quote)}</blockquote>
               {h?.opponentLine && (
                 <p className="g-moment-reply">
                   <b>{firstName(sc)}:</b> {h.opponentLine}
@@ -417,7 +418,7 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
                 </span>
               </p>
               {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} />}
-              {q && <blockquote className="g-quote g-quote--small">{q}</blockquote>}
+              {q && <blockquote className="g-quote g-quote--small">{censor(q)}</blockquote>}
               {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{def.advice}</p>}
             </li>
           )

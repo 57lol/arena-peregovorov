@@ -116,3 +116,9 @@ export function withContext(
 export function isRude(text: string): boolean {
   return RUDE.test(text)
 }
+
+const RUDE_ALL = new RegExp(RUDE.source, 'giu')
+/** Для разбора: мат и оскорбления из цитат прячем — «б***». Что был нарушен тон, видно и так. */
+export function censor(text: string): string {
+  return text.replace(RUDE_ALL, (m) => `${m[0]}***`)
+}
