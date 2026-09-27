@@ -1,0 +1,111 @@
+// Тонкий клиент к серверу игры. Если сервер недоступен, ход считается прямо в браузере
+// офлайн-разметчиком и шаблонами: игра проходится и без сети.
+
+import { BEHAVIOR_DICT } from '../engine/behaviors'
+import { analyzeOffline, templateLine, withContext, withFormalOffer } from '../engine/offline'
+import { stateAfter, step } from '../engine/turn'
+import type { Difficulty, Offer, Scenario, Tone, TurnRecord } from '../engine/types'
+
+export interface TurnInput {
+  scenario: Scenario
+  /** сценарий из библиотеки — отправляем id, свой — целиком */
+  fromLibrary: boolean
+  history: TurnRecord[]
+  text: string
+  offer?: Offer
+  accept?: boolean
+  walkAway?: boolean
+}
+
+export interface TurnResult {
+  record: TurnRecord
+  /** откуда разбор и реплика: llm, cache, offline, local (сервер недоступен) */
+  source: string
+}
+
+async function post<T>(path: string, body: unknown, ms = 60_000): Promise<T> {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(ms),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new ApiError(j?.error ?? `Сервер ответил ${r.status}`, r.status)
+  return j as T
+}
+
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+export async function playTurn(t: TurnInput): Promise<TurnResult> {
+  const body = {
+    ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
+    history: t.history,
+    playerText: t.text,
+    ...(t.offer ? { offer: t.offer } : {}),
+    ...(t.accept ? { accept: true } : {}),
+    ...(t.walkAway ? { walkAway: true } : {}),
+  }
+  try {
+    const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string } }>('/api/turn', body)
+    return { record: r.record, source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}` }
+  } catch (e) {
+    // 4xx — ошибка в самом ходе, показываем её; сеть или 5xx — играем локально
+    if (e instanceof ApiError && e.status >= 400 && e.status < 500) throw e
+    return { record: localTurn(t), source: 'local' }
+  }
+}
+
+function localTurn(t: TurnInput): TurnRecord {
+  const dict = BEHAVIOR_DICT
+  const before = stateAfter(t.scenario, t.history, dict)
+  let analysis = withContext(withFormalOffer(analyzeOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
+  if (t.accept) analysis = { ...analysis, accepts: true }
+  if (t.walkAway) analysis = { ...analysis, walksAway: true }
+  const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
+  const { line, emotion } = templateLine(t.scenario, r.decision, r.state)
+  return { turn: r.state.turn, playerText: t.text, analysis, deltas: r.deltas, decision: r.decision, opponentLine: line, emotion, stateAfter: r.state }
+}
+
+export interface Health {
+  ok: boolean
+  provider: string
+  model?: string
+  providerError?: string
+}
+
+export async function health(): Promise<Health | null> {
+  try {
+    const r = await fetch('/api/health', { signal: AbortSignal.timeout(4000) })
+    return r.ok ? await r.json() : null
+  } catch {
+    return null
+  }
+}
+
+export interface GenerateRequest {
+  sphere: string
+  theme: string
+  playerRole: string
+  opponentTone: Tone
+  difficulty: Difficulty
+  goals: string
+}
+
+export interface GenerateResult {
+  scenario: Scenario
+  source: 'llm' | 'library'
+  attempts: number
+  problems: string[]
+}
+
+export function generate(req: GenerateRequest): Promise<GenerateResult> {
+  // три попытки LLM по 25 секунд плюс проверки
+  return post<GenerateResult>('/api/scenario/generate', req, 150_000)
+}
