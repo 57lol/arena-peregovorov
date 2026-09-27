@@ -1802,6 +1802,10 @@ body {
   .g-side > .g-mentor {
     margin-top: calc(3 * var(--u));
   }
+  /* открыли рентген — листок и рентген наверху, записка наставника под ними: на экране 800 px всё главное видно без прокрутки */
+  .g-side[data-xray='true'] > .g-mentor { order: 3; margin-top: 0; }
+  .g-side[data-xray='true'] > .g-notebook-wrap { order: 4; }
+  .g-side[data-xray='true'] > .g-protocol { order: 5; }
 }
 @media (max-width: 899px) {
   .g-mentor--side {

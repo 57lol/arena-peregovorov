@@ -54,6 +54,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   const [seen, setSeen] = useState<Set<HintId>>(new Set())
   const [source, setSource] = useState<string>('')
   const notebookRef = useRef<HTMLDivElement>(null)
+  const sideRef = useRef<HTMLElement>(null)
   const maxScale = useSceneMax()
 
   const line = pending ? '…' : last?.opponentLine || sc.opening
@@ -163,6 +164,8 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                   onClick={() => {
                     setXray(!xray)
                     setXrayUsed(true)
+                    // на ноутбуке рентген встаёт сразу под листком — покажем его, не заставляя листать колонку
+                    if (!xray) setTimeout(() => sideRef.current?.scrollTo({ top: 0 }), 0)
                   }}
                 >
                   Рентген
@@ -248,7 +251,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
             )}
           </div>
 
-          <aside className="g-side">
+          <aside className="g-side" data-xray={xray} ref={sideRef}>
             {mentor('side')}
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="side" />
             <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
@@ -488,10 +491,11 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
           {last.deltas.length > 0 && (
             <ul className="g-xray-deltas">
               {groupDeltas(last.deltas).map((x) => (
-                <li key={x.because}>
+                <li key={x.because} title={x.because}>
                   {x.trust !== 0 && <span className={x.trust > 0 ? 'is-up' : 'is-down'}>{signed(x.trust)} доверие </span>}
                   {x.tension !== 0 && <span className={x.tension < 0 ? 'is-up' : 'is-down'}>{signed(x.tension)} напряжение </span>}
-                  {x.because}
+                  {/* цитату игрок только что написал сам — в рентгене хватит названия приёма, так он влезает в экран ноутбука */}
+                  {x.because.replace(/: «[^»]*»/u, '')}
                 </li>
               ))}
             </ul>
