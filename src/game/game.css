@@ -1806,3 +1806,13 @@ body {
     order: -1;
   }
 }
+
+.g-map-pick {
+  min-height: calc(2 * var(--lh-ui));
+  margin: calc(4 * var(--u)) 0 0;
+  color: var(--c-mist);
+  text-wrap: pretty;
+}
+.g-map-pick b {
+  color: var(--c-paper);
+}

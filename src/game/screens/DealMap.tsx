@@ -1,7 +1,7 @@
-import { useLayoutEffect, useRef, useState, type ReactElement } from 'react'
+import { useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactElement } from 'react'
 import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
-import { isComplete, score } from '../../engine/utility'
+import { allDeals, formatOffer, isComplete, score } from '../../engine/utility'
 
 interface Props {
   sc: Scenario
@@ -31,6 +31,8 @@ export function DealMap({ sc, report, history, name }: Props) {
     setW(el.clientWidth)
     return () => ro.disconnect()
   }, [])
+
+  const [pick, setPick] = useState<{ x: number; y: number } | null>(null)
 
   const maxP = Math.max(...report.space.map((p) => p.player))
   const maxO = Math.max(...report.space.map((p) => p.opponent))
@@ -81,6 +83,24 @@ export function DealMap({ sc, report, history, name }: Props) {
     else stairs += ` V${Y(p.opponent)} H${X(p.player)}`
   })
 
+  // точка под курсором или пальцем: ближайшая сделка в пределах пары делений
+  const onPointer = (e: RPointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const px = (e.clientX - r.left - PAD_L) / k - 1
+    const py = maxO + 1 - (e.clientY - r.top - PAD_T) / k
+    let best: { x: number; y: number } | null = null
+    let bd = 9
+    for (const p of report.space) {
+      const d = (p.player - px) ** 2 + (p.opponent - py) ** 2
+      if (d < bd) {
+        bd = d
+        best = { x: p.player, y: p.opponent }
+      }
+    }
+    setPick(best)
+  }
+  const picked = pick ? describe(sc, pick.x, pick.y) : null
+
   const path = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.x)} ${Y(p.y)}`).join(' ')
   const ticks = (max: number) => Array.from({ length: Math.floor(max / 20) + 1 }, (_, i) => i * 20)
 
@@ -88,7 +108,16 @@ export function DealMap({ sc, report, history, name }: Props) {
     <figure className="g-map">
       <div ref={wrap} className="g-map-wrap">
         {w > 0 && (
-          <svg width={W} height={H} shapeRendering="crispEdges" role="img" aria-label={mapLabel(report, name)}>
+          <svg
+            width={W}
+            height={H}
+            shapeRendering="crispEdges"
+            role="img"
+            aria-label={mapLabel(report, name)}
+            onPointerMove={onPointer}
+            onPointerDown={onPointer}
+            style={{ touchAction: 'pan-y', cursor: 'crosshair' }}
+          >
             <defs>
               <pattern id="g-dither" width={k * 2} height={k * 2} patternUnits="userSpaceOnUse">
                 <rect x={0} y={0} width={k} height={k} fill="var(--c-night-2)" />
@@ -130,6 +159,9 @@ export function DealMap({ sc, report, history, name }: Props) {
             ))}
             {better && <Marker x={X(better.x)} y={Y(better.y)} k={k} color="var(--c-leaf-hi)" hollow />}
             {deal && <Marker x={X(deal.x)} y={Y(deal.y)} k={k} color="var(--c-coral)" />}
+            {pick && (
+              <rect x={X(pick.x) - k - 1} y={Y(pick.y) - k - 1} width={k * 2 + 2} height={k * 2 + 2} fill="none" stroke="var(--c-paper)" strokeWidth={2} />
+            )}
             <text x={X(batna.player) + 6} y={Y(0) - 6} className="g-map-note">
               ваш запасной
             </text>
@@ -139,6 +171,18 @@ export function DealMap({ sc, report, history, name }: Props) {
           </svg>
         )}
       </div>
+      <p className="g-map-pick" aria-live="polite">
+        {picked ? (
+          <>
+            <b>
+              Вам {pick!.x}, {name} {pick!.y}.
+            </b>{' '}
+            {picked}
+          </>
+        ) : (
+          'Наведите или нажмите на точку — покажем, какой это договор.'
+        )}
+      </p>
       <figcaption className="g-map-legend">
         <span>
           <i className="g-sw g-sw--dot" /> возможная сделка
@@ -183,6 +227,13 @@ function Marker({ x, y, k, color, hollow }: { x: number; y: number; k: number; c
       {!hollow && <rect x={x - 1} y={y - 1} width={2} height={2} fill="var(--c-ink)" />}
     </g>
   )
+}
+
+/** Какой договор стоит за точкой (если таких несколько — первый по порядку перебора). */
+function describe(sc: Scenario, x: number, y: number): string {
+  const d = allDeals(sc).find((p) => p.player === x && p.opponent === y)
+  const t = d ? formatOffer(sc, d.offer) : ''
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) + '.' : ''
 }
 
 function mapLabel(r: Report, name: string) {

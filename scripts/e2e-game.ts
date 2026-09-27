@@ -180,6 +180,11 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
   await page.waitForSelector('.g-ledger')
   await page.waitForTimeout(700)
+  // «щупаем» карту: подпись под ней должна рассказать, что за договор в точке
+  const box = await page.locator('.g-map svg').boundingBox()
+  if (box) await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.35)
+  await page.waitForTimeout(100)
+  console.log('  карта:', (await page.locator('.g-map-pick').textContent())?.slice(0, 90))
   await shot(page, `08-report-top-${tag}`)
   await page.getByRole('button', { name: /Перевернуть/ }).click()
   await shot(page, `08-report-${tag}`, true)
