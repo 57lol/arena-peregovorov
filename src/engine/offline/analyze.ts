@@ -104,8 +104,10 @@ export function withContext(
     !last || last.decision.kind === 'counter' || (last.decision.kind === 'reveal' && !!last.decision.offer)
   const firstOffer = offered && !Object.keys(before.playerStance ?? {}).length
   const have = new Set(analysis.behaviors.map((b) => b.id))
+  // Спрашивал или пересказывал прошлым ходом — предложение уже не «сразу, не разобравшись».
+  const engagedBefore = !!last?.analysis.behaviors.some((b) => ENGAGES.has(b.id))
   const add = detectBehaviors('', { offered, firstOffer, opponentJustOffered }).filter(
-    (h) => !have.has(h.id) && !(h.id === 'instant_counter' && [...have].some((id) => ENGAGES.has(id))),
+    (h) => !have.has(h.id) && !(h.id === 'instant_counter' && (engagedBefore || [...have].some((id) => ENGAGES.has(id)))),
   )
   return add.length ? { ...analysis, behaviors: [...analysis.behaviors, ...add] } : analysis
 }

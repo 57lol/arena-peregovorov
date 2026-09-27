@@ -58,3 +58,15 @@ describe('офлайн-разметчик: уход', () => {
     expect(analyzeOffline(sc, 'Спасибо, но мы не договоримся. Всего доброго.', testDict).walksAway).toBe(true)
   })
 })
+
+describe('мгновенное встречное по контексту', () => {
+  it('после хода с вопросами предложение — не «мгновенное»', async () => {
+    const { tara } = await import('../../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('../behaviors')
+    const { offlineTurn } = await import('./index')
+    const h1 = [offlineTurn(tara, [], 'Почему для вас так важна оплата по факту?', BEHAVIOR_DICT)]
+    const h1b = { ...h1[0], decision: { kind: 'counter' as const, offer: { price: 0, payment: 0, rush: 0, term: 3, schedule: 2 } } }
+    const t = offlineTurn(tara, [h1b], 'Давайте 188 и 30 дней.', BEHAVIOR_DICT)
+    expect(t.analysis.behaviors.map((b) => b.id)).not.toContain('instant_counter')
+  })
+})
