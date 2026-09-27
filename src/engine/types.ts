@@ -75,15 +75,26 @@ export interface OpponentState {
   lastOpponentOffer?: Offer
   turn: number
   status: 'open' | 'deal' | 'walked_away' | 'timeout'
+  // Расширения движка (необязательные, чтобы не ломать старый код):
+  playerStance?: Offer     // последняя названная игроком позиция по каждому пункту
+  toneStrikes?: number     // сколько раз нарушен деловой тон
+  endedBy?: 'player' | 'opponent'
+  deal?: Offer             // итоговая сделка, если status === 'deal'
+  lastCall?: boolean       // оппонент сделал последнее предложение, дальше только принять
 }
 
 export type Decision =
   | { kind: 'accept' }
-  | { kind: 'counter'; offer: Offer }
-  | { kind: 'reveal'; interestId: string }
-  | { kind: 'hold' }
+  | { kind: 'counter'; offer: Offer; final?: boolean }
+  | { kind: 'reveal'; interestId: string; offer?: Offer }
+  | { kind: 'hold'; reason?: HoldReason }
   | { kind: 'warn_tone' }
   | { kind: 'walk_away' }
+
+export type HoldReason = 'no_offer' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
+
+// Эмоция оппонента для спрайта
+export type Emotion = 'neutral' | 'pleased' | 'happy' | 'thinking' | 'annoyed' | 'angry'
 
 export interface Delta { field: 'trust' | 'tension'; by: number; because: string }
 
