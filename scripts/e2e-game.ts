@@ -22,6 +22,7 @@ const SIZES = arg('sizes', '390,1280').split(',').map(Number)
 const TAG = arg('tag', '')
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'game')
 const GENERATE = process.argv.includes('--generate')
+const LINKS = process.argv.includes('--links')
 mkdirSync(OUT, { recursive: true })
 
 interface Script {
@@ -185,6 +186,30 @@ async function generateCase(page: Page, size: number) {
   await shot(page, `10-generate-result-${size}`, true)
 }
 
+/** Ссылка для команды: по id из библиотеки и целиком зашитое в адрес дело. */
+async function links(page: Page, size: number) {
+  console.log(`\nСсылки, ${size}px`)
+  await page.goto(`${URL}/?case=offer`)
+  await page.waitForSelector('.g-invite')
+  await shot(page, `11-invite-${size}`)
+  await page.getByRole('button', { name: /К делу/ }).click()
+  await page.waitForSelector('.g-dossier')
+  // своё дело: кодируем сценарий в адрес прямо в браузере и открываем
+  const link = await page.evaluate(async () => {
+    const m = await import('/src/game/share.ts' as string)
+    const sc = await import('/src/content/scenarios/tara.ts' as string)
+    return m.shareLink({ ...sc.tara, id: 'custom-test', title: 'Тара по ссылке' }, false)
+  })
+  console.log('  длина ссылки', link.length)
+  await page.goto(link)
+  await page.waitForSelector('.g-invite')
+  const text = await page.locator('.g-invite').textContent()
+  if (!text?.includes('Тара по ссылке')) throw new Error('Дело из ссылки не открылось')
+  await page.getByRole('button', { name: /К делу/ }).click()
+  await page.waitForSelector('.g-dossier')
+  console.log('  дело из ссылки открылось')
+}
+
 const browser = await webkit.launch()
 try {
   for (const size of SIZES) {
@@ -198,6 +223,7 @@ try {
     page.on('pageerror', (e) => console.log('  ОШИБКА НА СТРАНИЦЕ:', e.message))
     for (const sc of SCENARIOS.filter((s) => ONLY.includes(s.id))) await playCase(page, sc, size)
     if (GENERATE) await generateCase(page, size)
+    if (LINKS) await links(page, size)
     await ctx.close()
   }
 } finally {

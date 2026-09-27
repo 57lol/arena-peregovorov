@@ -34,14 +34,20 @@ export default function App() {
 
   useEffect(() => {
     health().then(setServer)
-    readLink().then((l) => {
-      if (!l) return
-      if ('error' in l) return setNotice(l.error)
-      const sc = 'id' in l ? SCENARIOS.find((s) => s.id === l.id) : l.scenario
-      if (!sc) return setNotice('Дела по этой ссылке нет в библиотеке. Выберите другое.')
-      setCurrent({ scenario: sc, fromLibrary: 'id' in l })
-      setInvited(true)
-    })
+    const fromLink = () =>
+      readLink().then((l) => {
+        if (!l) return
+        if ('error' in l) return setNotice(l.error)
+        const sc = 'id' in l ? SCENARIOS.find((s) => s.id === l.id) : l.scenario
+        if (!sc) return setNotice('Дела по этой ссылке нет в библиотеке. Выберите другое.')
+        setCurrent({ scenario: sc, fromLibrary: 'id' in l })
+        setInvited(true)
+        setScreen('title')
+      })
+    fromLink()
+    // ссылку вставили в адрес открытой вкладки — меняется только #
+    window.addEventListener('hashchange', fromLink)
+    return () => window.removeEventListener('hashchange', fromLink)
   }, [])
 
   const go = useCallback((s: Screen) => {

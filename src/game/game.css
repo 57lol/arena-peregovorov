@@ -166,12 +166,12 @@ body {
 .g-title-copy {
   width: 100%;
   max-width: 720px;
-  margin-top: calc(8 * var(--u));
+  margin-top: calc(4 * var(--u));
 }
 .g-lead {
   margin: 0 0 calc(8 * var(--u));
   font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
-  color: var(--c-paper);
+  color: var(--on-desk);
   text-wrap: pretty;
 }
 .g-invite {
@@ -223,10 +223,13 @@ body {
 }
 .g-rank {
   margin: 0 0 calc(6 * var(--u));
-  color: var(--c-paper);
+  color: var(--on-desk);
 }
 .g-rank b {
   color: var(--c-brass-hi);
+}
+[data-desk='office'] .g-rank b {
+  color: var(--c-wood-2);
 }
 .g-fineprint {
   margin: calc(6 * var(--u)) 0 0;
@@ -258,6 +261,9 @@ body {
   clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 .g-method.is-compact {
+  color: var(--on-desk);
+}
+.g-method.is-compact .g-method-body {
   color: var(--c-paper);
 }
 .g-method.is-compact .g-method-body {

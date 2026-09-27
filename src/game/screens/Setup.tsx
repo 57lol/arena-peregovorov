@@ -134,7 +134,7 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
       setFallback({
         message: offline
           ? 'Без нейросети новое дело не собрать. Можно сыграть похожее из папки — с тем характером и сложностью, что вы выбрали.'
-          : `Дело под ваш запрос не прошло проверку движка${r.problems[0] ? ` (${lowerFirst(r.problems[0])})` : ''}. Можно поправить запрос или сыграть похожее из папки.`,
+          : `${whyFailed(r.problems)} Попробуйте ещё раз — или сыграйте похожее дело из папки с вашим характером и сложностью.`,
         scenario: r.scenario,
       })
     } catch {
@@ -271,4 +271,10 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   )
 }
 
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
+/** Что сказать человеку, если дело не собралось: без технических подробностей. */
+function whyFailed(problems: string[]): string {
+  const p = problems.join(' ')
+  if (/зон[аы] соглашения/i.test(p)) return 'Нейросеть придумала историю, но в ней не о чем договориться: движок не нашёл сделки, которая устроила бы обоих.'
+  if (/размен|посередине/i.test(p)) return 'Нейросеть придумала историю, но в ней нечего разменять — получился бы простой торг о цене.'
+  return 'Нейросеть трижды ответила невнятно, и собрать из этого дело не вышло.'
+}

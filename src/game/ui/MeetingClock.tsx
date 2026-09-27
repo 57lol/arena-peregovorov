@@ -62,7 +62,8 @@ export function MeetingClock({ turn, turnLimit, startAt = 10 * 60, minutes = 60 
   const arc: [number, number][] = []
   const endA = (((startAt + minutes) % 60) / 60) * Math.PI * 2 || Math.PI * 2
   for (let a = mAngle; a < (endA <= mAngle ? endA + Math.PI * 2 : endA); a += 0.12) {
-    arc.push([Math.round(C + Math.sin(a) * 6), Math.round(C - Math.cos(a) * 6)])
+    const pt: [number, number] = [Math.round(C + Math.sin(a) * 6), Math.round(C - Math.cos(a) * 6)]
+    if (!arc.some(([x, y]) => x === pt[0] && y === pt[1])) arc.push(pt)
   }
 
   return (

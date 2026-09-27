@@ -1,6 +1,6 @@
 import type { Case } from '../../App'
 import type { Health } from '../api'
-import { firstName } from '../cast'
+import { firstName, portraitFor, sceneFor } from '../cast'
 import { rankOf, type Progress } from '../progress'
 import { Button, Scene } from '../ui'
 import { Method } from './Method'
@@ -18,7 +18,7 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
   const rank = rankOf(progress)
   const played = Object.keys(progress.cases).length > 0
   return (
-    <div className="px-root g-page" data-desk="factory">
+    <div className="px-root g-page" data-desk={invited ? sceneFor(invited.scenario) : 'factory'}>
       <main className="px-desk g-desk g-title">
         <div className="g-title-sign" role="heading" aria-level={1}>
           <span className="g-title-screw" aria-hidden="true" />
@@ -27,7 +27,12 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
         </div>
 
         <div className="g-title-stage">
-          <Scene scene="factory" character="rinat" emotion="neutral" maxScale={4} />
+          <Scene
+            scene={invited ? sceneFor(invited.scenario) : 'factory'}
+            character={invited ? portraitFor(invited.scenario) : 'rinat'}
+            emotion="neutral"
+            maxScale={4}
+          />
         </div>
 
         <div className="g-title-copy">
