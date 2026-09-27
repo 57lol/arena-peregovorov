@@ -1397,6 +1397,7 @@ body {
   }
 }
 .g-moment {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1439,6 +1440,9 @@ body {
   margin: 0;
   font-weight: 700;
 }
+.g-moment > * {
+  max-width: 100%;
+}
 .g-moment-hits {
   margin: 0;
   padding: 0;
@@ -1467,7 +1471,7 @@ body {
 }
 .g-cite {
   color: var(--pen);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .g-moment .px-btn {
   margin-left: calc(-7 * var(--u));
