@@ -242,7 +242,8 @@ body {
 
 /* ---------- как мы считаем ---------- */
 
-.g-method summary {
+.g-method summary,
+.g-fold > summary {
   display: flex;
   align-items: center;
   gap: calc(3 * var(--u));
@@ -251,17 +252,20 @@ body {
   cursor: pointer;
   list-style: none;
 }
-.g-method summary::-webkit-details-marker {
+.g-method summary::-webkit-details-marker,
+.g-fold > summary::-webkit-details-marker {
   display: none;
 }
-.g-method summary::before {
+.g-method summary::before,
+.g-fold > summary::before {
   content: '';
   width: calc(4 * var(--u));
   height: calc(4 * var(--u));
   background: currentColor;
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
-.g-method[open] summary::before {
+.g-method[open] summary::before,
+.g-fold[open] > summary::before {
   clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 .g-method.is-compact {
@@ -1851,4 +1855,24 @@ body {
 .g-folder {
   --star-on: var(--c-wood-3);
   --star-off: color-mix(in srgb, var(--c-wood) 45%, var(--c-brass-hi));
+}
+
+/* свёрнутые на телефоне подробности разбора */
+.g-fold {
+  width: 100%;
+  margin-bottom: calc(3 * var(--u));
+}
+.g-fold > summary {
+  color: var(--pen);
+  text-wrap: pretty;
+}
+
+/* телефон: после ведомости — «почему такой итог», потом карта */
+@media (max-width: 1099px) {
+  .g-why {
+    order: 2;
+  }
+  .g-map-panel {
+    order: 3;
+  }
 }

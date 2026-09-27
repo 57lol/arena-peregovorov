@@ -45,6 +45,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
 
   const stars = starsOf(report)
   const last = history[history.length - 1]
+  const wide = useWide()
 
   return (
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
@@ -76,11 +77,11 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           </section>
         </div>
 
-        <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} />
+        <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} wide={wide} />
 
         <UnderTable sc={sc} report={report} state={last?.stateAfter} />
 
-        <Behavior sc={sc} rows={report.benchmark} history={history} />
+        <Behavior sc={sc} rows={report.benchmark} history={history} wide={wide} />
 
         <section className="g-sheet">
           <Method />
@@ -97,6 +98,30 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
         </footer>
       </main>
     </div>
+  )
+}
+
+/** Ноутбук или телефон: на телефоне подробности разбора свёрнуты, сначала главное. */
+function useWide() {
+  const q = '(min-width: 900px)'
+  const [wide, setWide] = useState(() => typeof matchMedia === 'undefined' || matchMedia(q).matches)
+  useEffect(() => {
+    const m = matchMedia(q)
+    const on = () => setWide(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
+/** Подробности, которые на телефоне свёрнуты под строку-заголовок, а на ноутбуке открыты. */
+function Fold({ summary, wide, children }: { summary: string; wide: boolean; children: React.ReactNode }) {
+  if (wide) return <>{children}</>
+  return (
+    <details className="g-fold">
+      <summary>{summary}</summary>
+      {children}
+    </details>
   )
 }
 
@@ -190,7 +215,7 @@ const DECISION_RU: Record<string, string> = {
   walk_away: 'ушёл',
 }
 
-function Moments({ sc, report, history, onReplayFrom }: { sc: Scenario; report: Report; history: TurnRecord[]; onReplayFrom: (t: number) => void }) {
+function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; report: Report; history: TurnRecord[]; onReplayFrom: (t: number) => void; wide: boolean }) {
   if (!report.keyMoments.length) return null
   return (
     <section className="g-sheet" aria-labelledby="moments-h">
@@ -217,6 +242,7 @@ function Moments({ sc, report, history, onReplayFrom }: { sc: Scenario; report: 
               </p>
               <p className="g-moment-why">{m.why}.</p>
               {hits.length > 0 && (
+                <Fold wide={wide} summary={`Приёмы в этой реплике: ${hits.length}`}>
                 <ul className="g-moment-hits">
                   {hits.map((b) => {
                     const def = behaviorById(b.id)
@@ -236,6 +262,7 @@ function Moments({ sc, report, history, onReplayFrom }: { sc: Scenario; report: 
                     )
                   })}
                 </ul>
+                </Fold>
               )}
               <Button variant="ghost" icon="rewind" onClick={() => onReplayFrom(m.turn)}>
                 Переиграть с этого хода
@@ -370,7 +397,7 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const VERDICT: Record<string, string> = { skilled: 'как у сильных', between: 'между', average: 'как у средних' }
 
-function Behavior({ sc, rows, history }: { sc: Scenario; rows: ProfileRow[]; history: TurnRecord[] }) {
+function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[]; history: TurnRecord[]; wide: boolean }) {
   const quotes = new Map<string, string[]>()
   for (const h of history) for (const b of h.analysis.behaviors) quotes.set(b.id, [...(quotes.get(b.id) ?? []), b.quote])
   const n = history.length
@@ -387,12 +414,17 @@ function Behavior({ sc, rows, history }: { sc: Scenario; rows: ProfileRow[]; his
         Приёмы из ваших реплик в сравнении с тем, как ведут себя сильные переговорщики (Rackham & Carlisle, 103 реальные
         переговорные сессии). Доля — от ваших {n} {plural(n, 'реплики', 'реплик', 'реплик')}.
       </p>
+      <Fold
+        wide={wide}
+        summary={`Работало ${strong.length}, мешало ${weak.length}, не хватило ${missing.length} — подробнее`}
+      >
       <div className="g-beh-cols">
         {strong.length > 0 && <BehGroup title="Что работало" rows={strong} quotes={quotes} n={n} kind="strong" />}
         {weak.length > 0 && <BehGroup title="Что мешало" rows={weak} quotes={quotes} n={n} kind="weak" />}
         {missing.length > 0 && <BehGroup title="Чего не хватило" rows={missing} quotes={quotes} n={n} kind="missing" />}
         {neutral.length > 0 && <BehGroup title="Другие ходы" rows={neutral} quotes={quotes} n={n} kind="neutral" />}
       </div>
+      </Fold>
       {sc.goals?.length ? (
         <p className="g-muted">Это дело учит: {sc.goals.map((x) => x.charAt(0).toLowerCase() + x.slice(1)).join('; ')}.</p>
       ) : null}
