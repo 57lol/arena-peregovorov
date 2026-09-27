@@ -20,3 +20,14 @@ describe('проверка реплики собеседника', () => {
     expect(lineFits(tara, hold, state, 'Ладно, 196 рублей, и всё.')).toBe(false)
   })
 })
+
+describe('ложная окончательность', () => {
+  it('«последнее слово» не на последнем ходу не берём', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { initialState } = await import('../engine/turn')
+    const s = initialState(tara)
+    const offer = { price: 0, payment: 0, rush: 0, term: 3, schedule: 2 }
+    expect(lineFits(tara, { kind: 'counter', offer }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(false)
+    expect(lineFits(tara, { kind: 'counter', offer, final: true }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(true)
+  })
+})
