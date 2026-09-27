@@ -20,6 +20,12 @@ describe('API в офлайне', () => {
     expect(r.provider).toBe('offline')
   })
 
+  it('health не светит folder id из полного id модели', async () => {
+    const yc = createApp({ name: 'yandex', model: 'gpt://b1gsecretfolder/yandexgpt-5.1', json: () => Promise.reject(new Error('нет')) })
+    const r = (await (await yc.request('/api/health')).json()) as { model: string }
+    expect(r.model).toBe('yandexgpt-5.1')
+  })
+
   it('ход, перемотка и повтор дают то же самое', async () => {
     const lines = ['Почему для вас важен график отгрузок?', 'Цена 196 рублей, отсрочка 30 дней, срочные за 48 часов, договор на год, раз в неделю']
     const h: TurnRecord[] = []

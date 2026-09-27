@@ -74,8 +74,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
 
   app.onError((e, c) => c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500))
 
+  // только имя модели: у Яндекса в полном id зашит folder id облака
   app.get('/api/health', (c) =>
-    c.json({ ok: true, provider: llm.name, model: llm.model, ...(providerError ? { providerError } : {}), scenarios: scenarios.length }),
+    c.json({ ok: true, provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length }),
   )
 
   app.get('/api/scenarios', (c) =>
