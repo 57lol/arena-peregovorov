@@ -8,6 +8,7 @@
     "web": "vite",
     "server": "tsx src/server/index.ts",
     "build": "tsc -b && vite build",
+    "start": "NODE_ENV=production tsx src/server/prod.ts",
     "test": "vitest run",
     "lint": "oxlint",
     "preview": "vite preview"
