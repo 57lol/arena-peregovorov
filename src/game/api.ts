@@ -56,8 +56,9 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
     const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string } }>('/api/turn', body)
     return { record: r.record, source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}` }
   } catch (e) {
-    // 4xx — ошибка в самом ходе, показываем её; сеть или 5xx — играем локально
-    if (e instanceof ApiError && e.status >= 400 && e.status < 500) throw e
+    // 400 и 409 — ошибка в самом ходе, показываем её. Сеть, 5xx, 404/405 статического хостинга без API —
+    // играем локально, чтобы игра проходилась и там, где сервера нет вовсе.
+    if (e instanceof ApiError && (e.status === 400 || e.status === 409)) throw e
     return { record: localTurn(t), source: 'local' }
   }
 }
