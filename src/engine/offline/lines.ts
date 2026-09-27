@@ -4,7 +4,7 @@
 import type { Decision, Emotion, OpponentState, Scenario, Tone } from '../types'
 import { formatOffer } from '../utility'
 
-type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
+type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_news' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
 
 const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
   accept: {
@@ -15,7 +15,7 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
   },
   counter: {
     any: ['Смотрите, что могу: {offer}.', 'Давайте так: {offer}.', 'Моё предложение — {offer}.', 'Могу подвинуться: {offer}.'],
-    friendly: ['Слушайте, давайте попробуем так: {offer}. Как вам?', 'Я вас услышал. Предлагаю: {offer}.'],
+    friendly: ['Слушайте, давайте попробуем так: {offer}. Как вам?', 'Слышу вас. Предлагаю: {offer}.'],
     cold: ['Встречное: {offer}.', 'Могу так: {offer}. Не больше.'],
     aggressive: ['Нет. Вот как будет: {offer}.', 'Так не пойдёт. {offer} — и это уже щедро.'],
     evasive: ['Ну, допустим... {offer}. Надо ещё подумать, конечно.', 'Скажем так: {offer}. Пока так.'],
@@ -32,13 +32,20 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
   },
   hold: { any: ['Моё предложение в силе.'] },
   no_offer: {
-    any: ['Хорошо, а что конкретно вы предлагаете?', 'Давайте к цифрам. Что предлагаете?', 'Понял. Жду от вас конкретики.'],
+    any: ['Хорошо, а что конкретно вы предлагаете?', 'Давайте к цифрам. Что предлагаете?', 'Ясно. Жду от вас конкретики.'],
     friendly: ['Понимаю. А какие цифры вам бы подошли?'],
     cold: ['Конкретнее, пожалуйста.'],
     aggressive: ['Слова. Цифры где?'],
     evasive: ['Ну, это всё понятно... А по сути что?'],
   },
   // Держим позицию без пересказа всех условий: листок и так на столе.
+  // предложение игрока уже на столе, а нового он ничего не сказал
+  no_news: {
+    any: ['Ваше предложение у меня перед глазами. Что ещё можете дать?', 'Ясно. Жду от вас шага — тогда и я подвинусь.', 'Так. А по сути что-то новое будет?'],
+    friendly: ['Слышу вас. Но чтобы я сдвинулся, нужен шаг с вашей стороны.'],
+    aggressive: ['Это уже было. Дальше что?'],
+    evasive: ['Ну... ваше предложение у меня есть. Посмотрим, что вы ещё скажете.'],
+  },
   no_movement: {
     any: ['Нет, так не могу. Моё предложение в силе.', 'Не вижу, куда тут двигаться: {main}, остальное как было.'],
     aggressive: ['Нет. Всё как было. Повторять не буду.'],
@@ -59,12 +66,13 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
     aggressive: ['Я своё время дороже ценю. До свидания.'],
     friendly: ['Жаль, но так я работать не могу. Всего хорошего.'],
   },
-  player_left: { any: ['Что ж, ваше право. Если передумаете — звоните.', 'Понял. Жаль, что не договорились.'] },
+  player_left: { any: ['Что ж, ваше право. Если передумаете — звоните.', 'Ясно. Жаль, что не договорились.'] },
   timeout: { any: ['Время вышло. Жаль, не успели.', 'Всё, мне пора. Без сделки.'] },
 }
 
 function kindOf(d: Decision, state: OpponentState): Kind {
   if (state.status === 'timeout') return 'timeout'
+  if (d.kind === 'hold' && d.reason === 'no_offer' && Object.keys(state.playerStance ?? {}).length) return 'no_news'
   if (d.kind === 'hold') return d.reason ?? 'hold'
   if (d.kind === 'counter' && d.final) return 'final'
   return d.kind
