@@ -177,13 +177,13 @@ export function step(
   const stance = s.playerStance ?? {}
 
   if (proposal && isComplete(sc, proposal)) {
-    const next = makeCounter(sc, target, stance, prevCounter)
+    const next = makeCounter(sc, target, stance, prevCounter, s.trust)
     if (wouldAccept(sc, proposal, target, next))
       return end({ kind: 'accept' }, { status: 'deal', deal: proposal, tableOffer: proposal })
   }
 
   const isLast = turn >= sc.turnLimit
-  const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter)
+  const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter, s.trust)
 
   if (asksInterest(analysis, dict)) {
     const { ready } = pickInterest(sc, s, analysis)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { testDict, testScenario as sc } from './__fixtures__/fixtures'
 import {
-  allDeals, buildReport, initialState, playAnalyses, replay, rewind, score, step,
+  allDeals, buildReport, initialState, makeCounter, playAnalyses, replay, rewind, score, step,
   type Difficulty, type MoveAnalysis, type Offer, type Scenario, type TurnRecord,
 } from './index'
 
@@ -88,16 +88,18 @@ describe('движок', () => {
     expect(last.stateAfter.endedBy).toBe('opponent')
   })
 
-  it('встречное: уступает в дешёвом для себя, держит дорогое', () => {
+  it('встречное: доверяя, уступает в дешёвом и держит дорогое; не доверяя — понемногу во всём', () => {
     // Игрок просит всё лучшее для себя; поставщику дёшево уступить срок, дорого — отсрочку.
     const greedy: Offer = { price: 0, delivery: 0, payment: 3, warranty: 2 }
-    const h = playAnalyses(sc, [move(greedy), move(greedy), move(greedy), move(greedy)], testDict)
-    const counters = h.filter((t) => t.decision.kind === 'counter').map((t) => (t.decision as { offer: Offer }).offer)
-    expect(counters.length).toBeGreaterThan(0)
-    const c = counters[counters.length - 1]
-    expect(c.delivery).toBe(0)
-    expect(c.warranty).toBe(2)
-    expect(c.payment).toBeLessThan(3)
+    const target = 70
+    const open = makeCounter(sc, target, greedy, undefined, 80)
+    expect(open.delivery).toBe(0)
+    expect(open.warranty).toBe(2)
+    expect(open.payment).toBeLessThan(3)
+    const guarded = makeCounter(sc, target, greedy, undefined, 20)
+    const both = (o: Offer) => score(sc.player.profile, o as never) + score(sc.opponent.profile, o as never)
+    expect(score(sc.opponent.profile, guarded as never)).toBeGreaterThanOrEqual(target)
+    expect(both(open)).toBeGreaterThan(both(guarded))
   })
 
   it('раскрывает интерес, если спросили и доверия хватает', () => {

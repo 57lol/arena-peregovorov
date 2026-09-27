@@ -65,10 +65,32 @@ function lexLess(sc: Scenario, a: FullOffer, b: FullOffer): boolean {
   return false
 }
 
+/** Насколько оппонент готов меняться «умно»: 0 при доверии ≤ 35, 1 при ≥ 65. */
+export function openness(trust: number): number {
+  return Math.max(0, Math.min(1, (trust - 35) / 30))
+}
+
+/** Неравномерность уступок: насколько по-разному оппонент сдвинулся к игроку в разных пунктах. */
+function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
+  const opp = sc.opponent.profile
+  const fr: number[] = []
+  for (const i of sc.issues) {
+    const s = stance[i.id]
+    const best = opp.points[i.id].indexOf(Math.max(...opp.points[i.id]))
+    if (typeof s !== 'number' || s === best) continue
+    fr.push(Math.min(1, Math.abs(offer[i.id] - best) / Math.abs(s - best)))
+  }
+  if (fr.length < 2) return 0
+  const mean = fr.reduce((a, b) => a + b, 0) / fr.length
+  return fr.reduce((a, b) => a + Math.abs(b - mean), 0)
+}
+
 /**
- * Встречное предложение по схеме trade-off (Faratin и др.): среди сделок, которые дают оппоненту
- * не меньше цели, берём ближайшую к позиции игрока. Близость считается равномерно по пунктам,
- * поэтому оппонент охотно сдвигается там, где ему дёшево, и стоит там, где дорого.
+ * Встречное предложение. Среди сделок, которые дают оппоненту не меньше цели, берём ближайшую к позиции игрока.
+ * Близость считается равномерно по пунктам, поэтому доверяющий оппонент работает по схеме trade-off
+ * (Faratin и др.): охотно сдвигается там, где ему дёшево, и стоит там, где дорого, — так рождается размен.
+ * Пока доверия мало, он осторожничает и уступает понемногу во всём сразу (штраф за неравномерность):
+ * так делают люди, которые не хотят показывать, что им важно, — и сделки выходят хуже для обоих.
  * Назад не откатывается: хуже своего прошлого предложения для себя не делает, но и жаднее не становится.
  */
 export function makeCounter(
@@ -76,17 +98,19 @@ export function makeCounter(
   target: number,
   stance: Offer,
   previous: FullOffer | undefined,
+  trust = 100,
 ): FullOffer {
   const opp = sc.opponent.profile
   const prevU = previous ? score(opp, previous) : Infinity
   const need = Math.min(target, prevU)
+  const guard = 2 * (1 - openness(trust))
   let best: FullOffer | undefined
   let bestD = Infinity
   let bestU = -Infinity
   for (const p of allDeals(sc)) {
     const u = p.opponent
     if (u < need || u > prevU) continue
-    const d = distance(sc, p.offer, stance)
+    const d = distance(sc, p.offer, stance) + (guard ? guard * unevenness(sc, p.offer, stance) : 0)
     if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && (u > bestU || (u === bestU && best && lexLess(sc, p.offer, best))))) {
       best = p.offer
       bestD = d
