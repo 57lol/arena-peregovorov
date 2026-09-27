@@ -50,9 +50,20 @@ export default function App() {
     return () => window.removeEventListener('hashchange', fromLink)
   }, [])
 
+  // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
   const go = useCallback((s: Screen) => {
     setScreen(s)
+    window.history.pushState({ screen: s }, '')
     window.scrollTo({ top: 0 })
+  }, [])
+  useEffect(() => {
+    const back = (e: PopStateEvent) => {
+      const s = (e.state?.screen as Screen | undefined) ?? 'title'
+      // вернуться в законченную встречу нельзя — только в разбор или к делам
+      setScreen(s === 'play' ? 'setup' : s)
+    }
+    window.addEventListener('popstate', back)
+    return () => window.removeEventListener('popstate', back)
   }, [])
 
   const open = (c: Case) => {

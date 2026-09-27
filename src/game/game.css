@@ -407,7 +407,7 @@ body {
   column-gap: calc(3 * var(--u));
 }
 .g-folder-meta dt {
-  color: var(--c-wood);
+  color: var(--c-wood-2);
 }
 .g-folder-meta dd {
   margin: 0;
@@ -1756,5 +1756,53 @@ body {
   }
   .g-why {
     order: 3;
+  }
+}
+
+/* ваша последняя реплика — полоской над окном собеседника */
+.g-you {
+  position: relative;
+  z-index: 1;
+  align-self: flex-end;
+  max-width: min(85%, 560px);
+  margin: calc(-20 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u)) 0;
+  padding: calc(2 * var(--u)) calc(5 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-steel-2);
+  box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-wrap: pretty;
+}
+.g-you b {
+  color: var(--pen);
+}
+
+.g-stage .g-you + .px-dialog {
+  margin-top: 0;
+}
+
+/* записка наставника и рентген: на ноутбуке — в правой колонке, чтобы поле ввода оставалось на экране */
+@media (min-width: 900px) {
+  .g-mentor--stage {
+    display: none;
+  }
+  .g-side > .g-mentor { order: 0; }
+  .g-side > .g-slip { order: 1; }
+  .g-side > .g-xray { order: 2; }
+  .g-side > .g-notebook-wrap { order: 3; }
+  .g-side > .g-protocol { order: 4; }
+  .g-side > .g-mentor {
+    margin-top: calc(3 * var(--u));
+  }
+}
+@media (max-width: 899px) {
+  .g-mentor--side {
+    display: none;
+  }
+  .g-side > .g-xray {
+    order: -1;
   }
 }

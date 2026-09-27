@@ -106,6 +106,40 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
     setTimeout(() => notebookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
   }
 
+  const mentor = (where: 'stage' | 'side') =>
+    hint && (
+
+              <aside className={`g-mentor g-mentor--${where}`} aria-label="Подсказка наставника">
+                <p className="g-mentor-who">
+                  <PixelIcon name="pen" px={2} color="var(--c-denim)" color2="var(--c-brass)" />
+                  Записка наставника
+                </p>
+                <p>{hint.text}</p>
+                <div className="g-mentor-actions">
+                  {hint.example && (
+                    <button type="button" className="g-link" onClick={() => setDraft(hint.example!)}>
+                      Вставить пример
+                    </button>
+                  )}
+                  <button type="button" className="g-link" onClick={() => setSeen((s) => new Set(s).add(hint.id))}>
+                    Понятно
+                  </button>
+                  <button
+                    type="button"
+                    className="g-link g-link--quiet"
+                    onClick={() => {
+                      setHintsOn(false)
+                      markTutorialDone()
+                      onTutorialOff()
+                    }}
+                  >
+                    Без подсказок
+                  </button>
+                </div>
+              </aside>
+            
+    )
+
   const stamp = state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
 
   return (
@@ -139,6 +173,12 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
               {stamp && <Stamp kind={stamp} />}
             </Scene>
 
+            {(pending || last) && (
+              <p className="g-you">
+                <b>Вы:</b> {pending ?? last!.playerText}
+              </p>
+            )}
+
             <DialogBox
               name={sc.opponent.character.name}
               role={sc.opponent.character.role}
@@ -148,36 +188,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
 
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="stage" />
 
-            {hint && (
-              <aside className="g-mentor" aria-label="Подсказка наставника">
-                <p className="g-mentor-who">
-                  <PixelIcon name="pen" px={2} color="var(--c-denim)" color2="var(--c-brass)" />
-                  Записка наставника
-                </p>
-                <p>{hint.text}</p>
-                <div className="g-mentor-actions">
-                  {hint.example && (
-                    <button type="button" className="g-link" onClick={() => setDraft(hint.example!)}>
-                      Вставить пример
-                    </button>
-                  )}
-                  <button type="button" className="g-link" onClick={() => setSeen((s) => new Set(s).add(hint.id))}>
-                    Понятно
-                  </button>
-                  <button
-                    type="button"
-                    className="g-link g-link--quiet"
-                    onClick={() => {
-                      setHintsOn(false)
-                      markTutorialDone()
-                      onTutorialOff()
-                    }}
-                  >
-                    Без подсказок
-                  </button>
-                </div>
-              </aside>
-            )}
+            {mentor('stage')}
 
             {done ? (
               <div className="g-end">
@@ -232,6 +243,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
           </div>
 
           <aside className="g-side">
+            {mentor('side')}
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="side" />
             <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
               <Notebook
