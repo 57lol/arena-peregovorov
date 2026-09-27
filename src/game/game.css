@@ -299,7 +299,7 @@ body {
 
 .g-folders {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
   gap: calc(12 * var(--u)) calc(10 * var(--u));
   max-width: 1240px;
   margin: 0 auto;
@@ -1740,8 +1740,8 @@ body {
 .g-folder-title,
 .g-sheet-title,
 .g-dossier-title {
-  hyphens: auto;
   overflow-wrap: break-word;
+  text-wrap: balance;
 }
 
 @media (max-width: 1099px) {

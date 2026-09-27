@@ -197,7 +197,7 @@ async function generateCase(page: Page, size: number) {
   await page.getByRole('button', { name: 'Заполнить бриф' }).click()
   await page.getByRole('button', { name: 'Аренда' }).click()
   await page.getByLabel('О чём договариваемся').fill('аренда склада под интернет-магазин')
-  await page.getByLabel('Кто вы').fill('владелец небольшого интернет-магазина')
+  await page.getByLabel('Кто вы').fill('владелец интернет-магазина')
   await page.getByRole('button', { name: 'напористый' }).click()
   await page.getByRole('button', { name: 'Собрать дело' }).click()
   await page.waitForSelector('.g-writing')
