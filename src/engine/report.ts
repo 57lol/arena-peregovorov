@@ -74,9 +74,17 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
   const joint = playerPoints + opponentPoints
   const minJoint = Math.min(...all.map((p) => p.player + p.opponent))
 
-  // Лучшая сделка, которая никому не хуже нашей (при срыве — лучше обеих BATNA).
+  // Лучшая сделка, которая никому не хуже нашей. При срыве — точка Нэша (максимум произведения выигрышей
+  // над BATNA): честный ориентир «как можно было договориться».
   let better: Point | undefined
-  for (const p of all) {
+  if (!deal) {
+    let bestN = -Infinity
+    for (const p of all) {
+      const n = (p.player - P.batna) * (p.opponent - O.batna)
+      if (p.player >= P.batna && p.opponent >= O.batna && n > bestN) (bestN = n), (better = p)
+    }
+  }
+  for (const p of deal ? all : []) {
     if (p.player < playerPoints || p.opponent < opponentPoints) continue
     const j = p.player + p.opponent
     const bj = better ? better.player + better.opponent : -Infinity
@@ -256,7 +264,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     out.push(
       o.status === 'deal'
         ? `На столе осталось ${fmt(r.leftOnTable)} очков общей ценности. Например: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, оппоненту +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
-        : `Лучшая сделка для обоих была бы такой: ${formatOffer(sc, r.betterDeal.offer)}.`,
+        : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, оппоненту ${fmt(r.betterDeal.opponent)}.`,
     )
   } else if (o.status === 'deal') {
     out.push('Сделка на границе Парето: улучшить её для вас, не отняв у оппонента, уже нельзя.')
