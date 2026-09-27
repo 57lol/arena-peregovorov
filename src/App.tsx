@@ -31,6 +31,9 @@ interface Saved {
 function loadSession(): Saved | null {
   try {
     if (/[?#&]case=/.test(location.search + location.hash)) return null // ссылка на дело важнее
+    // восстанавливаем только при перезагрузке или «назад/вперёд»; открыли адрес заново — начинаем с титула
+    const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
+    if (nav?.type === 'navigate') return null
     const s = JSON.parse(sessionStorage.getItem(SESSION) ?? 'null') as Saved | null
     return s?.current ? s : null
   } catch {
