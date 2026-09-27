@@ -62,6 +62,10 @@ export interface Report {
 }
 
 const fmt = (n: number) => String(Math.round(n))
+const RU = new Intl.PluralRules('ru')
+const PTS = { one: 'очко', few: 'очка', many: 'очков', other: 'очка' } as Record<string, string>
+/** «1 очко», «3 очка», «12 очков» */
+const pts = (n: number) => `${fmt(n)} ${PTS[RU.select(Math.round(n))]}`
 
 export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorDict): Report {
   const last = history[history.length - 1]
@@ -225,11 +229,11 @@ function pickMoments(sc: Scenario, history: TurnRecord[]): KeyMoment[] {
     const weight = Math.abs(trust) + Math.abs(tension) + DECISION_WEIGHT[h.decision.kind] + move
     const top = [...h.deltas].sort((a, b) => Math.abs(b.by) - Math.abs(a.by))[0]
     const why =
-      h.decision.kind === 'reveal' ? 'Оппонент раскрыл, что ему на самом деле важно'
-      : h.decision.kind === 'walk_away' ? 'Оппонент встал из-за стола'
+      h.decision.kind === 'reveal' ? 'Собеседник рассказал, что ему на самом деле важно'
+      : h.decision.kind === 'walk_away' ? 'Собеседник встал из-за стола'
       : h.decision.kind === 'accept' ? 'Сделка'
-      : h.decision.kind === 'warn_tone' ? 'Оппонент одёрнул за тон'
-      : move >= 5 ? 'Оппонент заметно сдвинулся'
+      : h.decision.kind === 'warn_tone' ? 'Собеседник одёрнул вас за тон'
+      : move >= 5 ? 'Собеседник заметно уступил'
       : top ? top.because : 'Ход без последствий'
     return { turn: h.turn, quote: h.playerText, shift: { trust, tension }, decision: h.decision.kind, why, weight }
   })
@@ -246,7 +250,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
   const state = history[history.length - 1]?.stateAfter
   if (o.status === 'deal') {
     out.push(
-      `Сделка есть: у вас ${fmt(o.playerPoints)} из ${fmt(o.maxPlayerPoints)} возможных, у оппонента ${fmt(o.opponentPoints)}. ` +
+      `Сделка есть: у вас ${fmt(o.playerPoints)} из ${fmt(o.maxPlayerPoints)} возможных, у собеседника ${fmt(o.opponentPoints)}. ` +
         (o.playerPoints >= r.batna.player
           ? `Это лучше вашего запасного варианта (${fmt(r.batna.player)}).`
           : `Это хуже вашего запасного варианта (${fmt(r.batna.player)}) — выгоднее было уйти.`),
@@ -257,7 +261,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
       .sort((a, b) => b.by - a.by)
       .slice(0, 2)
       .map((d) => d.because)
-    out.push(`Оппонент ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
+    out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
   } else if (o.status === 'walked_away') {
     out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${r.zopa ? ` При этом было ${r.zopa} вариантов, которые устроили бы обоих.` : ''}`)
   } else if (o.status === 'timeout') {
@@ -270,11 +274,11 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
       .join(', ')
     out.push(
       o.status === 'deal'
-        ? `На столе осталось ${fmt(r.leftOnTable)} очков общей ценности. Например: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, оппоненту +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
-        : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, оппоненту ${fmt(r.betterDeal.opponent)}.`,
+        ? `На столе осталось ${pts(r.leftOnTable)} общей ценности. Например: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
+        : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, собеседнику ${fmt(r.betterDeal.opponent)}.`,
     )
   } else if (o.status === 'deal') {
-    out.push('Сделка на границе Парето: улучшить её для вас, не отняв у оппонента, уже нельзя.')
+    out.push('Сделка на границе Парето: улучшить её для вас, не отняв у собеседника, уже нельзя.')
   }
 
   // Размен: пункты, где интересы разные по весу
@@ -284,29 +288,29 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     const mine = i.playerWeight > i.opponentWeight
     const got = i.player / Math.max(1, i.playerMax)
     if (mine && got < 0.6)
-      out.push(`«${i.title}» важнее вам, чем оппоненту, — тут можно было добиться большего, уступив ему в том, что важно ему.`)
+      out.push(`«${i.title}» важнее вам, чем собеседнику, — тут можно было добиться большего, уступив ему в том, что важно ему.`)
     if (!mine && got > 0.6)
-      out.push(`«${i.title}» для оппонента важнее, чем для вас. Уступив здесь, можно было выторговать больше в своих главных пунктах.`)
+      out.push(`«${i.title}» для собеседника важнее, чем для вас. Уступив здесь, можно было выторговать больше в своих главных пунктах.`)
   }
 
   for (const t of r.traps) {
     if (!r.deal) continue
     out.push(
       t.avoided
-        ? `По пункту «${t.title}» вы с оппонентом хотели одного и того же («${t.bothWant}») — и так и записали.${t.asked ? ' Вы это выяснили вопросом — хорошо.' : ''}`
+        ? `По пункту «${t.title}» вы с собеседником хотели одного и того же («${t.bothWant}») — и так и записали.${t.asked ? ' Вы это выяснили вопросом — хорошо.' : ''}`
         : `Ловушка: по пункту «${t.title}» вы оба хотели «${t.bothWant}», но записали «${t.got}». Оба потеряли очки, хотя спорить было не о чем.`,
     )
   }
 
   for (const t of r.traps)
     if (t.feigned)
-      out.push(`Оппонент подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. Проверяйте вопросом, чего уступка стоит на самом деле.`)
+      out.push(`Собеседник подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. Проверяйте вопросом, чего уступка стоит на самом деле.`)
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0
-  if (!asked) out.push('Вы ни разу не спросили оппонента, что ему важно и почему. Вопросы об интересах — самый дешёвый способ найти размен.')
-  else if (!revealed) out.push('Вопросы были, но доверия не хватило, чтобы оппонент раскрылся.')
-  else out.push(`Оппонент раскрыл ${revealed} из ${sc.opponent.profile.interests.length} своих интересов.`)
+  if (!asked) out.push('Вы ни разу не спросили собеседника, что ему важно и почему. Вопросы об интересах — самый дешёвый способ найти размен.')
+  else if (!revealed) out.push('Вопросы были, но доверия не хватило, чтобы собеседник раскрылся.')
+  else out.push(`Собеседник раскрыл ${revealed} из ${sc.opponent.profile.interests.length} своих интересов.`)
 
   if (r.profile.bad) {
     const worst = Object.entries(r.profile.counts)

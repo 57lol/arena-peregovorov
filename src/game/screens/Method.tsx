@@ -4,7 +4,7 @@ const KEY_SOURCES: SourceKey[] = ['rackham78', 'thompsonHrebec96', 'laxSebenius8
 const MORE = [
   { cite: 'Faratin, Sierra & Jennings, 1998. Negotiation decision functions (кривая уступок)', url: 'https://eprints.soton.ac.uk/252117/2/paper02.pdf' },
   { cite: 'Curhan, Elfenbein & Xu, 2006. Subjective value in negotiation', url: 'https://doi.org/10.1037/0022-3514.91.3.493' },
-  { cite: 'Baarslag et al., 2014. Decisions on accepting offers (когда оппонент соглашается)', url: 'https://doi.org/10.1016/j.dss.2013.05.021' },
+  { cite: 'Baarslag et al., 2014. Decisions on accepting offers (когда собеседник соглашается)', url: 'https://doi.org/10.1016/j.dss.2013.05.021' },
 ]
 
 /** «Как мы считаем»: короткий раскрывающийся блок о методике. */
