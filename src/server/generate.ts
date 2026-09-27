@@ -1,10 +1,13 @@
-// Генерация сценария под запрос: LLM придумывает, движок проверяет. Не прошло — повтор с замечаниями,
-// потом — подбор из библиотеки.
+// Генерация сценария под запрос. LLM пишет историю: людей, пункты, варианты и роль каждого пункта.
+// Таблицы очков и BATNA строит движок по ролям — языковые модели плохо считают баланс, а нам нужна
+// гарантия, что зона соглашения есть и размен действительно создаёт ценность. Потом — две проверки;
+// не прошло — повтор с замечаниями, потом подбор из библиотеки.
 
 import { z } from 'zod'
 import { auditScenario } from '../content/scenarios'
 import { checkScenario } from '../engine/validate'
-import type { Difficulty, Scenario, Tone } from '../engine/types'
+import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
+import { maxScore } from '../engine/utility'
 import { hashOf } from './cache'
 import type { LLM } from './llm'
 
@@ -18,12 +21,19 @@ export const GenerateRequest = z.object({
 })
 export type GenerateRequest = z.infer<typeof GenerateRequest>
 
+// Роль пункта → тип и веса (сколько очков пункт даёт максимум игроку и оппоненту).
+const ROLES = {
+  split: { kind: 'distributive', player: 30, opponent: 30 },        // делят: цена, оклад, ставка
+  mine: { kind: 'integrative', player: 28, opponent: 8 },           // важно игроку, оппоненту почти всё равно
+  theirs: { kind: 'integrative', player: 8, opponent: 26 },         // важно оппоненту, игроку почти всё равно
+  shared: { kind: 'compatible', player: 18, opponent: 14 },         // оба хотят одного, но не знают
+} as const
+type Role = keyof typeof ROLES
+
 const Raw = z.object({
-  title: z.string(),
-  turnLimit: z.number().int(),
+  title: z.string().min(3),
   playerRole: z.string(),
   playerBrief: z.string(),
-  playerBatna: z.number(),
   playerBatnaText: z.string(),
   opponentName: z.string(),
   opponentRole: z.string(),
@@ -31,21 +41,18 @@ const Raw = z.object({
   opponentSpeech: z.string(),
   opponentBio: z.string(),
   opponentBrief: z.string(),
-  opponentBatna: z.number(),
   opponentBatnaText: z.string(),
   opening: z.string(),
   issues: z.array(z.object({
     id: z.string(),
     title: z.string(),
-    options: z.array(z.string()),
-    playerPoints: z.array(z.number()),
-    opponentPoints: z.array(z.number()),
-  })),
-  interests: z.array(z.object({ id: z.string(), text: z.string(), issue: z.string(), trustToReveal: z.number() })),
+    role: z.enum(['split', 'mine', 'theirs', 'shared']),
+    options: z.array(z.string()).min(3).max(5),
+  })).min(4).max(5),
+  interests: z.array(z.object({ issue: z.string(), text: z.string() })).min(2).max(5),
 })
 
 const str = { type: 'string' }
-const int = { type: 'integer' }
 const SCHEMA = {
   name: 'scenario',
   schema: {
@@ -53,70 +60,98 @@ const SCHEMA = {
     additionalProperties: false,
     required: Object.keys(Raw.shape),
     properties: {
-      title: str, turnLimit: int, playerRole: str, playerBrief: str, playerBatna: int, playerBatnaText: str,
+      title: str, playerRole: str, playerBrief: str, playerBatnaText: str,
       opponentName: str, opponentRole: str, opponentCompany: str, opponentSpeech: str, opponentBio: str,
-      opponentBrief: str, opponentBatna: int, opponentBatnaText: str, opening: str,
+      opponentBrief: str, opponentBatnaText: str, opening: str,
       issues: {
         type: 'array',
         items: {
-          type: 'object', additionalProperties: false,
-          required: ['id', 'title', 'options', 'playerPoints', 'opponentPoints'],
-          properties: { id: str, title: str, options: { type: 'array', items: str }, playerPoints: { type: 'array', items: int }, opponentPoints: { type: 'array', items: int } },
+          type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options'],
+          properties: { id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) }, options: { type: 'array', items: str } },
         },
       },
       interests: {
         type: 'array',
-        items: {
-          type: 'object', additionalProperties: false, required: ['id', 'text', 'issue', 'trustToReveal'],
-          properties: { id: str, text: str, issue: str, trustToReveal: int },
-        },
+        items: { type: 'object', additionalProperties: false, required: ['issue', 'text'], properties: { issue: str, text: str } },
       },
     },
   },
 }
 
 const SYSTEM = `Ты — методист, который придумывает учебные кейсы для тренажёра деловых переговоров по нескольким пунктам (как упражнение New Recruit).
-Кейс должен быть правдоподобным, российским по реалиям, с живыми людьми, без канцелярита.
+Кейс правдоподобный, российский по реалиям, с живыми людьми, без канцелярита и пафоса. Пиши как человек, а не как отдел кадров.
 
-Как устроен кейс:
-- 4 пункта (можно 3–5), в каждом 3–5 вариантов с конкретными цифрами или формулировками («30 дней», «1,2 млн ₽», «2 года»). id пунктов — латиницей, коротко.
-- У каждой стороны свои очки за каждый вариант (целые, 0–40). Сумма максимумов по пунктам — около 100 у каждой стороны.
-- Обязательно: 1 делимый пункт (стороны хотят противоположного и одинаково сильно, например цена);
-  1 пункт, очень важный игроку и почти безразличный оппоненту; 1 пункт, очень важный оппоненту и почти безразличный игроку (на этом строится размен);
-  желательно 1 совместимый пункт — обе стороны хотят одного и того же варианта, но не знают этого.
-- BATNA каждой стороны — очки, которые она получит без сделки (около 30–45% от её максимума), и словами — какая это альтернатива.
-- Должны существовать сделки, которые лучше BATNA для обоих. «Всё посередине» должно быть заметно хуже умного размена.
-- У оппонента 2–4 скрытых интереса: что ему на самом деле важно и почему; issue — id пункта; trustToReveal 35–70 (чем сокровеннее, тем выше).
-- opening — первая фраза оппонента, живая и короткая, с его стартовыми требованиями.
-- turnLimit — 8–12.`
+Структура:
+- 4 или 5 пунктов. У каждого — role:
+  split — стороны хотят противоположного и одинаково сильно (цена, оклад, ставка). Ровно 1.
+  mine — очень важно игроку, оппоненту почти всё равно. Ровно 1.
+  theirs — очень важно оппоненту, игроку почти всё равно. 1 или 2.
+  shared — обе стороны на самом деле хотят одного и того же, но каждая думает, что другая против. Ровно 1.
+    Пример: поставщику длинная гарантия выгодна (он продаёт сервисный контракт), а закупщик уверен, что тот будет её урезать.
+    Интерес оппонента по shared должен объяснять, почему ему выгоден тот же вариант, что и игроку.
+- options — 3–5 конкретных вариантов («30 дней», «1,2 млн ₽», «раз в неделю»), СТРОГО по порядку: первый — лучший для игрока, последний — худший для игрока. Для shared первый — тот, который на самом деле нужен обоим.
+- id пунктов — латиницей, коротко (price, payment, term...).
+- opponentName — только имя и фамилия. Должность — в opponentRole, компания — в opponentCompany.
+- playerBrief — к игроку на «вы»; что знает игрок: ситуация и что важно ему (про mine — прямо, про shared — пусть думает, что оппонент против).
+- opponentBrief — как оппонент выглядит снаружи.
+- playerBatnaText, opponentBatnaText — запасной вариант каждой стороны словами, конкретно.
+- interests — 2–4 скрытых интереса оппонента: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs и про shared).
+- opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по split и theirs (максимум в свою пользу).
+- opponentSpeech — манера речи в двух-трёх фразах; opponentBio — пара живых деталей о человеке.`
 
 function userPrompt(req: GenerateRequest, problems: string[]): string {
-  const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'агрессивный', evasive: 'уклончивый' }[req.opponentTone]
+  const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'напористый', evasive: 'уклончивый' }[req.opponentTone]
   return `Сфера: ${req.sphere}
 Тема: ${req.theme || 'на твой выбор'}
 Роль игрока: ${req.playerRole || 'на твой выбор'}
 Характер оппонента: ${tone}
-Сложность: ${req.difficulty} из 3
 Цели игрока: ${req.goals || 'не указаны'}
 ${problems.length ? `\nПрошлый вариант не прошёл проверку:\n- ${problems.join('\n- ')}\nИсправь это.` : ''}
 Верни кейс JSON-объектом.`
 }
 
+/** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
+function pointsFor(role: Role, n: number, k: number) {
+  const r = ROLES[role]
+  const down = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * (n - 1 - i)) / (n - 1)))
+  const up = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * i) / (n - 1)))
+  const scale = k > 0 ? 0.6 : 1 // второй пункт той же роли весит меньше
+  return {
+    player: down(Math.round(r.player * scale)),
+    opponent: role === 'shared' ? down(Math.round(r.opponent * scale)) : up(Math.round(r.opponent * scale)),
+  }
+}
+
+// Сложность: чем выше, тем лучше альтернатива у оппонента и уже зона соглашения.
+const OPP_BATNA: Record<Difficulty, number> = { 1: 0.25, 2: 0.32, 3: 0.4 }
+const TRUST: Record<Role, number> = { shared: 30, mine: 40, theirs: 50, split: 65 }
+
 export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scenario {
-  const ids = raw.issues.map((i, n) => i.id.replace(/[^a-z0-9_]/gi, '') || `issue${n}`)
-  const points = (side: 'playerPoints' | 'opponentPoints') =>
-    Object.fromEntries(raw.issues.map((i, n) => [ids[n], i[side].map((x) => Math.round(x))]))
+  const seen = new Map<Role, number>()
+  const ids = raw.issues.map((i, n) => (i.id.replace(/[^a-z0-9_]/gi, '').toLowerCase() || `issue${n}`) + (raw.issues.findIndex((j) => j.id === i.id) < n ? n : ''))
+  const tables = raw.issues.map((i) => {
+    const k = seen.get(i.role) ?? 0
+    seen.set(i.role, k + 1)
+    return pointsFor(i.role, i.options.length, k)
+  })
+  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: i.options, kind: ROLES[i.role].kind }))
+  const pp = Object.fromEntries(ids.map((id, n) => [id, tables[n].player]))
+  const op = Object.fromEntries(ids.map((id, n) => [id, tables[n].opponent]))
+  const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
+  const oMax = maxScore({ points: op, batna: 0, batnaText: '', interests: [] }, issues)
+  const d = req.difficulty as Difficulty
+
   const sc: Scenario = {
     id: `gen-${hashOf({ raw, req }).slice(0, 10)}`,
     title: raw.title,
     sphere: req.sphere,
-    difficulty: req.difficulty as Difficulty,
-    turnLimit: Math.max(6, Math.min(14, raw.turnLimit || 10)),
-    issues: raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: i.options, kind: 'distributive' })),
+    difficulty: d,
+    turnLimit: 10 + d,
+    issues,
     player: {
       role: raw.playerRole,
       brief: raw.playerBrief,
-      profile: { points: points('playerPoints'), batna: raw.playerBatna, batnaText: raw.playerBatnaText, interests: [] },
+      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: raw.playerBatnaText, interests: [] },
     },
     opponent: {
       character: {
@@ -125,18 +160,25 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
       },
       brief: raw.opponentBrief,
       profile: {
-        points: points('opponentPoints'),
-        batna: raw.opponentBatna,
+        points: op,
+        batna: Math.round(oMax * OPP_BATNA[d]),
         batnaText: raw.opponentBatnaText,
         interests: raw.interests.map((it, n) => {
           const k = raw.issues.findIndex((i) => i.id === it.issue)
-          return { id: it.id || `i${n}`, text: it.text, issue: k >= 0 ? ids[k] : undefined, trustToReveal: Math.max(30, Math.min(80, it.trustToReveal)) }
+          return { id: `i${n + 1}`, text: it.text, issue: k >= 0 ? ids[k] : undefined, trustToReveal: k >= 0 ? TRUST[raw.issues[k].role] : 70 }
         }),
       },
     },
     opening: raw.opening,
   }
-  return checkScenario(sc).scenario
+  return sc
+}
+
+/** Все проблемы сценария: наша проверка + аудит методиста из content. */
+export function scenarioProblems(sc: Scenario): { problems: string[]; scenario: Scenario } {
+  const check = checkScenario(sc)
+  if (check.problems.length) return check
+  return { problems: auditScenario(check.scenario, 1.1).problems, scenario: check.scenario }
 }
 
 export interface GenerateResult {
@@ -149,19 +191,15 @@ export interface GenerateResult {
 export async function generateScenario(llm: LLM, req: GenerateRequest, library: Scenario[]): Promise<GenerateResult> {
   let problems: string[] = []
   let attempts = 0
-  if (llm.name !== 'offline') {
-    for (attempts = 1; attempts <= 3; attempts++) {
-      try {
-        const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
-        const sc = toScenario(raw, req)
-        const check = checkScenario(sc)
-        // Вторая проверка — аудит методиста из content: размен ≥ ×1.1, ловушка, стартовый якорь.
-        const audit = check.problems.length ? [] : auditScenario(check.scenario, 1.1).problems.filter((p) => !p.includes('compatible'))
-        problems = [...check.problems, ...audit]
-        if (!problems.length) return { scenario: check.scenario, source: 'llm', attempts, problems: [] }
-      } catch (e) {
-        problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 200)}`]
-      }
+  while (llm.name !== 'offline' && attempts < 3) {
+    attempts++
+    try {
+      const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
+      const r = scenarioProblems(toScenario(raw, req))
+      problems = r.problems
+      if (!problems.length) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
+    } catch (e) {
+      problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
     }
   }
   return { scenario: pickFromLibrary(req, library), source: 'library', attempts, problems }
@@ -170,11 +208,10 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
 /** Ближайший по сфере и сложности сценарий из библиотеки, с нужным характером оппонента. */
 export function pickFromLibrary(req: GenerateRequest, library: Scenario[]): Scenario {
   const sphere = req.sphere.toLowerCase()
-  const ranked = [...library].sort((a, b) => {
-    const sa = a.sphere.toLowerCase().includes(sphere) || sphere.includes(a.sphere.toLowerCase()) ? 0 : 1
-    const sb = b.sphere.toLowerCase().includes(sphere) || sphere.includes(b.sphere.toLowerCase()) ? 0 : 1
-    return sa - sb || Math.abs(a.difficulty - req.difficulty) - Math.abs(b.difficulty - req.difficulty) || a.id.localeCompare(b.id)
-  })
+  const near = (s: Scenario) => (s.sphere.toLowerCase().includes(sphere) || sphere.includes(s.sphere.toLowerCase()) ? 0 : 1)
+  const ranked = [...library].sort(
+    (a, b) => near(a) - near(b) || Math.abs(a.difficulty - req.difficulty) - Math.abs(b.difficulty - req.difficulty) || a.id.localeCompare(b.id),
+  )
   const base = ranked[0]
   return {
     ...base,

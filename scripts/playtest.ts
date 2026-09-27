@@ -117,7 +117,7 @@ const PLAYERS: Record<string, Player> = { rude, splitter, explorer }
 
 async function run(style: string, sc: Scenario) {
   const history: TurnRecord[] = []
-  const log: string[] = [`# ${style} · «${sc.title}» · ${new Date().toISOString()}`, '', `**${sc.opponent.character.name}:** ${sc.opening}`, '']
+  const log: string[] = [`# ${style} · «${sc.title}» · ${new Date().toLocaleString('ru-RU')}`, '', `**${sc.opponent.character.name}:** ${sc.opening}`, '']
   let report: Report | undefined
   const sources: string[] = []
   for (let n = 0; n < sc.turnLimit + 2; n++) {
@@ -159,7 +159,7 @@ async function run(style: string, sc: Scenario) {
 const sc = await (await fetch(`${API}/api/scenarios/${SCENARIO}`)).json() as Scenario
 const health = (await (await fetch(`${API}/api/health`)).json()) as { provider: string; model: string }
 mkdirSync(OUT, { recursive: true })
-const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
+const stamp = new Date().toLocaleString('sv-SE').slice(0, 16).replace(/[: ]/g, '-')
 const results = []
 for (const style of STYLES) {
   const r = await run(style, sc)
