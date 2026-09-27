@@ -148,7 +148,7 @@ interface StampProps {
   kind: 'deal' | 'walked' | 'timeout'
 }
 
-const STAMP_TEXT = { deal: 'По рукам', walked: 'Встал и ушёл', timeout: 'Время вышло' }
+const STAMP_TEXT = { deal: 'По рукам', walked: 'Без сделки', timeout: 'Время вышло' }
 
 /** Штамп поверх сцены в конце встречи. */
 export function Stamp({ kind }: StampProps) {

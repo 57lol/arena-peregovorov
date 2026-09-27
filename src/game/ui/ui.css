@@ -333,12 +333,10 @@
   flex: 1;
   min-width: 0;
   padding: 0 calc(2 * var(--u));
-  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-ink);
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-wrap: balance;
 }
 .px-issue-points {
   grid-area: pts;
@@ -508,6 +506,11 @@
     inset 0 0 0 calc(3 * var(--u)) var(--ink-c),
     0 0 0 var(--u) var(--c-ink);
   animation: px-thump 0.32s steps(4) both;
+}
+@media (max-width: 599px) {
+  .px-stamp span {
+    font-size: var(--fs-ui-big);
+  }
 }
 .px-stamp--walked span {
   --ink-c: var(--c-steel-2);
