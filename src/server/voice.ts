@@ -2,11 +2,10 @@
 // Всё, что противоречит решению (согласие, которого не было, другие цифры), — в корзину, берём шаблон.
 
 import { z } from 'zod'
-import { analyzeOffline, parseOffer, templateLine } from '../engine/offline'
+import { parseOffer, templateLine } from '../engine/offline'
 import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
-import type { BehaviorDict } from '../engine/dictionary'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
@@ -100,11 +99,18 @@ function revealedLine(sc: Scenario, s: OpponentState): string {
   return told.length ? `Ты уже рассказал собеседнику: ${told.join('; ')}.\n` : ''
 }
 
+// Согласие в реплике оппонента: только явное «договорились» про предложение игрока, а не «меня устраивает» про своё.
+const YES = /(?<![\p{L}])(договорились|по рукам|принима(ю|ем)[^.!?]{0,15}(ваш|ваше|эти|ваши)|согласн\p{L}*[^.!?]{0,10}(на ваш|с вашим|на эти|с вами)|сделка заключена|фиксируем|оформляем|подписываем)/iu
+function saysYes(line: string): boolean {
+  const m = YES.exec(line)
+  return !!m && !/(не|нет)\s+$/iu.test(line.slice(0, m.index))
+}
+
 /** Проверяем, что реплика не противоречит решению движка. */
-export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string, dict: BehaviorDict): boolean {
+export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string): boolean {
   const low = line.toLowerCase()
   if (BANNED.some((b) => low.includes(b))) return false
-  if (d.kind !== 'accept' && analyzeOffline(sc, line, dict).accepts) return false
+  if (d.kind !== 'accept' && saysYes(line)) return false
   const expected = d.kind === 'counter' || d.kind === 'reveal' ? ('offer' in d ? d.offer : undefined) : d.kind === 'accept' ? state.deal : undefined
   if (expected) {
     const said = parseOffer(sc, line)
@@ -137,7 +143,6 @@ export interface VoiceResult {
 export async function voice(
   llm: LLM,
   sc: Scenario,
-  dict: BehaviorDict,
   history: TurnRecord[],
   playerText: string,
   d: Decision,
@@ -171,14 +176,17 @@ ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
           },
         }))
         const line = r.line.trim().replace(/^[«"]|[»"]$/g, '')
-        if (lineFits(sc, d, state, line, dict)) {
+        if (!lineFits(sc, d, state, line)) console.warn(`[voice] ${d.kind}: отклонено «${line}»`)
+        else {
           // Эмоцию для ключевых решений задаёт движок, чтобы спрайт не улыбался при уходе.
           return { line, emotion: pickEmotion(r.emotion, d, state, fallback.emotion) }
         }
       }
-      throw new Error('Реплика не прошла проверку')
+      // Модель дважды сказала не то — фиксируем шаблон в кэше, чтобы повтор диалога дал ту же реплику.
+      return { line: fallback.line, emotion: fallback.emotion, rejected: true }
     })
-    return { ...value, source: hit ? 'cache' : 'llm' }
+    const { rejected, ...v } = value as typeof value & { rejected?: boolean }
+    return { ...v, source: rejected ? 'template' : hit ? 'cache' : 'llm', ...(rejected ? { error: 'Реплика модели не прошла проверку' } : {}) }
   } catch (e) {
     return { ...fallback, source: 'template', error: (e as Error).message }
   }

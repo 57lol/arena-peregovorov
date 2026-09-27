@@ -89,22 +89,21 @@ export function parseOffer(sc: Scenario, text: string): Offer {
   // 1. Числа с единицами → пункт той же размерности (если таких несколько — по ближайшему ключевому слову).
   for (const q of quantities(text)) {
     if (echoed(q.at)) continue
-    let cands = infos.filter((i) => i.dim === q.dim)
+    // Кандидаты: пункты той же размерности. Число без единиц («1,1», «210 000», «два») подходит к пункту,
+    // если попадает в его диапазон, в том числе в тысячах или миллионах.
+    let cands: { info: IssueInfo; value: number }[] = infos.filter((i) => i.dim === q.dim).map((info) => ({ info, value: q.value }))
     if (!cands.length && q.dim === 'plain') {
-      // «1,1» без единиц: подходит к пункту, если попадает в его диапазон (в т.ч. в тысячах/миллионах)
-      for (const i of infos) {
-        const vs = i.values.filter((v) => v).map((v) => v!.value)
+      for (const info of infos) {
+        const vs = info.values.filter((v) => v).map((v) => v!.value)
         if (!vs.length) continue
         const lo = Math.min(...vs) * 0.8, hi = Math.max(...vs) * 1.2
         const k = [1, 1e3, 1e6].find((m) => q.value * m >= lo && q.value * m <= hi && q.value * m > 0)
-        if (k) {
-          cands.push(i)
-          q.value *= k
-          break
-        }
+        if (k) cands.push({ info, value: q.value * k })
       }
     }
     if (!cands.length) continue
+    const exactly = (c: { info: IssueInfo; value: number }) =>
+      c.info.values.some((v) => v && Math.abs(v.value - c.value) <= Math.abs(c.value) * 0.01)
     if (cands.length > 1) {
       // Ключевое слово в том же куске фразы (между запятыми) важнее; иначе ближайшее в окне ±40 символов.
       const sep = /[,;.!?\n]|\s(и|а|но)\s/gu
@@ -114,9 +113,9 @@ export function parseOffer(sc: Scenario, text: string): Offer {
         else if (m.index! >= q.end) { segEnd = m.index!; break }
       }
       let bestD = Infinity
-      let pick: IssueInfo | undefined
+      let pick: (typeof cands)[number] | undefined
       for (const c of cands) {
-        for (const k of keysFor(c)) {
+        for (const k of keysFor(c.info)) {
           const re = new RegExp(`(?<!\\p{L})${k}`, 'giu')
           for (const m of lower.replace(/ё/g, 'е').matchAll(re)) {
             const inSeg = m.index! >= segStart && m.index! < segEnd
@@ -125,22 +124,18 @@ export function parseOffer(sc: Scenario, text: string): Offer {
           }
         }
       }
-      // Без подсказок — берём пункт, у которого есть ровно такой вариант («4 недели», «2 года»).
-      if (pick && bestD >= 1000) {
-        // ключевое слово только в соседнем куске — сначала проверим точное совпадение с вариантом
-        const exact = cands.filter((c) => c.values.some((v) => v && Math.abs(v.value - q.value) <= Math.abs(q.value) * 0.01))
+      // Ключевого слова рядом нет (или оно только в соседнем куске) — берём пункт, где есть ровно такой вариант.
+      if (!pick || bestD >= 1000) {
+        const exact = cands.filter(exactly)
         if (exact.length === 1) pick = exact[0]
-      }
-      if (!pick) {
-        const exact = cands.filter((c) => c.values.some((v) => v && Math.abs(v.value - q.value) <= Math.abs(q.value) * 0.01))
-        if (exact.length === 1) pick = exact[0]
+        else if (q.dim === 'plain') pick = undefined // голое число без подсказок — не угадываем
       }
       cands = pick ? [pick] : []
     }
     const c = cands[0]
     if (!c) continue
-    const n = nearest(c.values, q.value)
-    if (n >= 0) offer[c.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
+    const n = nearest(c.info.values, c.value)
+    if (n >= 0) offer[c.info.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
   }
 
   // 2. Текстовые варианты («по факту отгрузки», «квартира», «ведёт запуск») — по словам, которые есть

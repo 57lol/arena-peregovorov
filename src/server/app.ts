@@ -96,7 +96,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
     const a = await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
     const analysis = withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
-    const v = await voice(llm, sc, dict, history, body.playerText, r.decision, r.state)
+    const v = await voice(llm, sc, history, body.playerText, r.decision, r.state)
     const record: TurnRecord = {
       turn: r.state.turn,
       playerText: body.playerText,
