@@ -39,7 +39,12 @@ export interface Character {
   portrait: string         // id набора спрайтов
   speech: string           // манера речи для LLM
   bio: string
+  lines?: CharacterLines   // свои реплики для офлайн-режима (если нет — берутся общие по тону)
 }
+
+// Ключи совпадают с видами решений движка и причинами hold; {offer} — подставить предложение.
+export type LineKey = Decision['kind'] | 'final' | HoldReason
+export type CharacterLines = Partial<Record<LineKey, string[]>>
 
 export interface Scenario {
   id: string
@@ -51,6 +56,8 @@ export interface Scenario {
   player: { role: string; brief: string; profile: SideProfile }
   opponent: { character: Character; brief: string; profile: SideProfile }
   opening: string          // первая реплика оппонента
+  blurb?: string           // одна строка для карточки выбора сценария
+  goals?: string[]         // чему учит сценарий (для экрана настройки и разбора)
 }
 
 export type Offer = Partial<Record<IssueId, number>>  // issueId -> индекс варианта
