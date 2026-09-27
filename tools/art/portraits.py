@@ -17,7 +17,7 @@ from apollo import RGB  # noqa: E402
 
 W = H = 96
 T = -1  # прозрачный
-EMOTIONS = ['neutral', 'pleased', 'annoyed', 'doubt']
+EMOTIONS = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 FRAMES = ['idle', 'talk', 'blink']
 LIGHT = np.array([-0.5, -0.22, 0.84])
 LIGHT = LIGHT / np.linalg.norm(LIGHT)
@@ -136,11 +136,12 @@ def eyes_for(state):
         'narrow': ['........', 'LLLLLLLL', '.wwppww.', '..ssss..'],
         'side':   ['.LLLLLL.', 'LwwwwppL', '.wwwwpp.', '..ssss..'],
         'closed': ['........', '........', '.LLLLLL.', '..ssss..'],
-        'wide':   ['.LLLLLL.', 'LwwppwwL', 'wwwppwww', '.wwwwww.'],
+        'arc':    ['........', '..LLLL..', '.L....L.', '........'],
+        'glare':  ['L.......', 'LLLLLLLL', '.wwwpww.', '.ssssss.'],
     }[state]
 
 
-EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'annoyed': 'narrow', 'doubt': 'side'}
+EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'happy': 'arc', 'thinking': 'side', 'annoyed': 'narrow', 'angry': 'glare'}
 
 
 def draw_eyes(c, E, eyL, eyR, ey, emotion, frame):
@@ -151,7 +152,7 @@ def draw_eyes(c, E, eyL, eyR, ey, emotion, frame):
 
 
 def build_rinat(emotion, frame):
-    """Ринат Галиев, ~52, коммерческий директор завода-поставщика. Седой, усы, тёмно-синий костюм."""
+    """Марат Гимадиев, 54, коммерческий директор гофрокомбината. Седой, усы, тёмно-синий костюм."""
     c = np.full((H, W), T, int)
     cx, cy, rx, ry = 48, 40, 20, 25
     xs, ys = grid()
@@ -220,7 +221,9 @@ def build_rinat(emotion, frame):
         'neutral': ([(0, 0), (4, -1), (7, 0)], [(0, 0), (3, -1), (7, 0)]),
         'pleased': ([(0, 0), (4, -2), (7, -1)], [(0, -1), (3, -2), (7, 0)]),
         'annoyed': ([(0, -2), (7, 1)], [(0, 1), (7, -2)]),
-        'doubt':   ([(0, 1), (7, 1)], [(0, -1), (3, -3), (7, -2)]),
+        'thinking':   ([(0, 1), (7, 1)], [(0, -1), (3, -3), (7, -2)]),
+        'happy':   ([(0, -1), (4, -3), (7, -2)], [(0, -2), (3, -3), (7, -1)]),
+        'angry':   ([(0, -3), (7, 2)], [(0, 2), (7, -3)]),
     }
     bl, br = brows[emotion]
     line(c, [(eyL + dx, ey - 4 + dy) for dx, dy in bl], 40, thick=2)
@@ -228,10 +231,10 @@ def build_rinat(emotion, frame):
     # морщины лба
     line(c, [(42, 26), (53, 26)], 14)
     line(c, [(44, 29), (51, 29)], 14)
-    if emotion == 'annoyed':
+    if emotion in ('annoyed', 'angry'):
         line(c, [(46, 32), (46, 35)], 13)
         line(c, [(49, 32), (49, 35)], 13)
-    if emotion == 'doubt':
+    if emotion == 'thinking':
         line(c, [(44, 25), (49, 24)], 14)
 
     # нос
@@ -239,21 +242,28 @@ def build_rinat(emotion, frame):
     # носогубные складки
     line(c, [(40, 49), (41, 54)], 14)
     line(c, [(56, 49), (55, 54)], 13)
-    if emotion == 'pleased':
+    if emotion in ('pleased', 'happy'):
         put(c, 35, 46, ['rr'], E)
         put(c, 59, 46, ['rr'], E)
+    if emotion == 'angry':
+        put(c, 34, 45, ['RRR', '.R.'], {'R': 27})
+        put(c, 59, 45, ['RRR', '.R.'], {'R': 27})
 
     mouths = {
         'neutral': ['.........', 'MMMMMMMMM', '..kkkkk..'],
         'pleased': ['MM.....MM', '.MtttttM.', '..MMMMM..'],
         'annoyed': ['.........', '.MMMMMMM.', 'M.......M'],
-        'doubt':   ['......MM.', 'MMMMMM...', '..kkk....'],
+        'thinking':   ['......MM.', 'MMMMMM...', '..kkk....'],
+        'happy':   ['MM.....MM', '.MtttttM.', '..MoooM..'],
+        'angry':   ['MMMMMMMMM', 'MtMtMtMtM', '.MMMMMMM.'],
     }
     talk = {
         'neutral': ['.MMMMMMM.', '.MoooooM.', '..MMMMM..'],
         'pleased': ['MMMMMMMMM', '.MtttttM.', '..MoooM..'],
         'annoyed': ['.MMMMMMM.', 'MtttttttM', '.MMMMMMM.'],
-        'doubt':   ['....MMMM.', '.MMMooM..', '..MMMM...'],
+        'thinking':   ['....MMMM.', '.MMMooM..', '..MMMM...'],
+        'happy':   ['MMMMMMMMM', 'MtttttttM', '.MoooooM.', '..MMMMM..'],
+        'angry':   ['MMMMMMMMM', 'MtttttttM', 'MoooooooM', '.MMMMMMM.'],
     }
     put(c, 44, 54, talk[emotion] if frame == 'talk' else mouths[emotion], E)
     # усы
@@ -265,7 +275,7 @@ def build_rinat(emotion, frame):
 
 
 def build_olga(emotion, frame):
-    """Ольга Верещагина, ~35. Тёмное каре с пробором, очки, охристый жакет."""
+    """Дарина Лукманова, 29, инженер-робототехник. Тёмное каре, очки, зелёная водолазка, гостевой пропуск."""
     c = np.full((H, W), T, int)
     cx, cy, rx, ry = 48, 42, 18, 23
     xs, ys = grid()
@@ -276,25 +286,27 @@ def build_olga(emotion, frame):
     hb = shade_ellipsoid(cx - 5, cy - 8, rx + 8, ry + 8)
     paint(c, back, band(hb, [0.5], [24, 18]))
 
-    jacket = poly_mask([(0, 96), (2, 87), (10, 80), (28, 75), (39, 73), (57, 73), (68, 75), (86, 80), (94, 87), (96, 96)])
+    body = poly_mask([(0, 96), (2, 87), (10, 80), (28, 75), (40, 72), (56, 72), (68, 75), (86, 80), (94, 87), (96, 96)])
     jl = shade_ellipsoid(40, 104, 58, 36)
-    paint(c, jacket, band(jl, [0.3, 0.62, 0.9], [18, 19, 20, 20]))
-    blouse = poly_mask([(40, 73), (56, 73), (54, 84), (48, 91), (42, 84)])
-    paint(c, blouse, 45)
-    paint(c, blouse & (xs > 48), 44)
-    lap_l = poly_mask([(40, 73), (42, 84), (48, 92), (43, 96), (33, 86), (31, 77)])
-    lap_r = poly_mask([(56, 73), (54, 84), (48, 92), (53, 96), (63, 86), (65, 77)])
-    paint(c, lap_l, 21)
-    paint(c, lap_r, 19)
-    line(c, [(40, 73), (42, 84), (48, 91)], 18)
-    line(c, [(56, 73), (54, 84), (48, 91)], 18)
-    # пропуск на шнурке
-    line(c, [(44, 74), (44, 80), (46, 86)], 2)
-    put(c, 44, 86, ['1111', '1441', '1331', '1111'], {'1': 1, '4': 45, '3': 3})
-
+    paint(c, body, band(jl, [0.3, 0.55, 0.9], [6, 6, 7, 7]))
+    # вязка: вертикальные косы
+    for x in range(8, 92, 6):
+        for y in range(80, 96, 2):
+            if body[y, x] and c[y, x] != 6:
+                c[y, x] = 6
     neck = poly_mask([(41, 58), (55, 58), (55, 75), (48, 78), (41, 75)])
     paint(c, neck, 14)
     paint(c, neck & (ys < 66), 13)
+    # горло водолазки
+    collar = poly_mask([(39, 64), (57, 64), (58, 76), (48, 78), (38, 76)])
+    paint(c, collar, 7)
+    paint(c, collar & (xs < 44), 8)
+    for y in (66, 69, 72):
+        line(c, [(40, y), (56, y)], 6)
+    # гостевой пропуск на шнурке
+    line(c, [(41, 76), (44, 82), (46, 86)], 27)
+    line(c, [(55, 76), (52, 82), (50, 86)], 27)
+    put(c, 44, 86, ['111111', '144441', '133331', '144441', '111111'], {'1': 43, '4': 45, '3': 2})
 
     head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=1.8)
     lam = shade_ellipsoid(cx - 3, cy - 4, rx + 3, ry + 2)
@@ -328,7 +340,9 @@ def build_olga(emotion, frame):
         'neutral': ([(0, 0), (4, -1), (7, 0)], [(0, 0), (3, -1), (7, 0)]),
         'pleased': ([(0, 0), (4, -2), (7, -1)], [(0, -1), (3, -2), (7, 0)]),
         'annoyed': ([(0, -2), (7, 1)], [(0, 1), (7, -2)]),
-        'doubt':   ([(0, 1), (7, 1)], [(0, -1), (3, -3), (7, -2)]),
+        'thinking':   ([(0, 1), (7, 1)], [(0, -1), (3, -3), (7, -2)]),
+        'happy':   ([(0, -1), (4, -3), (7, -2)], [(0, -2), (3, -3), (7, -1)]),
+        'angry':   ([(0, -3), (7, 2)], [(0, 2), (7, -3)]),
     }
     bl, br = brows[emotion]
     line(c, [(eyL + dx, ey - 4 + dy) for dx, dy in bl], 18)
@@ -343,21 +357,29 @@ def build_olga(emotion, frame):
     c[ey, eyR] = 45
 
     put(c, 46, 44, ['h..', 'hs.', 'hs.', 'hs.', 'hhS', 'S.S'], E)
-    if emotion == 'pleased':
+    if emotion in ('pleased', 'happy'):
         put(c, 36, 50, ['RR'], E)
         put(c, 59, 50, ['RR'], E)
+    if emotion == 'angry':
+        put(c, 35, 49, ['rrr'], E)
+        put(c, 58, 49, ['rrr'], E)
+        line(c, [(47, 33), (47, 35)], 13)
 
     mouths = {
         'neutral': ['.mmmmm.', 'MMMMMMM', '.rrRrr.', '..rrr..'],
         'pleased': ['m.....m', 'MMMMMMM', '.rrRrr.', '..rrr..'],
         'annoyed': ['.......', 'MMMMMMM', '.rrrrr.', '.......'],
-        'doubt':   ['....mm.', '.MMMMM.', '.rrRr..', '.......'],
+        'thinking':   ['....mm.', '.MMMMM.', '.rrRr..', '.......'],
+        'happy':   ['m.....m', 'MtttttM', '.MoooM.', '..rrr..'],
+        'angry':   ['.mmmmm.', 'MtMtMtM', '.rrrrr.', '.......'],
     }
     talk = {
         'neutral': ['.mmmmm.', 'MoooooM', '.rrRrr.', '..rrr..'],
         'pleased': ['mmmmmmm', 'MtttttM', '.MoooM.', '..rrr..'],
         'annoyed': ['.mmmmm.', 'MtttttM', 'MoooooM', '.rrrrr.'],
-        'doubt':   ['...mmm.', '.MMooM.', '.rrRr..', '.......'],
+        'thinking':   ['...mmm.', '.MMooM.', '.rrRr..', '.......'],
+        'happy':   ['mmmmmmm', 'MtttttM', 'MoooooM', '.rrrrr.'],
+        'angry':   ['mmmmmmm', 'MtttttM', 'MoooooM', '.MrrrM.'],
     }
     put(c, 45, 54, talk[emotion] if frame == 'talk' else mouths[emotion], E)
 
