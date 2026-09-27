@@ -1,0 +1,129 @@
+/* Пиксельный UI-кит «Переговорки».
+   Палитра — подмножество Apollo (AdamCYounis, lospec.com/palette-list/apollo).
+   Всё, что рисуется «пикселями», кратно --u (один игровой пиксель на экране). */
+
+@font-face {
+  font-family: 'Ark Pixel';
+  src: url('/assets/fonts/ark-pixel-12-prop.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pixeloid';
+  src: url('/assets/fonts/PixeloidSans.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pixeloid';
+  src: url('/assets/fonts/PixeloidSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  /* чернила и ночь */
+  --c-ink: #10141f;
+  --c-ink-2: #151d28;
+  --c-night: #172038;
+  --c-night-2: #253a5e;
+  --c-denim: #3c5e8b;
+  --c-sky: #73bed3;
+  --c-grid: #a4dddb;
+
+  /* сталь и бумага */
+  --c-steel-3: #202e37;
+  --c-steel-2: #394a50;
+  --c-steel: #577277;
+  --c-fog: #819796;
+  --c-mist: #a8b5b2;
+  --c-paper-2: #c7cfcc;
+  --c-paper: #ebede9;
+
+  /* дерево и латунь */
+  --c-wood-4: #241527;
+  --c-wood-3: #341c27;
+  --c-wood-2: #602c2c;
+  --c-wood: #884b2b;
+  --c-wood-hi: #be772b;
+  --c-brass: #de9e41;
+  --c-brass-hi: #e8c170;
+
+  /* печать, согласие */
+  --c-stamp-3: #411d31;
+  --c-stamp-2: #752438;
+  --c-stamp: #a53030;
+  --c-coral: #cf573c;
+  --c-leaf-2: #25562e;
+  --c-leaf: #468232;
+  --c-leaf-hi: #75a743;
+
+  /* роли */
+  --desk: var(--c-wood-2);
+  --desk-hi: var(--c-wood);
+  --desk-lo: var(--c-wood-3);
+  --text-on-dark: var(--c-paper);
+  --text-on-light: var(--c-ink);
+  --muted-on-dark: var(--c-mist);
+  --muted-on-light: var(--c-steel-2);
+  --pen: var(--c-denim);
+
+  /* сетка: один игровой пиксель */
+  --u: 2px;
+
+  /* шрифты: только целые кратные родных размеров (Pixeloid 9px, Ark 12px) */
+  --f-ui: 'Pixeloid', ui-monospace, monospace;
+  --f-read: 'Ark Pixel', 'Pixeloid', ui-monospace, monospace;
+  --fs-ui: 18px;        /* Pixeloid x2 */
+  --fs-ui-big: 27px;    /* Pixeloid x3 */
+  --fs-ui-huge: 36px;   /* Pixeloid x4 */
+  --fs-read: 24px;      /* Ark x2 */
+  --fs-small: 12px;     /* Ark x1 — только цифры и подписи */
+  --lh-read: 32px;
+  --lh-ui: 24px;
+}
+
+/* сцены задают цвет стола, который продолжается под интерфейсом */
+[data-desk='office'] {
+  --desk: var(--c-steel);
+  --desk-hi: var(--c-fog);
+  --desk-lo: var(--c-steel-2);
+}
+
+.px-root {
+  font-family: var(--f-ui);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--text-on-dark);
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
+  font-synthesis: none;
+}
+
+.px-root img,
+.px-root canvas,
+.px-pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.px-root ::selection {
+  background: var(--c-brass);
+  color: var(--c-ink);
+}
+
+.px-root :focus-visible {
+  outline: var(--u) solid var(--c-brass-hi);
+  outline-offset: var(--u);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px-root *,
+  .px-root *::before,
+  .px-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

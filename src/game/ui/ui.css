@@ -1,0 +1,530 @@
+/* Компоненты пиксельного кита. Все размеры рамок кратны --u. */
+
+/* ---------- стол, на котором лежит интерфейс ---------- */
+
+.px-desk {
+  --on-desk: var(--c-paper);
+  --on-desk-muted: var(--c-mist);
+  background-color: var(--desk);
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 calc(23 * var(--u)),
+    var(--desk-lo) calc(23 * var(--u)) calc(24 * var(--u))
+  );
+  color: var(--on-desk);
+}
+[data-desk='office'].px-desk,
+[data-desk='office'] .px-desk {
+  --desk: var(--c-fog);
+  --desk-lo: var(--c-steel);
+  --desk-hi: var(--c-mist);
+  --on-desk: var(--c-ink);
+  --on-desk-muted: var(--c-steel-3);
+  background-image: none;
+}
+
+.px-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- сцена ---------- */
+
+.px-scene-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+.px-scene {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+}
+.px-scene-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+.px-scene-actor {
+  position: absolute;
+}
+.px-portrait {
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+/* ---------- кнопки-клавиши ---------- */
+
+.px-btn {
+  --face: var(--c-paper);
+  --hi: var(--c-paper);
+  --lo: var(--c-paper-2);
+  --edge: var(--c-ink);
+  --label: var(--c-ink);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4 * var(--u));
+  min-height: 44px;
+  margin: var(--u) var(--u) calc(3 * var(--u));
+  padding: calc(3 * var(--u)) calc(7 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  border-radius: 0;
+  background: var(--face);
+  color: var(--label);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  cursor: pointer;
+  user-select: none;
+  box-shadow:
+    inset 0 calc(-2 * var(--u)) 0 var(--lo),
+    0 calc(-1 * var(--u)) 0 0 var(--edge),
+    0 var(--u) 0 0 var(--edge),
+    calc(-1 * var(--u)) 0 0 0 var(--edge),
+    var(--u) 0 0 0 var(--edge),
+    0 calc(3 * var(--u)) 0 0 var(--desk-lo);
+}
+.px-btn svg {
+  flex: none;
+}
+.px-btn:hover {
+  --lo: var(--hover-lo, var(--c-mist));
+}
+.px-btn:active:not(:disabled) {
+  transform: translateY(calc(2 * var(--u)));
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--edge),
+    0 var(--u) 0 0 var(--edge),
+    calc(-1 * var(--u)) 0 0 0 var(--edge),
+    var(--u) 0 0 0 var(--edge),
+    0 var(--u) 0 0 var(--desk-lo);
+}
+.px-btn:disabled {
+  --face: var(--c-mist);
+  --lo: var(--c-fog);
+  --label: var(--c-steel-2);
+  cursor: not-allowed;
+}
+.px-btn--brass {
+  --face: var(--c-brass);
+  --lo: var(--c-wood-hi);
+  --hover-lo: var(--c-wood);
+  --edge: var(--c-wood-3);
+}
+.px-btn--stamp {
+  --face: var(--c-stamp);
+  --lo: var(--c-stamp-2);
+  --hover-lo: var(--c-stamp-3);
+  --edge: var(--c-stamp-3);
+  --label: var(--c-paper);
+}
+.px-btn--ghost {
+  --face: transparent;
+  --lo: transparent;
+  --hover-lo: transparent;
+  --edge: transparent;
+  --label: var(--on-desk);
+  box-shadow: none;
+  text-decoration: underline;
+  text-decoration-thickness: var(--u);
+  text-underline-offset: calc(2 * var(--u));
+}
+.px-btn--ghost:active:not(:disabled) {
+  box-shadow: none;
+}
+
+/* ---------- реплика оппонента ---------- */
+
+.px-dialog {
+  position: relative;
+  image-rendering: pixelated;
+}
+.px-plate {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(4 * var(--u));
+  margin: 0 0 calc(-3 * var(--u)) calc(5 * var(--u));
+  padding: 0 calc(2 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-plate.png') 4 fill stretch;
+  color: var(--c-ink);
+}
+.px-plate-name {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.px-plate-role {
+  white-space: nowrap;
+}
+.px-plate-role {
+  color: var(--c-wood-2);
+}
+.px-dialog-box {
+  appearance: none;
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(4 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-dialog.png') 4 fill stretch;
+  background: none;
+  color: var(--c-paper);
+  font-family: var(--f-read);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  text-align: left;
+  cursor: pointer;
+}
+.px-dialog-text {
+  display: block;
+  min-height: calc(3 * var(--lh-read));
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.px-dialog-ghost {
+  color: transparent;
+}
+.px-dialog-more {
+  position: absolute;
+  right: calc(4 * var(--u));
+  bottom: calc(1 * var(--u));
+  color: var(--c-brass);
+  animation: px-bob 0.9s steps(1) infinite;
+}
+@keyframes px-bob {
+  50% {
+    transform: translateY(var(--u));
+  }
+}
+
+/* ---------- поле реплики ---------- */
+
+.px-field {
+  image-rendering: pixelated;
+}
+.px-field-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: calc(2 * var(--lh-ui) + 12 * var(--u));
+  margin: 0;
+  padding: calc(2 * var(--u)) calc(4 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-paper.png') 4 fill stretch;
+  background: none;
+  color: var(--c-ink);
+  caret-color: var(--c-stamp);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  resize: none;
+}
+.px-field-input::placeholder {
+  color: var(--c-steel);
+  opacity: 1;
+}
+.px-field-input:focus-visible {
+  outline: var(--u) solid var(--c-brass-hi);
+  outline-offset: 0;
+}
+.px-field-hint {
+  margin: calc(2 * var(--u)) 0 0;
+  color: var(--on-desk-muted);
+}
+@media (pointer: coarse) {
+  .px-field-hint {
+    display: none;
+  }
+}
+
+/* ---------- блокнот ---------- */
+
+.px-notebook {
+  position: relative;
+  padding-top: calc(7 * var(--u));
+  color: var(--c-ink);
+}
+.px-notebook-rings {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: calc(6 * var(--u));
+  right: calc(6 * var(--u));
+  height: calc(12 * var(--u));
+  background: url('/assets/ui/frame-ring.png') repeat-x 0 0 / calc(12 * var(--u)) calc(12 * var(--u));
+  image-rendering: pixelated;
+}
+.px-notebook-page {
+  --nb-line: #cfe3e0;
+  position: relative;
+  padding: calc(10 * var(--u)) calc(20 * var(--u)) calc(8 * var(--u)) calc(8 * var(--u));
+  background-color: var(--c-paper);
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent calc(100% - 14 * var(--u)),
+      var(--c-coral) calc(100% - 14 * var(--u)) calc(100% - 13 * var(--u)),
+      transparent calc(100% - 13 * var(--u))
+    ),
+    repeating-linear-gradient(90deg, var(--nb-line) 0 var(--u), transparent var(--u) calc(8 * var(--u))),
+    repeating-linear-gradient(180deg, var(--nb-line) 0 var(--u), transparent var(--u) calc(8 * var(--u)));
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--c-ink-2),
+    calc(-1 * var(--u)) 0 0 0 var(--c-ink-2),
+    var(--u) 0 0 0 var(--c-ink-2),
+    0 var(--u) 0 0 var(--c-paper-2),
+    0 calc(2 * var(--u)) 0 0 var(--c-ink-2),
+    0 calc(3 * var(--u)) 0 0 var(--c-paper-2),
+    0 calc(4 * var(--u)) 0 0 var(--c-ink-2);
+}
+.px-notebook-title {
+  margin: 0 0 calc(4 * var(--u));
+  font: 700 var(--fs-ui) / calc(16 * var(--u)) var(--f-ui);
+  color: var(--pen);
+}
+.px-notebook-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  margin-top: calc(6 * var(--u));
+}
+.px-note {
+  margin: 0 0 calc(6 * var(--u));
+  color: var(--pen);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+
+.px-issue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title title'
+    'ctrl pts';
+  align-items: center;
+  column-gap: calc(4 * var(--u));
+  padding: calc(2 * var(--u)) 0 calc(4 * var(--u));
+}
+.px-issue + .px-issue {
+  border-top: var(--u) dashed var(--c-mist);
+  padding-top: calc(5 * var(--u));
+}
+.px-issue-title {
+  grid-area: title;
+  margin-bottom: calc(2 * var(--u));
+  color: var(--c-steel-2);
+}
+.px-issue-ctrl {
+  grid-area: ctrl;
+  display: flex;
+  align-items: center;
+  gap: calc(2 * var(--u));
+  min-width: 0;
+}
+.px-issue-value {
+  flex: 1;
+  min-width: 0;
+  padding: 0 calc(2 * var(--u));
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-ink);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.px-issue-points {
+  grid-area: pts;
+  min-width: 4ch;
+  text-align: right;
+  font-weight: 700;
+  color: var(--pen);
+  font-variant-numeric: tabular-nums;
+}
+.px-issue-points.is-neg {
+  color: var(--c-stamp);
+}
+.px-step {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--c-paper-2);
+  color: var(--c-ink);
+  cursor: pointer;
+  box-shadow:
+    inset 0 calc(-2 * var(--u)) 0 var(--c-mist),
+    0 calc(-1 * var(--u)) 0 0 var(--c-ink),
+    0 var(--u) 0 0 var(--c-ink),
+    calc(-1 * var(--u)) 0 0 0 var(--c-ink),
+    var(--u) 0 0 0 var(--c-ink);
+}
+.px-step:active:not(:disabled) {
+  transform: translateY(var(--u));
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--c-ink),
+    0 var(--u) 0 0 var(--c-ink),
+    calc(-1 * var(--u)) 0 0 0 var(--c-ink),
+    var(--u) 0 0 0 var(--c-ink);
+}
+.px-step:disabled {
+  color: var(--c-mist);
+  background: var(--c-paper);
+  cursor: default;
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--c-mist),
+    0 var(--u) 0 0 var(--c-mist),
+    calc(-1 * var(--u)) 0 0 0 var(--c-mist),
+    var(--u) 0 0 0 var(--c-mist);
+}
+
+/* ---------- листок «на столе» ---------- */
+
+.px-slip {
+  padding: calc(2 * var(--u)) calc(4 * var(--u)) calc(3 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-paper.png') 4 fill stretch;
+  image-rendering: pixelated;
+  color: var(--c-ink);
+}
+.px-slip-from {
+  margin: 0 0 calc(2 * var(--u));
+  color: var(--c-steel-2);
+}
+.px-slip-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8em, 1fr));
+  gap: calc(3 * var(--u)) calc(6 * var(--u));
+  margin: 0;
+}
+.px-slip-row dt {
+  color: var(--c-steel-2);
+}
+.px-slip-row dd {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- часы встречи ---------- */
+
+.px-clock {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  color: var(--on-desk);
+}
+.px-clock svg {
+  flex: none;
+}
+.px-clock-text {
+  display: flex;
+  flex-direction: column;
+}
+.px-clock-time {
+  font: 700 var(--fs-ui-big) / 1 var(--f-ui);
+  font-variant-numeric: tabular-nums;
+}
+.px-clock-left {
+  color: var(--on-desk-muted);
+  white-space: nowrap;
+}
+.px-clock.is-late .px-clock-time {
+  color: var(--c-brass-hi);
+  animation: px-blink 1s steps(1) infinite;
+}
+[data-desk='office'] .px-clock.is-late .px-clock-time {
+  color: var(--c-stamp);
+}
+@keyframes px-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- шкалы «рентгена» ---------- */
+
+.px-meter {
+  display: grid;
+  grid-template-columns: 7.5em auto 2.5em;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  color: var(--c-paper);
+}
+.px-meter-bar {
+  display: flex;
+  gap: var(--u);
+}
+.px-meter-bar i {
+  display: block;
+  width: calc(5 * var(--u));
+  height: calc(7 * var(--u));
+  background: var(--c-steel-3);
+  box-shadow: inset 0 calc(-1 * var(--u)) 0 var(--c-ink);
+}
+.px-meter--trust .px-meter-bar i.on {
+  background: var(--c-leaf-hi);
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-leaf);
+}
+.px-meter--tension .px-meter-bar i.on {
+  background: var(--c-coral);
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-stamp);
+}
+.px-meter-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-mist);
+}
+
+/* ---------- штамп ---------- */
+
+.px-stamp {
+  position: absolute;
+  inset: auto 0 12%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.px-stamp span {
+  --ink-c: var(--c-stamp);
+  padding: calc(2 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper);
+  color: var(--ink-c);
+  font: 700 var(--fs-ui-huge) / 1.25 var(--f-ui);
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 0 0 var(--u) var(--c-paper),
+    inset 0 0 0 calc(3 * var(--u)) var(--ink-c),
+    0 0 0 var(--u) var(--c-ink);
+  animation: px-thump 0.32s steps(4) both;
+}
+.px-stamp--walked span {
+  --ink-c: var(--c-steel-2);
+}
+.px-stamp--timeout span {
+  --ink-c: var(--c-wood);
+}
+@keyframes px-thump {
+  0% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}

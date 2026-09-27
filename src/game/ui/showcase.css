@@ -1,0 +1,221 @@
+/* Раскладка витрины. Та же сетка пойдёт в игровой экран. */
+
+html,
+body {
+  margin: 0;
+  background: var(--c-wood-4);
+}
+#root {
+  min-height: 100svh;
+}
+
+.sc {
+  min-height: 100svh;
+}
+
+.sc-desk {
+  padding: calc(4 * var(--u)) 16px calc(12 * var(--u));
+}
+
+.sc-screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: calc(8 * var(--u));
+  max-width: 1240px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .sc-screen {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    align-items: start;
+  }
+  .sc-side {
+    position: sticky;
+    top: calc(8 * var(--u));
+    padding-top: calc(4 * var(--u));
+  }
+  .sc-only-mobile {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .sc-stage .px-scene-wrap {
+    width: calc(100% + 32px);
+    margin-inline: -16px;
+  }
+}
+
+.sc-stage {
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 * var(--u));
+  min-width: 0;
+}
+.sc-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+}
+.sc-hud-actions {
+  display: flex;
+}
+
+.sc-say {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--u));
+}
+.sc-say-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u));
+}
+.sc-push-right {
+  margin-left: auto;
+}
+
+.sc-side {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--u));
+}
+.sc-total {
+  margin-left: auto;
+  color: var(--c-steel-2);
+}
+.sc-total b {
+  color: var(--pen);
+  font-size: var(--fs-ui-big);
+}
+
+.sc-xray {
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--u));
+  padding: calc(5 * var(--u)) calc(6 * var(--u));
+  background: var(--c-ink-2);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--c-ink),
+    0 var(--u) 0 0 var(--c-ink),
+    calc(-1 * var(--u)) 0 0 0 var(--c-ink),
+    var(--u) 0 0 0 var(--c-ink);
+  color: var(--c-paper);
+}
+.sc-xray-title {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  margin: 0 0 calc(2 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-grid);
+}
+.sc-xray-note {
+  margin: calc(2 * var(--u)) 0 0;
+  color: var(--c-mist);
+}
+
+/* ---------- лист кита ---------- */
+
+.sc-kit {
+  background: var(--c-night);
+  color: var(--c-paper);
+  padding: calc(12 * var(--u)) 16px calc(24 * var(--u));
+  box-shadow: 0 calc(-2 * var(--u)) 0 0 var(--c-ink);
+}
+.sc-kit-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.sc-h1 {
+  margin: 0 0 calc(3 * var(--u));
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
+  color: var(--c-brass-hi);
+}
+.sc-lead {
+  margin: 0 0 calc(10 * var(--u));
+  max-width: 62ch;
+  color: var(--c-mist);
+}
+.sc-h2 {
+  margin: calc(14 * var(--u)) 0 calc(5 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-paper);
+}
+.sc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(6 * var(--u)) calc(12 * var(--u));
+  --desk-lo: var(--c-ink);
+}
+.sc-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sc-group legend {
+  padding: 0;
+  margin-bottom: calc(3 * var(--u));
+  color: var(--c-mist);
+}
+.sc-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: calc(4 * var(--u)) calc(8 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-swatches li {
+  display: grid;
+  grid-template-columns: calc(16 * var(--u)) 1fr;
+  grid-template-rows: auto auto;
+  column-gap: calc(4 * var(--u));
+}
+.sc-swatches b {
+  font-weight: 700;
+}
+.sc-swatches span:last-child {
+  grid-column: 2;
+  color: var(--c-mist);
+}
+.sc-chip {
+  grid-row: span 2;
+  width: calc(16 * var(--u));
+  height: calc(16 * var(--u));
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 0 var(--c-steel),
+    0 var(--u) 0 0 var(--c-steel),
+    calc(-1 * var(--u)) 0 0 0 var(--c-steel),
+    var(--u) 0 0 0 var(--c-steel);
+}
+.sc-type p {
+  margin: 0 0 calc(4 * var(--u));
+}
+.sc-type-read {
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.sc-type-big {
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
+  color: var(--c-brass);
+}
+.sc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  --desk-lo: var(--c-ink);
+  --on-desk: var(--c-paper);
+}
+.sc-icons {
+  margin-top: calc(6 * var(--u));
+  gap: calc(8 * var(--u));
+}
+.sc-icon {
+  display: inline-grid;
+}
