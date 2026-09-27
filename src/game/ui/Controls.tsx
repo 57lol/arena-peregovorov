@@ -75,7 +75,11 @@ export function IssueStepper({ title, options, value, onChange, points }: Steppe
           <PixelIcon name="right" px={2} />
         </button>
       </div>
-      {p !== undefined && <span className={`px-issue-points${p < 0 ? ' is-neg' : ''}`}>{p > 0 ? `+${p}` : p}</span>}
+      {p !== undefined && (
+        <span className={`px-issue-points${p < 0 ? ' is-neg' : ''}`} title="сколько это даёт вам">
+          {p > 0 ? `+${p}` : p}
+        </span>
+      )}
     </div>
   )
 }
@@ -149,6 +153,7 @@ interface StampProps {
 }
 
 const STAMP_TEXT = { deal: 'По рукам', walked: 'Без сделки', timeout: 'Время вышло' }
+
 
 /** Штамп поверх сцены в конце встречи. */
 export function Stamp({ kind }: StampProps) {

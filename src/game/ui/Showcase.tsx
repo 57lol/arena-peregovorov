@@ -51,7 +51,7 @@ const CAST: Record<SceneId, Cast> = {
         { label: 'Оклад', value: '160 тыс.' },
         { label: 'Выход', value: '15 декабря' },
         { label: 'Жильё', value: 'квартира на год' },
-        { label: 'Переезд', value: 'через 3 месяца' },
+        { label: 'Переезд', value: 'через 3 мес.' },
       ],
     },
     name: 'Дарина Лукманова',
@@ -72,8 +72,8 @@ const ISSUES_BY_SCENE: Record<SceneId, typeof ISSUES> = {
   office: [
     { title: 'Оклад', options: ['140 тыс.', '150 тыс.', '160 тыс.', '170 тыс.', '180 тыс.'], points: [30, 24, 18, 10, 0] },
     { title: 'Выход', options: ['1 декабря', '15 декабря', '1 января', '15 января'], points: [20, 16, 6, 0] },
-    { title: 'Жильё', options: ['без жилья', 'компенсация', 'квартира на год'], points: [10, 4, 8] },
-    { title: 'Переезд', options: ['сразу', 'через 3 месяца', 'не оплачиваем'], points: [0, 6, 10] },
+    { title: 'Жильё', options: ['без жилья', 'компенсация', 'квартира'], points: [10, 4, 8] },
+    { title: 'Переезд', options: ['сразу', 'через 3 мес.', 'без оплаты'], points: [0, 6, 10] },
   ],
 }
 
@@ -81,7 +81,7 @@ const ISSUES = [
   { title: 'Цена за короб', options: ['212 ₽', '204 ₽', '196 ₽', '188 ₽', '180 ₽'], points: [0, 8, 16, 24, 32] },
   { title: 'Отсрочка платежа', options: ['по факту', '15 дней', '30 дней', '45 дней', '60 дней'], points: [0, 2, 4, 6, 8] },
   { title: 'Срочная допоставка', options: ['за 10 дней', 'за 7 дней', 'за 5 дней', 'за 3 дня', 'за 48 часов'], points: [0, 6, 13, 21, 28] },
-  { title: 'График отгрузок', options: ['раз в месяц', 'раз в две недели', 'раз в неделю'], points: [0, 12, 24] },
+  { title: 'График отгрузок', options: ['раз в месяц', 'раз в 2 недели', 'еженедельно'], points: [0, 12, 24] },
 ]
 
 const SWATCHES: { name: string; v: string; role: string }[] = [
@@ -107,6 +107,7 @@ export default function Showcase() {
   const [talking, setTalking] = useState(false)
   const [turn, setTurn] = useState(4)
   const [xray, setXray] = useState(true)
+  const [notebook, setNotebook] = useState(false)
   const [stamp, setStamp] = useState<null | 'deal' | 'walked' | 'timeout'>(null)
   const [picks, setPicks] = useState([1, 2, 2, 2])
   const [draft, setDraft] = useState('')
@@ -123,8 +124,11 @@ export default function Showcase() {
             <div className="sc-hud">
               <MeetingClock turn={turn} turnLimit={12} />
               <div className="sc-hud-actions">
-                <Button variant="ghost" icon="eye" aria-pressed={xray} onClick={() => setXray(!xray)}>
+                <Button variant={xray ? 'brass' : 'paper'} icon="eye" aria-pressed={xray} onClick={() => setXray(!xray)}>
                   Рентген
+                </Button>
+                <Button variant="ghost" icon="leave" className="sc-leave" aria-label="Встать и уйти">
+                  <span className="sc-leave-label">Уйти</span>
                 </Button>
               </div>
             </div>
@@ -155,17 +159,20 @@ export default function Showcase() {
                 <Button variant="brass" icon="send" type="submit">
                   Сказать
                 </Button>
-                <Button icon="notebook" className="sc-only-mobile">
-                  Блокнот
-                </Button>
-                <Button variant="stamp" icon="leave" className="sc-push-right">
-                  Встать и уйти
+                <Button
+                  icon="notebook"
+                  className="sc-only-mobile"
+                  aria-expanded={notebook}
+                  aria-controls="sc-side"
+                  onClick={() => setNotebook(!notebook)}
+                >
+                  {notebook ? 'Закрыть блокнот' : 'Блокнот'}
                 </Button>
               </div>
             </form>
           </div>
 
-          <aside className="sc-side">
+          <aside id="sc-side" className="sc-side" data-open={notebook}>
             <Notebook
               title="Моё предложение"
               footer={
@@ -174,15 +181,15 @@ export default function Showcase() {
                     Положить на стол
                   </Button>
                   <span className="sc-total">
-                    итого <b>{total}</b>
+                    в мою пользу <b>{total}</b>
                   </span>
                 </>
               }
             >
               <p className="px-note">
                 {scene === 'office'
-                  ? 'Если не договоримся: интегратор на пусконаладку, 1,4 млн. Это 12 очков.'
-                  : 'Если не договоримся: Казань, 212 ₽, отсрочка 30 дней. Это 26 очков.'}
+                  ? 'Запасной вариант: интегратор на пусконаладку за 1,4 млн. Он даёт мне 12, меньше брать нет смысла.'
+                  : 'Запасной вариант: Казань, 212 ₽, отсрочка 30 дней. Он даёт мне 26, меньше брать нет смысла.'}
               </p>
               {issues.map((it, i) => (
                 <IssueStepper

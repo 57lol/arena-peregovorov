@@ -38,6 +38,11 @@ body {
     display: none;
   }
 }
+@media (max-width: 899px) {
+  .sc-side[data-open='false'] {
+    display: none;
+  }
+}
 
 @media (max-width: 899px) {
   .sc-stage .px-scene-wrap {
@@ -60,6 +65,39 @@ body {
 }
 .sc-hud-actions {
   display: flex;
+  align-items: center;
+  gap: calc(2 * var(--u));
+  --desk-lo: transparent;
+}
+.sc-hud-actions .px-btn {
+  margin-bottom: var(--u);
+}
+.sc-leave {
+  --label: var(--c-coral);
+  text-decoration: none;
+  padding-inline: calc(3 * var(--u));
+}
+[data-desk='office'] .sc-leave {
+  --label: var(--c-stamp);
+}
+@media (max-width: 420px) {
+  .sc-hud-actions .px-btn {
+    padding-inline: calc(4 * var(--u));
+  }
+  .sc-hud-actions {
+    gap: 0;
+  }
+  .sc-leave-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+/* окно реплики наезжает на низ сцены, как в Ace Attorney */
+.sc-stage .px-dialog {
+  margin-top: calc(-14 * var(--u));
 }
 
 .sc-say {

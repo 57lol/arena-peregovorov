@@ -180,7 +180,7 @@ def build_rinat(emotion, frame):
     put(c, 34, 82, ['gg', 'Gg'], {'g': 22, 'G': 20})
 
     # шея
-    neck = poly_mask([(38, 56), (58, 56), (58, 74), (48, 77), (38, 74)])
+    neck = poly_mask([(40, 58), (56, 58), (57, 73), (48, 76), (39, 73)])
     paint(c, neck, 14)
     paint(c, neck & (ys < 66), 13)
 
@@ -193,7 +193,7 @@ def build_rinat(emotion, frame):
     # голова
     head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=2.7)
     lam = shade_ellipsoid(cx - 3, cy - 4, rx + 3, ry + 2)
-    paint(c, head, band(lam, [0.1, 0.36, 0.82], [13, 14, 15, 16]))
+    paint(c, head, band(lam, [0.08, 0.3, 0.9], [13, 14, 15, 16]))
     # подбородок и скулы
     paint(c, head & ellipse_mask(cx - 1, cy + 21, 5, 2.2), 15)
     paint(c, head & ellipse_mask(cx - 11, cy + 4, 2, 1.2), 16)
@@ -242,7 +242,7 @@ def build_rinat(emotion, frame):
     # носогубные складки
     line(c, [(40, 49), (41, 54)], 14)
     line(c, [(56, 49), (55, 54)], 13)
-    if emotion in ('pleased', 'happy'):
+    if emotion == 'happy':
         put(c, 35, 46, ['rr'], E)
         put(c, 59, 46, ['rr'], E)
     if emotion == 'angry':
@@ -254,7 +254,7 @@ def build_rinat(emotion, frame):
         'pleased': ['MM.....MM', '.MtttttM.', '..MMMMM..'],
         'annoyed': ['.........', '.MMMMMMM.', 'M.......M'],
         'thinking':   ['......MM.', 'MMMMMM...', '..kkk....'],
-        'happy':   ['MM.....MM', '.MtttttM.', '..MoooM..'],
+        'happy':   ['M.......M', 'MMtttttMM', '.MoooooM.', '..MMMMM..'],
         'angry':   ['MMMMMMMMM', 'MtMtMtMtM', '.MMMMMMM.'],
     }
     talk = {
@@ -262,7 +262,7 @@ def build_rinat(emotion, frame):
         'pleased': ['MMMMMMMMM', '.MtttttM.', '..MoooM..'],
         'annoyed': ['.MMMMMMM.', 'MtttttttM', '.MMMMMMM.'],
         'thinking':   ['....MMMM.', '.MMMooM..', '..MMMM...'],
-        'happy':   ['MMMMMMMMM', 'MtttttttM', '.MoooooM.', '..MMMMM..'],
+        'happy':   ['M.......M', 'MMtttttMM', '.MtoooM..', '..MMMMM..'],
         'angry':   ['MMMMMMMMM', 'MtttttttM', 'MoooooooM', '.MMMMMMM.'],
     }
     put(c, 44, 54, talk[emotion] if frame == 'talk' else mouths[emotion], E)
@@ -310,7 +310,7 @@ def build_olga(emotion, frame):
 
     head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=1.8)
     lam = shade_ellipsoid(cx - 3, cy - 4, rx + 3, ry + 2)
-    paint(c, head, band(lam, [0.1, 0.36, 0.82], [13, 14, 15, 16]))
+    paint(c, head, band(lam, [0.08, 0.3, 0.9], [13, 14, 15, 16]))
     paint(c, head & ellipse_mask(cx - 9, cy + 4, 2, 1.2), 16)
 
     # чёлка с пробором и боковые пряди
@@ -328,6 +328,9 @@ def build_olga(emotion, frame):
     line(c, [(part, 19), (part - 1, 22)], 24)
     for pts in ([(36, 24), (42, 22), (49, 20)], [(33, 30), (38, 26)], [(57, 21), (62, 25)]):
         line(c, pts, 19)
+    # блики на каре
+    for pts in ([(34, 23), (39, 20), (45, 19)], [(31, 30), (33, 26)], [(29, 40), (29, 48)], [(58, 19), (61, 21)]):
+        line(c, pts, 13)
 
     E = {'w': 44, 'p': 37, 'L': 24, 's': 14, 'h': 16, 'k': 15, 'S': 13,
          'm': 26, 'M': 25, 'r': 27, 'R': 28, 't': 45, 'o': 24, 'f': 12, 'g': 45}
@@ -355,9 +358,11 @@ def build_olga(emotion, frame):
     line(c, [(eyL + 9, ey), (eyR - 1, ey)], 12)
     c[ey, eyL] = 45
     c[ey, eyR] = 45
+    c[ey + 1, eyL] = 44
+    c[ey + 1, eyR] = 44
 
     put(c, 46, 44, ['h..', 'hs.', 'hs.', 'hs.', 'hhS', 'S.S'], E)
-    if emotion in ('pleased', 'happy'):
+    if emotion == 'happy':
         put(c, 36, 50, ['RR'], E)
         put(c, 59, 50, ['RR'], E)
     if emotion == 'angry':
@@ -370,7 +375,7 @@ def build_olga(emotion, frame):
         'pleased': ['m.....m', 'MMMMMMM', '.rrRrr.', '..rrr..'],
         'annoyed': ['.......', 'MMMMMMM', '.rrrrr.', '.......'],
         'thinking':   ['....mm.', '.MMMMM.', '.rrRr..', '.......'],
-        'happy':   ['m.....m', 'MtttttM', '.MoooM.', '..rrr..'],
+        'happy':   ['m.....m', 'MtttttM', 'MoooooM', '.rrrrr.'],
         'angry':   ['.......', 'MMMMMMM', 'M.rrr.M', '.......'],
     }
     talk = {

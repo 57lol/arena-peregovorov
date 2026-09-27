@@ -20,7 +20,13 @@
   --desk-hi: var(--c-mist);
   --on-desk: var(--c-ink);
   --on-desk-muted: var(--c-steel-3);
-  background-image: none;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 calc(5 * var(--u)),
+      color-mix(in srgb, var(--desk-hi) 35%, transparent) calc(5 * var(--u)) calc(6 * var(--u)),
+      transparent calc(6 * var(--u)) calc(15 * var(--u))
+    );
 }
 
 .px-visually-hidden {
@@ -239,7 +245,7 @@
   margin: calc(2 * var(--u)) 0 0;
   color: var(--on-desk-muted);
 }
-@media (pointer: coarse) {
+@media (hover: none), (pointer: coarse) {
   .px-field-hint {
     display: none;
   }
@@ -336,7 +342,7 @@
   font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-ink);
   text-align: center;
-  text-wrap: balance;
+  white-space: nowrap;
 }
 .px-issue-points {
   grid-area: pts;
@@ -358,33 +364,27 @@
   margin: 0;
   padding: 0;
   border: 0;
-  background: var(--c-paper-2);
-  color: var(--c-ink);
+  background: transparent;
+  color: var(--pen);
   cursor: pointer;
+  /* стрелка в кружке, обведённом ручкой: пиксельный «круг» из четырёх сторон */
   box-shadow:
-    inset 0 calc(-2 * var(--u)) 0 var(--c-mist),
-    0 calc(-1 * var(--u)) 0 0 var(--c-ink),
-    0 var(--u) 0 0 var(--c-ink),
-    calc(-1 * var(--u)) 0 0 0 var(--c-ink),
-    var(--u) 0 0 0 var(--c-ink);
+    inset 0 0 0 var(--u) var(--pen),
+    inset 0 0 0 calc(2 * var(--u)) var(--c-paper);
+  clip-path: polygon(
+    var(--u) 0, calc(100% - var(--u)) 0, 100% var(--u), 100% calc(100% - var(--u)),
+    calc(100% - var(--u)) 100%, var(--u) 100%, 0 calc(100% - var(--u)), 0 var(--u)
+  );
+}
+.px-step:hover:not(:disabled) {
+  background: var(--c-paper-2);
 }
 .px-step:active:not(:disabled) {
-  transform: translateY(var(--u));
-  box-shadow:
-    0 calc(-1 * var(--u)) 0 0 var(--c-ink),
-    0 var(--u) 0 0 var(--c-ink),
-    calc(-1 * var(--u)) 0 0 0 var(--c-ink),
-    var(--u) 0 0 0 var(--c-ink);
+  background: var(--pen);
+  color: var(--c-paper);
 }
 .px-step:disabled {
-  color: var(--c-mist);
-  background: var(--c-paper);
-  cursor: default;
-  box-shadow:
-    0 calc(-1 * var(--u)) 0 0 var(--c-mist),
-    0 var(--u) 0 0 var(--c-mist),
-    calc(-1 * var(--u)) 0 0 0 var(--c-mist),
-    var(--u) 0 0 0 var(--c-mist);
+  visibility: hidden;
 }
 
 /* ---------- листок «на столе» ---------- */
@@ -425,6 +425,15 @@
 }
 .px-clock svg {
   flex: none;
+}
+@media (max-width: 420px) {
+  .px-clock svg {
+    width: 42px;
+    height: 42px;
+  }
+  .px-clock {
+    gap: calc(3 * var(--u));
+  }
 }
 .px-clock-text {
   display: flex;
@@ -497,7 +506,13 @@
 .px-stamp span {
   --ink-c: var(--c-stamp);
   padding: calc(2 * var(--u)) calc(6 * var(--u));
-  background: var(--c-paper);
+  background-color: var(--c-paper);
+  /* неровный оттиск: редкие непропечатанные точки */
+  background-image:
+    radial-gradient(var(--c-paper-2) 0 var(--u), transparent var(--u)),
+    radial-gradient(var(--c-paper-2) 0 var(--u), transparent var(--u));
+  background-size: calc(11 * var(--u)) calc(7 * var(--u)), calc(17 * var(--u)) calc(13 * var(--u));
+  background-position: 0 0, calc(5 * var(--u)) calc(3 * var(--u));
   color: var(--ink-c);
   font: 700 var(--fs-ui-huge) / 1.25 var(--f-ui);
   text-transform: uppercase;
@@ -512,11 +527,9 @@
     font-size: var(--fs-ui-big);
   }
 }
-.px-stamp--walked span {
-  --ink-c: var(--c-steel-2);
-}
+.px-stamp--walked span,
 .px-stamp--timeout span {
-  --ink-c: var(--c-wood);
+  --ink-c: var(--c-stamp-2);
 }
 @keyframes px-thump {
   0% {

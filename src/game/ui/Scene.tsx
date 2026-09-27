@@ -34,8 +34,8 @@ interface Props {
 
 /** Сцена: фон, портрет, стол переднего плана. Масштаб только целый. */
 export function Scene({ scene, character, emotion, talking, maxScale = 6, children }: Props) {
-  // до 12% ширины можно срезать по краям: на телефоне лучше крупный портрет, чем поля
-  const [ref, s] = useIntegerScale(SCENE_W, 1, maxScale, 0.12)
+  // на телефоне лучше крупный портрет, чем поля: разрешаем срезать края сцены до 35% ширины
+  const [ref, s] = useIntegerScale(SCENE_W, 1, maxScale, 0.35)
   const def = SCENES[scene]
   return (
     <div ref={ref} className="px-scene-wrap" style={{ height: SCENE_H * s }}>
