@@ -1,0 +1,45 @@
+import { describe, expect, it } from 'vitest'
+import type { TurnRecord } from '../engine/types'
+import { createApp } from './app'
+import { makeLLM } from './llm'
+
+const app = createApp(makeLLM('offline').llm)
+const turn = async (history: TurnRecord[], playerText: string, offer?: Record<string, number>) => {
+  const r = await app.request('/api/turn', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scenarioId: 'tara', history, playerText, offer }),
+  })
+  expect(r.status).toBe(200)
+  return (await r.json()) as { record: TurnRecord; report?: { outcome: { status: string } } }
+}
+
+describe('API в офлайне', () => {
+  it('health говорит, какой провайдер', async () => {
+    const r = (await (await app.request('/api/health')).json()) as { provider: string }
+    expect(r.provider).toBe('offline')
+  })
+
+  it('ход, перемотка и повтор дают то же самое', async () => {
+    const lines = ['Почему для вас важен график отгрузок?', 'Цена 196 рублей, отсрочка 30 дней, срочные за 48 часов, договор на год, раз в неделю']
+    const h: TurnRecord[] = []
+    for (const t of lines) h.push((await turn(h, t)).record)
+    // «переиграть со второго хода»: берём историю до хода 2 и говорим то же самое
+    const again = await turn(h.slice(0, 1), lines[1])
+    expect(again.record).toEqual(h[1])
+    // предложение из блокнота важнее текста
+    const formal = await turn(h.slice(0, 1), 'Вот моё предложение', { price: 0, payment: 0, rush: 0, term: 3, schedule: 2 })
+    expect(formal.record.analysis.offer).toMatchObject({ price: 0, term: 3 })
+  })
+
+  it('грубость — оппонент уходит, приходит разбор', async () => {
+    const h: TurnRecord[] = []
+    let last
+    for (const t of ['Вы идиот?', 'Ну вы и дебил', 'Заткнитесь уже']) {
+      last = await turn(h, t)
+      h.push(last.record)
+      if (last.report) break
+    }
+    expect(last!.report?.outcome.status).toBe('walked_away')
+  })
+})
