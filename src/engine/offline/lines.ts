@@ -38,10 +38,11 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
     aggressive: ['Слова. Цифры где?'],
     evasive: ['Ну, это всё понятно... А по сути что?'],
   },
+  // Держим позицию без пересказа всех условий: листок и так на столе.
   no_movement: {
-    any: ['Нет, так не могу. Моё предложение то же: {offer}.', 'Не вижу, куда тут двигаться. Остаюсь на своём: {offer}.'],
-    aggressive: ['Нет. {offer}. Повторять не буду.'],
-    friendly: ['Понимаю вас, но сдвинуться пока не могу. {offer}.'],
+    any: ['Нет, так не могу. Моё предложение в силе.', 'Не вижу, куда тут двигаться: {main}, остальное как было.'],
+    aggressive: ['Нет. Всё как было. Повторять не буду.'],
+    friendly: ['Понимаю вас, но сдвинуться пока не могу. Дайте что-то взамен — тогда поговорим.'],
   },
   not_ready_to_reveal: {
     any: ['Это наша внутренняя кухня.', 'Давайте я пока оставлю это при себе.', 'Скажем так: у нас есть причины.'],
@@ -93,7 +94,7 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState): {
     d.kind === 'counter' ? d.offer
     : d.kind === 'accept' ? state.deal ?? state.tableOffer
     : state.lastOpponentOffer ?? {}
-  line = line.replace('{offer}', formatOffer(sc, offer))
+  line = line.replace('{offer}', formatOffer(sc, offer)).replace('{main}', mainTerm(sc, offer))
   if (d.kind === 'counter' && d.feigned?.length) {
     const what = d.feigned
       .map((id) => sc.issues.find((i) => i.id === id)!)
@@ -107,6 +108,12 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState): {
     if (d.offer) line += ` Поэтому могу так: ${formatOffer(sc, d.offer)}.`
   }
   return { line, emotion: emotionFor(d, state) }
+}
+
+/** Главный пункт одной фразой: «цена за короб — 212 ₽». */
+function mainTerm(sc: Scenario, offer: Partial<Record<string, number>>): string {
+  const i = sc.issues.find((x) => x.kind === 'distributive' && typeof offer[x.id] === 'number') ?? sc.issues.find((x) => typeof offer[x.id] === 'number')
+  return i ? `${i.title.toLowerCase()} — ${i.options[offer[i.id]!]}` : 'моё предложение'
 }
 
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)

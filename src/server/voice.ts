@@ -74,7 +74,11 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     case 'hold':
       switch (d.reason) {
         case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Условия заново не перечисляй.'
-        case 'no_movement': return `Решение: ДЕРЖАТЬ ПОЗИЦИЮ. Двигаться не готов. Твоё предложение прежнее: ${offer(state.lastOpponentOffer ?? {})}.`
+        case 'no_movement': {
+          const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
+          const was = state.lastOpponentOffer?.[main.id]
+          return `Решение: ДЕРЖАТЬ ПОЗИЦИЮ. Двигаться не готов: собеседник ничего не дал взамен. Скажи, что твоё предложение в силе, и намекни, что ждёшь шага навстречу. Условия заново НЕ перечисляй${typeof was === 'number' ? `, можешь назвать только главное: ${main.title.toLowerCase()} — ${main.options[was]}` : ''}.`
+        }
         case 'player_left': return 'Решение: собеседник уходит. Коротко попрощайся, без сделки.'
         case 'timeout': return 'Решение: время вышло, сделки нет. Коротко закончи встречу.'
         default: return 'Решение: ЖДАТЬ КОНКРЕТИКИ. Игрок не сделал предложения — попроси назвать его условия. Свои условия заново не перечисляй.'
@@ -111,11 +115,16 @@ export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: 
   const low = line.toLowerCase()
   if (BANNED.some((b) => low.includes(b))) return false
   if (d.kind !== 'accept' && saysYes(line)) return false
-  const expected = d.kind === 'counter' || d.kind === 'reveal' ? ('offer' in d ? d.offer : undefined) : d.kind === 'accept' ? state.deal : undefined
-  if (expected) {
-    const said = parseOffer(sc, line)
-    for (const [k, v] of Object.entries(said)) if (expected[k] !== undefined && expected[k] !== v) return false
-  }
+  const holding = d.kind === 'hold' && d.reason === 'no_movement'
+  const expected =
+    d.kind === 'counter' || d.kind === 'reveal' ? ('offer' in d ? d.offer : undefined)
+    : d.kind === 'accept' ? state.deal
+    : holding ? state.lastOpponentOffer
+    : undefined
+  const said = parseOffer(sc, line)
+  if (expected) for (const [k, v] of Object.entries(said)) if (expected[k] !== undefined && expected[k] !== v) return false
+  // «держу позицию» списком всех условий звучит как робот — такое не берём
+  if (holding && Object.keys(said).length >= 3) return false
   return true
 }
 
