@@ -62,7 +62,7 @@
   gap: 0 calc(4 * var(--u));
   --desk-lo: var(--c-ink);
 }
-.g-mentor-skip {
+.g-mentor .g-mentor-skip {
   margin-left: auto;
   padding: calc(2 * var(--u)) 0;
   border: 0;
@@ -71,7 +71,7 @@
   font: inherit;
   cursor: pointer;
 }
-.g-mentor-skip:hover {
+.g-mentor .g-mentor-skip:hover {
   color: var(--c-paper);
 }
 

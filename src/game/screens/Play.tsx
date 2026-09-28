@@ -135,19 +135,6 @@ export function Play(props: Props) {
             </Scene>
 
             {margin('stage')}
-            {mentor && (
-              <Mentor
-                className="g-mentor--play"
-                line={mentor}
-                fb={tut.step === 'talk' ? null : feedback}
-                onAck={tut.ack}
-                onExample={(t) => {
-                  setDraft(t)
-                  document.getElementById('px-speech')?.focus()
-                }}
-                onSkip={tut.on ? tut.skip : undefined}
-              />
-            )}
 
             {(pending || last) && (
               <p className="g-you">
@@ -170,6 +157,19 @@ export function Play(props: Props) {
               <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
             )}
 
+            {mentor && (
+              <Mentor
+                className="g-mentor--play"
+                line={mentor}
+                fb={tut.step === 'talk' ? null : feedback}
+                onAck={tut.ack}
+                onExample={(t) => {
+                  setDraft(t)
+                  document.getElementById('px-speech')?.focus()
+                }}
+                onSkip={tut.on ? tut.skip : undefined}
+              />
+            )}
             {done ? (
               <div className="g-end">
                 <p className="g-end-text">{endText(state, sc, g)}</p>
