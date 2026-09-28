@@ -119,10 +119,10 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
 
         {bridge && (
           <aside className="mp-bridge g-sheet" role="status">
-            <p className="mp-bridge-kicker">После главы «{bridge.sc.title}»</p>
+            <p className="mp-bridge-kicker">{bridge.ch.kind === 'finale' ? 'Неделя позади' : `После главы «${bridge.sc.title}»`}</p>
             <p className="mp-bridge-text">{bridge.ch.outro}</p>
             <Button variant="brass" icon="right" onClick={readBridge}>
-              {nextIdx >= 0 ? `Дальше: ${rows[nextIdx].ch.day.toLowerCase()}, ${rows[nextIdx].ch.label}` : 'Дальше'}
+              {nextIdx >= 0 ? `Дальше: ${rows[nextIdx].ch.day.toLowerCase()}, ${rows[nextIdx].ch.label}` : 'К карте'}
             </Button>
           </aside>
         )}
@@ -234,7 +234,7 @@ function ChapterCard({ row, next, weekDone, onOpen, ref }: CardProps) {
           <Stars stars={row.stars} /> {countStars(row.stars)} из 3{row.endings ? `, финалов ${row.endings} из ${ENDING_IDS.length}` : ''}
         </p>
       )}
-      {row.played && ch.outro && (
+      {row.played && ch.outro && !finale && (
         <div className="mp-card-after">
           <p className="mp-card-after-h">Что было дальше</p>
           <p>{ch.outro}</p>
