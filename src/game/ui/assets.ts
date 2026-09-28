@@ -24,6 +24,14 @@ export const PORTRAITS = {
   sosed: { sheet: '/assets/portraits/sosed.png', label: 'Тимур, сосед по общаге', female: false },
   gopnik: { sheet: '/assets/portraits/gopnik.png', label: 'Серый', female: false },
   admin: { sheet: '/assets/portraits/admin.png', label: 'Лариса Петровна, администратор', female: true },
+  pacan: { sheet: '/assets/portraits/pacan.png', label: 'Кирюха', female: false },
+  babka: { sheet: '/assets/portraits/babka.png', label: 'Бабушка на остановке', female: true },
+  cashier: { sheet: '/assets/portraits/cashier.png', label: 'Диляра, кассир', female: true },
+  guard: { sheet: '/assets/portraits/guard.png', label: 'Охранник магазина', female: false },
+  worker: { sheet: '/assets/portraits/worker.png', label: 'Андрей, рабочий цеха', female: false },
+  workerf: { sheet: '/assets/portraits/workerf.png', label: 'Оксана, рабочая цеха', female: true },
+  student: { sheet: '/assets/portraits/student.png', label: 'Аня, соседка из 215-й', female: true },
+  vahter: { sheet: '/assets/portraits/vahter.png', label: 'Галина Ивановна, комендант', female: true },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
 

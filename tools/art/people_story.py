@@ -304,30 +304,37 @@ def admin():
 def pacan():
     """Кирюха, 18: капюшон на голове, худой, лопоухий, серая спортивная кофта."""
     f = Face(top=19, cy=40, rx=15, jaw_y=56, jaw_w=11, chin_y=64, chin_w=4, jaw_p=1.4, cheek=1.6)
-    HOOD = [39, 40, 41, 42]
+    HOOD = [40, 41, 42, 43]
 
     def back(c, P):
-        hood = ellipse_mask(CX, f.cy - 2, f.rx + 8, 25) & (grid()[1] < 74)
-        paint(c, hood, band(shade_ellipsoid(CX - 6, f.cy - 12, f.rx + 10, 26), [0.3, 0.6, 0.85], HOOD))
+        xs, ys = grid()
+        # капюшон: арка над головой, бока падают на плечи; внутри тень
+        hood = ellipse_mask(CX, f.cy - 3, f.rx + 7, 23) & (ys < f.cy + 6)
+        hood |= poly_mask([(CX - f.rx - 7, f.cy + 2), (CX - f.rx - 12, 78), (CX + f.rx + 12, 78), (CX + f.rx + 7, f.cy + 2)])
+        paint(c, hood, band(shade_ellipsoid(CX - 8, f.cy - 6, f.rx + 14, 34), [0.2, 0.45, 0.8], HOOD))
+        paint(c, ellipse_mask(CX, f.cy + 3, f.rx + 3, 24) & (ys < f.cy + 16), 39)
+        paint(c, ellipse_mask(CX + 1, f.cy + 4, f.rx + 2, 23) & (ys < f.cy + 14) & (xs > CX), 38)
 
     def body(c, P, m):
         paint_cloth(c, m, HOOD)
-        line(c, [(44, 76), (43, 88)], 44)
-        line(c, [(52, 76), (53, 88)], 43)
-        line(c, [(48, 76), (48, 95)], 39)
+        line(c, [(48, 74), (48, 95)], 40)
+        line(c, [(30, 92), (66, 92)], 40)
 
     def collar(c, P):
-        hood_collar(c, HOOD, cy=75, rx=17)
+        # шнурки капюшона свисают из-под кромки
+        line(c, [(40, 58), (41, 70), (42, 84)], 44)
+        line(c, [(56, 58), (55, 70), (54, 84)], 43)
+        c[85, 42] = 42
+        c[85, 54] = 42
 
     def hair(c, P, emotion):
         xs, ys = grid()
-        # край капюшона над лбом и чёлка из-под него
-        rim = ellipse_mask(CX, f.cy - 2, f.rx + 5, 24) & ~ellipse_mask(CX, f.cy + 3, f.rx + 1, 22) & (ys < f.cy + 2)
-        paint(c, rim, band(shade_ellipsoid(CX - 6, f.cy - 14, f.rx + 6, 20), [0.3, 0.6, 0.85], HOOD))
-        fringe = ellipse_mask(CX, f.cy + 3, f.rx + 1, 22) & (ys < 26 + 2 * np.sin(xs * 1.3)) & (ys > 20)
-        paint(c, fringe, 20)
-        paint(c, fringe & (xs < 44), 21)
-        line(c, [(CX - 14, 22), (CX + 14, 22)], 40)
+        # кромка капюшона вокруг лица и чёлка из-под неё
+        rim = ellipse_mask(CX, f.cy + 2, f.rx + 5, 25) & ~ellipse_mask(CX, f.cy + 3, f.rx + 3, 24) & (ys < f.cy + 16)
+        paint(c, rim, band(shade_ellipsoid(CX - 6, f.cy - 14, f.rx + 6, 22), [0.3, 0.6, 0.85], HOOD))
+        fringe = f.mask() & (ys < 25 + 2.5 * np.abs(np.sin(xs * 0.9))) & (ys > 18)
+        paint(c, fringe, 19)
+        paint(c, fringe & (xs < 44), 20)
 
     def extra(c, P, emotion):
         # лопоухие: уши торчат из-под капюшона
@@ -447,7 +454,7 @@ def cashier():
 def guard():
     """Охранник, ~55: чёрная форма с нашивкой «ОХРАНА», густые усы, залысины."""
     f = Face(top=17, cy=38, rx=19, jaw_y=56, jaw_w=16, chin_y=65, chin_w=8, jaw_p=2.2, cheek=2.6)
-    HAIR = [19, 20, 40, 42]
+    HAIR = [39, 40, 41, 42]
 
     def body(c, P, m):
         xs, ys = grid()
@@ -470,19 +477,21 @@ def guard():
         xs, ys = grid()
         u = (xs - CX) / f.rx
         vol = ellipse_mask(CX, f.cy - 1, f.rx + 1.5, 22)
-        # залысины: волосы только клином посередине и по бокам
-        hl = 20 + 9 * np.exp(-((np.abs(u) - 0.5) / 0.22) ** 2) + 2 * u ** 2
-        top = vol & (ys < hl) & (ys > 16)
-        sides = vol & (np.abs(xs - CX) > f.rx - 2.5) & (ys > 27) & (ys < 42)
-        hair_paint(c, top | sides, HAIR, f)
-        for pts in ([(42, 19), (50, 18)], [(33, 32), (33, 38)], [(62, 31), (63, 38)]):
+        # лысеет: подкова над ушами и на затылке, сверху редкие зачёсанные пряди
+        sides = vol & (np.abs(xs - CX) > f.rx - 2.5) & (ys > 30) & (ys < 43)
+        paint(c, sides, 40)
+        paint(c, sides & ((xs.astype(int) * 3 + ys.astype(int) * 2) % 5 == 0), 42)
+        paint(c, sides & ((xs.astype(int) * 3 + ys.astype(int) * 2) % 5 == 2), 39)
+        for pts in ([(33, 29), (33, 38)], [(62, 28), (63, 38)]):
             line(c, pts, 42)
-        put(c, 34, 24, ['..hh', '.h..', 'h...'], {'h': 17})
+        for pts in ([(40, 21), (47, 19), (53, 20)], [(43, 23), (50, 22)]):
+            line(c, pts, 14)
+        put(c, 36, 24, ['..hhh', '.h...', 'h....'], {'h': 16})
 
     def moustache(c, P, emotion):
         ey = P['ey']
-        put(c, CX - 7, ey + 12, ['..GGGGGGGGGG..', '.GgggggggggggG', 'GgG.......GgG.', 'G..........G..'],
-            {'G': 19, 'g': 20})
+        put(c, CX - 7, ey + 12, ['..GGGGGGGGGG..', '.GgggggggggggG', 'GggGGGGGGGGgG.', 'Gg.........gG.', 'G...........G.'],
+            {'G': 18, 'g': 41})
 
     return dict(face=f, skin=SKIN_MID, ey=38, age=55, female=False, neck=11, nose='broad', shoulders=42,
                 brow=(19, 2), pupil=18, body=body, collar=collar, hair=hair, moustache=moustache, blush=28,
@@ -553,7 +562,7 @@ def workerf():
 
     return dict(face=f, skin=SKIN_LIGHT, ey=40, age=42, female=True, neck=7, nose='straight', shoulders=38, drop=13,
                 brow=(20, 2), pupil=2, lash=19, body=body, collar=collar, back=back, hair=hair, extra=extra,
-                lips={'m': 14, 'M': 13, 'r': 27, 'R': 28}, blush=28, mouth_y=40 + 14, cuts=[0.08, 0.32, 0.93])
+                lips={'m': 14, 'M': 13, 'r': 14, 'R': 15}, blush=28, mouth_y=40 + 14, cuts=[0.08, 0.32, 0.93])
 
 
 def student():
@@ -619,21 +628,24 @@ def student():
 def vahter():
     """Галина Ивановна, 63: химическая завивка цвета «баклажан», вязаная кофта, очки."""
     f = Face(top=20, cy=41, rx=18, jaw_y=57, jaw_w=15, chin_y=65, chin_w=7, jaw_p=1.8, cheek=2.6)
-    HAIR = [31, 32, 33, 34]
+    HAIR = [25, 26, 27, 27]
 
     def curls(c, P, mask):
-        xs, ys = grid()
         hair_paint(c, mask, HAIR, f)
-        for y in range(12, 60, 3):
-            for x in range(20 + (y % 2) * 2, 78, 4):
-                if mask[y, x]:
-                    put(c, x - 1, y - 1, ['.h', 'hs'], {'h': 34 if x < CX else 33, 's': 31})
+        # завитки: мелкие светлые дуги с тенью, реже в тени
+        for y in range(12, 60, 4):
+            for x in range(20 + (y % 8) // 2 * 3, 78, 5):
+                if mask[y, x] and mask[y + 1, x + 1]:
+                    put(c, x - 1, y, ['h.', '.s'], {'h': 28 if x < CX + 4 else 27, 's': 25})
 
     def back(c, P):
         xs, ys = grid()
-        vol = ellipse_mask(CX, f.cy - 4, f.rx + 8, 25) & (ys < 58)
-        for x, y in ((24, 30), (22, 42), (26, 52), (72, 30), (74, 42), (70, 52), (36, 13), (48, 11), (60, 13)):
-            vol |= ellipse_mask(x, y, 4.5, 4.5)
+        vol = ellipse_mask(CX, f.cy - 4, f.rx + 6, 23) & (ys < 58)
+        # пышный контур из мелких колечек
+        for t in np.linspace(np.pi * 0.95, np.pi * 2.05, 16):
+            vol |= ellipse_mask(CX + (f.rx + 6) * np.cos(t), f.cy - 4 + 23 * np.sin(t), 3.8, 3.8) & (ys < 58)
+        for y in (44, 50, 55):
+            vol |= ellipse_mask(CX - f.rx - 5, y, 3.8, 3.5) | ellipse_mask(CX + f.rx + 5, y, 3.8, 3.5)
         curls(c, P, vol)
 
     def body(c, P, m):
@@ -673,9 +685,9 @@ def vahter():
         put(c, CX + f.rx - 1, ey + 8, ['g', 'G'], {'g': 22, 'G': 20})
 
     return dict(face=f, skin=SKIN_LIGHT, ey=41, age=63, female=True, neck=8, nose='button', shoulders=39, drop=13,
-                brow=(31, 1), pupil=2, lash=31, body=body, back=back, collar=collar, hair=hair, extra=extra,
+                brow=(25, 1), pupil=2, lash=25, body=body, back=back, collar=collar, hair=hair, extra=extra,
                 glasses=(37, 'half'), lips={'m': 26, 'M': 25, 'r': 33, 'R': 34}, blush=35, mouth_y=41 + 14,
-                forehead=True, dark={31: 30, 32: 30})
+                forehead=True)
 
 
 SPECS = {'sosed': sosed, 'gopnik': gopnik, 'admin': admin, 'pacan': pacan, 'babka': babka, 'cashier': cashier,
