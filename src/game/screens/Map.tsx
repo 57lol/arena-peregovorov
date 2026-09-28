@@ -54,7 +54,12 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
   // мостик: последняя сыгранная глава, чей «что было дальше» ещё не читали
   const bridge = [...rows].reverse().find((r) => r.played && r.ch.outro && !seen.includes(r.ch.id))
   const weekDone = nextIdx < 0 && rows.length === CHAPTERS.length
-  const [sel, setSel] = useState(() => (nextIdx >= 0 ? nextIdx : rows.length - 1))
+  const [sel, setSel] = useState(() => {
+    // сразу после главы показываем ту, что за ней по сюжету
+    const b = bridge ? rows.findIndex((r) => r.ch.id === bridge.ch.id) : -1
+    if (b >= 0 && rows[b + 1] && !rows[b + 1].played) return b + 1
+    return nextIdx >= 0 ? nextIdx : rows.length - 1
+  })
   const [ref, { scale, side }] = useLayout()
   const scroller = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLElement>(null)
@@ -73,11 +78,13 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
     if (!side && from === 'map') card.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
+  // после мостика — глава, о которой он рассказывает (следующая за сыгранной), если её ещё не играли; иначе первая несыгранная
+  const bi = bridge ? rows.findIndex((r) => r.ch.id === bridge.ch.id) : -1
+  const after = bi >= 0 && rows[bi + 1] && !rows[bi + 1].played ? bi + 1 : nextIdx
   const readBridge = () => {
     if (!bridge) return
     onProgress(markStorySeen(bridge.ch.id))
-    const i = rows.findIndex((r) => r.ch.id === bridge.ch.id)
-    if (i >= 0 && rows[i + 1]) setSel(nextIdx >= 0 ? nextIdx : i + 1)
+    if (after >= 0) setSel(after)
   }
 
   const route = useMemo(() => splitRoute(rows), [rows])
@@ -122,7 +129,7 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
             <p className="mp-bridge-kicker">{bridge.ch.kind === 'finale' ? 'Неделя позади' : `После главы «${bridge.sc.title}»`}</p>
             <p className="mp-bridge-text">{bridge.ch.outro}</p>
             <Button variant="brass" icon="right" onClick={readBridge}>
-              {nextIdx >= 0 ? `Дальше: ${rows[nextIdx].ch.day.toLowerCase()}, ${rows[nextIdx].ch.label}` : 'К карте'}
+              {after >= 0 ? `Дальше: ${rows[after].ch.day.toLowerCase()}, ${rows[after].ch.label}` : 'К карте'}
             </Button>
           </aside>
         )}
