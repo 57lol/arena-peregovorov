@@ -144,7 +144,10 @@ export default function App() {
   }, [])
 
   // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
+  // «Все дела» открывают с титула и с карты — «Назад» возвращает туда же
+  const [setupBack, setSetupBack] = useState<'title' | 'map'>('title')
   const go = useCallback((s: Screen) => {
+    if (s === 'title' || s === 'map') setSetupBack(s)
     setScreen(s)
     window.history.pushState({ screen: s }, '')
     window.scrollTo({ top: 0 })
@@ -259,7 +262,7 @@ export default function App() {
         progress={progress}
         server={server}
         onOpen={open}
-        onBack={() => go('title')}
+        onBack={() => go(setupBack)}
         onCoach={() => go('coach')}
         onCareer={() => toCareer('setup')}
       />
