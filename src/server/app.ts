@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
@@ -15,8 +16,11 @@ import { hashOf } from './cache'
 import { makeLLM, type LLM } from './llm'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
+import { roomsApi } from './rooms'
 
-const SAVED = join(process.env.CACHE_DIR ?? join(process.cwd(), '.cache'), 'scenarios')
+const CACHE = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
+const SAVED = join(CACHE, 'scenarios')
+const ROOMS = join(CACHE, 'rooms')
 
 const OfferSchema = z.record(z.string(), z.number().int().min(0))
 const TurnBody = z.object({
@@ -72,10 +76,11 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
   return out
 }
 
-export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech()) {
+export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS) {
   const app = new Hono()
 
-  app.onError((e, c) => c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500))
+  // 413 от лимита тела и прочие HTTP-ошибки — как есть, ошибки проверки — 400
+  app.onError((e, c) => (e instanceof HTTPException ? e.getResponse() : c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500)))
 
   // только имя модели: у Яндекса в полном id зашит folder id облака
   app.get('/api/health', (c) =>
@@ -169,6 +174,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
     return c.json(r)
   })
+
+  // тренировки для команды: комната на дело, доска результатов по секрету руководителя
+  app.route('/', roomsApi({ dir: roomsDir, resolve: (id) => resolveScenario({ scenarioId: id }), normalize: normalizeHistory }))
 
   app.route('/', speech.app)
 
