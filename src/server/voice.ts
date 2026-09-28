@@ -76,11 +76,11 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     }
     case 'reveal': {
       const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-      return `Решение: ЧЕСТНО РАССКАЗАТЬ, что тебе на самом деле важно: «${it?.text}».${d.offer ? ` И предложить: ${offer(d.offer)}.` : ' Своё предложение не меняй.'}`
+      return `Решение: ЧЕСТНО РАССКАЗАТЬ, что тебе на самом деле важно: «${it?.text}».${d.offer ? ` И предложить: ${offer(d.offer)}.` : ' Своё предложение не меняй и заново его не перечисляй.'}`
     }
     case 'hold':
       switch (d.reason) {
-        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Условия заново не перечисляй.'
+        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Без упрёка за сам вопрос. Условия заново не перечисляй.'
         case 'no_movement': {
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
@@ -120,7 +120,7 @@ function saysYes(line: string): boolean {
   return !!m && !/(не|нет)\s+$/iu.test(line.slice(0, m.index))
 }
 
-const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*)|окончательн\p{L}*|больше не уступлю|это мой предел)/iu
+const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*)|окончательн\p{L}*|тв[её]рдое слово|максимум,? что (я )?могу|больше не уступлю|это мой предел)/iu
 
 /** Проверяем, что реплика не противоречит решению движка. */
 export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string): boolean {
@@ -136,7 +136,7 @@ export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: 
   const said = parseOffer(sc, line)
   if (expected) for (const [k, v] of Object.entries(said)) if (expected[k] !== undefined && expected[k] !== v) return false
   // «держу позицию» списком всех условий звучит как робот — такое не берём
-  if (holding && Object.keys(said).length >= 3) return false
+  if ((holding || (d.kind === 'reveal' && !d.offer)) && Object.keys(said).length >= 3) return false
   // «последнее слово» не на последнем ходу — неправда: торг продолжается
   const bargaining = (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
   if (bargaining && FINAL.test(line)) return false
