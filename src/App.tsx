@@ -432,21 +432,16 @@ export default function App() {
       onReplayFrom={rewindTo}
       onAgain={start}
       onHarder={current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id) ? () => open({ scenario: harder(current.scenario), fromLibrary: true }) : undefined}
-      onOther={() => {
-        if (from !== 'map') return go(from)
-        // «Сюжет»: после главы — катсцена-переход к следующей; мостик на карте уже не нужен
-        const ch = chapterOf(current.scenario.id)
-        if (ch) setProgress(markStorySeen(ch.id))
-        run(storyAfter(current.scenario.id, progress, seenCutscenes()))
-      }}
-      otherLabel={
-        from === 'map'
-          ? storyAfter(current.scenario.id, progress, seenCutscenes()).cutscene
-            ? 'Дальше'
-            : 'К карте недели'
-          : from === 'jury'
-            ? 'К жюри'
-            : undefined
+      onOther={() => go(from)}
+      otherLabel={from === 'map' ? 'К карте недели' : from === 'jury' ? 'К жюри' : undefined}
+      // «Сюжет»: главная кнопка — «Дальше»: катсцена-переход и следующая глава; мостик на карте уже не нужен
+      onNext={
+        from === 'map' && chapterOf(current.scenario.id)
+          ? () => {
+              setProgress(markStorySeen(chapterOf(current.scenario.id)!.id))
+              run(storyAfter(current.scenario.id, progress, seenCutscenes()))
+            }
+          : undefined
       }
       receipt={
         room && room.caseId === current.scenario.id && history.length ? (

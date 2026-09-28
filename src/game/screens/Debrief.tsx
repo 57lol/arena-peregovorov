@@ -36,12 +36,14 @@ interface Props {
   onOther: () => void
   /** подпись кнопки «Другое дело»: с карты кампании — «К карте недели» */
   otherLabel?: string
+  /** «Сюжет»: главная кнопка разбора — «Дальше» по неделе (катсцена и следующая глава) */
+  onNext?: () => void
   /** корешок тренировки команды: результат ушёл руководителю */
   receipt?: React.ReactNode
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, otherLabel, receipt }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, otherLabel, onNext, receipt }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
@@ -88,7 +90,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
       <main className="px-desk g-desk g-report">
         {receipt}
         {/* сначала главное: три строки и что делать дальше; цифры, карта и моменты — в подробном разборе */}
-        <Main sc={sc} report={report} history={history} improved={improved} onAgain={onAgain} onMore={openMore} />
+        <Main sc={sc} report={report} history={history} improved={improved} onAgain={onAgain} onMore={openMore} onNext={onNext} />
 
         <div className="g-report-fun">
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
@@ -199,6 +201,7 @@ function Main({
   improved,
   onAgain,
   onMore,
+  onNext,
 }: {
   sc: Scenario
   report: Report
@@ -206,6 +209,7 @@ function Main({
   improved: number | null
   onAgain: () => void
   onMore: () => void
+  onNext?: () => void
 }) {
   const s = summarize(sc, report, history)
   const o = report.outcome
@@ -248,7 +252,12 @@ function Main({
         </p>
       )}
       <div className="g-main-actions">
-        <Button variant="brass" icon="rewind" className="g-big" onClick={onAgain}>
+        {onNext && (
+          <Button variant="brass" icon="right" className="g-big" onClick={onNext}>
+            Дальше
+          </Button>
+        )}
+        <Button variant={onNext ? 'paper' : 'brass'} icon="rewind" className={onNext ? undefined : 'g-big'} onClick={onAgain}>
           Сыграть ещё раз
         </Button>
         <Button variant="ghost" icon="down" onClick={onMore}>

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { PORTRAITS, PORTRAIT_SIZE } from '../ui/assets'
 import { H } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
+import { pinLabel } from './scripts'
 import { lineAt, locate, phoneAt, starts, total } from './timeline'
 import type { Card, Cutscene as Script, PhoneCard } from './types'
 import './cutscene.css'
@@ -29,6 +30,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   const painter = useRef<Painter | null>(null)
   const bar = useRef<HTMLElement>(null)
   const shade = useRef<HTMLDivElement>(null)
+  const pin = useRef<HTMLSpanElement>(null)
   const T = useRef(at ?? 0)
   const done = useRef(false)
   const [size, setSize] = useState(() => fit(window.innerWidth, window.innerHeight))
@@ -112,6 +114,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       const dark = Math.max(fin > 0 ? 1 - t / fin : 0, tail)
       if (shade.current) shade.current.style.opacity = String(Math.ceil(Math.max(0, Math.min(1, dark)) * 4) / 4)
       if (bar.current) bar.current.style.transform = `scaleX(${Math.min(1, T.current / total_)})`
+      // подпись цели на карте едет вместе с картой
+      if (pin.current && info.pin) {
+        pin.current.style.left = `${info.pin[0] * size.s}px`
+        pin.current.style.top = `${info.pin[1] * size.s}px`
+      }
       const l = (shot.lines ?? []).indexOf(lineAt(shot, t)!)
       const c = phoneAt(shot, t)?.index ?? -1
       setUi((u) =>
@@ -120,7 +127,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [ready, size.vw, script, total_, at, finish])
+  }, [ready, size.vw, size.s, script, total_, at, finish])
 
   const shot = script.shots[ui.i]
   const line = ui.line >= 0 ? shot.lines![ui.line] : null
@@ -133,6 +140,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
           <canvas ref={canvas} className="cs-canvas" width={vw} height={H} style={{ width: vw * s, height: H * s }} aria-hidden="true" />
           {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} />}
           {shot.card && <TitleCard key={ui.i} card={shot.card} />}
+          {shot.route && (
+            <span ref={pin} key={ui.i} className="cs-pin">
+              {pinLabel(shot.route.to)}
+            </span>
+          )}
           <div ref={shade} className="cs-shade" />
           <i className="cs-bar" aria-hidden="true">
             <b ref={bar} />
@@ -211,8 +223,10 @@ function PhoneScreen({ card, rect, s }: { card: PhoneCard; rect: [number, number
 }
 
 function TitleCard({ card }: { card: Card }) {
+  const face = card.face && PORTRAITS[card.face]
   return (
     <div className="cs-card">
+      {face && <span className="cs-card-face" style={{ backgroundImage: `url(${face.sheet})` }} aria-hidden="true" />}
       <p className="cs-card-kicker">{card.kicker}</p>
       <h2 className="cs-card-title">{card.title}</h2>
       {card.sub && <p className="cs-card-sub">{card.sub}</p>}

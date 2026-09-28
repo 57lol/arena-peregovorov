@@ -80,6 +80,8 @@ export interface FrameInfo {
   left: number
   /** экран телефона в точках кадра: x, y, w, h */
   phone?: [number, number, number, number]
+  /** цель маршрута на карте в точках кадра */
+  pin?: [number, number]
 }
 
 export class Painter {
@@ -297,7 +299,7 @@ export class Painter {
     const end = path[path.length - 1]
     if (end && Math.floor(t * 3) % 2 === 0) ring(ctx, end[0] - left + 1, end[1] - top + 1, 5, 23)
     busIcon(ctx, Math.round(mx) - left, Math.round(my) - top, dir)
-    return { vw, left }
+    return { vw, left, pin: end ? [end[0] - left + 1, end[1] - top] : undefined }
   }
 }
 

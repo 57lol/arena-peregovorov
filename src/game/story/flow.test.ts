@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest'
+import { getScenario } from '../../content/scenarios'
+import { BEHAVIOR_DICT } from '../../engine/behaviors'
+import { buildReport } from '../../engine/report'
+import { countStars, starsOf, type Progress } from '../progress'
+import { demoHistory } from './demo'
+import { nextChapter, storyAfter, storyStart } from './flow'
+
+const rec = { title: '', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }
+const prog = (...ids: string[]): Progress => ({ cases: Object.fromEntries(ids.map((id) => [id, rec])), tutorialDone: true, endings: {}, runs: [] })
+
+describe('«Сюжет»: что показать дальше', () => {
+  it('первый запуск — пролог и сразу первая глава', () => {
+    const s = storyStart(prog(), [])
+    expect(s.cutscene?.id).toBe('prologue')
+    expect(s.then).toEqual({ to: 'brief', caseId: 'dorm' })
+  })
+  it('пролог видели — карта недели', () => {
+    expect(storyStart(prog(), ['prologue'])).toEqual({ then: { to: 'map' } })
+  })
+  it('пролог не видели, но главы сыграны — пролог и ближайшая несыгранная', () => {
+    expect(storyStart(prog('dorm', 'stop'), []).then).toEqual({ to: 'brief', caseId: 'tara' })
+    expect(nextChapter(prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch'))).toBeUndefined()
+  })
+  it('после главы — переход и бриф следующей', () => {
+    const s = storyAfter('dorm', prog('dorm'), ['prologue'])
+    expect(s.cutscene?.id).toBe('to-stop')
+    expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
+  })
+  it('жёсткая версия главы — тот же переход', () => {
+    expect(storyAfter('stop-hard', prog('dorm', 'stop-hard'), []).cutscene?.id).toBe('to-tara')
+  })
+  it('переход уже видели — на карту', () => {
+    expect(storyAfter('dorm', prog('dorm'), ['to-stop'])).toEqual({ then: { to: 'map' } })
+  })
+  it('следующая глава уже сыграна — переход и карта', () => {
+    const s = storyAfter('tara', prog('tara', 'shop'), [])
+    expect(s.cutscene?.id).toBe('to-shop')
+    expect(s.then).toEqual({ to: 'map' })
+  })
+  it('финал недели — катсцена финала и карта', () => {
+    const s = storyAfter('launch', prog('launch'), [])
+    expect(s.cutscene?.id).toBe('finale')
+    expect(s.then).toEqual({ to: 'map' })
+  })
+  it('дело не из кампании — на карту без катсцены', () => {
+    expect(storyAfter('gen-abc', prog(), [])).toEqual({ then: { to: 'map' } })
+  })
+})
+
+describe('готовый разбор для жюри', () => {
+  it('«Тара к запуску»: сделка на три звезды, каждый раз одна и та же', () => {
+    const sc = getScenario('tara')!
+    const h = demoHistory(sc)
+    expect(h.at(-1)!.stateAfter.status).toBe('deal')
+    expect(h.length).toBeLessThanOrEqual(sc.turnLimit)
+    const r = buildReport(sc, h, BEHAVIOR_DICT)
+    expect(countStars(starsOf(r))).toBe(3)
+    expect(demoHistory(sc).map((x) => x.playerText)).toEqual(h.map((x) => x.playerText))
+  })
+})

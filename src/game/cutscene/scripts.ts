@@ -2,7 +2,9 @@
 // и финал недели. Правило: одна мысль за раз — на экране телефона заголовок и строка, внизу одна строка субтитров.
 // Переход ведёт от главы к следующей по сюжету; тексты — по мостикам глав из src/content/story.ts.
 
+import { getScenario } from '../../content/scenarios'
 import { CHAPTERS } from '../../content/story'
+import { PORTRAITS, type PortraitId } from '../ui/assets'
 import { BUS, SPOTS } from './art'
 import type { Card, Cutscene, Shot } from './types'
 
@@ -25,7 +27,9 @@ export function chapterCard(id: string): Card {
   const i = CHAPTERS.findIndex((c) => c.id === id)
   const ch = CHAPTERS[i]
   if (!ch) return { kicker: '', title: id }
+  const sc = getScenario(id)
   return {
+    face: sc && sc.opponent.character.portrait in PORTRAITS ? (sc.opponent.character.portrait as PortraitId) : undefined,
     kicker: `${ch.kind === 'finale' ? 'Финал' : `Глава ${i + 1}`} · ${ch.day}, ${ch.time}`,
     title: ch.label,
     sub: SKILL[id] ? `Приём: ${SKILL[id]}` : undefined,
@@ -95,6 +99,9 @@ export const PROLOGUE: Cutscene = {
     card('dorm'),
   ],
 }
+
+/** Подпись цели на карте недели. */
+export const pinLabel = (id: string) => CHAPTERS.find((c) => c.id === id)?.label ?? ''
 
 /** Переход после главы: ключ — id главы, которую только что сыграли. */
 export const BRIDGES: Record<string, Cutscene> = {

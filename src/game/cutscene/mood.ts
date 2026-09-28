@@ -11,7 +11,7 @@ const FOG: RGB = [199, 207, 204]
 
 const TONES: Record<Mood, Tone> = {
   day: ([r, g, b]) => [r, g, b],
-  dusk: ([r, g, b]) => [r * 0.8 + 12, g * 0.62 + 4, b * 0.7 + 16],
+  dusk: ([r, g, b]) => [r * 0.84 + 6, g * 0.74 + 4, b * 0.8 + 10],
   morning: ([r, g, b]) => [r + (FOG[0] - r) * 0.42, g + (FOG[1] - g) * 0.42, b + (FOG[2] - b) * 0.42],
   night: ([r, g, b]) => [r * 0.36 + 4, g * 0.42 + 6, b * 0.62 + 18],
 }

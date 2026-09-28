@@ -53,6 +53,8 @@ export interface Card {
   kicker: string
   title: string
   sub?: string
+  /** кто ждёт в главе — лицо на титре */
+  face?: PortraitId
 }
 
 export interface Shot {

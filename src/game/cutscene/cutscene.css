@@ -267,3 +267,38 @@
     font-size: var(--fs-ui-big);
   }
 }
+
+/* ——— карта: подпись цели маршрута ——— */
+
+.cs-pin {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - var(--s) * 8px));
+  padding: calc(var(--s) * 1px) calc(var(--s) * 3px);
+  background: var(--c-ink);
+  color: var(--c-brass-hi);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  white-space: nowrap;
+  box-shadow: 0 0 0 var(--u) var(--c-brass);
+  pointer-events: none;
+  animation: cs-in 0.4s steps(3) 0.4s both;
+}
+
+/* лицо того, кто ждёт в главе, — целым масштабом */
+.cs-card-face {
+  width: 96px;
+  height: 96px;
+  margin-bottom: calc(var(--s) * 2px);
+  background-repeat: no-repeat;
+  background-size: 288px 576px;
+  background-position: 0 0;
+  background-color: var(--c-night-2);
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 var(--u) var(--c-brass);
+}
+@media (min-width: 900px) and (min-height: 700px) {
+  .cs-card-face {
+    width: 192px;
+    height: 192px;
+    background-size: 576px 1152px;
+  }
+}
