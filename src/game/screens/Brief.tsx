@@ -1,4 +1,7 @@
 import type { Case } from '../../App'
+import type { Scenario } from '../../engine/types'
+import { baseCaseId } from '../../content/scenarios/harder'
+import '../onboarding.css'
 import { HARDER_REVEAL } from '../../engine/policy'
 import { maxScore } from '../../engine/utility'
 import { chapterOf } from '../../content/story'
@@ -34,83 +37,50 @@ export function Brief({ game, onStart, onBack }: Props) {
           <span className="g-folder-tab">{sc.sphere}</span>
           <header className="g-dossier-head">
             <h1 className="g-dossier-title">{sc.title}</h1>
-            <p className="g-dossier-role">Вы — {lowerFirst(sc.player.role)}.</p>
+            {sc.blurb && <p className="g-brief-blurb">{sc.blurb}</p>}
           </header>
 
-          <div className="g-dossier-grid">
-            <section className="g-dossier-story">
-              {sc.player.brief.split(/\n\n+/).map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </section>
-
-            <aside className="g-dossier-them">
-              <div className="g-photo">
-                <Portrait id={portraitFor(sc)} emotion="neutral" scale={1} />
-                <span className="g-photo-clip" aria-hidden="true" />
+          {/* главное — пять строк: кто вы, кто напротив, чего хотите, что будет без сделки, одна подсказка */}
+          <div className="g-brief-main">
+            <div className="g-photo" aria-hidden="true">
+              <Portrait id={portraitFor(sc)} emotion="neutral" scale={1} />
+              <span className="g-photo-clip" />
+            </div>
+            <dl className="g-brief-lines">
+              <div>
+                <dt>Вы</dt>
+                <dd>{sc.player.role}</dd>
               </div>
               <div>
-                <h2 className="g-h3">{c.name}</h2>
-                <p className="g-muted">
-                  {c.role}
-                  {c.company ? `, ${c.company}` : ''}
-                </p>
-                <p className="g-them-brief">{sc.opponent.brief}</p>
-                <p className="g-muted">
-                  Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
-                </p>
-                {sc.harder ? (
-                  <p className="g-muted">
-                    <span className="g-tag">жёстче</span> Уступает медленнее, чем в прошлый раз, а о своём рассказывает, только
-                    когда доверия на {HARDER_REVEAL} больше.
-                  </p>
-                ) : null}
+                <dt>Напротив</dt>
+                <dd>
+                  {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
+                  {sc.harder ? (
+                    <>
+                      {' '}
+                      <span className="g-tag">жёстче</span> Уступает медленнее, чем в прошлый раз, а о своём рассказывает, только
+                      когда доверия на {HARDER_REVEAL} больше.
+                    </>
+                  ) : null}
+                </dd>
               </div>
-            </aside>
+              <div>
+                <dt>Чего вы хотите</dt>
+                <dd>Главное для вас — {mainIssues(sc)}. Остальным можно поступиться.</dd>
+              </div>
+              <div>
+                <dt>Если не договоритесь</dt>
+                <dd>
+                  {P.batnaText} Это выгода <b className="g-brief-batna">{P.batna}</b> из {max}: сделка, которая даёт меньше, хуже,
+                  чем не договориться вовсе.
+                </dd>
+              </div>
+              <div className="g-brief-hint">
+                <dt>Подсказка</dt>
+                <dd>{hintFor(sc).replace(/([^.!?…])$/u, '$1.')}</dd>
+              </div>
+            </dl>
           </div>
-
-          <section className="g-batna">
-            <h2 className="g-h3">Если не договоритесь</h2>
-            <p>{P.batnaText}</p>
-            <p className="g-batna-points">
-              По вашей таблице это <b>{P.batna}</b> из {max}. Сделка, которая даёт меньше, хуже, чем просто уйти.
-            </p>
-          </section>
-
-          <section className="g-table">
-            <h2 className="g-h3">Ваша таблица очков</h2>
-            <p className="g-muted">
-              Сколько вам даёт каждый вариант. У {g(sc, 'него', 'неё')} своя таблица, и её вы не видите.
-            </p>
-            {sc.issues.map((i) => {
-              const pts = P.points[i.id]
-              const best = Math.max(...pts)
-              return (
-                <div key={i.id} className="g-table-row">
-                  <h3 className="g-table-title">{i.title}</h3>
-                  <ol className="g-table-opts">
-                    {i.options.map((o, k) => (
-                      <li key={o} className={pts[k] === best ? 'is-best' : undefined}>
-                        <span>{o}</span>
-                        <b>{pts[k]}</b>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )
-            })}
-          </section>
-
-          {sc.goals?.length ? (
-            <section className="g-goals">
-              <h2 className="g-h3">Что потренируете</h2>
-              <ul>
-                {sc.goals.map((g) => (
-                  <li key={g}>{g}</li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
 
           <footer className="g-dossier-foot">
             <Button variant="brass" icon="send" className="g-big" onClick={onStart}>
@@ -118,10 +88,63 @@ export function Brief({ game, onStart, onBack }: Props) {
             </Button>
             <ShareButton scenario={sc} fromLibrary={game.fromLibrary} />
             <p className="g-muted">
-              На встречу — {sc.turnLimit} {plural(sc.turnLimit, 'реплика', 'реплики', 'реплик')}. Таблица будет у вас в
-              блокноте.
+              На встречу — {sc.turnLimit} {plural(sc.turnLimit, 'реплика', 'реплики', 'реплик')}. Цели и выгода будут у вас в
+              блокноте на столе.
             </p>
           </footer>
+
+          {/* подробности — для тех, кому интересно */}
+          <div className="g-brief-more">
+            <details className="g-fold">
+              <summary>Вся история</summary>
+              <div className="g-dossier-story">
+                {sc.player.brief.split(/\n\n+/).map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+                <p>
+                  <b>{c.name}</b>
+                  {c.company ? `, ${c.company}` : ''}. {sc.opponent.brief}
+                </p>
+              </div>
+            </details>
+
+            <details className="g-fold">
+              <summary>Сколько вам даёт каждый вариант</summary>
+              <div className="g-table">
+                <p className="g-muted">
+                  Выгода от каждого варианта, в сумме до {max}. У {g(sc, 'него', 'неё')} свой счёт, и его вы не видите.
+                </p>
+                {sc.issues.map((i) => {
+                  const pts = P.points[i.id]
+                  const best = Math.max(...pts)
+                  return (
+                    <div key={i.id} className="g-table-row">
+                      <h3 className="g-table-title">{i.title}</h3>
+                      <ol className="g-table-opts">
+                        {i.options.map((o, k) => (
+                          <li key={o} className={pts[k] === best ? 'is-best' : undefined}>
+                            <span>{o}</span>
+                            <b>{pts[k]}</b>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )
+                })}
+              </div>
+            </details>
+
+            {sc.goals?.length ? (
+              <details className="g-fold">
+                <summary>Что потренируете</summary>
+                <ul className="g-brief-goals">
+                  {sc.goals.map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
         </article>
       </main>
     </div>
@@ -129,3 +152,22 @@ export function Brief({ game, onStart, onBack }: Props) {
 }
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
+
+/** Два-три пункта, где у вас самый большой разброс выгоды, — то, за что стоит держаться. */
+export function mainIssues(sc: Scenario): string {
+  const P = sc.player.profile
+  const w = sc.issues.map((i) => ({ t: lowerFirst(i.title), w: Math.max(...P.points[i.id]) - Math.min(...P.points[i.id]) }))
+  const top = [...w].sort((a, b) => b.w - a.w)
+  // третий — если он почти так же важен, как второй
+  const n = top[2] && top[2].w >= top[1].w * 0.8 ? 3 : 2
+  const names = top.slice(0, n).map((x) => x.t)
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names[0]
+}
+
+// Одна подсказка на встречу: что сделать первым. Для дел без своей — первая цель из брифа.
+const HINTS: Record<string, string> = {
+  offer: 'Сначала спросите Дарину, что для неё главное. Деньги — не единственное, что вы можете ей дать.',
+  tara: 'Марат первым назовёт свою цену. Не спорьте сразу о рублях: спросите, что ему важно, и предложите обмен.',
+  client: 'Роза будет давить до последнего. Не спешите уступать: узнайте, чего она опасается, и ищите, что можно обменять.',
+}
+export const hintFor = (sc: Scenario) => HINTS[baseCaseId(sc.id)] ?? sc.goals?.[0] ?? 'Сначала спросите, что для собеседника главное и почему.'

@@ -10,7 +10,7 @@
   margin-bottom: calc(10 * var(--u));
   text-align: center;
 }
-.g-play-btn {
+.g-title-play .g-play-btn {
   min-width: min(320px, 100%);
   font-size: var(--fs-ui-big);
   line-height: 1;
@@ -26,4 +26,208 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0 calc(6 * var(--u));
+}
+
+/* ---------- бриф: пять строк главного, подробности свёрнуты ---------- */
+
+.g-brief-blurb {
+  margin: 0;
+  max-width: 60ch;
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-wrap: pretty;
+}
+.g-brief-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: calc(8 * var(--u));
+  align-items: start;
+  padding: calc(4 * var(--u)) calc(8 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper);
+  box-shadow:
+    calc(-1 * var(--u)) 0 0 0 var(--c-wood-3),
+    var(--u) 0 0 0 var(--c-wood-3);
+}
+.g-brief-lines {
+  display: grid;
+  gap: calc(3 * var(--u));
+  margin: 0;
+}
+.g-brief-lines > div {
+  display: grid;
+  grid-template-columns: 11em minmax(0, 1fr);
+  gap: calc(4 * var(--u));
+  padding-bottom: calc(3 * var(--u));
+  border-bottom: var(--u) dashed var(--c-mist);
+}
+.g-brief-lines dt {
+  color: var(--pen);
+  font-weight: 700;
+}
+.g-brief-lines dd {
+  margin: 0;
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.g-brief-batna {
+  color: var(--c-stamp);
+  font-size: var(--fs-ui-big);
+  line-height: 1;
+}
+.g-brief-lines > .g-brief-hint {
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  background: var(--c-brass-hi);
+}
+.g-brief-hint dt {
+  color: var(--c-wood-3);
+}
+.g-brief-more {
+  display: grid;
+  gap: calc(2 * var(--u));
+  margin-top: calc(6 * var(--u));
+  color: var(--on-desk);
+}
+.g-brief-more > .g-fold {
+  box-sizing: border-box;
+  padding: calc(1 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow: 0 0 0 var(--u) var(--c-wood-3);
+}
+.g-brief-more .g-dossier-story {
+  padding-bottom: calc(4 * var(--u));
+}
+.g-brief-more .g-table {
+  margin: 0 calc(-6 * var(--u));
+  box-shadow: none;
+}
+.g-brief-goals {
+  margin: 0 0 calc(4 * var(--u));
+  padding-left: calc(8 * var(--u));
+  list-style: square;
+}
+@media (max-width: 599px) {
+  .g-brief-main {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: calc(6 * var(--u));
+  }
+  .g-brief-lines > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .g-brief-main .g-photo {
+    display: none;
+  }
+}
+
+/* ---------- разбор: три строки главного, подробности свёрнуты ---------- */
+
+.g-report > .g-main {
+  max-width: 900px;
+}
+.g-main-lines {
+  display: grid;
+  gap: calc(4 * var(--u));
+  margin: calc(6 * var(--u)) 0 0;
+}
+.g-main-lines > div {
+  display: grid;
+  grid-template-columns: 10em minmax(0, 1fr);
+  gap: calc(4 * var(--u));
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  background: var(--c-paper-2);
+}
+.g-main-lines > .is-good {
+  box-shadow: inset calc(2 * var(--u)) 0 0 var(--c-leaf);
+}
+.g-main-lines > .is-next {
+  background: var(--c-brass-hi);
+}
+.g-main-lines dt {
+  color: var(--pen);
+  font-weight: 700;
+}
+.g-main-lines > .is-good dt {
+  color: var(--c-leaf-2);
+}
+.g-main-lines > .is-next dt {
+  color: var(--c-wood-3);
+}
+.g-main-lines dd {
+  margin: 0;
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-wrap: pretty;
+}
+.g-main-quote {
+  display: block;
+  color: var(--c-steel-2);
+  quotes: '«' '»';
+}
+.g-main-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(6 * var(--u));
+  margin-top: calc(6 * var(--u));
+}
+@media (max-width: 599px) {
+  .g-main-lines > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.g-report > .g-report-fun {
+  max-width: 900px;
+}
+.g-report-fun {
+  display: grid;
+  gap: calc(10 * var(--u));
+  align-items: start;
+}
+@media (min-width: 860px) {
+  .g-report-fun {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.g-report-more > summary {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  min-height: 56px;
+  padding: 0 calc(8 * var(--u));
+  background: var(--c-night);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  color: var(--c-paper);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.g-report-more > summary::-webkit-details-marker {
+  display: none;
+}
+.g-report-more > summary::before {
+  content: '';
+  width: calc(4 * var(--u));
+  height: calc(4 * var(--u));
+  background: var(--c-brass);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.g-report-more[open] > summary::before {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.g-report-more[open] > summary {
+  margin-bottom: calc(10 * var(--u));
+}
+.g-report-more > :not(summary) + :not(summary) {
+  margin-top: calc(10 * var(--u));
+}
+
+/* термин для знатоков — мелко после простых слов */
+.g-term {
+  margin-left: calc(2 * var(--u));
+  color: var(--c-fog);
+  font: 400 var(--fs-small) / 1 var(--f-read);
+  white-space: nowrap;
 }
