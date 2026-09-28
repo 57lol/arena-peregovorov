@@ -10,6 +10,7 @@ import { Vector3 } from 'three'
 import { isComplete, sameOffer, score } from '../../engine/utility'
 import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { effectText, type Tip, type TurnFeedback } from '../instant'
+import { mentorLine, useTutorial, type Tutorial, type TutorStep } from '../tutorial'
 import { endText, useMeeting, type Meeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, PixelIcon, SpeechField, Stamp, type IconName } from '../ui'
 import { attachInput, isTyping } from '../world3d/input'
@@ -17,6 +18,7 @@ import type { Pose } from '../world3d/head'
 import type { PaperId } from '../world3d/papers'
 import { World } from '../world3d/stage'
 import { Margin } from './Margin'
+import { Mentor } from './Mentor'
 import { MicButton } from './Mic'
 import { VolumeSlider } from './Volume'
 import { Notes, XRay } from './meetingParts'
@@ -50,6 +52,17 @@ export default function Play3D(props: Props) {
   const worldRef = useRef<World | null>(null)
   worldRef.current = world
   const { sc, state, last, done, pending, line, emotion, talking, xray, stamp, canAccept } = m
+  // первая встреча — обучающая: бумаги и кнопки появляются по одной, когда впервые нужны
+  const tut = useTutorial(props.tutorial, props.onTutorialOff, m)
+  const notebookOn = tut.shows('notebook')
+  const slipOn = tut.shows('slip')
+  const cardOn = tut.shows('card')
+  useEffect(() => {
+    if (!world) return
+    world.desk.show('notebook', notebookOn)
+    world.desk.show('slip', slipOn)
+    world.desk.show('card', cardOn)
+  }, [world, notebookOn, slipOn, cardOn])
 
   // ---------- мир ----------
   useEffect(() => {
@@ -194,9 +207,15 @@ export default function Play3D(props: Props) {
       if (!lead) return
       const cw = world.cw
       const ch = world.ch
-      const trayTop = trayRef.current ? trayRef.current.getBoundingClientRect().top - (rootRef.current?.getBoundingClientRect().top ?? 0) : ch
-      world.desk.freeTop = 64 / ch
-      world.desk.freeBottom = (trayTop - 8) / ch
+      const rootBox = rootRef.current!.getBoundingClientRect()
+      const trayTop = trayRef.current ? trayRef.current.getBoundingClientRect().top - rootBox.top : ch
+      const mentorEl = document.querySelector<HTMLElement>('.w3-mentor')
+      const at = !mentorEl ? '' : pose === 'face' ? 'top' : world.portrait ? 'bottom' : 'beside'
+      if (mentorEl) placeMentor(mentorEl, rootBox, cw, trayTop, at)
+      // лист в руках встаёт между кнопкой меню (или наставником сверху) и полем ввода (или наставником снизу)
+      const mentor = mentorEl?.getBoundingClientRect()
+      world.desk.freeTop = Math.max(64, mentor && at === 'top' ? mentor.bottom - rootBox.top + 10 : 0) / ch
+      world.desk.freeBottom = (Math.min(trayTop, mentor && at === 'bottom' ? mentor.top - rootBox.top : ch) - 8) / ch
       if (box) {
         world.project(lead.anchor('chest', chin), p)
         const w = box.offsetWidth
@@ -208,7 +227,7 @@ export default function Play3D(props: Props) {
         const y = world.portrait && pose === 'face' ? trayTop - h - 10 : Math.min(Math.max(p.behind ? 12 : p.y, 12), trayTop - h - 10)
         // наверху слева плашки разбора, справа «Меню» — реплика встаёт между ними, если хватает ширины
         const root = rootRef.current!.getBoundingClientRect()
-        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray']) {
+        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor']) {
           const r = document.querySelector(sel)?.getBoundingClientRect()
           if (!r || y > r.bottom - root.top || r.left - root.left > cw / 2) continue
           const right = r.right - root.left + 12
@@ -253,11 +272,23 @@ export default function Play3D(props: Props) {
   const toggleXray = () => {
     m.setXray(!xray)
     m.setXrayUsed(true)
+    // включили с карточки на столе — поднимаем глаза: «что чувствует» висит рядом с собеседником
+    if (!xray && world?.head.pose === 'desk') {
+      setHeld(null)
+      lookAt('face')
+    }
   }
 
   const name = m.name
   const host = world?.desk.sheets
-  const newOffer = canAccept && pose === 'face'
+  const newOffer = canAccept && pose === 'face' && slipOn
+  // что сейчас говорит наставник и что подсвечивает
+  const mentor = tut.on
+    ? mentorLine(tut.step, { sc, pose, phone: !!world?.portrait, held, theirs: m.theirsOnTable, batna: m.P.batna })
+    : props.tutorial && done && history.length > 0
+      ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
+      : null
+  const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
 
   return (
     <div className="px-root w3-play" data-desk={sceneFor(sc)} data-pose={pose} data-xray={xray} data-done={done} data-held={held ?? ''}>
@@ -266,14 +297,16 @@ export default function Play3D(props: Props) {
       {/* бумаги на столе — DOM в плоскости листов */}
       {host &&
         createPortal(
-          <NotebookPage m={m} />,
+          <NotebookPage m={m} tut={tut} lit={lit('notebook')} litOffer={lit('offer')} />,
           host.notebook.host,
         )}
-      {host && createPortal(<SlipPage m={m} />, host.slip.host)}
+      {host && createPortal(<SlipPage m={m} lit={lit('slip')} />, host.slip.host)}
       {host &&
         createPortal(
           <ActionCard
             m={m}
+            tut={tut}
+            lit={lit}
             onXray={toggleXray}
             onProtocol={() => setMenu(true)}
             onMenu={() => setMenu(true)}
@@ -303,7 +336,21 @@ export default function Play3D(props: Props) {
       {stamp && stamp !== 'deal' && <Stamp kind={stamp} />}
 
       {/* разбор хода — плашки, гаснут сами */}
-      {m.instantOn && !detail && (
+      {mentor && (
+        <Mentor
+          className="w3-mentor w3-ui"
+          line={mentor}
+          fb={tut.step === 'talk' ? null : m.feedback}
+          n={stepNo(tut.step)}
+          onAck={tut.ack}
+          onExample={(t) => {
+            m.setDraft(t)
+            document.getElementById('px-speech')?.focus()
+          }}
+          onSkip={tut.on ? tut.skip : undefined}
+        />
+      )}
+      {m.instantOn && !detail && !tut.on && (
         <TurnToasts
           key={last?.turn ?? 0}
           fb={m.feedback}
@@ -346,6 +393,7 @@ export default function Play3D(props: Props) {
       </div>
 
       <div ref={trayRef} className="w3-tray w3-ui" data-nodrag>
+        {tut.shows('desk') && (
         <div className="w3-tray-row">
           <p className="w3-clock-line">
             <PixelIcon name="clock" px={2} />
@@ -356,8 +404,8 @@ export default function Play3D(props: Props) {
               На стол
             </Button>
           ) : pose === 'face' ? (
-            <Button variant={newOffer ? 'brass' : 'ghost'} icon="down" className={`w3-look${newOffer ? ' is-new' : ''}`} onClick={() => lookAt('desk')}>
-              {newOffer ? <>Стол<span className="w3-wide">: предложение</span></> : 'Стол'}
+            <Button variant={newOffer ? 'brass' : 'ghost'} icon="down" className={`w3-look${newOffer ? ' is-new' : ''}${lit('look')}`} onClick={() => lookAt('desk')}>
+              {newOffer ? <>Стол<span className="w3-wide">: новое предложение</span></> : 'Стол'}
             </Button>
           ) : (
             <Button variant="ghost" icon="up" className="w3-look" onClick={() => lookAt('face')}>
@@ -365,6 +413,7 @@ export default function Play3D(props: Props) {
             </Button>
           )}
         </div>
+        )}
         {(pending || last) && !done && (
           <p className="w3-you">
             <b>Вы:</b> {pending ?? last!.playerText}
@@ -374,7 +423,7 @@ export default function Play3D(props: Props) {
           <div className="w3-end">
             <p className="w3-end-text">{endText(state, sc, g)}</p>
             <div className="w3-say-row">
-              <Button variant="brass" icon="stamp" onClick={onFinish}>
+              <Button variant="brass" icon="stamp" className={props.tutorial ? 'is-tutor' : undefined} onClick={onFinish}>
                 Разбор встречи
               </Button>
               <Button variant="ghost" icon="rewind" onClick={m.undo}>
@@ -385,12 +434,12 @@ export default function Play3D(props: Props) {
         ) : (
           <SayForm m={m} />
         )}
-        {pose === 'desk' && !held && !done && world?.portrait && (
+        {pose === 'desk' && !held && !done && world?.portrait && !tut.on && (
           <p className="w3-hint w3-hint--desk" aria-hidden="true">
             Нажмите на лист — возьмёте в руки
           </p>
         )}
-        {!looked && !done && history.length === 0 && (
+        {!looked && !done && history.length === 0 && !tut.on && (
           <p className="w3-hint" aria-hidden="true">
             <span className="w3-hint-mouse">Осмотреться — мышью или стрелками, на стол — стрелка вниз</span>
             <span className="w3-hint-touch">Осмотреться — проведите пальцем по экрану</span>
@@ -409,6 +458,48 @@ export default function Play3D(props: Props) {
       )}
     </div>
   )
+}
+
+/**
+ * Карточка наставника. Смотрим на собеседника — слева вверху, где потом будут плашки разбора хода.
+ * Ноутбук, взгляд на стол — рядом с тем, что подсвечено, как выноска: справа, снизу, слева или сверху, где влезает.
+ * Телефон, взгляд на стол — над полем ввода: вверху лежит листок собеседника.
+ */
+function placeMentor(el: HTMLElement, root: DOMRect, cw: number, trayTop: number, at: string) {
+  el.dataset.at = at
+  let x = 12
+  let y = at === 'bottom' ? trayTop - el.offsetHeight - 10 : 12
+  const t = at === 'beside' ? document.querySelector<HTMLElement>('.is-tutor') : null
+  const paper = t?.closest('.w3-paper')
+  if (t && (!paper || paper.classList.contains('is-live'))) {
+    const r = t.getBoundingClientRect()
+    const L = r.left - root.left
+    const R = r.right - root.left
+    const T = r.top - root.top
+    const B = r.bottom - root.top
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const menu = document.querySelector('.w3-top')?.getBoundingClientRect()
+    const along = (v: number) => Math.min(Math.max(v, 12), trayTop - h - 8)
+    const spots = [
+      { x: R + 16, y: along(T) },
+      { x: (L + R) / 2 - w / 2, y: B + 16 },
+      { x: L - 16 - w, y: along(T) },
+      { x: (L + R) / 2 - w / 2, y: T - 16 - h },
+    ]
+    const fits = (o: { x: number; y: number }) =>
+      o.x >= 12 &&
+      o.x + w <= cw - 12 &&
+      o.y >= 12 &&
+      o.y + h <= trayTop - 8 &&
+      !(menu && o.x + w > menu.left - root.left - 8 && o.y < menu.bottom - root.top + 8)
+    const ok = spots.find(fits)
+    if (ok) {
+      x = ok.x
+      y = ok.y
+    }
+  }
+  el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
 }
 
 /** «10:15, ещё 9 реплик» — то же время, что показывают часы на стене. */
@@ -484,59 +575,74 @@ function SayForm({ m }: { m: Meeting }) {
   )
 }
 
-/** Мой блокнот на столе: таблица очков по пунктам и «Положить на стол». */
-function NotebookPage({ m }: { m: Meeting }) {
+/** Мой блокнот на столе: условия договора, сколько каждое вам даёт, и «Предложить эти условия». */
+function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; lit: string; litOffer: string }) {
   const { sc, P, state, picks, myTotal, lowSure, done, pending, name, revealedNow } = m
   return (
-    <div className="w3-note">
+    <div className={`w3-note${lit}`}>
       <div className="w3-note-head">
         <h2 className="w3-note-title">Мой блокнот</h2>
-        <p className="w3-note-batna">
-          запасной <b>{P.batna}</b>
+        <p className="w3-note-batna" title="Столько вам даст «не договориться»: меньше брать нет смысла">
+          без сделки <b>{P.batna}</b>
         </p>
       </div>
+      <p className="w3-note-legend" aria-hidden="true">
+        выгода
+      </p>
       <div className="w3-note-body" data-scroll>
         <Notes sc={sc} state={state} issue={undefined} fresh={revealedNow} name={name} />
         {sc.issues.map((i) => (
           <div key={i.id} className="w3-issue">
-            <IssueStepper title={i.title} options={i.options} points={P.points[i.id]} value={picks[i.id]} onChange={(v) => m.pick(i.id, v)} />
+            <IssueStepper
+              title={i.title}
+              options={i.options}
+              points={P.points[i.id]}
+              value={picks[i.id]}
+              onChange={(v) => {
+                m.pick(i.id, v)
+                tut.picked()
+              }}
+            />
             <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
           </div>
         ))}
         {isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
           <button type="button" className="g-link w3-copy" onClick={() => m.setPicks({ ...(state.lastOpponentOffer as Record<string, number>) })}>
-            Переписать с листка собеседника
+            Переписать условия с листка
           </button>
         )}
       </div>
       {lowSure && (
         <p className="w3-low" role="alert">
-          Вам это даёт {myTotal}, меньше запасного ({P.batna}). Если {name} согласится, вы проиграете по сравнению с тем, чтобы просто уйти.
+          Выгода {myTotal} — меньше, чем без сделки ({P.batna}). Если {name} согласится, вы проиграете.
         </p>
       )}
-      <div className="w3-note-foot">
-        <Button variant={lowSure ? 'stamp' : 'brass'} icon="pen" disabled={done || !!pending} onClick={m.putOnTable}>
-          {lowSure ? 'Всё равно положить' : 'Положить на стол'}
-        </Button>
-        <span className={`w3-total${myTotal < P.batna ? ' is-low' : ''}`}>
-          мне <b>{myTotal}</b>
-        </span>
-      </div>
+      <p className={`w3-total${myTotal < P.batna ? ' is-low' : ''}`}>
+        Ваша выгода <b>{myTotal}</b> из {m.max}
+      </p>
+      {tut.shows('offer') && (
+        <div className="w3-note-foot">
+          <Button variant={lowSure ? 'stamp' : 'brass'} icon="pen" className={litOffer || undefined} disabled={done || !!pending} onClick={m.putOnTable}>
+            {lowSure ? 'Всё равно предложить' : 'Предложить'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
 
-/** Листок с предложением, который лежит посреди стола. «Принять» — на нём. */
-function SlipPage({ m }: { m: Meeting }) {
+/** Листок с предложением, который лежит посреди стола. «Согласиться» — на нём. */
+function SlipPage({ m, lit }: { m: Meeting; lit: string }) {
   const { sc, P, state, theirsOnTable, name, canAccept, acceptSure, pending } = m
   const offer = state.tableOffer ?? {}
   const rows = sc.issues.filter((i) => typeof offer[i.id] === 'number')
   const silent = sc.issues.filter((i) => typeof offer[i.id] !== 'number')
   const full = isComplete(sc, offer)
   const mine = full ? score(P, offer) : null
-  const from = state.status === 'deal' ? 'Подписано' : theirsOnTable ? (state.lastCall ? `${name}: последнее слово` : `Предлагает ${name}`) : 'Вы предложили'
+  const from =
+    state.status === 'deal' ? 'Подписано' : theirsOnTable ? (state.lastCall ? `${name}: последнее предложение` : `Предлагает ${name}`) : 'Вы предложили'
   return (
-    <div className={`w3-slip${state.lastCall ? ' is-last' : ''}${state.status === 'deal' ? ' is-signed' : ''}`}>
+    <div className={`w3-slip${state.lastCall ? ' is-last' : ''}${state.status === 'deal' ? ' is-signed' : ''}${lit}`}>
       <p className="w3-slip-from">{from}</p>
       <dl className="w3-slip-rows">
         {rows.map((i) => (
@@ -557,7 +663,7 @@ function SlipPage({ m }: { m: Meeting }) {
         <p>
           {mine !== null ? (
             <>
-              Вам <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, запасной {P.batna}
+              Выгода вам <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, без сделки {P.batna}
             </>
           ) : (
             <>Про {silent.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} пока ни слова</>
@@ -565,28 +671,43 @@ function SlipPage({ m }: { m: Meeting }) {
         </p>
         {canAccept && (
           <Button variant={acceptSure ? 'stamp' : 'paper'} icon="check" disabled={!!pending} onClick={m.accept}>
-            {acceptSure ? 'Всё равно принять' : 'Принять'}
+            {acceptSure ? 'Всё равно согласиться' : 'Согласиться'}
           </Button>
         )}
       </div>
       {canAccept && acceptSure && mine !== null && (
         <p className="w3-low" role="alert">
-          Меньше запасного: {mine} против {P.batna}. Выгоднее встать и уйти.
+          Это меньше, чем без сделки: {mine} против {P.batna}. Выгоднее встать и уйти.
         </p>
       )}
     </div>
   )
 }
 
-/** Карточка с делами: всё, что раньше было в шапке встречи. */
-function ActionCard({ m, onXray, onProtocol, onMenu }: { m: Meeting; onXray: () => void; onProtocol: () => void; onMenu: () => void }) {
-  const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean }[] = [
-    { icon: 'eye', label: 'Рентген', on: m.xray, click: onXray },
-    { icon: m.voiceOn ? 'sound' : 'mute', label: 'Голос', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
-    { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn) },
-    { icon: 'rewind', label: 'Протокол', click: onProtocol, show: m.history.length > 0 },
-    { icon: 'menu', label: 'Меню', click: onMenu },
-    { icon: 'leave', label: m.leaving ? 'Точно уйти?' : 'Встать и уйти', tone: 'stamp', click: m.walk, show: !m.done },
+/** Карточка с делами: что чувствует собеседник, голос, подсказки, запись разговора, уйти. */
+function ActionCard({
+  m,
+  tut,
+  lit,
+  onXray,
+  onProtocol,
+  onMenu,
+}: {
+  m: Meeting
+  tut: Tutorial
+  lit: (t: string) => string
+  onXray: () => void
+  onProtocol: () => void
+  onMenu: () => void
+}) {
+  const extras = tut.shows('extras')
+  const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean; lit?: string }[] = [
+    { icon: 'eye', label: 'Что чувствует', on: m.xray, click: onXray, lit: lit('feel') },
+    { icon: m.voiceOn ? 'sound' : 'mute', label: 'Голос', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice && extras },
+    { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn), show: extras },
+    { icon: 'rewind', label: 'Запись разговора', click: onProtocol, show: m.history.length > 0 && extras },
+    { icon: 'menu', label: 'Меню', click: onMenu, show: extras },
+    { icon: 'leave', label: m.leaving ? 'Точно уйти?' : 'Встать и уйти', tone: 'stamp', click: m.walk, show: !m.done && tut.shows('leave'), lit: lit('leave') },
   ]
   return (
     <div className="w3-card">
@@ -598,7 +719,7 @@ function ActionCard({ m, onXray, onProtocol, onMenu }: { m: Meeting; onXray: () 
             <li key={i.icon}>
               <button
                 type="button"
-                className={`w3-card-btn${i.on ? ' is-on' : ''}${i.tone === 'stamp' ? ' is-stamp' : ''}${i.tone === 'stamp' && m.leaving ? ' is-sure' : ''}`}
+                className={`w3-card-btn${i.on ? ' is-on' : ''}${i.tone === 'stamp' ? ' is-stamp' : ''}${i.tone === 'stamp' && m.leaving ? ' is-sure' : ''}${i.lit ?? ''}`}
                 aria-pressed={i.on === undefined ? undefined : i.on}
                 disabled={!!m.pending && i.tone === 'stamp'}
                 onClick={i.click}
@@ -693,7 +814,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
         <ul className="w3-menu-list">
           <li>
             <button type="button" className="w3-menu-item" aria-pressed={m.xray} onClick={onXray}>
-              <PixelIcon name="eye" px={2} /> Рентген: {m.xray ? 'вкл' : 'выкл'}
+              <PixelIcon name="eye" px={2} /> Что чувствует {m.name}: {m.xray ? 'показывать' : 'не показывать'}
             </button>
           </li>
           <li>
@@ -727,7 +848,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
         {h.length > 0 && (
           <details className="w3-protocol">
             <summary>
-              Протокол встречи: {h.length} {plural(h.length, 'ход', 'хода', 'ходов')}
+              Запись разговора: {h.length} {plural(h.length, 'ход', 'хода', 'ходов')}
             </summary>
             <ol>
               {h.map((x) => (
@@ -780,3 +901,7 @@ function useVisualViewport(ref: RefObject<HTMLDivElement | null>) {
   }, [ref])
 }
 
+
+const TUTOR_STEPS: TutorStep[] = ['talk', 'notebook', 'offer', 'slip', 'feel', 'leave']
+/** «Шаг 2 из 6» для карточки наставника. */
+const stepNo = (s: TutorStep): [number, number] | undefined => (TUTOR_STEPS.includes(s) ? [TUTOR_STEPS.indexOf(s) + 1, TUTOR_STEPS.length] : undefined)

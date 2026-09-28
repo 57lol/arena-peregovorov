@@ -454,6 +454,11 @@
 .w3-note-batna b {
   color: var(--pen);
 }
+.w3-note-legend {
+  margin: 0;
+  color: var(--c-steel);
+  text-align: right;
+}
 .w3-note-body {
   flex: 1;
   min-height: 0;
@@ -499,6 +504,7 @@
   --desk-lo: var(--c-paper-2);
 }
 .w3-total {
+  margin: calc(2 * var(--u)) 0 0;
   color: var(--pen);
 }
 .w3-total b {
@@ -978,6 +984,28 @@
 @media (max-width: 420px) {
   .w3-wide {
     display: none;
+  }
+}
+
+/* ---------- наставник первой встречи: там же, где потом будут плашки разбора хода ---------- */
+
+.w3-mentor {
+  top: 0;
+  left: 0;
+  width: min(430px, calc(100% - 96px));
+  transform: translate3d(12px, 12px, 0);
+  will-change: transform;
+  animation-name: w3-in;
+}
+@media (max-width: 699px) {
+  .w3-mentor {
+    width: calc(100% - 84px);
+  }
+  .w3-mentor[data-at='bottom'] {
+    width: calc(100% - 24px);
+  }
+  .w3-mentor .g-mentor-text {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
 }
 /* громкость голоса в меню встречи */

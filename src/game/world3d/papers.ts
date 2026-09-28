@@ -37,13 +37,13 @@ interface Spot {
 /** Раскладка: ноутбук — блокнот слева, дела справа, листок дальше по центру; телефон — листок далеко, блокнот у нас. */
 const WIDE: Record<PaperId, Spot> = {
   notebook: { x: -0.2, z: -0.02, w: 0.26, h: 0.32, rot: 2 },
-  card: { x: 0.3, z: 0.04, w: 0.15, h: 0.2, rot: -5 },
-  slip: { x: 0.1, z: -0.21, w: 0.24, h: 0.23, rot: 3 },
+  card: { x: 0.31, z: 0.04, w: 0.17, h: 0.2, rot: -5 },
+  slip: { x: 0.1, z: -0.21, w: 0.24, h: 0.26, rot: 3 },
 }
 const TALL: Record<PaperId, Spot> = {
   notebook: { x: -0.04, z: 0.06, w: 0.26, h: 0.36, rot: 3 },
-  card: { x: 0.15, z: -0.2, w: 0.14, h: 0.19, rot: -7 },
-  slip: { x: -0.03, z: -0.46, w: 0.22, h: 0.24, rot: 2 },
+  card: { x: 0.15, z: -0.2, w: 0.16, h: 0.19, rot: -7 },
+  slip: { x: -0.03, z: -0.46, w: 0.22, h: 0.27, rot: 2 },
 }
 
 const VERT = /* glsl */ `
@@ -173,7 +173,7 @@ interface Sheet {
   shown: number
 }
 
-const TEX_SIZE: Record<PaperId, [number, number]> = { notebook: [60, 70], card: [34, 46], slip: [44, 36] }
+const TEX_SIZE: Record<PaperId, [number, number]> = { notebook: [60, 70], card: [39, 46], slip: [44, 41] }
 const UP = new Vector3(0, 1, 0)
 
 // рабочие переменные без выделения памяти в кадре
@@ -195,6 +195,8 @@ export class Desk {
   holding: PaperId | null = null
   /** лист с предложением на столе вообще есть */
   slipVisible = false
+  /** листы, которых на столе пока нет: первая встреча открывает их по одному (см. game/tutorial.ts) */
+  private hidden = new Set<PaperId>()
   /** свободная полоса экрана для листа в руках (доли высоты): сверху кнопка меню, снизу поле ввода */
   freeTop = 0.08
   freeBottom = 0.8
@@ -261,13 +263,24 @@ export class Desk {
     this.holding = id
   }
 
+  /** Спрятать или показать лист. Показанный заново въезжает на стол: блокнот и карточка — с нашей стороны, листок — от собеседника. */
+  show(id: PaperId, on: boolean) {
+    if (on === !this.hidden.has(id)) return
+    if (!on) return void this.hidden.add(id)
+    this.hidden.delete(id)
+    const s = this.sheets[id]
+    s.slide = 0
+    if (id === 'slip') s.slideFrom.set(0.05, 0, -0.78)
+    else s.slideFrom.set(s.spot.x, 0, s.spot.z + 0.35)
+  }
+
   /** lean — насколько склонились над столом (0..1); cam — чтобы развернуть листы к глазам. */
   update(dt: number, lean: number, cam: PerspectiveCamera) {
     cam.matrixWorld.extractBasis(camX, camY, camZ)
     const tanH = Math.tan((cam.fov * MathUtils.DEG2RAD) / 2)
     for (const s of Object.values(this.sheets)) {
       const sp = s.spot
-      const live = s.id !== 'slip' || this.slipVisible
+      const live = !this.hidden.has(s.id) && (s.id !== 'slip' || this.slipVisible)
       // лист едет по столу
       let bx = sp.x
       let bz = sp.z

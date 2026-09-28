@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import type { Case } from '../App'
 import { initialState } from '../engine/turn'
 import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types'
-import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer } from '../engine/utility'
+import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type FullOffer } from '../engine/utility'
 import { ApiError, playTurn } from './api'
 import { firstName } from './cast'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
@@ -41,7 +41,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const name = firstName(sc)
 
   const [draft, setDraft] = useState(redo)
-  const [picks, setPicks] = useState<FullOffer>(() => startPicks(sc, state))
+  // в обучающей встрече блокнот открывается на том, чего хотите вы: «выбери, чего хочешь» читается сразу
+  const [picks, setPicks] = useState<FullOffer>(() => startPicks(sc, state, tutorial))
   const [pending, setPending] = useState<null | string>(null)
   const [error, setError] = useState<string | null>(null)
   const [talking, setTalking] = useState(false)
@@ -64,6 +65,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const theirsOnTable = sameOffer(state.tableOffer, state.lastOpponentOffer)
   const canAccept = !done && theirsOnTable && isComplete(sc, state.lastOpponentOffer)
   const myTotal = score(P, picks)
+  const max = maxScore(P, sc.issues)
   const revealedNow = last?.decision.kind === 'reveal' ? last.decision.interestId : undefined
   const online = source !== 'local'
   const canVoice = !!speech?.tts && online
@@ -189,7 +191,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
     voiceOn, toggleVoice, voiced, micOff, setMicOff, lowSure, acceptSure,
-    line, emotion, theirsOnTable, canAccept, myTotal, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
+    line, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     send, putOnTable, accept, walk, rewind, undo,
   }
@@ -197,17 +199,18 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
 
 export type Meeting = ReturnType<typeof useMeeting>
 
-function startPicks(sc: Scenario, state: OpponentState): FullOffer {
+function startPicks(sc: Scenario, state: OpponentState, mine = false): FullOffer {
   const out: FullOffer = {}
-  for (const i of sc.issues) out[i.id] = state.playerStance?.[i.id] ?? state.lastOpponentOffer?.[i.id] ?? bestOption(sc.player.profile, i.id)
+  for (const i of sc.issues)
+    out[i.id] = state.playerStance?.[i.id] ?? (mine ? undefined : state.lastOpponentOffer?.[i.id]) ?? bestOption(sc.player.profile, i.id)
   return out
 }
 
 /** Чем кончилась встреча — одна строка над кнопкой «Разбор встречи». */
 export function endText(state: OpponentState, sc: Scenario, g: (sc: Scenario, m: string, f: string) => string): string {
   const n = firstName(sc)
-  if (state.status === 'deal') return `По рукам. Посмотрим, сколько вы взяли и что осталось на столе.`
-  if (state.status === 'timeout') return 'Время встречи вышло, сделки нет. В разборе — какие варианты были.'
-  if (state.endedBy === 'opponent') return `${n} ${g(sc, 'встал', 'встала')} из-за стола. В разборе — что ${g(sc, 'его', 'её')} накалило.`
-  return 'Вы ушли без сделки и остались при своём запасном варианте.'
+  if (state.status === 'deal') return 'По рукам! В разборе — что вы выиграли и можно ли было лучше.'
+  if (state.status === 'timeout') return 'Время встречи вышло, сделки нет. В разборе — о чём можно было договориться.'
+  if (state.endedBy === 'opponent') return `${n} ${g(sc, 'встал', 'встала')} из-за стола. В разборе — что ${g(sc, 'его', 'её')} так задело.`
+  return 'Вы ушли без сделки. Остаётся то, что было и без неё.'
 }

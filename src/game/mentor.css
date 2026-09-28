@@ -1,0 +1,108 @@
+/* Наставник первой встречи и подсветка того, о чём он говорит. */
+
+.g-mentor {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(2 * var(--u));
+  background: var(--c-night);
+  box-shadow:
+    0 0 0 var(--u) var(--c-brass),
+    0 0 0 calc(2 * var(--u)) var(--c-ink);
+  color: var(--c-paper);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  animation: g-mentor-in 0.3s steps(4) both;
+}
+.g-mentor p {
+  margin: 0;
+}
+.g-mentor-who {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  color: var(--c-brass-hi);
+  font-weight: 700;
+}
+.g-mentor-n {
+  margin-left: auto;
+  color: var(--c-fog);
+  font-weight: 400;
+}
+.g-mentor-fb {
+  display: flex;
+  align-items: baseline;
+  gap: calc(3 * var(--u));
+  color: var(--c-mist);
+}
+.g-mentor-stamp {
+  flex: none;
+  padding: 0 calc(3 * var(--u));
+  box-shadow: inset 0 0 0 var(--u) currentColor;
+  font-weight: 700;
+  transform: rotate(-3deg);
+}
+.g-mentor-stamp.is-good {
+  color: var(--c-leaf-hi);
+}
+.g-mentor-stamp.is-bad {
+  color: var(--c-coral);
+}
+.g-mentor-stamp.is-plain {
+  color: var(--c-brass-hi);
+}
+.g-mentor-text {
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-paper);
+}
+.g-mentor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 calc(4 * var(--u));
+  --desk-lo: var(--c-ink);
+}
+.g-mentor-skip {
+  margin-left: auto;
+  padding: calc(2 * var(--u)) 0;
+  border: 0;
+  background: none;
+  color: var(--c-fog);
+  font: inherit;
+  cursor: pointer;
+}
+.g-mentor-skip:hover {
+  color: var(--c-paper);
+}
+
+@keyframes g-mentor-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-4 * var(--u)));
+  }
+}
+
+/* подсветка: пиксельная рамка мигает, пока игрок не сделал то, о чём сказал наставник */
+.is-tutor {
+  outline: calc(2 * var(--u)) solid var(--c-brass-hi);
+  outline-offset: calc(2 * var(--u));
+  animation: g-tutor-blink 1.1s steps(1) infinite;
+}
+@keyframes g-tutor-blink {
+  50% {
+    outline-color: transparent;
+  }
+}
+/* бумага на столе: рамка внутрь, иначе её режет край листа */
+.w3-paper .is-tutor:is(.w3-note, .w3-slip, .w3-card) {
+  outline-offset: calc(-3 * var(--u));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-mentor {
+    animation: none;
+  }
+  .is-tutor {
+    animation: none;
+  }
+}
