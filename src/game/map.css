@@ -124,14 +124,13 @@
   shape-rendering: crispEdges;
 }
 .mp-route-todo {
-  stroke: var(--c-brass-hi);
+  stroke: var(--c-coral);
   stroke-width: 1;
   stroke-dasharray: 2 2;
-  opacity: 0.9;
 }
 .mp-route-done {
-  stroke: var(--c-brass);
-  stroke-width: 1.5;
+  stroke: var(--c-paper);
+  stroke-width: 1.34;
 }
 
 /* метки глав */

@@ -1,6 +1,7 @@
 import type { Case } from '../../App'
 import { HARDER_REVEAL } from '../../engine/policy'
 import { maxScore } from '../../engine/utility'
+import { chapterOf } from '../../content/story'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait } from '../ui'
 import { ShareButton } from './ShareButton'
@@ -113,7 +114,7 @@ export function Brief({ game, onStart, onBack }: Props) {
 
           <footer className="g-dossier-foot">
             <Button variant="brass" icon="send" className="g-big" onClick={onStart}>
-              Войти в переговорку
+              {chapterOf(sc.id)?.kind === 'life' ? 'Начать разговор' : 'Войти в переговорку'}
             </Button>
             <ShareButton scenario={sc} fromLibrary={game.fromLibrary} />
             <p className="g-muted">
