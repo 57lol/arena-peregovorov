@@ -273,16 +273,24 @@ export class Person {
     this.placeHands()
   }
 
-  /** Руки — на столе перед человеком: у длинных сторон к нам, в торцах — к середине стола. */
+  /** Руки — на столе перед человеком: у длинных сторон к нам, в торцах — к середине стола.
+   * Кисти лежат на столешнице, предплечья поднимаются к локтям: плашмя лист виден слишком косо и читается как брусок. */
   private placeHands() {
     if (!this.hands) return
     const p = this.group.position
     const end = Math.abs(p.x) > TABLE.halfLen
-    const a = end ? (p.x < 0 ? Math.PI / 2 : -Math.PI / 2) : 0
+    const yaw = end ? (p.x < 0 ? Math.PI / 2 : -Math.PI / 2) : 0
     const toEdge = end ? Math.abs(p.x) - TABLE.halfLen + 0.13 : Math.abs(TABLE.far - p.z) + 0.13
-    this.hands.position.set(Math.sin(a) * toEdge, TABLE.y + 0.003, Math.cos(a) * toEdge)
-    // верх текстуры (локти) — к человеку: rotation.z поворачивает лист вокруг вертикали
-    this.hands.rotation.set(-Math.PI / 2, 0, a)
+    const hd = this.hands.geometry.parameters.height
+    const tilt = 38 * MathUtils.DEG2RAD
+    // ближний край (кисти) остаётся на столе, дальний (локти) поднимается к человеку
+    const up = (hd / 2) * Math.sin(tilt)
+    const back = (hd / 2) * (1 - Math.cos(tilt))
+    const dx = Math.sin(yaw)
+    const dz = Math.cos(yaw)
+    this.hands.position.set(dx * (toEdge + back), TABLE.y + 0.003 + up, dz * (toEdge + back))
+    this.hands.rotation.set(0, yaw, 0, 'YXZ')
+    this.hands.rotateX(-Math.PI / 2 + tilt)
   }
 
   setFrameUV() {
