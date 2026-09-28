@@ -125,3 +125,16 @@ describe('собеседник не путает стороны', async () => {
     for (const sc of SCENARIOS) for (const l of Object.values(sc.opponent.character.lines ?? {}).flat()) expect(mixesSides(sc, l), l).toBe(false)
   })
 })
+
+describe('грубый по роли собеседник', () => {
+  it('мат и оскорбления из реплики модели не проходят — берём заготовку', async () => {
+    const { getScenario } = await import('../content/scenarios')
+    const { initialState } = await import('../engine/turn')
+    const stop = getScenario('stop')!
+    const s = initialState(stop)
+    const hold = { kind: 'hold', reason: 'no_offer' } as const
+    expect(lineFits(stop, hold, s, 'Слышь, братан, и чё? Конкретно что предлагаешь?')).toBe(true)
+    expect(lineFits(stop, hold, s, 'Ты чё, дебил? Конкретно что предлагаешь?')).toBe(false)
+    expect(lineFits(stop, hold, s, 'Да пошёл ты, давай по делу.')).toBe(false)
+  })
+})

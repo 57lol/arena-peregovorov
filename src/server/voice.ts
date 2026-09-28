@@ -2,7 +2,7 @@
 // Всё, что противоречит решению (согласие, которого не было, другие цифры), — в корзину, берём шаблон.
 
 import { z } from 'zod'
-import { mentionedIssues, parseOffer, templateLine } from '../engine/offline'
+import { isRude, mentionedIssues, parseOffer, templateLine } from '../engine/offline'
 import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer } from '../engine/utility'
@@ -192,6 +192,8 @@ export function mixesSides(sc: Scenario, line: string): boolean {
 /** Проверяем, что реплика не противоречит решению движка. `prev` — прошлое предложение собеседника. */
 export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string, prev?: Offer): boolean {
   const low = line.toLowerCase()
+  // грубый по роли собеседник (парень с остановки) грубит манерой, а не матом: такую реплику не пропускаем
+  if (isRude(line)) return false
   if (inventsReason(sc, d, state, line)) return false
   if (hidesChanges(sc, d, prev, line)) return false
   if (BANNED.some((b) => low.includes(b))) return false
