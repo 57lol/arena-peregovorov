@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { explorer, patient, rude, splitter, type Player } from '../../../../scripts/players'
+import { BEHAVIOR_DICT } from '../../../engine/behaviors'
+import { analyzeOffline, withContext } from '../../../engine/offline'
+import { buildReport } from '../../../engine/report'
+import { initialState, step } from '../../../engine/turn'
+import type { Scenario, TurnRecord } from '../../../engine/types'
+import { checkScenario } from '../../../engine/validate'
+import { harder } from '../harder'
 import { ENDING_IDS } from '../../../engine/endings'
 import { isRude } from '../../../engine/offline'
 import { openingAnchor } from '../../../engine/policy'
@@ -6,6 +14,20 @@ import { CHAPTERS } from '../../story'
 import { endingCatalog } from '../../endings'
 import { auditScenario, getScenario, SCENARIOS } from '../index'
 import { STORY_CASES } from './index'
+
+/** Партия целиком в офлайн-режиме: реплики размечают правила, решения — движок. */
+function play(sc: Scenario, player: Player) {
+  const h: TurnRecord[] = []
+  let st = initialState(sc)
+  for (let n = 0; n < sc.turnLimit + 2 && st.status === 'open'; n++) {
+    const text = player(sc, h)
+    const a = withContext(analyzeOffline(sc, text, BEHAVIOR_DICT), st, h, BEHAVIOR_DICT)
+    const r = step(sc, st, a, BEHAVIOR_DICT, h.map((x) => x.analysis))
+    h.push({ turn: r.state.turn, playerText: text, analysis: a, deltas: r.deltas, decision: r.decision, opponentLine: '', emotion: 'neutral', stateAfter: r.state })
+    st = r.state
+  }
+  return { report: buildReport(sc, h, BEHAVIOR_DICT), state: st }
+}
 
 /** Все строки дела, которые увидит или услышит игрок. */
 function texts(o: unknown, out: string[] = []): string[] {
@@ -49,6 +71,27 @@ describe('дела кампании «Новенький»', () => {
 
     it(`${sc.id}: ни мата, ни оскорблений — даже у гопника`, () => {
       for (const t of texts({ sc, endings })) expect(isRude(t), t).toBe(false)
+    })
+
+    it(`${sc.id}: проверка движка проходит и на жёсткой версии`, () => {
+      expect(checkScenario(sc).problems).toEqual([])
+      expect(checkScenario(harder(sc)).problems).toEqual([])
+      expect(auditScenario(harder(sc)).problems).toEqual([])
+    })
+
+    it(`${sc.id}: проходимо офлайн — кто спрашивает, договаривается выше запасного, грубиян — нет`, () => {
+      for (const s of [sc, harder(sc)])
+        for (const p of [explorer, patient]) {
+          const { report } = play(s, p)
+          expect(report.outcome.status, `${s.id}`).toBe('deal')
+          expect(report.outcome.playerPoints, `${s.id}`).toBeGreaterThan(report.batna.player)
+        }
+      // «давайте посередине» на жёсткой версии даёт не больше, чем тот, кто спрашивает и держит размен
+      const hard = harder(sc)
+      const best = Math.max(play(hard, explorer).report.outcome.playerPoints, play(hard, patient).report.outcome.playerPoints)
+      expect(play(hard, splitter).report.outcome.playerPoints).toBeLessThan(best)
+      expect(play(sc, rude).state.status).not.toBe('deal')
+      expect(play(sc, explorer).state.revealed.length).toBeGreaterThan(0)
     })
 
     it(`${sc.id}: не попадает в папку свободной игры, но открывается по id`, () => {
