@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './tokens.css'
 import './ui.css'
 import './showcase.css'
-import { EMOTIONS, type PortraitEmotion, type PortraitId, type SceneId } from './assets'
+import { EMOTIONS, type PortraitEmotion, type PortraitId } from './assets'
 import { Button, IssueStepper, Meter, Notebook, OfferSlip, SpeechField, Stamp } from './Controls'
 import { DialogBox } from './DialogBox'
 import { MeetingClock } from './MeetingClock'
@@ -20,7 +20,7 @@ interface Cast {
   slip: { from: string; rows: { label: string; value: string }[] }
 }
 
-const CAST: Record<SceneId, Cast> = {
+const CAST: Record<'factory' | 'office', Cast> = {
   factory: {
     id: 'rinat',
     slip: {
@@ -67,7 +67,7 @@ const CAST: Record<SceneId, Cast> = {
   },
 }
 
-const ISSUES_BY_SCENE: Record<SceneId, typeof ISSUES> = {
+const ISSUES_BY_SCENE: Record<'factory' | 'office', typeof ISSUES> = {
   factory: [],
   office: [
     { title: 'Оклад', options: ['140 тыс.', '150 тыс.', '160 тыс.', '170 тыс.', '180 тыс.'], points: [30, 24, 18, 10, 0] },
@@ -102,7 +102,7 @@ const SWATCHES: { name: string; v: string; role: string }[] = [
 const ICONS: IconName[] = ['send', 'notebook', 'clock', 'eye', 'leave', 'stamp', 'pen', 'rewind', 'check', 'cross']
 
 export default function Showcase() {
-  const [scene, setScene] = useState<SceneId>('factory')
+  const [scene, setScene] = useState<'factory' | 'office'>('factory')
   const [emotion, setEmotion] = useState<PortraitEmotion>('neutral')
   const [talking, setTalking] = useState(false)
   const [turn, setTurn] = useState(4)

@@ -2,6 +2,7 @@
 
 import type { Camera, Group } from 'three'
 import { PORTRAITS, type PortraitEmotion, type PortraitId } from '../ui/assets'
+import { chapterOf } from '../../content/story'
 import { SEATS } from './layout'
 import { Person } from './people'
 
@@ -12,8 +13,14 @@ function seedOf(id: string) {
   return n
 }
 
+/** Коллеги за столом переговорной: лица дел из папки и пул своих дел. Лица кампании сидят только у себя. */
+const OFFICE: PortraitId[] = ['rinat', 'olga', 'foreman', 'dev', 'official', 'hr', 'realtor', 'buyer']
+
 export function extrasFor(caseId: string, opponent: PortraitId): PortraitId[] {
-  const pool = (Object.keys(PORTRAITS) as PortraitId[]).filter((p) => p !== opponent)
+  // у мест кампании своя массовка: пацаны на остановке, кассирша в магазине, бригада в бытовке
+  const own = (chapterOf(caseId)?.extras ?? []).filter((p): p is PortraitId => p in PORTRAITS && p !== opponent)
+  if (own.length >= 2) return own.slice(0, 4)
+  const pool = OFFICE.filter((p) => p !== opponent)
   const seed = seedOf(caseId)
   const start = seed % pool.length
   const order = pool.slice(start).concat(pool.slice(0, start))

@@ -1,6 +1,7 @@
 // Кто сидит напротив и где: портрет и сцена для любого сценария, в том числе сгенерированного.
 
 import { looksFemale, pickFace } from '../content/faces'
+import { chapterOf } from '../content/story'
 import { baseCaseId } from '../content/scenarios/harder'
 import { tierOf } from '../engine/policy'
 import type { Scenario } from '../engine/types'
@@ -17,6 +18,8 @@ export function portraitFor(sc: Scenario): PortraitId {
 
 export function sceneFor(sc: Scenario): SceneId {
   const id = baseCaseId(sc.id)
+  const story = chapterOf(id)?.room
+  if (story && story !== 'factory' && story !== 'office') return story
   if (id === 'tara') return 'factory'
   if (id === 'offer') return 'office'
   return /закуп|постав|производ|завод|цех|подряд|логист|склад|стро/i.test(`${sc.sphere} ${sc.title}`) ? 'factory' : 'office'

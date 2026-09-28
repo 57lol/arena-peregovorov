@@ -29,6 +29,11 @@ export const SCENE_H = 108
 export const SCENES = {
   factory: { bg: '/assets/scenes/factory.png', desk: '/assets/scenes/factory-desk.png', title: 'Кабинет на гофрокомбинате' },
   office: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Переговорная в бизнес-центре' },
+  // места кампании «Новенький» (src/content/story.ts); пока своей 2D-сцены нет — ближайшая по духу
+  dorm: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Комната в общежитии' },
+  street: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Остановка у ларька' },
+  shop: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Магазин у общежития' },
+  bytovka: { bg: '/assets/scenes/factory.png', desk: '/assets/scenes/factory-desk.png', title: 'Бытовка цеха' },
 } as const
 export type SceneId = keyof typeof SCENES
 

@@ -9,7 +9,8 @@ import { Head, type Pose } from './head'
 import { EYE, SEATS, SPRITE_M_PER_PX } from './layout'
 import { Desk, type PaperId } from './papers'
 import { PixelPipeline } from './post'
-import { buildRoom, type RoomBuild, type RoomKind } from './room'
+import type { RoomBuild } from './room'
+import { buildAnyRoom, type WorldKind } from './rooms'
 
 const D = MathUtils.DEG2RAD
 
@@ -24,7 +25,7 @@ export interface Frame {
 }
 
 export interface WorldOptions {
-  kind: RoomKind
+  kind: WorldKind
   /** дело — от него зависит массовка */
   caseId?: string
   opponent?: PortraitId
@@ -90,7 +91,7 @@ export class World {
     DefaultLoadingManager.onProgress = (_u, loaded, total) => void (this.texturesLeft = total - loaded)
     DefaultLoadingManager.onLoad = () => void (this.texturesLeft = 0)
     DefaultLoadingManager.onError = () => void (this.texturesLeft = 0)
-    this.room = buildRoom(o.kind)
+    this.room = buildAnyRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
     if (o.opponent) this.company = new Company(this.room.group, o.caseId ?? '', o.opponent)
