@@ -15,12 +15,25 @@
 }
 
 .mp-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
   gap: calc(4 * var(--u)) calc(8 * var(--u));
-  flex-wrap: wrap;
-  margin-bottom: calc(4 * var(--u));
+  margin-bottom: calc(6 * var(--u));
+}
+/* новенький с чемоданом: ×2 на ноутбуке, ×1 на телефоне; к концу недели машет рукой */
+.mp-hero {
+  width: 128px;
+  height: 144px;
+  image-rendering: pixelated;
+  margin-bottom: calc(-2 * var(--u));
+}
+.mp-head-text {
+  display: grid;
+  gap: calc(3 * var(--u));
+}
+.mp-head .mp-count {
+  align-self: start;
 }
 .mp-head .mp-title {
   margin: 0;
@@ -55,7 +68,7 @@
 }
 .mp-lead {
   max-width: 760px;
-  margin: 0 0 calc(8 * var(--u));
+  margin: 0;
   color: var(--on-desk);
 }
 
@@ -377,6 +390,17 @@
 }
 
 @media (max-width: 760px) {
+  .mp-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .mp-head .mp-count {
+    grid-column: 1 / -1;
+  }
+  .mp-hero {
+    width: 64px;
+    height: 72px;
+    align-self: start;
+  }
   .mp-list button {
     grid-template-columns: calc(14 * var(--u)) minmax(0, 1fr) auto;
     grid-template-areas:

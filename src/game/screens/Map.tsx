@@ -109,10 +109,21 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
         </header>
 
         <div className="mp-head">
-          <h1 className="g-h1 mp-title">
-            {STORY.title}
-            <small>{STORY.subtitle}</small>
-          </h1>
+          <img
+            className="mp-hero"
+            src={weekDone ? '/assets/map/newbie-2.png' : '/assets/map/newbie.png'}
+            alt=""
+            width={64}
+            height={72}
+            draggable={false}
+          />
+          <div className="mp-head-text">
+            <h1 className="g-h1 mp-title">
+              {STORY.title}
+              <small>{STORY.subtitle}</small>
+            </h1>
+            {!done && <p className="mp-lead">{STORY.lead}</p>}
+          </div>
           <p className="mp-count" aria-label={`Пройдено ${done} из ${rows.length}`}>
             {rows.map((r) => (
               <i key={r.ch.id} className={r.played ? 'is-done' : undefined} />
@@ -122,7 +133,6 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
             </span>
           </p>
         </div>
-        {!done && <p className="mp-lead">{STORY.lead}</p>}
 
         {bridge && (
           <aside className="mp-bridge g-sheet" role="status">
@@ -169,7 +179,7 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
               row={row}
               intro={introOf(row.ch, (id) => progress.cases[id]?.lastStatus ?? progress.cases[`${id}-hard`]?.lastStatus)}
               next={sel === nextIdx}
-              weekDone={weekDone}
+              weekDone={weekDone && bridge?.ch.kind !== 'finale'}
               onOpen={(sc) => onOpen({ scenario: sc, fromLibrary: true })}
             />
           )}
