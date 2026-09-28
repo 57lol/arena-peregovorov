@@ -1,0 +1,423 @@
+/* Страницы «Голоса» (/?voices) и «Лаборатория» (/?lab): ночь, бумажные карточки, латунь — как в игре. */
+
+body:has(.vx) {
+  background: var(--c-night);
+}
+
+.vx {
+  --gap: calc(6 * var(--u));
+  box-sizing: border-box;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: calc(10 * var(--u)) 16px calc(24 * var(--u));
+  color: var(--c-paper);
+  font: var(--fs-read) / 1.35 var(--f-read, 'Ark Pixel', monospace);
+}
+.vx *,
+.vx *::before,
+.vx *::after {
+  box-sizing: border-box;
+}
+.vx h1,
+.vx h2,
+.vx h3 {
+  margin: 0;
+  font-family: var(--f-ui);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.vx h1 {
+  font-size: var(--fs-ui-huge);
+  color: var(--c-brass-hi);
+}
+.vx h2 {
+  font-size: var(--fs-ui-big);
+  color: var(--c-brass-hi);
+  margin-bottom: calc(2 * var(--u));
+}
+.vx h3 {
+  font-size: var(--fs-ui);
+  color: var(--c-grid);
+  margin: calc(6 * var(--u)) 0 calc(3 * var(--u));
+}
+.vx p {
+  margin: calc(2 * var(--u)) 0;
+  max-width: 62ch;
+}
+.vx a {
+  color: var(--c-sky);
+}
+.vx code {
+  font-family: var(--f-ui);
+  font-size: 16px;
+  color: var(--c-grid);
+}
+
+.vx-head {
+  padding-bottom: var(--gap);
+  border-bottom: var(--u) solid var(--c-night-2);
+}
+.vx-back {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  min-height: 44px;
+  font: 700 var(--fs-ui) var(--f-ui);
+  text-decoration: none;
+}
+.vx-small {
+  display: block;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--c-mist);
+}
+.vx-warn {
+  color: var(--c-brass-hi);
+  background: var(--c-wood-3);
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  box-shadow: 0 0 0 var(--u) var(--c-wood);
+}
+.vx-lead {
+  color: var(--c-paper-2);
+}
+
+.vx-block {
+  padding: calc(10 * var(--u)) 0 calc(4 * var(--u));
+  border-bottom: var(--u) solid var(--c-night-2);
+}
+
+/* ---------- реплика ---------- */
+
+.vx-phrase {
+  padding: calc(5 * var(--u)) 0;
+  background: var(--c-night);
+  border-bottom: var(--u) solid var(--c-night-2);
+}
+.vx-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2 * var(--u));
+}
+.vx-tab {
+  min-height: 44px;
+  padding: 0 calc(6 * var(--u));
+  border: 0;
+  background: var(--c-night-2);
+  color: var(--c-paper);
+  font: 700 var(--fs-ui) var(--f-ui);
+  cursor: pointer;
+}
+.vx-tab[aria-selected='true'] {
+  background: var(--c-brass);
+  color: var(--c-ink);
+}
+.vx-quote {
+  margin: calc(4 * var(--u)) 0;
+  padding: calc(4 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow: 0 0 0 var(--u) var(--c-ink), calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--u) var(--c-ink);
+}
+.vx-quote--small {
+  font-size: 20px;
+  margin: calc(3 * var(--u)) 0;
+}
+.vx-mood {
+  color: var(--c-steel);
+}
+.vx-own {
+  display: grid;
+  gap: var(--u);
+  max-width: 640px;
+}
+.vx-own span {
+  font: 700 16px var(--f-ui);
+  color: var(--c-mist);
+}
+.vx-own input,
+.vx-own select,
+.vx-own textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: calc(2 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font: 20px / 1.3 'Ark Pixel', monospace;
+  box-shadow: inset 0 var(--u) 0 var(--c-paper-2), 0 0 0 var(--u) var(--c-ink);
+}
+
+/* ---------- кнопка «послушать» ---------- */
+
+.vx-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(3 * var(--u));
+  margin-top: calc(2 * var(--u));
+}
+.vx-wrap {
+  flex-wrap: wrap;
+}
+.vx-chip {
+  display: grid;
+  gap: var(--u);
+  min-width: 0;
+}
+.vx-chip-btn {
+  overflow-wrap: normal;
+  max-width: 100%;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  min-height: 44px;
+  padding: 0 calc(5 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font: 700 var(--fs-ui) var(--f-ui);
+  cursor: pointer;
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-paper-2), 0 0 0 var(--u) var(--c-ink);
+}
+.vx-chip-btn:hover:not(:disabled) {
+  background: var(--c-brass-hi);
+}
+.vx-chip-btn:active:not(:disabled) {
+  transform: translateY(var(--u));
+}
+.vx-chip-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.vx-chip.is-playing .vx-chip-btn {
+  background: var(--c-leaf-hi);
+}
+.vx-chip-label {
+  white-space: nowrap;
+}
+.vx-chip-sub {
+  font: 400 14px var(--f-ui);
+  color: var(--c-steel-2);
+}
+.vx-chip-note {
+  min-height: 1.3em;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--c-mist);
+}
+.vx-chip.is-error .vx-chip-note {
+  color: var(--c-coral);
+}
+
+/* ---------- кто кем говорит ---------- */
+
+.vx-cast {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--gap);
+  margin-top: calc(4 * var(--u));
+}
+.vx-person > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.vx-person {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(5 * var(--u));
+  align-items: start;
+}
+.vx-person b {
+  font: 700 var(--fs-ui) var(--f-ui);
+}
+.vx-face {
+  flex: none;
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  background-color: var(--c-night-2);
+}
+.vx-avatar {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  background: var(--c-night-2);
+  color: var(--c-brass-hi);
+  font: 700 48px var(--f-ui);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+}
+
+/* ---------- сетка голосов ---------- */
+
+.vx-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: calc(4 * var(--u));
+}
+.vx-voice {
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  background: var(--c-ink-2);
+  box-shadow: 0 0 0 var(--u) var(--c-night-2);
+}
+.vx-voice.is-new {
+  box-shadow: 0 0 0 var(--u) var(--c-brass);
+}
+.vx-voice-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: calc(2 * var(--u));
+}
+.vx-voice-name b {
+  font: 700 var(--fs-ui) var(--f-ui);
+}
+.vx-tag {
+  padding: 0 calc(2 * var(--u));
+  background: var(--c-brass);
+  color: var(--c-ink);
+  font: 700 13px var(--f-ui);
+}
+
+.vx-need {
+  margin: calc(4 * var(--u)) 0;
+  padding: calc(4 * var(--u)) calc(6 * var(--u));
+  background: var(--c-ink-2);
+  box-shadow: 0 0 0 var(--u) var(--c-steel-2);
+  color: var(--c-paper-2);
+}
+.vx-need b {
+  font: 700 var(--fs-ui) var(--f-ui);
+  color: var(--c-paper);
+}
+
+.vx-foreign {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: calc(10 * var(--u));
+  margin-top: calc(4 * var(--u));
+}
+
+/* ---------- лаборатория ---------- */
+
+.lab-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: calc(4 * var(--u));
+  margin-top: calc(4 * var(--u));
+}
+.lab-card {
+  display: grid;
+  gap: var(--u);
+  align-content: start;
+  min-height: 96px;
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  border: 0;
+  text-align: left;
+  background: var(--c-ink-2);
+  color: var(--c-paper);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 0 0 var(--u) var(--c-night-2);
+}
+.lab-card b {
+  font: 700 var(--fs-ui) var(--f-ui);
+}
+.lab-card:hover:not(:disabled) {
+  box-shadow: 0 0 0 var(--u) var(--c-brass);
+}
+.lab-card.is-on {
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow: 0 0 0 var(--u) var(--c-ink), calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--u) var(--c-brass);
+}
+.lab-card.is-on .vx-small {
+  color: var(--c-steel-2);
+}
+.lab-card.is-off {
+  cursor: default;
+  color: var(--c-fog);
+}
+.lab-state {
+  font: 700 14px var(--f-ui);
+  color: var(--c-coral);
+  overflow-wrap: anywhere;
+}
+.lab-state.is-ready {
+  color: var(--c-leaf-hi);
+}
+.lab-card.is-on .lab-state.is-ready {
+  color: var(--c-leaf);
+}
+
+.lab-probe {
+  display: grid;
+  gap: calc(4 * var(--u));
+  justify-items: start;
+  margin-top: calc(4 * var(--u));
+}
+.lab-probe .vx-own {
+  width: 100%;
+}
+.lab-answer {
+  width: 100%;
+  max-width: 820px;
+}
+.lab-answer dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--u) calc(6 * var(--u));
+  margin: 0;
+  font-size: 18px;
+}
+.lab-answer dt {
+  font: 700 15px var(--f-ui);
+  color: var(--c-mist);
+  padding-top: 2px;
+}
+.lab-answer dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lab-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: calc(4 * var(--u));
+  margin: calc(4 * var(--u)) 0;
+}
+.lab-level {
+  display: grid;
+  gap: var(--u);
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink) !important;
+  text-decoration: none;
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-paper-2), 0 0 0 var(--u) var(--c-ink);
+}
+.lab-level b {
+  font: 700 var(--fs-ui) var(--f-ui);
+}
+.lab-level .vx-small {
+  color: var(--c-steel-2);
+}
+.lab-level:hover {
+  background: var(--c-brass-hi);
+}
+
+@media (max-width: 600px) {
+  .vx {
+    font-size: 20px;
+  }
+  .vx h1 {
+    font-size: var(--fs-ui-big);
+  }
+  .vx-cast,
+  .vx-foreign {
+    grid-template-columns: 1fr;
+  }
+  .lab-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lab-answer dl {
+    grid-template-columns: 1fr;
+  }
+}

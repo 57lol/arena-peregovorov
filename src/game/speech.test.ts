@@ -28,22 +28,29 @@ describe('splitPcm — длинная запись кусками для SpeechK
 })
 
 describe('voiceOf — у каждого лица свой голос', () => {
-  it('восемь портретов — восемь разных голосов, пол совпадает', async () => {
-    const { voiceOf } = await import('./speech')
+  it('пол совпадает, у собеседников семи дел голоса не повторяются, новые голоса v3 в деле', async () => {
+    const { voiceOf, FEMALE_VOICES, MALE_VOICES } = await import('./speech')
     const { PORTRAITS } = await import('./ui/assets')
-    const female = new Set(['alena', 'jane', 'marina', 'omazh'])
-    const got = Object.entries(PORTRAITS).map(([id, p]) => {
-      const v = voiceOf(id, p.female)
-      expect(female.has(v)).toBe(p.female)
-      return v
-    })
-    expect(new Set(got).size).toBe(Math.min(got.length, 8))
+    const { ALL_SCENARIOS } = await import('../content/scenarios')
+    const { portraitFor } = await import('./cast')
+    for (const [id, p] of Object.entries(PORTRAITS)) expect(p.female ? FEMALE_VOICES : MALE_VOICES).toContain(voiceOf(id, p.female))
+    const cast = ALL_SCENARIOS.map((sc) => voiceOf(portraitFor(sc), PORTRAITS[portraitFor(sc)].female))
+    expect(new Set(cast).size).toBe(ALL_SCENARIOS.length)
+    expect(cast).toEqual(expect.arrayContaining(['alexander', 'dasha', 'julia']))
   })
 
   it('новое лицо получает голос своего пола, всегда один и тот же', async () => {
-    const { voiceOf } = await import('./speech')
-    expect(['alena', 'jane', 'marina', 'omazh']).toContain(voiceOf('cashier', true))
-    expect(voiceOf('gopnik', false)).toBe(voiceOf('gopnik', false))
-    expect(['filipp', 'ermil', 'madirus', 'zahar']).toContain(voiceOf('gopnik', false))
+    const { voiceOf, FEMALE_VOICES, MALE_VOICES } = await import('./speech')
+    expect(FEMALE_VOICES).toContain(voiceOf('newface-f', true))
+    expect(voiceOf('newface', false)).toBe(voiceOf('newface', false))
+    expect(MALE_VOICES).toContain(voiceOf('newface', false))
+  })
+
+  it('каждый голос игры сервер знает', async () => {
+    const { FEMALE_VOICES, MALE_VOICES } = await import('./speech')
+    const { YANDEX_VOICES } = await import('../content/voices')
+    const known = new Map(YANDEX_VOICES.map((v) => [v.id, v.female]))
+    for (const v of MALE_VOICES) expect(known.get(v)).toBe(false)
+    for (const v of FEMALE_VOICES) expect(known.get(v)).toBe(true)
   })
 })

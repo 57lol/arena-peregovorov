@@ -3,6 +3,7 @@
 
 import type { Emotion, Scenario } from '../engine/types'
 import { isFemale, portraitFor } from './cast'
+import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 
 export interface SpeechCaps {
   tts: boolean
@@ -70,31 +71,43 @@ function player(): HTMLAudioElement {
 // ---------- озвучка ----------
 
 /**
- * У каждого лица свой голос SpeechKit: восемь портретов — восемь голосов v1, по высоте тона под возраст.
- * Марат и Дарина (дела из папки) звучат как раньше — Filipp и Alena, самые живые по интонации.
- * Новое лицо без строчки здесь получает голос своего пола по хэшу id — всегда один и тот же.
+ * У каждого лица свой голос SpeechKit. С 29.09 озвучка идёт через API v3: там семь новых голосов (anton, kirill,
+ * alexander, dasha, lera, masha, julia) звучат заметно живее старых, а громкость выровнена по LUFS.
+ * Голоса дел и глав кампании не повторяются; новое лицо без строчки получает голос своего пола по хэшу id.
+ * Роли под эмоцию (good, strict, evil…) подбирает сервер — styleFor в src/server/tts.ts.
  */
 const VOICE_OF: Record<string, string> = {
-  rinat: 'filipp', // поставщик, энергичный — средний мужской
-  official: 'ermil', // госзаказчик, 60 — самый низкий, неторопливый
-  foreman: 'madirus', // прораб, 50 — низкий, с хрипотцой
-  dev: 'zahar', // айтишник, 28 — самый высокий мужской
-  olga: 'alena', // инженер, молодая — живой женский
-  buyer: 'jane', // закупщица, 52, жёсткая — умеет «злую» интонацию
-  hr: 'marina', // кадровик — мягкий, дружелюбный
-  realtor: 'omazh', // арендодатель — хлёсткий, с «злой» ролью
-  // кампания «Новенький»: по хэшу 19-летний Тимур получал бы хриплый бас, а Палыч — самый молодой голос
+  // дела из папки
+  rinat: 'alexander', // Марат, поставщик — тёплый разговорный, «добреет» ролью good
+  olga: 'dasha', // Дарина, молодой инженер — живой молодой
+  buyer: 'julia', // Роза Сафина, 52, стоит до последнего — деловой, раздражаясь, говорит «строго»
+  // кампания «Новенький»
   sosed: 'zahar', // Тимур, 19 — самый высокий мужской
   gopnik: 'filipp', // Серый, 21 — энергичный
   admin: 'omazh', // Лариса Петровна — сухая, усталая
   palych: 'madirus', // Палыч, 56 — низкий, с хрипотцой
+  // остальные лица: свои дела и массовка
+  official: 'ermil', // госзаказчик, 60 — самый низкий, неторопливый
+  foreman: 'kirill', // прораб, 50 — умеет «строго»
+  dev: 'anton', // айтишник, 28 — ровный
+  hr: 'masha', // кадровик — по умолчанию доброжелательный
+  realtor: 'lera', // арендодатель, 34 — лёгкий
+  pacan: 'zahar',
+  guard: 'anton',
+  worker: 'alexander',
+  workerf: 'dasha',
+  student: 'lera',
+  cashier: 'masha',
+  babka: 'marina',
+  vahter: 'jane',
 }
-const POOL = { male: ['filipp', 'ermil', 'madirus', 'zahar'], female: ['alena', 'jane', 'marina', 'omazh'] }
+export const MALE_VOICES = ['alexander', 'kirill', 'anton', 'filipp', 'ermil', 'zahar', 'madirus']
+export const FEMALE_VOICES = ['dasha', 'lera', 'masha', 'julia', 'alena', 'jane', 'marina', 'omazh']
 
 export function voiceOf(portrait: string, female: boolean): string {
   const known = VOICE_OF[portrait]
   if (known) return known
-  const pool = female ? POOL.female : POOL.male
+  const pool = female ? FEMALE_VOICES : MALE_VOICES
   let h = 0
   for (const ch of portrait) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return pool[h % pool.length]
@@ -125,23 +138,58 @@ export function stopAudio() {
 
 export interface Prepared {
   url: string
-  /** секунды: SpeechKit отдаёт mp3 с постоянными 64 кбит/с, длительность — по размеру */
+  /** секунды: из заголовка x-audio-ms, метаданных или по размеру mp3 */
   duration: number
 }
 
-/** Скачать озвучку реплики. null — без звука. */
-export async function prepareLine(text: string, voice: string, emotion?: string, ms = 5000): Promise<Prepared | null> {
+/** Длительность из метаданных, если сервер её не сообщил (OpenAI отдаёт mp3 с неизвестным битрейтом). */
+function metaDuration(src: string, ms = 1500): Promise<number> {
+  return new Promise((resolve) => {
+    if (typeof Audio === 'undefined') return resolve(0)
+    const a = new Audio()
+    const done = (d: number) => {
+      clearTimeout(t)
+      a.onloadedmetadata = a.onerror = null
+      resolve(Number.isFinite(d) ? d : 0)
+    }
+    const t = setTimeout(() => done(0), ms)
+    a.preload = 'metadata'
+    a.onloadedmetadata = () => done(a.duration)
+    a.onerror = () => done(0)
+    a.src = src
+  })
+}
+
+export interface LineOptions {
+  /** провайдер озвучки; по умолчанию — что выбрано в лаборатории, иначе SpeechKit */
+  provider?: LabTts
+  api?: 'v1' | 'v3'
+  /** только OpenAI: как говорить (акцент, манера) */
+  instructions?: string
+}
+
+/** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
+export async function prepareLine(text: string, voice: string, emotion?: string, ms = 5000, o: LineOptions = {}): Promise<Prepared | null> {
+  const lab = typeof window === 'undefined' ? {} : loadLab()
+  const provider = o.provider ?? lab.tts ?? 'yandex'
+  const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
+  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[provider][FEMALE_VOICES.includes(voice) ? 'female' : 'male']
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, voice, emotion: toEmotion(emotion) }),
-      signal: AbortSignal.timeout(ms),
+      body: JSON.stringify({ text, voice: v, emotion: toEmotion(emotion), ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }),
+      // чужие провайдеры отвечают дольше SpeechKit
+      signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 20_000)),
     })
     if (!r.ok || !r.headers.get('content-type')?.startsWith('audio/')) return null
     const blob = await r.blob()
     if (blob.size < 500) return null
-    return { url: URL.createObjectURL(blob), duration: (blob.size * 8) / 64000 }
+    const url = URL.createObjectURL(blob)
+    const header = Number(r.headers.get('x-audio-ms')) / 1000
+    // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
+    const duration = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
+    return { url, duration }
   } catch {
     return null
   }

@@ -5,6 +5,12 @@ import { BEHAVIOR_DICT } from '../engine/behaviors'
 import { analyzeOffline, templateLine, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { stateAfter, step } from '../engine/turn'
 import type { Difficulty, Offer, Scenario, Tone, TurnRecord } from '../engine/types'
+import { loadLab } from './lab/config'
+
+const labHeaders = (): Record<string, string> => {
+  const l = typeof window === 'undefined' ? {} : loadLab()
+  return l.llm ? { 'x-lab-llm': l.llm } : {}
+}
 
 export interface TurnInput {
   scenario: Scenario
@@ -26,7 +32,8 @@ export interface TurnResult {
 async function post<T>(path: string, body: unknown, ms = 90_000): Promise<T> {
   const r = await fetch(path, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    // лаборатория (/?lab) может сыграть ход другой моделью
+    headers: { 'content-type': 'application/json', ...labHeaders() },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(ms),
   })
