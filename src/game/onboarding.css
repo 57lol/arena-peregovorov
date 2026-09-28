@@ -177,7 +177,10 @@
   }
 }
 
-.g-report > .g-report-fun {
+/* главное, финал, кнопки и свёрнутый разбор — одной колонкой; раскрытый разбор берёт всю ширину под карту */
+.g-report > .g-report-fun,
+.g-report > .g-report-more:not([open]),
+.g-report > .g-report-actions {
   max-width: 900px;
 }
 .g-report-fun {
