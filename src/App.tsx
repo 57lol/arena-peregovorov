@@ -62,6 +62,8 @@ export default function App() {
   const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
   const [recorded, setRecorded] = useState(saved?.recorded ?? '')
   const [room, setRoom] = useState<RoomRef | null>(saved?.room ?? null)
+  // ссылка тренировки ещё грузится: имя спрашиваем сразу, иначе результат уйдёт «Без имени»
+  const [roomWait, setRoomWait] = useState(false)
   const [player, setPlayer] = useState(loadPlayer)
   const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
   const [sent, setSent] = useState(saved?.sent ?? '')
@@ -103,6 +105,7 @@ export default function App() {
         // ссылка тренировки: дело то же, плюс комната, куда уйдёт результат
         const roomId = readRoomParam()
         setRoom(null)
+        setRoomWait(!!roomId)
         if (roomId)
           roomInfo(roomId)
             .then((r) => (r.caseId === sc.id ? setRoom(r) : setNotice('Ссылка тренировки не сходится с делом. Сыграть можно, но результат никуда не уйдёт.')))
@@ -113,6 +116,7 @@ export default function App() {
                   : 'Сервер тренировки не отвечает, поэтому руководитель не увидит ваш результат. Сыграть можно.',
               ),
             )
+            .finally(() => setRoomWait(false))
       })
     fromLink()
     // ссылку вставили в адрес открытой вкладки — меняется только #
@@ -186,6 +190,7 @@ export default function App() {
         notice={notice}
         server={server}
         room={room}
+        roomWait={roomWait}
         playerName={player.name}
         onPlayerName={(name) => {
           setPlayer((p) => ({ ...p, name }))

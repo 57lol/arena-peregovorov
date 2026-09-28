@@ -15,6 +15,8 @@ interface Props {
   server: Health | null | undefined
   /** тренировка команды, если пришли по ссылке руководителя: перед игрой вписываемся в журнал */
   room: RoomRef | null
+  /** ссылка тренировки ещё грузится */
+  roomWait?: boolean
   playerName: string
   onPlayerName: (name: string) => void
   onStart: () => void
@@ -22,10 +24,10 @@ interface Props {
   onCoach: () => void
 }
 
-export function Title({ progress, invited, notice, server, room, playerName, onPlayerName, onStart, onLibrary, onCoach }: Props) {
+export function Title({ progress, invited, notice, server, room, roomWait, playerName, onPlayerName, onStart, onLibrary, onCoach }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
-  const inRoom = !!(invited && room)
+  const inRoom = !!(invited && (room || roomWait))
   const start = () => {
     if (inRoom && !playerName.trim()) {
       setNeedName(true)
