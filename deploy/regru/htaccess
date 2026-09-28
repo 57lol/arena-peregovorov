@@ -1,4 +1,9 @@
-# Кладётся в корень каждого домена (~/www/<домен>/.htaccess).
+# Кладётся в корень основного домена (~/www/arena-peregovorov.ru/.htaccess).
 # Файлы из dist/ лежат тут же и отдаются веб-сервером, остальное (в том числе /api) — Node через Passenger.
 # Приложение Passenger — ~/www/app.js (корень приложения = родитель корня сайта).
 PassengerEnabled On
+
+# index.html без долгого кэша, чтобы после передеплоя сразу подтягивались новые ассеты
+<Files "index.html">
+  Header set Cache-Control "no-cache"
+</Files>

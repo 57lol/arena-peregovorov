@@ -9,7 +9,8 @@ set -euo pipefail
 
 HOST=${DEPLOY_HOST:-arena-regru}
 REF=${1:-HEAD}
-DOMAINS=(arena-peregovorov.ru arena-peregovorov.online)
+DOMAIN=arena-peregovorov.ru
+MIRROR=arena-peregovorov.online   # 301 на основной домен
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SHA=$(git -C "$ROOT" rev-parse --short "$REF")
 
@@ -35,17 +36,18 @@ ssh "$HOST" 'mkdir -p ~/arena-app ~/arena-data ~/www/tmp && test -x ~/node/bin/n
   { echo "на сервере нет ~/node или ~/arena-app/.env — см. README, раздел «Прод»"; exit 1; }
 rsync -az --delete --exclude .env "$OUT/" "$HOST:arena-app/"
 rsync -az "$TMP/deploy/regru/app.js" "$HOST:www/app.js"
-for d in "${DOMAINS[@]}"; do
-  # статика прямо в корне сайта: её отдают nginx/Apache, в Node идут только /api и прочее
-  rsync -az --delete --exclude .htaccess --exclude .well-known "$OUT/dist/" "$HOST:www/$d/"
-  rsync -az "$TMP/deploy/regru/htaccess" "$HOST:www/$d/.htaccess"
-done
+# статика прямо в корне сайта: её отдают nginx/Apache, в Node идут только /api и прочее
+rsync -az --delete --exclude .htaccess --exclude .well-known "$OUT/dist/" "$HOST:www/$DOMAIN/"
+rsync -az "$TMP/deploy/regru/htaccess" "$HOST:www/$DOMAIN/.htaccess"
+rsync -az "$TMP/deploy/regru/htaccess-mirror" "$HOST:www/$MIRROR/.htaccess"
+ssh "$HOST" "find ~/www/$MIRROR -mindepth 1 -maxdepth 1 ! -name .htaccess ! -name .well-known -exec rm -rf {} +"
 ssh "$HOST" 'chmod 600 ~/arena-app/.env && touch ~/www/tmp/restart.txt'
 
-echo "== проверка"
+echo "== проверка (Passenger замечает restart.txt не сразу)"
+sleep 12
 for i in 1 2 3 4 5 6; do
-  if curl -fsS -m 30 "https://${DOMAINS[0]}/api/health"; then echo; echo "готово: $SHA"; exit 0; fi
+  if curl -fsS -m 30 "https://$DOMAIN/api/health"; then echo; echo "готово: $SHA"; exit 0; fi
   sleep 5
 done
-echo "health не ответил — логи: ssh $HOST 'tail -50 ~/logs/${DOMAINS[0]}.error.log'"
+echo "health не ответил — логи: ssh $HOST 'tail -50 ~/logs/$DOMAIN.error.log'"
 exit 1

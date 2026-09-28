@@ -1,0 +1,4 @@
+# Корень второго домена (~/www/arena-peregovorov.online/.htaccess): всё на основной домен.
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^ https://arena-peregovorov.ru%{REQUEST_URI} [R=301,L]
