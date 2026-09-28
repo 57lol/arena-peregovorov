@@ -1357,6 +1357,724 @@ def save(t, name, textures):
     textures[name] = t
 
 
+
+# ======================================================================================================
+# МАГАЗИН «Семёрочка»: вторник, 19:40, возврат чайника
+# ======================================================================================================
+
+HW, BACK, FRONT, HGT = R.HW, R.BACK, R.FRONT, R.HGT
+SS = R.S  # 2.5 см на тексель у стен, пола и потолка
+
+H_PLACE = {
+    # холодильники с напитками вдоль правой стены: z0, z1, высота, глубина
+    'fridges': [-2.62, -0.1, 2.05, 0.66],
+    # стеллажи секциями по 1.2 м: стена, начало, число секций, высота, глубина, первый вариант
+    'shelves': [['back', -3.15, 2, 1.8, 0.42, 0], ['back', 0.75, 2, 1.8, 0.42, 2],
+                ['right', 0.3, 1, 1.8, 0.42, 1], ['front', -3.15, 1, 1.8, 0.4, 3], ['front', 1.95, 1, 1.8, 0.4, 0]],
+    'board': [-0.56, 0.56, 1.0, 1.74],  # «Уголок покупателя» за администратором
+    'ret_sign': [1.5, 2.0, 1.4, 0.28],  # «Возврат и обмен»: x, y центра, ширина, высота
+    'band': [2.32, 2.62],  # фирменная полоса по верху стен
+    'glass': [-2.45, 1.95, 0.1, 2.5],  # витрина в левой стене: z0, z1, y0, y1
+    'door': [-0.55, 0.7],  # раздвижная дверь в витрине: z0, z1
+    'gates': [[-2.72, -0.75], [-2.72, 0.9]],
+    'baskets': [-2.62, 1.5],
+    'lamps': [[-1.3, -1.95], [1.3, -1.95], [-1.3, 0.45], [1.3, 0.45]],
+    'kassa': [1.47, -0.8, 2.02],  # стойка с табличкой «Касса 2»: x, z, высота центра таблички
+    'kettle': [-1.1, 0.02, 0.22],
+    'gum': [1.3, 0.1, -0.12],
+    'terminal': [0.8, -0.08, -0.35],
+    'display': [1.3, -0.42, -0.35],
+    'tray': [0.74, 0.17],
+    'promo': [-1.82, -0.22],
+    'cart': [1.84, -0.2],
+    'view': [-3.5, -2.55, 2.05, -0.15, 2.75],  # вид за витриной: x плоскости, z0, z1, y0, y1
+}
+
+PRODUCT = [27, 28, 22, 23, 3, 4, 33, 34, 9, 10, 2, 26, 29, 45, 20, 21, 35, 8, 16]
+
+
+def shelf_unit(v, h_m=1.95):
+    """Секция стеллажа 1.2 м: пять полок с пачками, ценники с жёлтыми и красными «акциями»."""
+    r2 = np.random.default_rng(40 + v)
+    w, h = 48, round(h_m / SS)
+    t = Tex(w, h, 39)
+    t.rect(0, 0, 1, h - 1, 42)  # стойки
+    t.rect(w - 2, 0, w - 1, h - 1, 41)
+    top = 6
+    t.rect(0, 0, w - 1, top - 1, 8)  # шапка с отделом
+    t.rect(0, top - 1, w - 1, top - 1, 22)
+    head = ('БАКАЛЕЯ', 'СЛАДОСТИ', 'ЧАЙ КОФЕ', 'ХОЗТОВАРЫ')[v % 4]
+    center_text(t, w / 2, 0, head, 45)
+    rows = 5
+    rh = (h - top - 4) / rows
+    for r in range(rows):
+        y0 = int(top + r * rh)
+        y1 = int(top + (r + 1) * rh) - 3
+        t.rect(2, y0, w - 3, y0 + 1, 38)  # тень под полкой выше
+        x = 2
+        kind = int(r2.integers(0, 4))
+        while x < w - 3:
+            c = int(r2.choice(PRODUCT))
+            if kind == 0:  # коробки
+                bw, bh = int(r2.integers(4, 7)), int(r2.integers(int(rh * 0.55), int(rh * 0.85)))
+            elif kind == 1:  # бутылки
+                bw, bh = 2, int(r2.integers(int(rh * 0.6), int(rh * 0.9)))
+            elif kind == 2:  # пакеты
+                bw, bh = int(r2.integers(3, 6)), int(r2.integers(int(rh * 0.45), int(rh * 0.7)))
+            else:  # банки
+                bw, bh = 3, int(r2.integers(int(rh * 0.35), int(rh * 0.5)))
+            n = int(r2.integers(1, 4))  # фейсинг: одинаковые рядом
+            for _ in range(n):
+                if x + bw > w - 3:
+                    break
+                yb = y1
+                t.rect(x, yb - bh + 1, x + bw - 1, yb, c)
+                t.rect(x, yb - bh + 1, x, yb, lighter(c))
+                if bw > 2:
+                    t.rect(x + 1, yb - bh // 2, x + bw - 1, yb - bh // 2 + 1, 45 if c not in (45, 44) else 27)
+                if kind == 1:
+                    t.rect(x, yb - bh + 1, x + bw - 1, yb - bh + 2, 43)  # горлышко
+                x += bw + (1 if kind in (1, 3) else 0)
+            x += int(r2.integers(0, 2))
+        # полка и ценники
+        t.rect(2, y1 + 1, w - 3, y1 + 2, 43)
+        t.rect(2, y1 + 1, w - 3, y1 + 1, 44)
+        for tx in range(4, w - 6, 9):
+            tc = 45 if r2.random() < 0.6 else (23 if r2.random() < 0.6 else 27)
+            t.rect(tx, y1 + 1, tx + 3, y1 + 2, tc)
+            t.px(tx + 1, y1 + 2, 37 if tc != 27 else 45)
+    # воблер «АКЦИЯ» торчит с полки
+    wy = int(top + 2 * rh) - 1
+    t.rect(w - 16, wy - 2, w - 4, wy + 4, 23)
+    t.frame(w - 16, wy - 2, w - 4, wy + 4, 27)
+    t.text(w - 15, wy - 1, 'АКЦ', 27)
+    t.rect(0, h - 4, w - 1, h - 1, 40)  # цоколь
+    t.rect(0, h - 4, w - 1, h - 4, 41)
+    return t
+
+
+def fridge_door(v):
+    """Дверь холодильника с напитками: белая рама, светящееся нутро, ряды бутылок."""
+    r2 = np.random.default_rng(70 + v)
+    w, h = 33, 82
+    t = Tex(w, h, 44)
+    t.rect(0, 0, w - 1, 6, 8)  # светящаяся шапка
+    t.rect(0, 6, w - 1, 6, 22)
+    center_text(t, w / 2, 1, 'НАПИТКИ' if v != 1 else 'ХОЛОДНОЕ', 45)
+    gx0, gy0, gx1, gy1 = 2, 8, w - 3, h - 8
+    t.rect(gx0, gy0, gx1, gy1, 5)
+    t.rect(gx0, gy0, gx1, gy0 + 1, 45)  # лампа внутри
+    shelf_ys = [gy0 + 2 + k * 14 for k in range(5)]
+    for k, sy in enumerate(shelf_ys):
+        yb = sy + 12
+        x = gx0 + 1
+        while x < gx1 - 1:
+            c = int(r2.choice([27, 27, 9, 22, 3, 45, 26, 28, 23, 4, 8]))
+            bh = int(r2.integers(8, 12))
+            t.rect(x, yb - bh + 2, x + 1, yb, c)
+            t.rect(x, yb - bh, x + 1, yb - bh + 1, 43)
+            t.px(x, yb - bh + 3, 45)
+            if c in (27, 9, 22):
+                t.rect(x, yb - bh // 2, x + 1, yb - bh // 2, 45)
+            x += 3
+        t.rect(gx0, yb + 1, gx1, yb + 1, 43)
+    for k in range(3):  # блики на стекле
+        x = gx0 + 3 + k * 10
+        t.line([(x, gy1), (x + 8, gy0 + 20)], 45)
+    t.rect(gx1 - 2, gy0 + 20, gx1 - 1, gy0 + 44, 42)  # ручка
+    t.rect(gx1 - 2, gy0 + 20, gx1 - 2, gy0 + 44, 45)
+    t.rect(0, h - 7, w - 1, h - 1, 41)  # решётка внизу
+    for x in range(1, w - 1, 2):
+        t.rect(x, h - 6, x, h - 2, 39)
+    # ценник «2 по цене 1»
+    t.rect(gx0 + 2, shelf_ys[2] + 13, gx0 + 12, shelf_ys[2] + 17, 23)
+    t.text(gx0 + 3, shelf_ys[2] + 13, '1+1', 27)
+    return t
+
+
+def brand_band(t, y0, y1, x_period=120, phase=0):
+    """Фирменная полоса «Семёрочки»: зелёная, жёлтая кромка, название и жёлтый квадрат с семёркой."""
+    t.rect(0, y0, t.w - 1, y1, 8)
+    t.rect(0, y0, t.w - 1, y0, 9)
+    t.rect(0, y1 - 1, t.w - 1, y1, 22)
+    th = y1 - y0
+    k = 2 if th >= 13 else 1
+    for x in range(phase, t.w, x_period):
+        t.text(x, y0 + (th - 5 * k) // 2, 'СЕМЁРОЧКА', 45, k)
+        sx = x + text_w('СЕМЁРОЧКА', k) + 4
+        t.rect(sx, y0 + 2, sx + 5 * k + 2, y1 - 3, 22)
+        t.text(sx + 2, y0 + (th - 5 * k) // 2, '7', 8, k)
+
+
+def shop_wall(width_m, P, side):
+    w, h = round(width_m / SS), round(HGT / SS)
+    t = Tex(w, h, 44)
+    t.noise(0, 0, w - 1, h - 1, 43, 0.004)
+    t.rect(0, 0, w - 1, 0, 43)
+    b0, b1 = P['band']
+    brand_band(t, int((HGT - b1) / SS), int((HGT - b0) / SS), 150, 10 if side != 'back' else 40)
+    t.rect(0, h - 4, w - 1, h - 1, 40)  # плинтус
+    t.rect(0, h - 4, w - 1, h - 4, 41)
+    R.corners(t)
+    return t
+
+
+def shop_walls(P):
+    walls = {}
+    X = lambda x: (x + HW) / SS  # noqa: E731
+    Y = lambda y: (HGT - y) / SS  # noqa: E731
+    t = shop_wall(2 * HW, P, 'back')
+    # тень над стеллажами, у пола под ними, у уголка покупателя
+    for (wall, a0, n, hh, d, _v) in P['shelves']:
+        if wall == 'back':
+            t.shade(X(a0) - 1, Y(hh) - 2, X(a0 + 1.2 * n) + 1, t.h - 1, 1)
+    bx0, bx1, by0, by1 = P['board']
+    t.shade(X(bx0) + 1, Y(by0) - 1, X(bx1) + 1, Y(by0) + 1, 1)
+    # розетка и провод к часам
+    t.frame(X(0.9) , Y(0.35), X(0.9) + 6, Y(0.35) + 6, 43)
+    walls['back'] = t
+    Z = lambda z: (FRONT - z) / SS  # noqa: E731 — левая: столбец 0 у передней стены
+    t = shop_wall(FRONT - BACK, P, 'left')
+    g0, g1, gy0, gy1 = P['glass']
+    t.rect(Z(g1) - 2, Y(gy1) - 2, Z(g0) + 2, Y(gy0) + 2, 42)  # откос вокруг витрины (сама дыра — в геометрии)
+    walls['left'] = t
+    Zr = lambda z: (z - BACK) / SS  # noqa: E731 — правая: столбец 0 у задней стены
+    t = shop_wall(FRONT - BACK, P, 'right')
+    f0, f1, fh, _fd = P['fridges']
+    t.shade(Zr(f0) - 2, Y(fh) - 2, Zr(f1) + 2, t.h - 1, 1)
+    walls['right'] = t
+    t = shop_wall(2 * HW, P, 'front')
+    walls['front'] = t
+    for k in ('left', 'right', 'front'):
+        walls[k].a = darker(walls[k].a) if k == 'front' else walls[k].a
+    return walls
+
+
+def shop_floor(P):
+    w, h = round(2 * HW / SS), round((FRONT - BACK) / SS)
+    t = Tex(w, h, 43)
+    X = lambda x: (x + HW) / SS  # noqa: E731
+    Zf = lambda z: (z - BACK) / SS  # noqa: E731
+    n = 12  # плитка 30 см
+    r2 = np.random.default_rng(12)
+    for by in range(0, h, n):
+        for bx in range(0, w, n):
+            c = 43 if r2.random() < 0.8 else 44
+            t.rect(bx, by, bx + n - 1, by + n - 1, c)
+            t.rect(bx, by, bx + n - 1, by, 42)
+            t.rect(bx, by, bx, by + n - 1, 42)
+    t.noise(0, 0, w - 1, h - 1, 42, 0.01)
+    # мокрые следы от двери к кассе и к полкам — вечером на улице сыро
+    for (za, zb_, xa, xb) in ((0.1, -0.2, -3.1, -1.6), (0.3, 0.9, -3.0, 0.8), (-0.1, -1.9, -2.9, 2.2)):
+        for k in range(14):
+            f = k / 13
+            x = xa + (xb - xa) * f
+            z = za + (zb_ - za) * f + (0.1 if k % 2 else -0.1)
+            t.shade_ellipse(X(x), Zf(z), 2.2, 1.3, 1)
+    # резиновый коврик у двери
+    d0, d1 = P['door']
+    t.rect(X(-HW), Zf(d0 - 0.25), X(-HW + 1.0), Zf(d1 + 0.25), 38)
+    for y in range(int(Zf(d0 - 0.25)) + 1, int(Zf(d1 + 0.25)), 2):
+        t.rect(X(-HW) + 1, y, X(-HW + 1.0) - 1, y, 39)
+    t.frame(X(-HW), Zf(d0 - 0.25), X(-HW + 1.0), Zf(d1 + 0.25), 37)
+    # свет от холодильников на полу
+    f0, f1, _fh, fd = P['fridges']
+    ys, xs = np.mgrid[0:h, 0:w]
+    zz = BACK + (ys + 0.5) * SS
+    xx = -HW + (xs + 0.5) * SS
+    glow = (zz > f0) & (zz < f1) & (xx > HW - fd - 1.1) & (xx < HW - fd)
+    glow &= ((xx - (HW - fd - 1.1)) / 1.1 + 0.25 * BAYER2[ys % 2, xs % 2]) > 0.45
+    t.a[glow] = lighter(t.a[glow])
+    # тени: стойка, стеллажи, холодильники, промо-стойка, тележка
+    L = TABLE['halfLen']
+    t.shade(X(-L) - 1, Zf(TABLE['far']) - 1, X(L) + 1, Zf(TABLE['near']) + 2, 1)
+    for (wall, a0, nn, hh, d, _v) in P['shelves']:
+        if wall == 'back':
+            t.shade(X(a0) - 1, 0, X(a0 + 1.2 * nn) + 1, Zf(BACK + d) + 2, 1)
+        elif wall == 'front':
+            t.shade(X(a0) - 1, Zf(FRONT - d) - 2, X(a0 + 1.2 * nn) + 1, h - 1, 1)
+        else:
+            t.shade(X(HW - d) - 2, Zf(a0) - 1, w - 1, Zf(a0 + 1.2 * nn) + 1, 1)
+    t.shade(X(HW - fd) - 2, Zf(f0) - 1, w - 1, Zf(f1) + 1, 1)
+    for (x, z) in (P['promo'], P['cart']):
+        t.shade(X(x - 0.3), Zf(z - 0.3), X(x + 0.3), Zf(z + 0.3), 1)
+    return t
+
+
+def shop_table(P):
+    """Кассовая стойка сверху: светлый пластик, зелёная кромка, царапины, наклейка «Пакет 7 ₽»."""
+    L, F, N = TABLE['halfLen'], TABLE['far'], TABLE['near']
+    w = 256
+    s = 2 * L / w
+    h = round((N - F) / s)
+    X = lambda x: (x + L) / s  # noqa: E731
+    Zt = lambda z: (z - F) / s  # noqa: E731
+    t = Tex(w, h, 43)
+    r2 = np.random.default_rng(31)
+    for y in range(h):
+        if r2.random() < 0.3:
+            x0 = int(r2.integers(0, w))
+            t.rect(x0, y, x0 + int(r2.integers(10, 50)), y, 44 if r2.random() < 0.5 else 42)
+    t.noise(0, 0, w - 1, h - 1, 44, 0.01)
+    for _ in range(20):  # царапины
+        x, y = r2.uniform(0, w), r2.uniform(3, h - 3)
+        t.line([(x, y), (x + r2.uniform(-12, 12), y + r2.uniform(-2, 2))], 43)
+    # блик от ламп
+    t.shade_poly([(X(-1.4), Zt(-0.75)), (X(-0.4), Zt(-0.75)), (X(-0.6), Zt(-0.55)), (X(-1.5), Zt(-0.55))], -1)
+    t.shade_poly([(X(0.9), Zt(-0.8)), (X(1.5), Zt(-0.8)), (X(1.4), Zt(-0.62)), (X(0.85), Zt(-0.62))], -1)
+    # наклейка «ПАКЕТ 7 ₽»
+    px_, pz = X(-0.62), Zt(0.12)
+    t.rect(px_, pz, px_ + 30, pz + 8, 22)
+    t.frame(px_, pz, px_ + 30, pz + 8, 8)
+    t.text(px_ + 2, pz + 2, 'ПАКЕТ 7₽', 8)
+    # кромка
+    t.rect(0, h - 3, w - 1, h - 1, 8)
+    t.rect(0, h - 3, w - 1, h - 3, 9)
+    t.rect(0, 0, w - 1, 1, 8)
+    t.frame(0, 0, w - 1, h - 1, 7)
+    # контактные тени вещей
+    for key, rx, rz in (('kettle', 0.16, 0.14), ('terminal', 0.07, 0.1), ('display', 0.12, 0.08), ('gum', 0.12, 0.08)):
+        x, z = P[key][:2]
+        t.shade_ellipse(X(x + 0.01), Zt(z + 0.01), rx / s, rz / s, 1)
+    x, z = P['tray']
+    t.ellipse(X(x), Zt(z), 0.07 / s, 0.05 / s, 41)  # монетница
+    t.ellipse(X(x), Zt(z), 0.06 / s, 0.04 / s, 40)
+    for (dx, dz, c) in ((-0.02, 0.0, 22), (0.02, 0.01, 43), (0.0, -0.015, 22)):
+        t.ellipse(X(x + dx), Zt(z + dz), 1.2, 1.0, c)
+    return t
+
+
+def shop_ceiling(P):
+    t = R.ceiling_tex('office', P)
+    return t
+
+
+def shop_lamp():
+    """Светильник дневного света: две трубки под решёткой, рама темнее потолка."""
+    t = Tex(48, 12, 45)
+    t.frame(0, 0, 47, 11, 40)
+    t.frame(1, 1, 46, 10, 42)
+    t.rect(2, 2, 45, 9, 44)
+    for y in (3, 7):
+        t.rect(2, y, 45, y + 1, 45)
+    for x in range(6, 44, 6):
+        t.rect(x, 2, x, 9, 43)
+    return t
+
+
+def counter_front(P):
+    """Передняя панель стойки к покупателю: зелёная, жёлтая полоса, логотип, следы ботинок снизу."""
+    L = TABLE['halfLen']
+    w, h = round(2 * L / SS), round(TABLE['y'] / SS)
+    t = Tex(w, h, 8)
+    t.rect(0, 0, w - 1, 1, 9)
+    t.rect(0, 5, w - 1, 7, 22)
+    t.rect(0, 5, w - 1, 5, 23)
+    t.rect(0, h - 4, w - 1, h - 1, 38)  # цоколь
+    t.rect(0, h - 4, w - 1, h - 4, 39)
+    cx = w / 2
+    center_text(t, cx - 5, 12, 'СЕМЁРОЧКА', 45, 2)
+    sx = int(cx - 5 + text_w('СЕМЁРОЧКА', 2) / 2 + 4)
+    t.rect(sx, 11, sx + 13, 22, 22)
+    t.text(sx + 4, 12, '7', 8, 2)
+    t.text(int(cx - text_w('У ДОМА', 1) / 2), 24, 'У ДОМА', 23)
+    for x in range(0, w, 31):  # швы панелей
+        t.rect(x, 8, x, h - 5, 7)
+    for _ in range(26):  # следы ботинок
+        x = rng.uniform(0, w)
+        t.rect(x, h - 7 - rng.integers(0, 3), x + rng.integers(2, 6), h - 5, 7)
+    return t
+
+
+def ret_sign():
+    t = Tex(60, 12, 45)
+    t.frame(0, 0, 59, 11, 8)
+    t.rect(1, 1, 58, 1, 44)
+    center_text(t, 30, 3, 'ВОЗВРАТ И ОБМЕН', 27)
+    return t
+
+
+def board_tex():
+    """Уголок покупателя: зелёная шапка, листы правил, книга жалоб на верёвочке."""
+    t = Tex(44, 30, 20)
+    t.frame(0, 0, 43, 29, 19)
+    t.rect(2, 2, 41, 27, 44)
+    t.rect(2, 2, 41, 8, 8)
+    center_text(t, 22, 3, 'УГОЛОК', 45)
+    for (x0, y0) in ((4, 11), (15, 11), (26, 11)):
+        t.rect(x0, y0, x0 + 8, y0 + 12, 45)
+        t.rect(x0 + 1, y0 + 1, x0 + 7, y0 + 1, 27)
+        for yy in range(y0 + 3, y0 + 11, 2):
+            t.rect(x0 + 1, yy, x0 + 7 - (yy % 3), yy, 42)
+    t.rect(36, 12, 41, 22, 13)  # книга жалоб
+    t.rect(37, 13, 40, 14, 17)
+    t.line([(38, 9), (38, 12)], 37)
+    return t
+
+
+def kassa_tex():
+    t = Tex(30, 12, 8)
+    t.frame(0, 0, 29, 11, 7)
+    t.rect(1, 1, 28, 1, 9)
+    t.text(3, 4, 'КАССА', 45)
+    t.rect(22, 2, 27, 9, 22)
+    t.text(23, 4, '2', 8)
+    return t
+
+
+def kettle_box():
+    """Коробка чайника, лицевая сторона: синяя полоса, чайник на картинке, «1,7 л»."""
+    t = Tex(14, 16, 45)
+    t.frame(0, 0, 13, 15, 43)
+    t.rect(1, 1, 12, 3, 2)
+    t.rect(1, 3, 12, 3, 3)
+    t.poly([(4, 13), (3, 7), (5, 5), (9, 5), (11, 7), (10, 13)], 42)  # корпус
+    t.rect(4, 7, 5, 12, 44)
+    t.rect(6, 4, 8, 4, 40)  # крышка
+    t.poly([(11, 7), (13, 6), (13, 7), (11, 9)], 41)  # носик
+    t.rect(1, 8, 2, 11, 41)  # ручка
+    t.rect(3, 13, 11, 14, 40)  # подставка
+    t.px(9, 10, 3)
+    t.rect(10, 1, 12, 2, 23)
+    return t
+
+
+def kettle_side():
+    t = Tex(12, 16, 44)
+    t.frame(0, 0, 11, 15, 43)
+    t.rect(1, 1, 10, 3, 2)
+    for y in range(6, 13, 2):
+        t.rect(2, y, 9 - (y % 3), y, 42)
+    t.rect(7, 12, 10, 14, 45)  # штрихкод
+    for x in range(7, 11, 2):
+        t.rect(x, 12, x, 14, 37)
+    return t
+
+
+def shop_atlas(P):
+    at = Atlas(512, 256)
+    R.common_items(at)
+    for c in (7, 8, 9, 22, 23, 27, 2, 3, 5, 26):
+        at.add(f'c{c}', R.solid(c))
+    at.add('clock', R.clock_face(True))
+    at.add('clock_rim', Tex(8, 4, 8))
+    for v in range(4):
+        at.add(f'shelf{v}', shelf_unit(v, 1.8))
+    t = Tex(16, 16, 42)  # бок стеллажа
+    t.rect(0, 0, 15, 1, 8)
+    t.rect(0, 14, 15, 15, 40)
+    for y in range(3, 14, 3):
+        t.rect(0, y, 15, y, 41)
+    at.add('shelf_side', t)
+    for v in range(3):
+        at.add(f'fridge{v}', fridge_door(v))
+    t = Tex(16, 16, 44)
+    t.rect(0, 0, 15, 2, 8)
+    t.rect(0, 13, 15, 15, 41)
+    at.add('fridge_side', t)
+    at.add('counter_front', counter_front(P))
+    t = Tex(16, 16, 8)
+    t.rect(0, 0, 15, 1, 9)
+    t.rect(0, 12, 15, 15, 38)
+    at.add('counter_side', t)
+    at.add('ret_sign', ret_sign())
+    at.add('board', board_tex())
+    at.add('kassa', kassa_tex())
+    at.add('kettle_box', kettle_box())
+    at.add('kettle_side', kettle_side())
+    t = Tex(12, 12, 44)  # верх коробки: разрезанный скотч
+    t.rect(5, 0, 6, 11, 16)
+    t.px(5, 5, 44)
+    t.frame(0, 0, 11, 11, 43)
+    at.add('kettle_top', t)
+    t = Tex(8, 12, 40)  # терминал для карт
+    t.rect(1, 1, 6, 4, 4)
+    t.rect(2, 2, 5, 3, 5)
+    for y in (6, 8, 10):
+        for x in (1, 3, 5):
+            t.px(x, y, 44)
+    t.px(5, 10, 9)
+    t.px(1, 10, 27)
+    at.add('terminal', t)
+    t = Tex(16, 10, 38)  # дисплей покупателя
+    t.rect(1, 1, 14, 8, 1)
+    t.text(2, 2, '0,00', 4) if False else None
+    t.rect(2, 2, 7, 3, 4)
+    t.rect(9, 5, 13, 7, 5)
+    at.add('display', t)
+    t = Tex(24, 8, 22)  # лоток со жвачкой: пёстрые пачки
+    for i, x in enumerate(range(0, 24, 3)):
+        t.rect(x, 0, x + 2, 7, (9, 27, 4, 33, 23, 3, 28, 45)[i % 8])
+        t.rect(x, 0, x + 2, 0, 45)
+    at.add('gum', t)
+    t = Tex(24, 6, 45)  # ворота-антикражки
+    t.rect(0, 0, 23, 5, 44)
+    at.add('gate_edge', t)
+    t = Tex(20, 60, 45)
+    t.frame(0, 0, 19, 59, 43)
+    t.frame(3, 3, 16, 56, 44)
+    t.rect(8, 6, 11, 7, 27)  # огонёк
+    t.rect(4, 20, 15, 22, 43)
+    t.rect(4, 38, 15, 40, 43)
+    at.add('gate', t)
+    t = Tex(20, 12, 27)  # корзинка
+    t.rect(0, 0, 19, 1, 26)
+    for x in range(2, 19, 3):
+        t.rect(x, 3, x + 1, 9, 26)
+    t.rect(0, 11, 19, 11, 26)
+    at.add('basket', t)
+    t = Tex(20, 12, 8)
+    t.rect(0, 0, 19, 1, 7)
+    for x in range(2, 19, 3):
+        t.rect(x, 3, x + 1, 9, 7)
+    t.rect(0, 11, 19, 11, 7)
+    at.add('basket_g', t)
+    t = Tex(20, 16, 3)  # упаковка воды на промо-стойке
+    t.rect(0, 0, 19, 1, 4)
+    for x in range(1, 20, 5):
+        t.rect(x, 2, x + 3, 15, 4)
+        t.rect(x, 2, x, 15, 5)
+        t.rect(x, 7, x + 3, 9, 45)
+    at.add('water6', t)
+    t = Tex(24, 16, 23)  # воблер «АКЦИЯ»
+    t.frame(0, 0, 23, 15, 27)
+    center_text(t, 12, 2, 'АКЦИЯ', 27)
+    center_text(t, 12, 9, '-30%', 37)
+    at.add('akcia', t)
+    t = Tex(24, 16, 27)  # красный «хит»
+    t.frame(0, 0, 23, 15, 26)
+    center_text(t, 12, 2, 'ХИТ', 45)
+    center_text(t, 12, 9, '99₽', 23)
+    at.add('hit', t)
+    t = Tex(24, 16, 27)  # пластиковая тележка
+    t.rect(0, 0, 23, 1, 28)
+    for x in range(2, 23, 4):
+        for y in range(3, 14, 4):
+            t.rect(x, y, x + 1, y + 1, 26)
+    at.add('cart', t)
+    t = Tex(8, 8, 26)
+    at.add('cart_top', t)
+    t = Tex(16, 24, T)  # из тележки торчат батон и бутылка молока
+    t.poly([(2, 23), (5, 2), (8, 3), (6, 23)], 21)
+    t.line([(4, 6), (6, 8)], 22)
+    t.line([(4, 12), (6, 14)], 22)
+    t.rect(10, 10, 14, 23, 45)
+    t.rect(11, 7, 13, 9, 3)
+    t.rect(10, 14, 14, 17, 3)
+    at.add('cart_goods', t)
+    t = Tex(8, 8, 42)  # алюминий витрины
+    t.rect(0, 0, 7, 0, 44)
+    t.rect(0, 7, 7, 7, 40)
+    at.add('alu', t)
+    # стекло витрины изнутри: отражения ламп, наклейки (текст для улицы — изнутри зеркальный)
+    t = Tex(64, 96, T)
+    for (y, x0, x1) in ((6, 4, 30), (8, 10, 40), (11, 30, 58)):
+        for x in range(x0, x1, 2):
+            t.px(x, y, 43)
+    t.line([(6, 90), (22, 40)], 42)
+    t.line([(40, 92), (58, 50)], 42)
+    t.rect(0, 70, 63, 76, 8)  # фирменная полоса на стекле
+    t.rect(0, 70, 63, 70, 22)
+    at.add('glass_in', t)
+    t = Tex(32, 20, 45)  # режим работы — зеркально
+    t.frame(0, 0, 31, 19, 8)
+    tt = Tex(30, 18, 45)
+    center_text(tt, 15, 1, 'ОТКРЫТО', 8)
+    center_text(tt, 15, 8, '8-23', 37)
+    t.a[1:19, 1:31] = tt.a[:, ::-1]
+    at.add('hours', t)
+    # машина за витриной: тёмный силуэт с фарами
+    t = Tex(96, 32, T)
+    t.poly([(4, 26), (4, 18), (22, 16), (32, 8), (62, 8), (74, 16), (92, 18), (93, 26)], 38)
+    t.poly([(30, 15), (35, 10), (47, 10), (47, 15)], 1)
+    t.poly([(50, 15), (50, 10), (61, 10), (68, 15)], 1)
+    t.rect(4, 21, 93, 21, 39)
+    t.ellipse(20, 26, 5, 5, 36)
+    t.ellipse(76, 26, 5, 5, 36)
+    t.rect(90, 18, 93, 20, 45)
+    t.rect(4, 18, 5, 20, 27)
+    for k in range(8):
+        t.checker(94, 18 - k // 2, 95, 20 + k // 2, 23)
+    at.add('car_night', t)
+    t = Tex(8, 8, 45)  # пластиковая стойка «Касса 2»
+    t.rect(0, 0, 1, 7, 44)
+    at.add('pole', t)
+    return at
+
+
+# --- вид за витриной: вечер, фонарь, общага напротив ---------------------------------------------------
+
+NIGHT_BUILDINGS = [(-34.0, -22.0, -30.0, 16.0, 15.4, 11), (-40.0, -26.0, 20.0, 40.0, 15.4, 12)]
+NIGHT_LAMPS = [(-6.3, -1.6), (-13.4, 1.4), (-13.4, -6.5)]
+
+
+def night_facade(u, y, seed):
+    a = np.full(u.shape, 1)
+    mod, fl, y0 = 3.2, 2.8, 0.9
+    fi = np.floor((y - y0) / fl)
+    fy = (y - y0) - fi * fl
+    mi = np.floor(u / mod)
+    mu = u - mi * mod
+    body = (y > y0) & (fi < 5)
+    a = np.where(body & ((fy < 0.06) | (mu < 0.05)), 0, a)
+    win = body & (mu > 0.9) & (mu < 2.35) & (fy > 0.85) & (fy < 2.3)
+    h = noise(mi * 0.37 + seed * 3.1, fi * 0.41 + seed, 0.1)
+    lit = h > 0.5
+    wc = np.where(lit, np.where(h > 0.93, 4, np.where(h > 0.8, 17, np.where(h > 0.65, 23, 22))), 0)
+    wc = np.where(lit & (np.abs(mu - 1.62) < 0.05), darker(wc), wc)
+    wc = np.where(lit & (h > 0.55) & (h < 0.62) & (fy > 1.2), 21, wc)  # шторы
+    a = np.where(win, wc, a)
+    door = (y < 2.2) & ((mi % 6) == 2) & (mu > 1.0) & (mu < 2.2)
+    a = np.where(door, 13, a)
+    a = np.where(door & (y > 1.9), 23, a)
+    a = np.where(y <= y0, 0, a)
+    return a
+
+
+def night_ground(X, Z):
+    n2 = snoise(X, Z, 0.1)
+    n3 = snoise(X, Z, 0.4)
+    a = np.where(n3 < 0.5, 38, 39)  # мокрый тротуар
+    road = (X < -6.5) & (X > -13.0)
+    a = np.where(road, np.where(n3 < 0.4, 37, 38), a)
+    a = np.where((X <= -6.3) & (X > -6.5), 40, a)  # бордюр
+    a = np.where((X <= -13.0) & (X > -13.2), 40, a)
+    a = np.where(road & (np.abs(X + 9.75) < 0.06) & ((Z % 9.0) < 3.0), 41, a)
+    a = np.where(X <= -15.0, np.where(n2 < 0.5, 6, 7), a)  # газон у общаги
+    # свет фонарей в лужах: тёплые пятна и полосы
+    for (lx, lz) in NIGHT_LAMPS:
+        d = np.hypot(X - lx, Z - lz)
+        a = np.where(d < 1.7, np.where(np.isin(a, [37, 38]), 12, np.where(a == 39, 13, a)), a)
+        a = np.where(d < 0.8, np.where(np.isin(a, [12, 13, 38, 39]), 20, a), a)
+    # свет из витрины на тротуаре
+    a = np.where((X > -5.2) & (Z > -2.3) & (Z < 1.9) & ((n2 > 0.35) | (X > -4.3)), np.where(a == 38, 40, np.where(a == 39, 41, a)), a)
+    return a
+
+
+def ray_night(pts):
+    E = EYE
+    D = pts - E
+    dist_plane = np.linalg.norm(D, axis=-1)
+    D = D / dist_plane[..., None]
+    Dx, Dy, Dz = D[..., 0], D[..., 1], D[..., 2]
+    el = np.degrees(np.arctan2(Dy, np.hypot(Dx, Dz)))
+    out = np.where(el > 14, 0, np.where(el > 5, 1, 2))
+    out = np.where((el > 12) & (el <= 14) & ((np.floor(Dz * 400) + np.floor(el * 8)) % 2 == 0), 1, out)
+    out = np.where((el > 3.5) & (el <= 5) & ((np.floor(Dz * 400) + np.floor(el * 8)) % 2 == 0), 2, out)
+    out = np.where(el < 1.2, 31, out)  # лиловая полоска заката у горизонта
+    best = np.full(out.shape, np.inf)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        tg = np.where(Dy < -1e-4, -E[1] / Dy, np.inf)
+    gx = np.where(np.isfinite(tg), E[0] + Dx * tg, 0)
+    gz = np.where(np.isfinite(tg), E[2] + Dz * tg, 0)
+    hit = np.isfinite(tg) & (tg > dist_plane * 0.98)
+    out = np.where(hit, night_ground(gx, gz), out)
+    best = np.where(hit, tg, best)
+    for (x0, x1, z0, z1, hh, seed) in NIGHT_BUILDINGS:
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tx1, tx2 = (x0 - E[0]) / Dx, (x1 - E[0]) / Dx
+            ty1, ty2 = (0 - E[1]) / Dy, (hh - E[1]) / Dy
+            tz1, tz2 = (z0 - E[2]) / Dz, (z1 - E[2]) / Dz
+        tmin = np.maximum.reduce([np.minimum(tx1, tx2), np.minimum(ty1, ty2), np.minimum(tz1, tz2)])
+        tmax = np.minimum.reduce([np.maximum(tx1, tx2), np.maximum(ty1, ty2), np.maximum(tz1, tz2)])
+        h_ = (tmax >= tmin) & (tmin > 0) & (tmin < best)
+        py, pz = E[1] + Dy * tmin, E[2] + Dz * tmin
+        col = night_facade(pz, py, seed)
+        out = np.where(h_, col, out)
+        best = np.where(h_, tmin, best)
+    for (bx, bz, spr, sw_) in NIGHT_BB:
+        n = np.array([bx - E[0], bz - E[2]])
+        dist = np.hypot(*n)
+        n = n / dist
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tb = dist / (Dx * n[0] + Dz * n[1])
+        qx, qz, qy = E[0] + Dx * tb - bx, E[2] + Dz * tb - bz, E[1] + Dy * tb
+        lat = qx * (-n[1]) + qz * n[0]
+        col_ = np.round(spr.w / 2 + lat / sw_).astype(int)
+        row_ = np.round(spr.h - 1 - qy / sw_).astype(int)
+        ok = (tb > 0) & (tb < best) & (col_ >= 0) & (col_ < spr.w) & (row_ >= 0) & (row_ < spr.h)
+        v = np.where(ok, spr.a[np.clip(row_, 0, spr.h - 1), np.clip(col_, 0, spr.w - 1)], T)
+        m = ok & (v != T)
+        out = np.where(m, v, out)
+        best = np.where(m, tb, best)
+    return out
+
+
+def night_lamp_sprite(s):
+    w, h = round(3.0 / s), round(4.0 / s)
+    t = Tex(w, h, T)
+    px_ = round(0.8 / s)
+    head_y = round(0.7 / s)
+    hx, hy = px_ + 0.5 / s, head_y + 2
+    for y in range(h):  # ореол вокруг лампы — шахматкой, в ночном воздухе
+        for x in range(w):
+            d = np.hypot((x - hx) / (0.7 / s), (y - hy) / (0.55 / s))
+            if d < 1 and (x + y) % 2 == 0:
+                t.px(x, y, 20 if d > 0.6 else 21)
+    t.rect(px_, head_y, px_, h - 1, 39)
+    t.rect(px_, head_y, px_ + round(0.5 / s), head_y, 39)
+    t.rect(px_ + round(0.3 / s), head_y + 1, px_ + round(0.7 / s), head_y + 1, 23)
+    t.ellipse(px_ + 0.5 / s, head_y + 2, 3, 2, 22)
+    t.rect(px_ + round(0.35 / s), head_y + 1, px_ + round(0.65 / s), head_y + 1, 45)
+    return t
+
+
+def night_tree(s, seed):
+    r2 = np.random.default_rng(seed)
+    t = birch_sprite(s, seed, 2.6, 6.5, 'late')
+    # ночью листва почти чёрная, только снизу подсвечена фонарём
+    m = t.a != T
+    t.a[m & np.isin(t.a, [20, 21, 22, 23, 29])] = 6
+    t.a[m & np.isin(t.a, [44, 45])] = 41
+    lit = m & (r2.random(t.a.shape) < 0.05)
+    t.a[lit & (t.a == 6)] = 21
+    return t
+
+
+NIGHT_BB = []
+
+
+def shop_view(P):
+    global NIGHT_BB
+    x, z0, z1, y0, y1 = P['view']
+    s = 0.025
+    lamp = night_lamp_sprite(0.05)
+    NIGHT_BB = [(lx + 0.4, lz, lamp, 0.05) for (lx, lz) in NIGHT_LAMPS]
+    NIGHT_BB += [(-15.5, z, night_tree(0.07, 300 + i), 0.07) for i, z in enumerate((-8.0, -2.5, 3.5, 9.0))]
+    NIGHT_BB.sort(key=lambda b: -np.hypot(b[0] - EYE[0], b[1] - EYE[2]))
+    w, h = round((z1 - z0) / s), round((y1 - y0) / s)
+    # столбец 0 — дальний от нас край (z0), как стены в room.ts: смотрим на −X, слева — перед комнаты? нет: плоскость
+    # в TS натягиваем так, что столбец 0 = z1 (ближе к нам), как левая стена
+    zz = z1 - (np.arange(w) + 0.5) * s
+    yy = y1 - (np.arange(h) + 0.5) * s
+    Zg, Yg = np.meshgrid(zz, yy)
+    pts = np.stack([np.full_like(Zg, x), Yg, Zg], -1)
+    t = Tex(w, h, 0)
+    t.a = ray_night(pts)
+    return t
+
+
+def build_shop():
+    P = H_PLACE
+    tex = {}
+    at = shop_atlas(P)
+    at.pack()
+    for k in range(3):
+        v = Tex(at.size, at.h)
+        v.a = darker(at.sheet.a, k)
+        save(v, f'shop_atlas{k}', tex)
+    print('  атлас', len(at.rects))
+    for side, t in shop_walls(P).items():
+        save(t, f'shop_wall_{side}', tex)
+    save(shop_floor(P), 'shop_floor', tex)
+    save(shop_ceiling(P), 'shop_ceiling', tex)
+    save(shop_table(P), 'shop_table', tex)
+    save(shop_lamp(), 'shop_lamp', tex)
+    save(shop_view(P), 'shop_view', tex)
+    write_gen('shop', at, dict(P))
+    R.sheet(tex, os.path.join(PREV, 'rooms_shop.png'), scale=2, maxw=2200)
+
+
 PANO = None
 BILLBOARDS = []
 
