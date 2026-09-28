@@ -5,6 +5,7 @@ import type { Difficulty, Scenario, Tone } from '../../engine/types'
 import { generate, type GenerateRequest, type Health } from '../api'
 import { DIFFICULTY_RU, TONE_RU, plural, portraitFor } from '../cast'
 import type { Progress } from '../progress'
+import { ENDING_IDS } from '../../engine/endings'
 import { Button, PixelIcon, Portrait } from '../ui'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
@@ -43,6 +44,7 @@ export function Setup({ progress, server, onOpen, onBack }: Props) {
 
 function Folder({ sc, progress, onOpen }: { sc: Scenario; progress: Progress; onOpen: () => void }) {
   const rec = progress.cases[sc.id]
+  const endings = progress.endings[sc.id]?.length ?? 0
   const c = sc.opponent.character
   return (
     <article className="g-folder">
@@ -78,6 +80,7 @@ function Folder({ sc, progress, onOpen }: { sc: Scenario; progress: Progress; on
             <p className="g-folder-record">
               <Stars stars={rec.stars} /> сыграно {rec.plays} {plural(rec.plays, 'раз', 'раза', 'раз')}
               {rec.bestPoints !== null ? `, лучший итог ${rec.bestPoints}` : ''}
+              {endings ? `, финалов ${endings} из ${ENDING_IDS.length}` : ''}
             </p>
           )}
         </div>

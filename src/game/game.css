@@ -1334,6 +1334,126 @@ body {
   font-weight: 700;
 }
 
+/* финал */
+.g-finale-h {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(2 * var(--u));
+  margin: 0 0 calc(5 * var(--u));
+}
+.g-finale-kicker {
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-steel-2);
+}
+.g-finale-plaque {
+  --ink-c: var(--c-stamp);
+  display: inline-block;
+  max-width: 100%;
+  padding: calc(2 * var(--u)) calc(5 * var(--u));
+  color: var(--ink-c);
+  font: 700 var(--fs-ui-big) / 1.25 var(--f-ui);
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  box-shadow:
+    inset 0 0 0 var(--u) var(--c-paper),
+    inset 0 0 0 calc(3 * var(--u)) var(--ink-c);
+  animation: px-thump 0.32s 0.35s steps(4) both;
+}
+.g-finale-plaque.is-good {
+  --ink-c: var(--c-leaf-2);
+}
+.g-finale-plaque.is-mixed {
+  --ink-c: var(--c-denim);
+}
+.g-finale-when {
+  margin: 0 0 calc(1 * var(--u));
+  font-weight: 700;
+  color: var(--c-steel-2);
+}
+.g-finale-epilogue {
+  max-width: 62ch;
+  margin: 0;
+  padding-left: calc(5 * var(--u));
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-wrap: pretty;
+  box-shadow: inset var(--u) 0 0 0 var(--c-mist);
+}
+.g-finale-map-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 calc(4 * var(--u));
+  margin-top: calc(8 * var(--u));
+}
+.g-finale-count {
+  color: var(--c-steel-2);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.g-endings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: calc(3 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-ending {
+  display: flex;
+  flex-direction: column;
+  gap: calc(1 * var(--u));
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  background: var(--c-paper-2);
+  box-shadow: inset 0 0 0 var(--u) var(--c-ink-2);
+}
+.g-ending-title {
+  line-height: var(--lh-ui);
+  overflow-wrap: break-word;
+}
+.g-ending-hint {
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  color: var(--c-steel-2);
+}
+.g-ending.is-open .g-ending-title {
+  color: var(--c-stamp);
+}
+.g-ending.is-open.is-good .g-ending-title {
+  color: var(--c-leaf-2);
+}
+.g-ending.is-open.is-mixed .g-ending-title {
+  color: var(--c-denim);
+}
+.g-ending.is-current {
+  background: var(--c-brass-hi);
+  box-shadow:
+    inset 0 0 0 var(--u) var(--c-ink),
+    0 calc(1 * var(--u)) 0 var(--u) var(--c-wood-hi);
+}
+.g-ending.is-current .g-ending-hint {
+  color: var(--c-ink);
+  font-weight: 700;
+}
+.g-ending.is-locked {
+  background: var(--c-night);
+  box-shadow: inset 0 0 0 var(--u) var(--c-ink);
+}
+.g-ending.is-locked .g-ending-title {
+  color: var(--c-steel);
+  letter-spacing: 0.2em;
+}
+.g-ending.is-locked .g-ending-hint {
+  color: var(--c-mist);
+}
+@media (max-width: 599px) {
+  .g-finale-plaque {
+    font-size: var(--fs-ui);
+    line-height: var(--lh-ui);
+  }
+}
+
 /* карта сделок */
 .g-map {
   margin: 0;
@@ -1841,6 +1961,9 @@ body {
     display: contents;
   }
   .g-ledger {
+    order: 1;
+  }
+  .g-finale {
     order: 1;
   }
   .g-map-panel {

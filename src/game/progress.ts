@@ -1,6 +1,7 @@
 // Прогресс игрока в браузере: пройденные дела, лучший результат, звание.
 // Хранилище может быть недоступно (приватный режим, запрет сайта) — тогда игра просто не помнит прогресс.
 
+import type { EndingId } from '../engine/endings'
 import type { Report } from '../engine/report'
 
 /** Три счёта методики — три звезды: сделка лучше запасного варианта, ничего не осталось на столе, доверие. */
@@ -22,17 +23,19 @@ export interface CaseRecord {
 export interface Progress {
   cases: Record<string, CaseRecord>
   tutorialDone: boolean
+  /** открытые финалы по делам */
+  endings: Record<string, EndingId[]>
 }
 
 const KEY = 'peregovorka.progress.v1'
-const EMPTY: Progress = { cases: {}, tutorialDone: false }
+const EMPTY: Progress = { cases: {}, tutorialDone: false, endings: {} }
 
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return EMPTY
     const p = JSON.parse(raw) as Partial<Progress>
-    return { cases: p.cases ?? {}, tutorialDone: !!p.tutorialDone }
+    return { cases: p.cases ?? {}, tutorialDone: !!p.tutorialDone, endings: p.endings ?? {} }
   } catch {
     return EMPTY
   }
@@ -57,16 +60,18 @@ export function starsOf(r: Report): Stars {
 
 export const countStars = (s: Stars) => Number(s.deal) + Number(s.value) + Number(s.trust)
 
-export function recordRun(caseId: string, title: string, r: Report): Progress {
+export function recordRun(caseId: string, title: string, r: Report, ending?: EndingId): Progress {
   const p = loadProgress()
   const prev = p.cases[caseId]
   const stars = starsOf(r)
   const n = countStars(stars)
   const pts = r.outcome.status === 'deal' ? r.outcome.playerPoints : null
   const better = !prev || n > prev.bestStars
+  const opened = p.endings[caseId] ?? []
   const next: Progress = {
     ...p,
     tutorialDone: true,
+    endings: ending && !opened.includes(ending) ? { ...p.endings, [caseId]: [...opened, ending] } : p.endings,
     cases: {
       ...p.cases,
       [caseId]: {

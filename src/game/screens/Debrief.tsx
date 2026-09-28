@@ -5,10 +5,13 @@ import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { buildReport, type Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
-import { firstName, g, plural, portraitFor, pts, sceneFor } from '../cast'
-import { countStars, recordRun, starsOf, type Progress } from '../progress'
+import { endingOf } from '../../content/endings'
+import type { EndingId } from '../../engine/endings'
+import { firstName, g, isFemale, plural, portraitFor, pts, sceneFor } from '../cast'
+import { countStars, loadProgress, recordRun, starsOf, type Progress } from '../progress'
 import { Button, PixelIcon, Portrait, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
+import { Finale } from './Finale'
 import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
@@ -31,20 +34,27 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
   const name = firstName(sc)
   const recorded = useRef(false)
   const [improved, setImproved] = useState<number | null>(null)
+  const last = history[history.length - 1]
+  const ending = useMemo(() => endingOf(sc, report, last?.stateAfter, isFemale(sc)), [sc, report, last])
+  const [opened, setOpened] = useState<EndingId[]>(() => loadProgress().endings[sc.id] ?? [])
+  const [fresh, setFresh] = useState(false)
 
   useEffect(() => {
     if (recorded.current || alreadyRecorded || !history.length) return
     recorded.current = true
     const prev = JSON.parse(localStorageSafe() ?? '{}')?.cases?.[sc.id]
-    const p = recordRun(sc.id, sc.title, report)
+    const before = loadProgress().endings[sc.id] ?? []
+    const p = recordRun(sc.id, sc.title, report, ending.id)
     const now = countStars(starsOf(report))
     if (prev && now > (prev.bestStars ?? 0)) setImproved(now)
+    // без хранилища прогресс пустой — тогда не хвастаемся «новым финалом» каждый раз
+    if (!before.includes(ending.id) && p.endings[sc.id]?.includes(ending.id) && localStorageSafe() !== null) setFresh(true)
+    setOpened(p.endings[sc.id] ?? [])
     onRecorded(p)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- записываем один раз при открытии разбора
   }, [history.length, report, sc.id, sc.title])
 
   const stars = starsOf(report)
-  const last = history[history.length - 1]
   const wide = useWide()
 
   return (
@@ -53,6 +63,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
         <div className="g-report-top">
           <div className="g-report-left">
           <Ledger sc={sc} report={report} history={history} name={name} improved={improved} />
+          <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
           <section className="g-sheet g-why" aria-labelledby="why-h">
             <h2 id="why-h" className="g-sheet-title">
               Почему такой итог
