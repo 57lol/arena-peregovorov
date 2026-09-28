@@ -508,22 +508,7 @@ m.rect(200, 89, 205, 89, 27)
 m.rect(201, 90, 204, 90, 23)
 m.rect(191, 94, 193, 94, 20)       # столик
 m.px(192, 95, 38)
-# жёлтый служебный автобус на шоссе
-m.rect(166, 97, 180, 100, 22)
-m.rect(166, 97, 180, 97, 23)
-for x in range(168, 179, 3):
-    m.rect(x, 98, x + 1, 98, 1)
-m.rect(166, 101, 180, 101, 38)
-m.px(167, 101, 36)
-m.px(178, 101, 36)
-# машины
-for x, y, c in ((250, 98, 27), (292, 101, 45), (212, 40, 3), (70, 63, 44), (84, 118, 45), (278, 150, 22)):
-    if x in (RX, OX, SX) or x in (212,):
-        m.rect(x - 1, y, x, y + 3, c)
-        m.px(x - 1, y, lighter(c))
-    else:
-        m.rect(x, y - 1, x + 3, y, c)
-        m.px(x, y - 1, lighter(c))
+# автобус и машины на дорогах не рисуем: они ездят в интерфейсе (screens/MapLife.tsx)
 
 # --- 5c. старая Елабуга -----------------------------------------------------------------------------
 # Спасский собор: белый, золотой купол, колокольня со шпилем
@@ -734,7 +719,16 @@ def main():
         f.write('// Карта кампании: размер в точках, где стоит метка каждой главы (у входа в здание)\n')
         f.write('// и маршрут недели по дорогам в порядке глав: dorm → stop → tara → shop → offer → client → launch.\n\n')
         body = {'w': W, 'h': H, 'pins': {k: list(v) for k, v in PINS.items()}, 'route': [list(p) for p in route]}
-        f.write('export const MAP = ' + json.dumps(body, ensure_ascii=False) + ' as const\n')
+        f.write('export const MAP = ' + json.dumps(body, ensure_ascii=False) + ' as const\n\n')
+        # для живой карты: оси дорог, мост и кромка воды по столбцам
+        life = {
+            'roads': {'HY': HY, 'SX': SX, 'A1': A1, 'A2': A2, 'RX': RX, 'OX': OX, 'O2': O2, 'KPP': KPP1[0]},
+            'bridge': {'y': BRIDGE_Y, 'x0': bx0 - 2},
+            'bank': BANK,
+            'pier': [46, 78, pier_y1],
+        }
+        f.write('// Живая карта: оси дорог (машины едут по ним), мост и где начинается вода в каждом столбце.\n')
+        f.write('export const MAP_LIFE = ' + json.dumps(life, separators=(',', ':')) + ' as const\n')
     print('ok map', len(route), 'точек маршрута')
 
 

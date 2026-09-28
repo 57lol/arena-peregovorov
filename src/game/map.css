@@ -126,6 +126,13 @@
   image-rendering: pixelated;
   user-select: none;
 }
+/* живой слой: машины, рябь, теплоход, самолёт — между картинкой и маршрутом */
+.mp-life {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
 .mp-route {
   position: absolute;
   inset: 0;
@@ -389,7 +396,66 @@
   color: var(--c-brass-hi);
 }
 
+/* полоса входа в главу на узком экране: всегда внизу, карта над ней видна целиком */
+.mp-dock {
+  position: fixed;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  padding: calc(3 * var(--u)) 16px max(calc(3 * var(--u)), env(safe-area-inset-bottom));
+  background: var(--c-night);
+  color: var(--c-paper);
+  box-shadow:
+    0 calc(-1 * var(--u)) 0 var(--c-ink),
+    0 calc(-3 * var(--u)) 0 var(--desk-lo);
+}
+.mp-dock-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: calc(13 * var(--u));
+  height: calc(13 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+}
+.mp-dock-n.is-next {
+  background: var(--c-brass-hi);
+}
+.mp-dock-n.is-done {
+  background: var(--c-leaf-hi);
+}
+.mp-dock-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.mp-dock-text b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-dock-text small {
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-mist);
+}
+.mp-dock .px-btn {
+  flex: none;
+  margin-right: 0;
+}
+.mp-page:has(.mp-dock) {
+  padding-bottom: 96px;
+}
+
 @media (max-width: 760px) {
+  .mp-lead {
+    display: none;
+  }
   .mp-head {
     grid-template-columns: auto minmax(0, 1fr);
   }

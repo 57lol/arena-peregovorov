@@ -12,6 +12,7 @@ import { MAP } from '../map.gen'
 import { countStars, markStorySeen, type Progress } from '../progress'
 import { chapterRows, type ChapterRow as Row } from '../story'
 import { Button, PixelIcon, Portrait } from '../ui'
+import { MapLife } from './MapLife'
 import { Stars } from './Stars'
 import '../map.css'
 
@@ -148,6 +149,7 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
           <div className="mp-frame" ref={scroller}>
             <div className="mp-map" style={{ width: MAP.w * scale, height: MAP.h * scale }}>
               <img className="mp-img" src="/assets/map/elabuga.png" alt="" width={MAP.w * scale} height={MAP.h * scale} draggable={false} />
+              <MapLife scale={scale} />
               <svg className="mp-route" width={MAP.w * scale} height={MAP.h * scale} viewBox={`0 0 ${MAP.w} ${MAP.h}`} aria-hidden="true">
                 <polyline className="mp-route-todo" points={route.todo} />
                 <polyline className="mp-route-done" points={route.done} />
@@ -180,10 +182,27 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
               intro={introOf(row.ch, (id) => progress.cases[id]?.lastStatus ?? progress.cases[`${id}-hard`]?.lastStatus)}
               next={sel === nextIdx}
               weekDone={weekDone && bridge?.ch.kind !== 'finale'}
+              docked={!side}
               onOpen={(sc) => onOpen({ scenario: sc, fromLibrary: true })}
             />
           )}
         </div>
+
+        {/* узкий экран: карточка главы ниже карты, поэтому вход в главу всегда внизу экрана */}
+        {!side && row && (
+          <div className="mp-dock">
+            <span className={`mp-dock-n${row.played ? ' is-done' : sel === nextIdx ? ' is-next' : ''}`}>{row.played ? <PixelIcon name="check" /> : row.n}</span>
+            <span className="mp-dock-text">
+              <b>{row.sc.title}</b>
+              <small>
+                {row.ch.day}, {row.ch.time}
+              </small>
+            </span>
+            <Button variant={row.played ? 'paper' : 'brass'} icon={row.played ? 'rewind' : 'send'} onClick={() => onOpen({ scenario: row.sc, fromLibrary: true })}>
+              {row.played ? 'Ещё раз' : 'Войти'}
+            </Button>
+          </div>
+        )}
 
         <ol className="mp-list">
           {rows.map((r, i) => (
@@ -210,11 +229,13 @@ interface CardProps {
   intro: string
   next: boolean
   weekDone: boolean
+  /** вход в главу — в полосе внизу экрана, в карточке остаётся только «Жёстче» */
+  docked?: boolean
   onOpen: (sc: Scenario) => void
   ref?: React.Ref<HTMLElement>
 }
 
-function ChapterCard({ row, intro, next, weekDone, onOpen, ref }: CardProps) {
+function ChapterCard({ row, intro, next, weekDone, docked, onOpen, ref }: CardProps) {
   const { ch, sc, n } = row
   const c = sc.opponent.character
   const finale = ch.kind === 'finale'
@@ -225,6 +246,20 @@ function ChapterCard({ row, intro, next, weekDone, onOpen, ref }: CardProps) {
       </p>
       <h2 className="mp-card-title">{sc.title}</h2>
       <p className="mp-card-place">{ch.place}</p>
+      {(!docked || row.dealt) && (
+        <div className="mp-card-actions">
+          {!docked && (
+            <Button variant={row.played ? 'paper' : 'brass'} icon={row.played ? 'rewind' : 'send'} className={row.played ? undefined : 'g-big'} onClick={() => onOpen(sc)}>
+              {row.played ? 'Сыграть ещё раз' : next ? 'Войти' : 'Сыграть сейчас'}
+            </Button>
+          )}
+          {row.dealt && (
+            <Button variant="stamp" onClick={() => onOpen(harder(sc))}>
+              Жёстче
+            </Button>
+          )}
+        </div>
+      )}
       <div className="mp-card-who">
         <span className="mp-card-face" aria-hidden="true">
           <Portrait id={portraitFor(sc)} emotion="neutral" scale={1} />
@@ -265,16 +300,6 @@ function ChapterCard({ row, intro, next, weekDone, onOpen, ref }: CardProps) {
           <p>{STORY.end}</p>
         </div>
       )}
-      <div className="mp-card-actions">
-        <Button variant={row.played ? 'paper' : 'brass'} icon={row.played ? 'rewind' : 'send'} className={row.played ? undefined : 'g-big'} onClick={() => onOpen(sc)}>
-          {row.played ? 'Сыграть ещё раз' : next ? 'Войти' : 'Сыграть сейчас'}
-        </Button>
-        {row.dealt && (
-          <Button variant="stamp" onClick={() => onOpen(harder(sc))}>
-            Жёстче
-          </Button>
-        )}
-      </div>
       {!row.played && !next && <p className="mp-card-note">По сюжету это позже, но играть можно в любом порядке.</p>}
     </article>
   )
