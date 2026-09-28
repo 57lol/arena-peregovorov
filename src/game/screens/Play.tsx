@@ -7,8 +7,10 @@ import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer }
 import { ApiError, playTurn } from '../api'
 import { firstName, g, plural, portraitFor, sceneFor } from '../cast'
 import { markTutorialDone } from '../progress'
+import { loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, stopAudio, unlockAudio, voiceFor, type SpeechCaps } from '../speech'
 import {
   Button,
+  cpsFor,
   DialogBox,
   IssueStepper,
   MeetingClock,
@@ -20,6 +22,7 @@ import {
   Stamp,
   toPortraitEmotion,
 } from '../ui'
+import { MicButton } from './Mic'
 import { mentorHint, type HintId } from './mentor'
 
 interface Props {
@@ -27,13 +30,15 @@ interface Props {
   history: TurnRecord[]
   setHistory: Dispatch<SetStateAction<TurnRecord[]>>
   redo: string
+  /** что умеет сервер из голоса; нет — кнопок голоса нет */
+  speech?: SpeechCaps
   tutorial: boolean
   onTutorialOff: () => void
   onFinish: () => void
   onQuit: () => void
 }
 
-export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff, onFinish }: Props) {
+export function Play({ game, history, setHistory, redo, speech, tutorial, onTutorialOff, onFinish }: Props) {
   const sc = game.scenario
   const P = sc.player.profile
   const last = history[history.length - 1]
@@ -56,6 +61,11 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   const notebookRef = useRef<HTMLDivElement>(null)
   const sideRef = useRef<HTMLElement>(null)
   const maxScale = useSceneMax()
+  const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
+  const voiceRef = useRef(voiceOn)
+  // скорость печати под озвучку — только для той реплики, что сейчас звучит
+  const [voiced, setVoiced] = useState<{ text: string; cps: number; n: number } | null>(null)
+  const [micOff, setMicOff] = useState(false)
 
   const line = pending ? '…' : last?.opponentLine || sc.opening
   const emotion = pending ? 'thinking' : toPortraitEmotion(last?.emotion)
@@ -63,6 +73,38 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   const canAccept = !done && theirsOnTable && isComplete(sc, state.lastOpponentOffer)
   const myTotal = score(P, picks)
   const revealedNow = last?.decision.kind === 'reveal' ? last.decision.interestId : undefined
+  const online = source !== 'local'
+  const canVoice = !!speech?.tts && online
+  const canMic = !!speech?.stt && online && !micOff
+
+  // реплика сменилась не озвучкой (перемотка, ожидание) — замолкаем; уход с экрана — тоже
+  useEffect(() => {
+    if (voiced && voiced.text !== line) stopAudio()
+  }, [line, voiced])
+  useEffect(() => stopAudio, [])
+
+  /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
+  async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {
+    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion))
+    if (!p || !voiceRef.current) return
+    setVoiced((v) => ({ text, cps: cpsFor(text, p.duration), n: (v?.n ?? 0) + 1 }))
+    if (!(await playPrepared(p))) setVoiced(null)
+  }
+
+  const toggleVoice = () => {
+    const on = !voiceOn
+    setVoiceOn(on)
+    voiceRef.current = on
+    saveVoiceOn(on)
+    if (!on) {
+      stopAudio()
+      setVoiced(null)
+      return
+    }
+    // внутри клика: прогреваем звук (iOS) и сразу озвучиваем то, что на экране
+    unlockAudio()
+    if (!pending) speak(line, last?.emotion)
+  }
 
   const hint = useMemo(
     () => (hintsOn && !done && !pending ? mentorHint(sc, history, state, { xrayUsed, seen }) : null),
@@ -81,9 +123,15 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
     if (!t) return
     setPending(t)
     setError(null)
+    // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
+    const withVoice = voiceOn && canVoice
+    if (withVoice) unlockAudio()
     try {
       const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts })
+      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом
+      const ready = withVoice && r.source !== 'local' ? await prepareLine(r.record.opponentLine, voiceFor(sc), r.record.emotion) : null
       setHistory((h) => [...h, r.record])
+      if (ready) speak(r.record.opponentLine, r.record.emotion, ready)
       setSource(r.source)
       setDraft('')
       setAcceptSure(false)
@@ -157,6 +205,19 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
             
     )
 
+  const voiceBtn = canVoice && (
+    <Button
+      className="g-voice-btn"
+      aria-label="Голос собеседника"
+      variant={voiceOn ? 'brass' : 'paper'}
+      icon={voiceOn ? 'sound' : 'mute'}
+      aria-pressed={voiceOn}
+      onClick={toggleVoice}
+    >
+      <span className="g-voice-btn-label">Голос</span>
+    </Button>
+  )
+
   const stamp = state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
 
   return (
@@ -167,6 +228,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
             <div className="g-hud">
               <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} />
               <div className="g-hud-actions">
+                {voiceBtn}
                 <Button
                   className="g-xray-btn"
                   aria-label="Рентген"
@@ -201,10 +263,14 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
             )}
 
             <DialogBox
+              key={voiced?.text === line ? voiced.n : 0}
               name={sc.opponent.character.name}
               role={sc.opponent.character.role}
               text={line}
               onTalkingChange={setTalking}
+              cps={voiced?.text === line ? voiced.cps : undefined}
+              onSkip={stopAudio}
+              extra={voiceBtn}
             />
 
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
@@ -254,6 +320,18 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
                   <Button variant="brass" icon="send" type="submit" disabled={!!pending || !draft.trim()}>
                     {pending ? 'Слушает…' : 'Сказать'}
                   </Button>
+                  {canMic && (
+                    <MicButton
+                      disabled={!!pending}
+                      onText={(t) => {
+                        setError(null)
+                        setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))
+                        document.getElementById('px-speech')?.focus()
+                      }}
+                      onError={setError}
+                      onOff={() => setMicOff(true)}
+                    />
+                  )}
                   <Button icon="notebook" className="g-only-mobile" aria-expanded={notebook} aria-controls="g-notebook" onClick={openNotebook}>
                     {notebook ? 'Закрыть блокнот' : 'Блокнот'}
                   </Button>

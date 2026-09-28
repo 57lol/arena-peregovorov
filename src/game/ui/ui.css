@@ -164,6 +164,12 @@
   border-image: url('/assets/ui/frame-plate.png') 4 fill stretch;
   color: var(--c-ink);
 }
+.px-dialog-extra {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+}
 .px-plate-name {
   font-weight: 700;
   white-space: nowrap;

@@ -79,6 +79,8 @@ export interface Health {
   provider: string
   model?: string
   providerError?: string
+  /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ */
+  speech?: { tts: boolean; stt: boolean }
 }
 
 export async function health(): Promise<Health | null> {

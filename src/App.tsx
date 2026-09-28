@@ -166,6 +166,7 @@ export default function App() {
         history={history}
         setHistory={setHistory}
         redo={redo}
+        speech={server?.speech}
         tutorial={!progress.tutorialDone}
         onTutorialOff={() => setProgress(loadProgress())}
         onFinish={() => go('report')}

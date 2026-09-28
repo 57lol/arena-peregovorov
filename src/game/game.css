@@ -842,6 +842,12 @@ body {
   .g-hud-actions {
     gap: 0;
   }
+  /* на телефоне «Голос» — значок у таблички с именем, в шапке ему места нет; у микрофона только значок */
+  .g-hud-actions .g-voice-btn {
+    display: none;
+  }
+  .g-voice-btn-label,
+  .g-mic-label,
   .g-leave:not(.is-sure) .g-leave-label {
     position: absolute;
     width: 1px;
@@ -952,6 +958,38 @@ body {
 }
 .g-source {
   color: var(--on-desk-muted);
+}
+/* голос: микрофон рядом со «Сказать», во время записи — красная клавиша с мигающей точкой */
+.g-mic {
+  font-variant-numeric: tabular-nums;
+}
+.px-dialog-extra .g-voice-btn {
+  margin-top: calc(1 * var(--u));
+}
+@media (min-width: 421px) {
+  .px-dialog-extra {
+    display: none;
+  }
+}
+@media (max-width: 420px) {
+  /* «Сказать», микрофон и «Блокнот» — в одну строку на 358 px */
+  .g-say-row .g-mic:not(.is-rec) {
+    gap: 0;
+    padding-inline: calc(3 * var(--u));
+  }
+}
+.g-rec-dot {
+  display: inline-block;
+  width: calc(3 * var(--u));
+  height: calc(3 * var(--u));
+  background: var(--c-paper);
+  animation: px-blink 1s steps(1) infinite;
+  margin-right: calc(2 * var(--u));
+}
+@media (prefers-reduced-motion: reduce) {
+  .g-rec-dot {
+    animation: none;
+  }
 }
 .g-end {
   display: flex;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PixelIcon } from './PixelIcon'
 
 /** Паузы после знаков препинания, мс: текст «дышит», как речь. */
@@ -6,6 +6,14 @@ const PAUSE: Record<string, number> = { '.': 260, '!': 260, '?': 260, '…': 380
 
 function reducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Скорость печати, чтобы реплика допечаталась вместе с озвучкой длиной sec секунд (с паузами на знаках). */
+export function cpsFor(text: string, sec: number): number {
+  let pauses = 0
+  for (const ch of text.slice(0, -1)) pauses += PAUSE[ch] ?? 0
+  const typing = Math.max(sec * 950 - pauses, sec * 400)
+  return Math.max(8, Math.min(60, (text.length * 1000) / typing))
 }
 
 /** Печатает текст по буквам. skip() — показать сразу весь. */
@@ -36,12 +44,16 @@ interface Props {
   /** печатается ли сейчас (для анимации рта) */
   onTalkingChange?: (talking: boolean) => void
   onNext?: () => void
+  /** игрок дописал реплику кликом — например, чтобы оборвать озвучку */
+  onSkip?: () => void
   cps?: number
+  /** кнопка справа от таблички с именем (например, голос) */
+  extra?: ReactNode
 }
 
 /** Окно реплики оппонента: табличка с именем, текст печатается, клик — дописать / дальше.
  * Если высота окна ограничена (телефон), длинная реплика прокручивается внутри, а печать идёт за курсором. */
-export function DialogBox({ name, role, text, onTalkingChange, onNext, cps }: Props) {
+export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, cps, extra }: Props) {
   const { shown, done, skip } = useTypewriter(text, cps)
   const boxRef = useRef<HTMLSpanElement>(null)
   const caretRef = useRef<HTMLSpanElement>(null)
@@ -72,7 +84,11 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, cps }: Pr
     measure()
   }, [shown, done])
 
-  const click = () => (done ? onNext?.() : skip())
+  const click = () => {
+    if (done) return onNext?.()
+    skip()
+    onSkip?.()
+  }
 
   return (
     <section className="px-dialog" aria-live="polite">
@@ -80,6 +96,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, cps }: Pr
         <span className="px-plate-name">{name}</span>
         {role && <span className="px-plate-role">{role}</span>}
       </header>
+      {extra && <div className="px-dialog-extra">{extra}</div>}
       {/* div, а не button: внутри кнопки прокрутка на телефонах работает ненадёжно */}
       <div
         role="button"
