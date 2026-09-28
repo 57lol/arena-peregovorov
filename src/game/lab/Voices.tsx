@@ -78,6 +78,9 @@ function NeedKey({ provider, st }: { provider: LabTts; st?: { ready: boolean; ne
       <b>{PROVIDER_RU[provider]}</b> · {st?.model ?? ''}
       <p>
         Нужен ключ <code>{st?.need ?? '…'}</code> в <code>.env</code> сервера. Без него тут пусто, остальное работает.
+        {provider === 'openai' && ' С российского сервера OpenAI отвечает 403 — ключ и OPENAI_BASE_URL берутся у прокси (ProxyAPI).'}
+        {provider === 'elevenlabs' && ' ElevenLabs закрыт для России и не принимает российские карты.'}
+        {provider === 'salute' && ' Сбер с июля не продаёт SaluteSpeech физлицам — только если проект в Studio уже есть.'}
       </p>
     </div>
   )
@@ -97,8 +100,10 @@ export default function Voices() {
   const text = own.trim() || p.text
   const emotion = p.emotion
   const y = cat?.yandex
-  const male = y?.voices.filter((v) => !v.female) ?? []
-  const female = y?.voices.filter((v) => v.female && !v.id.endsWith('_ru')) ?? []
+  const general = y?.voices.filter((v) => !v.model) ?? []
+  const male = general.filter((v) => !v.female)
+  const female = general.filter((v) => v.female && !v.id.endsWith('_ru'))
+  const live = y?.voices.filter((v) => v.model === 'livetts') ?? []
   const accented = y?.voices.filter((v) => v.id.endsWith('_ru')) ?? []
 
   return (
@@ -160,6 +165,7 @@ export default function Voices() {
         {[
           ['Мужские', male],
           ['Женские', female],
+          ['Модель livetts: самая живая, но без ролей и темпа, дороже на треть', live],
         ].map(([title, list]) => (
           <div key={title as string} className="vx-group">
             <h3>{title as string}</h3>

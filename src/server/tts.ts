@@ -27,10 +27,9 @@ export const OPENAI_VOICES: VoiceInfo[] = [
 /** Готовые голоса ElevenLabs (id из их библиотеки, многоязычные). Свои — через ELEVENLABS_VOICES="Имя:id:m,Имя:id:f". */
 const ELEVEN_DEFAULT: VoiceInfo[] = [
   { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', female: false },
-  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', female: false },
   { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', female: false },
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', female: true },
-  { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', female: true },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', female: true },
   { id: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice', female: true },
 ]
 export function elevenVoices(env = process.env): VoiceInfo[] {
@@ -127,13 +126,14 @@ export async function yandexV1(key: string, q: TtsRequest, f: Fetch = fetch): Pr
 /** v3 REST: ответ — строки JSON, в каждой кусок mp3 в base64 и его длительность. Громкость выровнена по LUFS. */
 export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Promise<Audio> {
   const style = styleFor(q.voice, q.emotion)
-  const hints: object[] = [{ voice: q.voice }, { speed: style.speed }]
-  if (style.role) hints.push({ role: style.role })
+  const live = YANDEX_VOICES.find((v) => v.id === q.voice)?.model === 'livetts'
+  const hints: object[] = live ? [{ voice: q.voice }] : [{ voice: q.voice }, { speed: style.speed }]
+  if (style.role && !live) hints.push({ role: style.role })
   const r = await ok(
     await f(V3_URL, {
       method: 'POST',
       headers: { Authorization: `Api-Key ${key}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ text: q.text, hints, outputAudioSpec: { containerAudio: { containerAudioType: 'MP3' } }, loudnessNormalizationType: 'LUFS' }),
+      body: JSON.stringify({ text: q.text, ...(live ? { model: 'livetts' } : {}), hints, outputAudioSpec: { containerAudio: { containerAudioType: 'MP3' } }, loudnessNormalizationType: 'LUFS' }),
       signal: AbortSignal.timeout(10_000),
     }),
     'SpeechKit v3',
@@ -144,8 +144,10 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
     if (!line.trim()) continue
     const j = JSON.parse(line) as { result?: { audioChunk?: { data?: string }; lengthMs?: string }; error?: { message?: string } }
     if (j.error) throw new Error(`SpeechKit v3: ${j.error.message ?? 'ошибка'}`)
-    if (j.result?.audioChunk?.data) parts.push(Buffer.from(j.result.audioChunk.data, 'base64'))
-    ms += Number(j.result?.lengthMs ?? 0)
+    // последний кусок бывает только с текстом (audioChunk: null) — его длительность не считаем
+    if (!j.result?.audioChunk?.data) continue
+    parts.push(Buffer.from(j.result.audioChunk.data, 'base64'))
+    ms += Number(j.result.lengthMs ?? 0)
   }
   const audio = new Uint8Array(Buffer.concat(parts))
   if (audio.length < 500) throw new Error('SpeechKit v3: пустой ответ')
@@ -172,7 +174,7 @@ export async function openaiTts(key: string, q: TtsRequest, f: Fetch = fetch, en
 export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Audio> {
   const model = env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2'
   const r = await ok(
-    await f(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(q.voice)}?output_format=mp3_44100_128`, {
+    await f(`${env.ELEVENLABS_BASE_URL ?? 'https://api.elevenlabs.io/v1'}/text-to-speech/${encodeURIComponent(q.voice)}?output_format=mp3_44100_128`, {
       method: 'POST',
       headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' },
       body: JSON.stringify({ text: q.text, model_id: model, ...(/flash|turbo|v3/.test(model) ? { language_code: 'ru' } : {}) }),
@@ -194,9 +196,14 @@ export async function saluteTts(authKey: string, q: TtsRequest, env = process.en
     ms: 20_000,
   })
   if (r.status !== 200) throw Object.assign(new Error(`SaluteSpeech → ${r.status}: ${r.body.toString('utf8').slice(0, 200)}`), { status: r.status })
-  // wav16: 16 бит моно, 24 кГц у голосов *_24000
   const audio = new Uint8Array(r.body)
-  return { audio, type: 'audio/wav', ms: Math.round(((audio.length - 44) / 48000) * 1000) }
+  return { audio, type: 'audio/wav', ms: wavMs(audio) }
+}
+
+/** Длительность wav по заголовку: байт в секунду лежат по смещению 28. */
+export function wavMs(b: Uint8Array): number {
+  const rate = b.length > 44 ? new DataView(b.buffer, b.byteOffset, b.length).getUint32(28, true) : 0
+  return rate ? Math.round(((b.length - 44) / rate) * 1000) : 0
 }
 
 /** Синтез у выбранного провайдера. SpeechKit: v3, а если он не ответил — v1 (для голосов, которые v1 знает). */

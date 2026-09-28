@@ -9,6 +9,8 @@ export interface VoiceInfo {
   /** только API v3 */
   v3only?: boolean
   note?: string
+  /** модель SpeechKit v3: без поля — general; livetts не знает ни ролей, ни темпа */
+  model?: 'livetts'
 }
 
 /**
@@ -35,5 +37,12 @@ export const YANDEX_VOICES: VoiceInfo[] = [
   { id: 'zhanar_ru', name: 'Жанар', female: true, roles: ['strict', 'friendly'], v3only: true, note: 'русский с казахским акцентом' },
   { id: 'zamira_ru', name: 'Замира', female: true, roles: ['strict', 'friendly'], v3only: true, note: 'русский с узбекским акцентом' },
   { id: 'yulduz_ru', name: 'Юлдуз', female: true, roles: ['strict', 'friendly', 'whisper'], v3only: true, note: 'русский с узбекским акцентом' },
+  // модель livetts (v3): самая «живая» и на треть дороже general; темп и роли не принимает
+  { id: 'denis', name: 'Денис', female: false, v3only: true, model: 'livetts', note: 'livetts' },
+  { id: 'sergey', name: 'Сергей', female: false, v3only: true, model: 'livetts', note: 'livetts' },
+  { id: 'vasily', name: 'Василий', female: false, v3only: true, model: 'livetts', note: 'livetts' },
+  { id: 'sofia', name: 'София', female: true, v3only: true, model: 'livetts', note: 'livetts' },
+  { id: 'vera', name: 'Вера', female: true, v3only: true, model: 'livetts', note: 'livetts' },
+  { id: 'irina', name: 'Ирина', female: true, v3only: true, model: 'livetts', note: 'livetts' },
 ]
 

@@ -9,7 +9,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { styleFor, synthesize, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
+import { styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -124,11 +124,11 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const type = ext === 'wav' ? 'audio/wav' : 'audio/mpeg'
     const file = join(CACHE_DIR, 'tts', `${hashOf(id)}.${ext}`)
     const headers = { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api' }
-    // длительность для печати в такт: у SpeechKit mp3 64 кбит/с, у ElevenLabs 128, wav 24 кГц 16 бит; у OpenAI браузер узнает сам
-    const msOf = (n: number) => (yandexOnly ? (n * 8) / 64 : b.provider === 'elevenlabs' ? (n * 8) / 128 : b.provider === 'salute' ? ((n - 44) / 48000) * 1000 : 0)
+    // длительность для печати в такт: у SpeechKit mp3 64 кбит/с, у ElevenLabs 128, у wav — из заголовка; у OpenAI браузер узнает сам
+    const msOf = (n: number) => (yandexOnly ? (n * 8) / 64 : b.provider === 'elevenlabs' ? (n * 8) / 128 : 0)
     try {
       const audio = new Uint8Array(await readFile(file))
-      const ms = Math.round(msOf(audio.length))
+      const ms = ext === 'wav' ? wavMs(audio) : Math.round(msOf(audio.length))
       return c.body(audio, 200, { ...headers, 'x-cache': 'hit', ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
     } catch {
       // нет в кэше
@@ -144,7 +144,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       const out = r.api && r.api !== api ? join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice: b.voice, ...style })}.mp3`) : file
       await mkdir(join(CACHE_DIR, 'tts'), { recursive: true })
       await writeFile(out, r.audio)
-      const ms = r.ms ?? Math.round(msOf(r.audio.length))
+      const ms = r.ms || Math.round(msOf(r.audio.length))
       return c.body(r.audio, 200, { ...headers, 'x-cache': 'miss', ...(r.api ? { 'x-tts-api': r.api } : {}), ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
     } catch (e) {
       const st = (e as { status?: number }).status

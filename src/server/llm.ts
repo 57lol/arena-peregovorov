@@ -53,7 +53,8 @@ function anthropic(): LLM {
     model,
     async json({ system, user, temperature, maxTokens, schema }) {
       const r = await post(
-        'https://api.anthropic.com/v1/messages',
+        // с российского IP Anthropic отвечает 403 — ANTHROPIC_BASE_URL на прокси (например, https://api.proxyapi.ru/anthropic)
+        `${process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com'}/v1/messages`,
         { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         {
           model,
@@ -217,7 +218,8 @@ function gigachat(): LLM {
     model,
     async json({ system, user, temperature, maxTokens, schema }) {
       const token = await sberToken(key, scope)
-      const r = await sberFetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+      // единый адрес с 16.07.2026; старый gigachat.devices.sberbank.ru/api/v1 пока тоже отвечает
+      const r = await sberFetch(process.env.GIGACHAT_URL ?? 'https://api.giga.chat/v1/chat/completions', {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({

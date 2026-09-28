@@ -76,6 +76,7 @@ export interface VoiceInfo {
   roles?: string[]
   v3only?: boolean
   note?: string
+  model?: string
 }
 
 export type Catalog = Record<LabTts, ProviderStatus & { voices: VoiceInfo[] }>
