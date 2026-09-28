@@ -1,0 +1,250 @@
+/* Титул (screens/Title.tsx): живая сцена на весь экран, поверх — название и две клавиши.
+   Всё кратно --u, цвета — Apollo. Сцена рисуется холстом, здесь только раскладка. */
+
+.tt-root {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #1e1d39; /* верх неба панорамы: пока грузится картинка, экран не мигает */
+}
+
+.tt-scene {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tt-scene canvas {
+  flex: none;
+  display: block;
+}
+
+.tt-ui {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+}
+
+.tt-corner {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+}
+
+/* ---------- название ---------- */
+
+.tt-head {
+  margin-top: clamp(8px, 2vh, 32px);
+  text-align: center;
+}
+.tt-sign {
+  margin: 0;
+  font: 700 72px / 1 var(--f-ui); /* Pixeloid ×8 */
+  color: var(--c-brass-hi);
+  letter-spacing: 0;
+  /* латунные буквы с торцом, как табличка на двери: две ступени вниз */
+  text-shadow:
+    0 calc(2 * var(--u)) 0 var(--c-wood-hi),
+    0 calc(4 * var(--u)) 0 var(--c-wood-3);
+  animation: tt-rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.tt-tag {
+  margin: calc(6 * var(--u)) 0 0;
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-paper);
+  text-shadow: 0 var(--u) 0 var(--c-ink);
+}
+
+@keyframes tt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(calc(6 * var(--u)));
+  }
+}
+
+/* ---------- две клавиши ---------- */
+
+.tt-actions {
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(8 * var(--u));
+  width: 100%;
+  max-width: 720px;
+}
+.tt-btn {
+  --face: var(--c-paper);
+  --lo: var(--c-paper-2);
+  --edge: var(--c-ink);
+  --label: var(--c-ink);
+  --sub: var(--c-steel-2);
+  --base: var(--c-ink-2);
+  appearance: none;
+  flex: 1 1 280px;
+  max-width: 340px;
+  display: grid;
+  justify-items: center;
+  gap: calc(2 * var(--u));
+  margin: 0 0 calc(4 * var(--u));
+  padding: calc(6 * var(--u)) calc(8 * var(--u)) calc(8 * var(--u));
+  border: 0;
+  border-radius: 0;
+  background: var(--face);
+  color: var(--label);
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    inset 0 calc(-3 * var(--u)) 0 var(--lo),
+    0 calc(-1 * var(--u)) 0 0 var(--edge),
+    0 var(--u) 0 0 var(--edge),
+    calc(-1 * var(--u)) 0 0 0 var(--edge),
+    var(--u) 0 0 0 var(--edge),
+    0 calc(4 * var(--u)) 0 0 var(--base);
+  transition: transform 90ms steps(2);
+}
+.tt-btn b {
+  font: 700 var(--fs-ui-huge) / 1 var(--f-ui); /* Pixeloid ×4 */
+}
+.tt-btn span {
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--sub);
+  text-wrap: balance;
+}
+.tt-btn.is-story {
+  --face: var(--c-brass);
+  --lo: var(--c-wood-hi);
+  --edge: var(--c-wood-3);
+  --label: var(--c-wood-3);
+  --sub: var(--c-wood-2);
+  --base: var(--c-wood-4);
+}
+.tt-btn:hover {
+  --lo: var(--c-mist);
+}
+.tt-btn.is-story:hover {
+  --lo: var(--c-wood);
+}
+.tt-btn:active {
+  transform: translateY(calc(3 * var(--u)));
+  box-shadow:
+    inset 0 calc(-1 * var(--u)) 0 var(--lo),
+    0 calc(-1 * var(--u)) 0 0 var(--edge),
+    0 var(--u) 0 0 var(--edge),
+    calc(-1 * var(--u)) 0 0 0 var(--edge),
+    var(--u) 0 0 0 var(--edge),
+    0 var(--u) 0 0 var(--base);
+}
+.tt-btn:focus-visible {
+  outline: calc(2 * var(--u)) solid var(--c-paper);
+  outline-offset: calc(3 * var(--u));
+}
+
+.tt-notice {
+  flex-basis: 100%;
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  background: var(--c-stamp-3);
+  color: var(--c-paper);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+}
+
+/* ---------- по ссылке-приглашению: записка с делом ---------- */
+
+.tt-invite {
+  grid-row: 3;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 600px;
+  display: grid;
+  gap: calc(4 * var(--u));
+  padding: calc(7 * var(--u)) calc(8 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  --on-desk: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    0 calc(3 * var(--u)) 0 var(--u) var(--c-ink);
+}
+.tt-invite > p {
+  margin: 0;
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-wrap: pretty;
+}
+.tt-invite .tt-notice {
+  font: inherit;
+}
+.tt-name {
+  margin: 0;
+}
+.tt-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(4 * var(--u));
+}
+.tt-invite-actions .px-btn {
+  margin-left: 0;
+}
+
+/* ---------- телефон ---------- */
+
+@media (max-width: 599px) {
+  .tt-sign {
+    font-size: var(--fs-ui-huge); /* Pixeloid ×4: «Переговорка» целиком в 358 точек */
+  }
+  .tt-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: calc(4 * var(--u));
+  }
+  .tt-btn {
+    flex: none;
+    max-width: none;
+    gap: var(--u);
+    margin: 0 0 calc(2 * var(--u));
+    padding: calc(4 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));
+  }
+  .tt-btn b {
+    font-size: var(--fs-ui-big);
+  }
+  .tt-invite {
+    padding: calc(5 * var(--u));
+  }
+}
+/* высокий узкий экран: небо большое — название ниже, ближе к городу */
+@media (max-aspect-ratio: 3/4) {
+  .tt-head {
+    margin-top: 10vh;
+  }
+}
+@media (max-height: 520px) {
+  .tt-head {
+    margin-top: 8px;
+  }
+  .tt-sign {
+    font-size: 45px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-sign {
+    animation: none;
+  }
+  .tt-btn {
+    transition: none;
+  }
+}
