@@ -52,7 +52,7 @@ class Map(Tex):
             for dy, row in enumerate(g):
                 for dx, v in enumerate(row):
                     if v == '#':
-                        self.px(x + dx, y + dy, c)
+                        self.px(x + dx, y + dy - (len(g) - 5), c)
             x += len(g[0]) + gap
 
 
