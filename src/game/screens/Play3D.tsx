@@ -435,6 +435,7 @@ function SayForm({ m }: { m: Meeting }) {
       className="w3-say"
       onSubmit={(e) => {
         e.preventDefault()
+        byKey.current = false
         m.send(m.draft)
       }}
     >
