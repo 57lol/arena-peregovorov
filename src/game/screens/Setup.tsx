@@ -3,7 +3,7 @@ import type { Case } from '../../App'
 import { SCENARIOS, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
 import { generate, type GenerateRequest, type Health } from '../api'
-import { DIFFICULTY_RU, TONE_RU, plural, portraitFor } from '../cast'
+import { DIFFICULTY_RU, difficultyRu, TONE_RU, plural, portraitFor } from '../cast'
 import type { Progress } from '../progress'
 import { ENDING_IDS } from '../../engine/endings'
 import { Button, PixelIcon, Portrait } from '../ui'
@@ -82,7 +82,7 @@ function Folder({ sc, progress, coach, onOpen }: { sc: Scenario; progress: Progr
             <div>
               <dt>Характер</dt>
               <dd>
-                {TONE_RU[c.tone]}, {DIFFICULTY_RU[sc.difficulty]}
+                {TONE_RU[c.tone]}, {difficultyRu(sc)}
               </dd>
             </div>
             <div>

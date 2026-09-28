@@ -1,6 +1,6 @@
 import type { Case } from '../../App'
 import { maxScore } from '../../engine/utility'
-import { DIFFICULTY_RU, TONE_RU, g, plural, portraitFor } from '../cast'
+import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait } from '../ui'
 import { ShareButton } from './ShareButton'
 
@@ -55,7 +55,7 @@ export function Brief({ game, onStart, onBack }: Props) {
                 </p>
                 <p className="g-them-brief">{sc.opponent.brief}</p>
                 <p className="g-muted">
-                  Характер: {TONE_RU[c.tone]}, {DIFFICULTY_RU[sc.difficulty]}.
+                  Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
                 </p>
               </div>
             </aside>

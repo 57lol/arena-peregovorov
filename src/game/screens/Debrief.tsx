@@ -3,6 +3,7 @@ import type { Case } from '../../App'
 import { BEHAVIOR_DICT, MINUTES_PER_TURN, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
 import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
+import { revealAt } from '../../engine/policy'
 import { buildReport, type Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { endingOf } from '../../content/endings'
@@ -397,7 +398,7 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
             <PixelIcon name={revealed.has(it.id) ? 'check' : 'cross'} px={2} color={revealed.has(it.id) ? 'var(--c-leaf)' : 'var(--c-steel)'} />
             <span>
               {capitalize(it.text.replace(/[.!\s]+$/u, ''))}.{' '}
-              <em>{revealed.has(it.id) ? `Рассказал${g(sc, '', 'а')} вам.` : `Рассказал${g(sc, '', 'а')} бы при доверии от ${it.trustToReveal}.`}</em>
+              <em>{revealed.has(it.id) ? `Рассказал${g(sc, '', 'а')} вам.` : `Рассказал${g(sc, '', 'а')} бы при доверии от ${revealAt(sc, it)}.`}</em>
             </span>
           </li>
         ))}

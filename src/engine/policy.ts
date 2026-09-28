@@ -1,7 +1,7 @@
 // Политика оппонента: сколько он хочет получить сейчас и какое встречное предложение сделать.
 // Всё детерминировано: никаких случайных чисел, только время, доверие и напряжение.
 
-import type { Difficulty, Offer, OpponentState, Scenario } from './types'
+import type { Interest, Offer, OpponentState, Scenario } from './types'
 import { allDeals, maxScore, score, type FullOffer } from './utility'
 
 /**
@@ -9,16 +9,32 @@ import { allDeals, maxScore, score, type FullOffer } from './utility'
  *   цель(t) = max − (max − пол) · t^(1/e)
  * e < 1 — Boulware: почти не двигается до самого конца; e > 1 — Conceder: быстро идёт навстречу.
  */
-export const CURVE: Record<Difficulty, { e: number; reserve: number }> = {
+export type Tier = 1 | 2 | 3 | 4
+
+export const CURVE: Record<Tier, { e: number; reserve: number }> = {
   1: { e: 2.2, reserve: 0.0 },   // уступчивый, готов опуститься до своей альтернативы
   2: { e: 1.0, reserve: 0.12 },  // линейно
   3: { e: 0.35, reserve: 0.25 }, // Boulware, держит четверть «запаса» до конца
+  4: { e: 0.25, reserve: 0.32 }, // только в режиме «жёстче» для дела сложности 3: ещё упрямее
+}
+
+/** Ступень упрямства: сложность дела плюс надбавка режима «жёстче». Сценарий при этом не меняется. */
+export function tierOf(sc: Scenario): Tier {
+  return Math.min(4, Math.max(1, sc.difficulty + (sc.harder ?? 0))) as Tier
+}
+
+/** На сколько в режиме «жёстче» выше порог доверия, после которого собеседник рассказывает о себе. */
+export const HARDER_REVEAL = 10
+
+/** Сколько доверия нужно, чтобы собеседник рассказал об этом интересе. */
+export function revealAt(sc: Scenario, it: Interest): number {
+  return Math.min(100, it.trustToReveal + HARDER_REVEAL * (sc.harder ?? 0))
 }
 
 export function floorUtility(sc: Scenario, state: OpponentState): number {
   const opp = sc.opponent.profile
   const max = maxScore(opp, sc.issues)
-  const { reserve } = CURVE[sc.difficulty]
+  const { reserve } = CURVE[tierOf(sc)]
   // Доверие немного опускает пол, напряжение поднимает. Но ниже BATNA — никогда.
   const mood = 1 - (state.trust - 50) / 100 + Math.max(0, state.tension - 50) / 100
   const floor = opp.batna + reserve * mood * (max - opp.batna)
@@ -31,7 +47,7 @@ export function targetUtility(sc: Scenario, state: OpponentState, turn: number):
   const max = maxScore(opp, sc.issues)
   const floor = floorUtility(sc, state)
   const t = Math.min(1, Math.max(0, turn / sc.turnLimit))
-  const { e } = CURVE[sc.difficulty]
+  const { e } = CURVE[tierOf(sc)]
   // Доверие ускоряет уступки, напряжение тормозит.
   const mood = 1 + (state.trust - 50) / 100 - Math.max(0, state.tension - 40) / 100
   const f = Math.min(1, Math.max(0, Math.pow(t, 1 / e) * mood))

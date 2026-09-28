@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Case } from '../../App'
 import type { Health } from '../api'
-import { DIFFICULTY_RU, TONE_RU, plural, portraitFor } from '../cast'
+import { difficultyRu, TONE_RU, plural, portraitFor } from '../cast'
 import type { Progress } from '../progress'
 import { boardLink, createRoom, myRooms, rememberRoom, teamLink, type MyRoom } from '../rooms'
 import { saveCase } from '../share'
@@ -119,7 +119,7 @@ function OpenRoom({ game, onBack }: { game: Case; onBack: () => void }) {
             <div>
               <h2 className="g-sheet-title">{sc.title}</h2>
               <p className="g-muted">
-                {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {DIFFICULTY_RU[sc.difficulty]}. Встреча на {sc.turnLimit}{' '}
+                {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}. Встреча на {sc.turnLimit}{' '}
                 {plural(sc.turnLimit, 'реплику', 'реплики', 'реплик')}.
               </p>
             </div>

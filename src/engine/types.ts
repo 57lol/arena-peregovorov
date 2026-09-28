@@ -51,6 +51,8 @@ export interface Scenario {
   title: string
   sphere: string           // закупки, найм, аренда, подряд...
   difficulty: Difficulty
+  /** «Сыграть жёстче»: та же история, но собеседник на ступень упрямее (см. tierOf в policy.ts). */
+  harder?: 0 | 1
   turnLimit: number
   issues: Issue[]
   player: { role: string; brief: string; profile: SideProfile }

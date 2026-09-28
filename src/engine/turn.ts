@@ -2,7 +2,7 @@
 // История ходов — источник истины: состояние всегда можно пересчитать с нуля (replay).
 
 import type { BehaviorDict } from './dictionary'
-import { makeCounter, openingAnchor, targetUtility, wouldAccept } from './policy'
+import { makeCounter, openingAnchor, revealAt, targetUtility, tierOf, wouldAccept } from './policy'
 import type { Decision, Delta, MoveAnalysis, Offer, OpponentState, Scenario, Tone, TurnRecord } from './types'
 import { bestOption, isComplete, sameOffer, score, type FullOffer } from './utility'
 
@@ -133,7 +133,7 @@ export function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveA
   const onTopic = pool.filter((i) => i.issue && asked.has(i.issue))
   const about = onTopic.length ? onTopic : pool
   const ordered = [...about].sort((a, b) => a.trustToReveal - b.trustToReveal)
-  return { ready: ordered.find((i) => i.trustToReveal <= state.trust), queue: ordered }
+  return { ready: ordered.find((i) => revealAt(sc, i) <= state.trust), queue: ordered }
 }
 
 export interface StepResult {
@@ -237,11 +237,11 @@ export function step(
 }
 
 /**
- * Сложность 3: совместимый пункт, который оппонент впервые кладёт на стол в выгодном обоим варианте,
+ * Сложность 3 и выше: совместимый пункт, который оппонент впервые кладёт на стол в выгодном обоим варианте,
  * он выдаёт за свою уступку — хотя сам этого хотел (Lewis et al., 2017, «Deal or no deal?»).
  */
 function feignedConcessions(sc: Scenario, offer: FullOffer, prev: FullOffer | undefined): string[] {
-  if (sc.difficulty < 3) return []
+  if (tierOf(sc) < 3) return []
   return sc.issues
     .filter((i) => i.kind === 'compatible')
     .filter((i) => offer[i.id] === bestOption(sc.opponent.profile, i.id) && prev?.[i.id] !== offer[i.id])

@@ -5,6 +5,7 @@ import { ENDING_IDS, endingFacts, pickEnding, type EndingId } from '../engine/en
 import type { Report } from '../engine/report'
 import type { OpponentState, Scenario } from '../engine/types'
 import { bestOption, issueWeight } from '../engine/utility'
+import { baseCaseId } from './scenarios/harder'
 
 export type EndingTone = 'good' | 'mixed' | 'bad'
 
@@ -293,7 +294,7 @@ function fill(text: string, sc: Scenario, report?: Report): string {
 }
 
 function textsFor(sc: Scenario, female: boolean) {
-  return LIBRARY[sc.id] ?? generic(female)
+  return LIBRARY[baseCaseId(sc.id)] ?? generic(female)
 }
 
 /** Все финалы дела — для карты. */

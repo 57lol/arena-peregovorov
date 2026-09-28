@@ -1,6 +1,8 @@
 // Кто сидит напротив и где: портрет и сцена для любого сценария, в том числе сгенерированного.
 
 import { looksFemale, pickFace } from '../content/faces'
+import { baseCaseId } from '../content/scenarios/harder'
+import { tierOf } from '../engine/policy'
 import type { Scenario } from '../engine/types'
 import { PORTRAITS, type PortraitId, type SceneId } from './ui'
 
@@ -14,8 +16,9 @@ export function portraitFor(sc: Scenario): PortraitId {
 }
 
 export function sceneFor(sc: Scenario): SceneId {
-  if (sc.id === 'tara') return 'factory'
-  if (sc.id === 'offer') return 'office'
+  const id = baseCaseId(sc.id)
+  if (id === 'tara') return 'factory'
+  if (id === 'offer') return 'office'
   return /закуп|постав|производ|завод|цех|подряд|логист|склад|стро/i.test(`${sc.sphere} ${sc.title}`) ? 'factory' : 'office'
 }
 
@@ -28,6 +31,12 @@ export const TONE_RU: Record<Scenario['opponent']['character']['tone'], string> 
 }
 
 export const DIFFICULTY_RU = { 1: 'идёт навстречу', 2: 'торгуется', 3: 'стоит до последнего' } as const
+
+/** Характер с учётом режима «жёстче»: у дела сложности 3 — ступень, которой нет в конструкторе. */
+export function difficultyRu(sc: Scenario): string {
+  const t = tierOf(sc)
+  return t === 4 ? 'стоит насмерть' : DIFFICULTY_RU[t]
+}
 
 /** «Марат» из «Марат Гимадиев» — для коротких подписей. */
 export const firstName = (sc: Scenario) => sc.opponent.character.name.split(/\s+/)[0]

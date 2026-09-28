@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import type { Case } from '../../App'
 import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { initialState, pickInterest } from '../../engine/turn'
+import { revealAt } from '../../engine/policy'
 import type { Decision, Offer, OpponentState, Scenario, TurnRecord } from '../../engine/types'
 import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer } from '../../engine/utility'
 import { ApiError, playTurn } from '../api'
@@ -594,7 +595,7 @@ function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: Opponen
   if (d?.kind === 'hold' && d.reason === 'not_ready_to_reveal' && last) {
     const about = pickInterest(sc, state, last.analysis).queue[0]
     closed = about
-      ? `Об этом ${g(sc, 'он', 'она')} расскажет при доверии от ${about.trustToReveal}, сейчас ${state.trust}.`
+      ? `Об этом ${g(sc, 'он', 'она')} расскажет при доверии от ${revealAt(sc, about)}, сейчас ${state.trust}.`
       : `Об этом ${g(sc, 'он', 'она')} уже всё ${g(sc, 'сказал', 'сказала')} — спросите о другом.`
   }
   const bad = last?.analysis.behaviors.filter((b) => BEHAVIOR_DICT[b.id]?.kind === 'bad') ?? []
@@ -640,7 +641,7 @@ function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: Opponen
       <p className="g-xray-note">
         {g(sc, 'Рассказал', 'Рассказала')} о себе {state.revealed.length} из {sc.opponent.profile.interests.length}.
         {/* если только что отказал, порог уже назван выше — второй, про другое, только путает */}
-        {next && !closed ? ` Следующее расскажет при доверии от ${next.trustToReveal}, если спросить.` : ''} Уйдёт, если напряжение дойдёт до
+        {next && !closed ? ` Следующее расскажет при доверии от ${revealAt(sc, next)}, если спросить.` : ''} Уйдёт, если напряжение дойдёт до
         90.
       </p>
     </section>

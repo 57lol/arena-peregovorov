@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { SCENARIOS } from '../../content/scenarios'
+import { getScenario } from '../../content/scenarios'
 import { endingCatalog, type EndingCard } from '../../content/endings'
 import { AXES, BEHAVIORS, behaviorById, type Axis, type ProfileRow } from '../../engine/behaviors'
 import type { EndingId } from '../../engine/endings'
@@ -46,8 +46,8 @@ export function Board({ server, id, secret, onExit }: Props) {
       setData(b)
       setUpdated(new Date())
       setError(null)
-      setSc((prev) => prev ?? SCENARIOS.find((s) => s.id === b.caseId) ?? null)
-      if (!SCENARIOS.some((s) => s.id === b.caseId)) {
+      setSc((prev) => prev ?? getScenario(b.caseId) ?? null)
+      if (!getScenario(b.caseId)) {
         const r = await fetch(`/api/scenarios/${encodeURIComponent(b.caseId)}`)
         if (r.ok) setSc((await r.json()) as Scenario)
       }

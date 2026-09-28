@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SCENARIOS } from './content/scenarios'
+import { getScenario } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { loadProgress, type Progress } from './game/progress'
@@ -91,7 +91,7 @@ export default function App() {
       readLink().then((l) => {
         if (!l) return
         if ('error' in l) return setNotice(l.error)
-        const lib = 'id' in l ? SCENARIOS.find((s) => s.id === l.id) : undefined
+        const lib = 'id' in l ? getScenario(l.id) : undefined
         const sc = lib ?? l.scenario
         if (!sc)
           return setNotice(
