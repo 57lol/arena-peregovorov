@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GenerateRequest, scenarioProblems, storyProblems, toScenario } from './generate'
+import { GenerateRequest, orderProblems, scenarioProblems, storyProblems, toScenario } from './generate'
 
 const raw = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -35,5 +35,13 @@ describe('генерация сценария', () => {
     expect(storyProblems(third)).toHaveLength(2)
     const first = { ...raw, opponentName: 'Игорь Петров', interests: [{ issue: 'deposit', text: 'мне нужен залог: кредит под склад' }, { issue: 'ramp', text: 'пандусы я и сам давно хочу поменять' }] }
     expect(storyProblems(first)).toEqual([])
+  })
+
+  it('варианты выравниваются по «лучше игроку»: последний назван лучшим — переворачиваем, средний — переписать', () => {
+    const flipped = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, options: [...i.options].reverse(), bestForPlayer: '700 ₽/м²' } : i)) }
+    expect(toScenario(flipped, GenerateRequest.parse({})).issues[0].options[0]).toBe('700 ₽/м²')
+    expect(orderProblems(flipped)).toEqual([])
+    const middle = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, bestForPlayer: '800 ₽/м²' } : i)) }
+    expect(orderProblems(middle)).toHaveLength(1)
   })
 })

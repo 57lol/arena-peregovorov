@@ -50,6 +50,8 @@ const Raw = z.object({
     title: z.string(),
     role: z.enum(['split', 'mine', 'theirs', 'shared']),
     options: z.array(z.string()).min(3).max(5),
+    // модель путает порядок вариантов; прямой вопрос «что лучше игроку» она путает реже — по нему и выравниваем
+    bestForPlayer: z.string().optional(),
   })).min(4).max(5),
   interests: z.array(z.object({ issue: z.string(), text: z.string() })).min(2).max(5),
 })
@@ -71,8 +73,12 @@ const SCHEMA = {
         minItems: 4,
         maxItems: 5,
         items: {
-          type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options'],
-          properties: { id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) }, options: { type: 'array', minItems: 3, maxItems: 5, items: str } },
+          type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options', 'bestForPlayer'],
+          properties: {
+            id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) },
+            options: { type: 'array', minItems: 3, maxItems: 5, items: str },
+            bestForPlayer: str,
+          },
         },
       },
       interests: {
@@ -97,6 +103,7 @@ const SYSTEM = `Ты — методист, который придумывает
     Пример: поставщику длинная гарантия выгодна (он продаёт сервисный контракт), а закупщик уверен, что тот будет её урезать.
     Интерес оппонента по shared должен объяснять, почему ему выгоден тот же вариант, что и игроку.
 - options — 3–5 конкретных вариантов («30 дней», «1,2 млн ₽», «раз в неделю»), СТРОГО по порядку: первый — лучший для игрока, последний — худший для игрока. Для shared первый — тот, который на самом деле нужен обоим.
+- bestForPlayer — дословно тот вариант из options, который выгоднее всего игроку (для shared — нужный обоим). Подумай отдельно: например, заказчику выгоднее меньшая цена и оплата после работ, исполнителю — наоборот.
 - id пунктов — латиницей, коротко (price, payment, term...).
 - opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
 - opponentGender — m или f, по имени.
@@ -106,8 +113,13 @@ const SYSTEM = `Ты — методист, который придумывает
 - interests — 2–4 скрытых интереса оппонента: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs и про shared).
   text — от первого лица, так, как он сам признался бы собеседнику: «склад у меня старый, каждый ремонт съедает прибыль», «мне важнее деньги сразу — плачу за кредит».
   Без его имени, без «он/она/ему», без канцелярита («минимизировать риски», «обеспечить стабильный доход»).
-- opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по split и theirs (максимум в свою пользу).
+- opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по split и theirs (максимум в свою пользу). У игрока нет имени — не называй его по имени.
 - opponentSpeech — манера речи в двух-трёх фразах; opponentBio — пара живых деталей о человеке.`
+
+// Модель раз за разом зовёт всех «Игорь Петров» / «Сергей Кузнецов». Подсказываем первую букву имени —
+// выбор по хэшу запроса: одинаковый запрос даёт ту же подсказку, разные — разные.
+const LETTERS = 'АБВГДЕЗИКЛМНОРСТЭЮЯ'
+const nameHint = (req: GenerateRequest) => LETTERS[parseInt(hashOf(req).slice(0, 8), 16) % LETTERS.length]
 
 function userPrompt(req: GenerateRequest, problems: string[]): string {
   const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'напористый', evasive: 'уклончивый' }[req.opponentTone]
@@ -116,8 +128,23 @@ function userPrompt(req: GenerateRequest, problems: string[]): string {
 Роль игрока: ${req.playerRole || 'на твой выбор'}
 Характер оппонента: ${tone}
 Цели игрока: ${req.goals || 'не указаны'}
+Имя оппонента начинается на «${nameHint(req)}».
 ${problems.length ? `\nПрошлый вариант не прошёл проверку:\n- ${problems.join('\n- ')}\nИсправь это.` : ''}
 Верни кейс JSON-объектом.`
+}
+
+const same = (a: string, b: string) => a.trim().toLowerCase().replace(/ё/g, 'е') === b.trim().toLowerCase().replace(/ё/g, 'е')
+/** Варианты от лучшего для игрока к худшему: если модель назвала лучшим последний — переворачиваем. */
+function orient(i: { options: string[]; bestForPlayer?: string }): string[] {
+  const best = i.bestForPlayer ?? ''
+  return best && same(best, i.options[i.options.length - 1]) && !same(best, i.options[0]) ? [...i.options].reverse() : i.options
+}
+
+/** Ответ модели, где «лучший для игрока» вариант ни первый, ни последний, — повод переписать. */
+export function orderProblems(raw: z.infer<typeof Raw>): string[] {
+  return raw.issues
+    .filter((i) => i.bestForPlayer && !i.options.some((o, n) => (n === 0 || n === i.options.length - 1) && same(o, i.bestForPlayer!)))
+    .map((i) => `«${i.title}»: bestForPlayer должен дословно совпадать с первым вариантом, а варианты идти от лучшего для игрока к худшему`)
 }
 
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
@@ -144,7 +171,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     seen.set(i.role, k + 1)
     return pointsFor(i.role, i.options.length, k)
   })
-  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: i.options, kind: ROLES[i.role].kind }))
+  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: orient(i), kind: ROLES[i.role].kind }))
   const pp = Object.fromEntries(ids.map((id, n) => [id, tables[n].player]))
   const op = Object.fromEntries(ids.map((id, n) => [id, tables[n].opponent]))
   const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
@@ -182,7 +209,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
         }),
       },
     },
-    opening: raw.opening,
+    opening: raw.opening.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase()),
   }
   return sc
 }
@@ -222,11 +249,12 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
     attempts++
     try {
       const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
-      const r = scenarioProblems(toScenario(raw, req))
+      const order = orderProblems(raw)
+      const r = order.length ? { problems: order, scenario: undefined } : scenarioProblems(toScenario(raw, req))
       const soft = r.problems.length ? [] : storyProblems(raw)
       if (!r.problems.length) passable = r.scenario
       problems = [...r.problems, ...soft]
-      if (!problems.length) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
+      if (!problems.length && r.scenario) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
     } catch (e) {
       problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
     }
