@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const DIR = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
+export const CACHE_DIR = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
+const DIR = CACHE_DIR
 
 export const hashOf = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex')
 

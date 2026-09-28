@@ -13,6 +13,7 @@ import { GenerateRequest, generateScenario } from './generate'
 import { dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
 import { makeLLM, type LLM } from './llm'
+import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
 
 const SAVED = join(process.env.CACHE_DIR ?? join(process.cwd(), '.cache'), 'scenarios')
@@ -71,14 +72,14 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
   return out
 }
 
-export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
+export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech()) {
   const app = new Hono()
 
   app.onError((e, c) => c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500))
 
   // только имя модели: у Яндекса в полном id зашит folder id облака
   app.get('/api/health', (c) =>
-    c.json({ ok: true, provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length }),
+    c.json({ ok: true, provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length, speech: speech.status() }),
   )
 
   app.get('/api/scenarios', (c) =>
@@ -166,6 +167,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
     }
     return c.json(r)
   })
+
+  app.route('/', speech.app)
 
   return app
 }
