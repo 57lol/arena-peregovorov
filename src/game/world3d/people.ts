@@ -1,6 +1,6 @@
 // Люди за столом: плоские спрайты бюстов из тех же листов, что в 2D (96×96, 6 эмоций × 3 кадра).
 // Лист при загрузке «достраивается» вниз — пиджак продолжается под край стола, чтобы тело не обрывалось в воздухе.
-// Руки лежат на столе отдельной плоскостью, цвет рукавов и кожи берём с самого портрета.
+// Руки нарисованы слоем поверх спрайта (плечо → предплечье → сложенные кисти), цвета рукавов и кожи — с самого портрета.
 // Собеседник всегда смотрит на нас. Массовка молчит: моргает, смотрит в бумаги, поворачивается к говорящему
 // и иногда поглядывает на нас. Плоский спрайт при повороте сужается — это и читается как поворот головы.
 
@@ -62,6 +62,10 @@ interface Sheet {
   skin: string
   skinDark: string
   cuff: string
+  /** силуэт туловища по строкам портрета: крайняя левая и правая непрозрачная точка */
+  left: number[]
+  right: number[]
+  torso: { l: number; r: number }
 }
 
 const sheets = new Map<PortraitId, Promise<Sheet>>()
@@ -141,50 +145,109 @@ function loadSheet(id: PortraitId): Promise<Sheet> {
     const skin = skins[0] ?? '#d7b594'
     const skinDark = skins.find((h) => lum(h) < lum(skin) - 10) ?? '#ad7757'
 
+    // силуэт по первому кадру: откуда у этого человека растут плечи
+    const left: number[] = []
+    const right: number[] = []
+    for (let y = 0; y < S; y++) {
+      let a = S
+      let b = -1
+      for (let x = 0; x < S; x++)
+        if (sd[(y * im.width + x) * 4 + 3] >= 128) {
+          a = Math.min(a, x)
+          b = x
+        }
+      left.push(a)
+      right.push(b < 0 ? S - 1 - a : b)
+    }
+    const torso = { l: left[S - 1] < S ? left[S - 1] : 4, r: right[S - 1] >= 0 ? right[S - 1] : S - 5 }
+
     const tex = new CanvasTexture(out)
     tex.magFilter = NearestFilter
     tex.minFilter = LinearMipmapLinearFilter
     tex.generateMipmaps = true
-    return { tex, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9' }
+    return { tex, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9', left, right, torso }
   })
   sheets.set(id, p)
   return p
 }
 
-/** Руки на столе: предплечья в рукавах, манжеты, кисти. Два кадра — спокойно и жест. */
-function handsTexture(s: Sheet, gesture: boolean) {
-  const W = 60
-  const H = 22
+/**
+ * Руки рисуем прямо на спрайте, отдельным слоем поверх пиджака: плечо идёт вниз по краю туловища,
+ * у края стола локоть, предплечья сходятся вперёд, кисти сложены перед собой. Слой крутится вместе с телом,
+ * поэтому руки не отрываются от плеч ни при каком повороте головы. Два кадра — спокойно и жест ладонью.
+ * Строки считаем в точках спрайта: 0 — верх портрета, S — низ нарисованного бюста, стол — около S + 16.
+ */
+function armsTexture(s: Sheet, gesture: boolean) {
+  const W = S
   const c = document.createElement('canvas')
   c.width = W
-  c.height = H
+  c.height = S + EXT
   const g = c.getContext('2d')!
   const R = (x: number, y: number, w: number, h: number, col: string) => {
+    if (w <= 0 || h <= 0) return
     g.fillStyle = col
     g.fillRect(x, y, w, h)
   }
-  const arm = (x: number, mirror: boolean, lift: number) => {
-    // рукав от локтя (верх текстуры — сторона человека) к кисти
-    R(x, 0, 13, 12 - lift, s.jacket)
-    R(mirror ? x + 12 : x, 0, 1, 12 - lift, s.jacketDark)
-    R(x, 11 - lift, 13, 1, s.jacketDark)
-    R(x + 1, 12 - lift, 11, 2, s.cuff)
-    // кисть: ладонь вниз, пальцы к нам
-    R(x + 1, 14 - lift, 11, 5, s.skin)
-    R(x + 2, 19 - lift, 9, 1, s.skin)
-    R(mirror ? x + 1 : x + 10, 14 - lift, 2, 4, s.skinDark)
-    for (let k = 0; k < 3; k++) R(x + 3 + k * 3, 17 - lift, 1, 3, s.skinDark)
+  const cx = Math.round((s.torso.l + s.torso.r + 1) / 2)
+  const TOP = S - 12 // отсюда плечо видно сбоку от туловища
+  const ELBOW = S + 26 // локоть — уже под краем стола
+  const FORE = S + 12 // верх предплечья
+  const WRIST = S + 23 // низ кисти: из-за дальнего края стола видно примерно до S + 24
+  const HAND = 11 // от середины до манжеты
+
+  // u — расстояние от внешнего края спрайта: правую руку рисуем тем же кодом зеркально
+  const arm = (side: -1 | 1, lift: number) => {
+    const Ru = (u: number, y: number, w: number, h: number, col: string) => R(side < 0 ? u : W - u - w, y, w, h, col)
+    const edge = side < 0 ? s.torso.l : W - 1 - s.torso.r
+    const end = cx - (side < 0 ? 0 : W - 2 * cx) - HAND // u, где рукав кончается
+    // плечо и рукав вниз по краю туловища; кромки темнее — рукав отделяется от пиджака
+    for (let y = TOP; y < ELBOW; y++) {
+      const sil = y < S ? (side < 0 ? s.left[y] : W - 1 - s.right[y]) : edge
+      const u0 = Math.max(edge, sil)
+      const w = 12 - (u0 - edge)
+      if (w < 4) continue
+      Ru(u0, y, w, 1, s.jacket)
+      Ru(u0, y, 1, 1, s.jacketDark)
+      Ru(u0 + w - 1, y, 1, 1, s.jacketDark)
+    }
+    // предплечье: от локтя вперёд и к середине; к нам оно укорочено, поэтому это полоса у края стола
+    const top = FORE - lift
+    const bot = WRIST - lift
+    for (let y = top; y < bot; y++) {
+      const u0 = edge + 3 + Math.round((1 - (y - top) / (bot - top)) * 7)
+      Ru(u0, y, end - u0, 1, s.jacket)
+    }
+    Ru(edge + 10, top, end - edge - 10, 1, s.jacketDark) // складка сверху
+    Ru(edge + 3, bot - 1, end - edge - 3, 1, s.jacketDark) // тень снизу
+    Ru(end - 2, top + 1, 2, bot - top - 2, s.cuff) // манжета
   }
-  arm(10, false, 0)
-  arm(37, true, gesture ? 3 : 0)
+  arm(-1, 0)
+  arm(1, gesture ? 4 : 0)
+
+  // кисти: левая лежит, правая накрывает её сверху; в жесте правая приподнимается — человек объясняет
+  const hand = (x: number, y: number, w: number, h: number) => {
+    R(x, y, w, h, s.skin)
+    R(x, y + h - 1, w, 1, s.skinDark)
+  }
+  const L = cx - HAND
+  hand(L, FORE + 2, 10, WRIST - FORE - 3)
+  for (let k = 0; k < 3; k++) R(L + 3 + k * 2, WRIST - 4, 1, 2, s.skinDark)
   if (gesture) {
-    // ладонь приподнята и развёрнута — «смотрите»
-    R(38, 12, 11, 1, s.skinDark)
+    // правая чуть приподнята и отошла от левой — ладонь раскрыта
+    const x = cx + 1
+    hand(x, FORE - 3, HAND - 1, WRIST - FORE - 3)
+    for (let k = 0; k < 4; k++) R(x + 1 + k * 2, FORE - 5, 1, 2, s.skin)
+    R(x, FORE - 3, 1, WRIST - FORE - 4, s.skinDark)
+  } else {
+    const x = cx - 3
+    hand(x, FORE + 1, HAND + 3, WRIST - FORE - 2)
+    R(x, FORE + 1, 1, WRIST - FORE - 3, s.skinDark)
+    for (let k = 0; k < 3; k++) R(x + 4 + k * 2, FORE + 4, 1, 3, s.skinDark)
   }
   const t = new CanvasTexture(c)
   t.magFilter = NearestFilter
   t.minFilter = LinearMipmapLinearFilter
-  return { tex: t, w: W, h: H }
+  return t
 }
 
 function spriteMaterial(tex: Texture) {
@@ -258,39 +321,11 @@ export class Person {
     this.body.position.y = BUST_BOTTOM - EXT * M
     this.group.add(this.body)
 
-    const a = handsTexture(s, false)
-    const b = handsTexture(s, true)
-    this.handFrames = [a.tex, b.tex]
-    const hw = a.w * M
-    const hd = 0.25
-    const hg = new PlaneGeometry(hw, hd)
-    const hm = spriteMaterial(a.tex)
-    hm.polygonOffset = true
-    hm.polygonOffsetFactor = -2
-    this.hands = new Mesh(hg, hm)
-    this.hands.rotation.x = -Math.PI / 2
-    this.group.add(this.hands)
-    this.placeHands()
-  }
-
-  /** Руки — на столе перед человеком: у длинных сторон к нам, в торцах — к середине стола.
-   * Кисти лежат на столешнице, предплечья поднимаются к локтям: плашмя лист виден слишком косо и читается как брусок. */
-  private placeHands() {
-    if (!this.hands) return
-    const p = this.group.position
-    const end = Math.abs(p.x) > TABLE.halfLen
-    const yaw = end ? (p.x < 0 ? Math.PI / 2 : -Math.PI / 2) : 0
-    const toEdge = end ? Math.abs(p.x) - TABLE.halfLen + 0.13 : Math.abs(TABLE.far - p.z) + 0.13
-    const hd = this.hands.geometry.parameters.height
-    const tilt = 38 * MathUtils.DEG2RAD
-    // ближний край (кисти) остаётся на столе, дальний (локти) поднимается к человеку
-    const up = (hd / 2) * Math.sin(tilt)
-    const back = (hd / 2) * (1 - Math.cos(tilt))
-    const dx = Math.sin(yaw)
-    const dz = Math.cos(yaw)
-    this.hands.position.set(dx * (toEdge + back), TABLE.y + 0.003 + up, dz * (toEdge + back))
-    this.hands.rotation.set(0, yaw, 0, 'YXZ')
-    this.hands.rotateX(-Math.PI / 2 + tilt)
+    // руки — слой на том же спрайте чуть ближе к нам: крутится и встаёт вместе с телом
+    this.handFrames = [armsTexture(s, false), armsTexture(s, true)]
+    this.hands = new Mesh(geo, spriteMaterial(this.handFrames[0]))
+    this.hands.position.z = 0.004
+    this.body.add(this.hands)
   }
 
   setFrameUV() {
@@ -362,7 +397,6 @@ export class Person {
       this.body.position.y = BUST_BOTTOM - EXT * M + up * 0.3
       this.body.position.z = -back * 0.45
       this.body.position.x = -away * away * 1.6
-      if (this.hands) this.hands.visible = false
       this.body.visible = this.gone < 2.8
     } else {
       this.body.position.y = BUST_BOTTOM - EXT * M + (this.jolt > 0 ? M : 0)
@@ -370,13 +404,14 @@ export class Person {
       this.body.position.z = 0
       this.gone = 0
       this.body.visible = true
-      if (this.hands) this.hands.visible = true
     }
 
     // руки: во время речи иногда жест
     if (this.hands && this.handFrames.length) {
       const gesture = this.talking && Math.sin(t * 2.3) > 0.35
-      this.hands.material.uniforms.map.value = this.handFrames[gesture ? 1 : 0]
+      const u = this.hands.material.uniforms
+      u.map.value = this.handFrames[gesture ? 1 : 0]
+      u.flip.value = this.flip ? 1 : 0
     }
   }
 
@@ -389,7 +424,6 @@ export class Person {
   dispose() {
     this.body?.geometry.dispose()
     this.body?.material.dispose()
-    this.hands?.geometry.dispose()
     this.hands?.material.dispose()
     for (const t of this.handFrames) t.dispose()
   }
