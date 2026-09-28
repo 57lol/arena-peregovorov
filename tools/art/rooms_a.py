@@ -156,7 +156,7 @@ S_PLACE = {
     # столб с табличкой остановки
     'stop_pole': [4.55, -5.15],
     'bin': [2.72, -1.55],
-    'dog': [-2.75, -2.75],
+    'dog': [-3.25, -2.2],
     'birches': [[-5.7, -0.9, 0], [-7.0, 1.7, 1], [-4.1, 3.6, 0], [3.3, 3.2, 1]],
     'pigeons': [[2.35, 0.95], [2.62, 1.25], [2.2, 1.45]],
     # дорога вдоль z: x бордюра, x0, x1 проезжей части, полосы для машин
@@ -317,9 +317,10 @@ def ground_tex(x0, x1, z0, z1, s, fine=True, fog=True):
     ys, xs_ = np.mgrid[0:h, 0:w]
     for (lx, lz, hx, hy, hz, r) in P['lamps']:
         d = np.hypot(X - hx, Z - hz) / r + 0.12 * (BAYER2[ys % 2, xs_ % 2] - 0.4)
-        m1 = d < 1.0
+        green = np.isin(t.a, [6, 7, 8, 9, 10, 11])  # трава под фонарём почти не светлеет
+        m1 = (d < 1.0) & ~green
         t.a[m1] = lighter(t.a[m1])
-        warm(t.a, (d < 0.45) & ((ys + xs_) % 2 == 0), 1)
+        warm(t.a, (d < 0.45) & ((ys + xs_) % 2 == 0) & ~green, 1)
     wx0, wx1 = P['kwin'][:2]
     spill = (Z > kz) & (Z < kz + 1.5) & (X > wx0 - 0.4 * (Z - kz)) & (X < wx1 + 0.4 * (Z - kz))
     spill &= (BAYER2[ys % 2, xs_ % 2] < 0.7 - (Z - kz) * 0.35)
@@ -536,6 +537,8 @@ def far_panorama():
     for a0, a1, hh in sheds:
         t.rect(C(a0), Rw(hh), C(a1), Rw(-0.6), 43)
         t.rect(C(a0), Rw(hh), C(a1), Rw(hh) + 1, 42)
+        for x in range(int(C(a0)) + 3, int(C(a1)) - 2, 7):  # окна-ленты цехов
+            t.rect(x, Rw(hh) + 4, x + 3, Rw(hh) + 5, 42)
     # корпус с пилообразной крышей
     for az in np.arange(-31, -26, 0.8):
         t.poly([(C(az), Rw(1.7)), (C(az + 0.8), Rw(1.7)), (C(az + 0.8), Rw(2.3))], 43)
@@ -544,8 +547,16 @@ def far_panorama():
     for az, hh in stacks:
         x = C(az)
         t.rect(x - 1, Rw(hh), x + 1, Rw(0), 42)
-        for k in (0.9, 0.75):
+        t.rect(x + 1, Rw(hh), x + 1, Rw(0), 41)
+        for k in (0.93, 0.8):
             t.rect(x - 1, Rw(hh * k), x + 1, Rw(hh * k) + 2, 15)
+        # шлейф пара, ветер сносит влево
+        for i in range(24):
+            f = i / 24
+            cx_ = x - 2 - i * 2.2
+            cy_ = Rw(hh) - 3 - i * 0.9 - 3 * np.sin(f * 3)
+            t.ellipse(cx_, cy_, 2.5 + i * 0.35, 1.8 + i * 0.25, 44)
+            t.ellipse(cx_ + 1, cy_ + 1 + i * 0.1, 1.5 + i * 0.25, 1.0 + i * 0.15, 43)
     # краны на стройке нового цеха
     for az, hh in ((-19.5, 4.2), (-10.5, 3.4)):
         x = C(az)
@@ -690,8 +701,6 @@ def make_billboards():
     for lz in (-21.0, -31.4, -41.8, -52.2, -62.6):
         bb.append((5.25 + 0.3, lz, lamp, 0.1))
     trees = []
-    for z in np.arange(-16, -70, -6.5):  # наша сторона дороги
-        trees.append((4.2 + r2.uniform(-0.3, 0.3), z + r2.uniform(-1, 1)))
     for z in np.arange(-15, 14, 5.5):  # тротуар напротив
         trees.append((14.4 + r2.uniform(-0.2, 0.4), z + r2.uniform(-1, 1)))
     for _ in range(8):  # двор слева
@@ -804,10 +813,10 @@ def street_table():
             t.mask(m, 42 if r2.random() < 0.7 else 20)
             t.mask(m & (ys > cy), 41)
     # вырезано ножом
-    t.text(X(-1.22), Zt(0.03), 'ДИМА', 6)
-    t.text(X(-1.2), Zt(0.03) + 7, '+ОЛЯ', 6)
-    t.text(X(0.95), Zt(-0.8), '2019', 6)
-    t.text(X(-0.32), Zt(-0.86), 'Ы', 6)
+    t.text(X(-1.22), Zt(0.03), 'ДИМА', 20)
+    t.text(X(-1.2), Zt(0.03) + 7, '+ОЛЯ', 20)
+    t.text(X(0.95), Zt(-0.8), '2019', 41)
+    t.text(X(-0.32), Zt(-0.86), 'Ы', 41)
     # подпалины от окурков
     for (x, z) in ((-0.8, 0.16), (1.36, -0.62), (-1.38, -0.55), (0.72, 0.2), (-0.58, -0.63)):
         t.ellipse(X(x), Zt(z), 2.2, 1.5, 20)

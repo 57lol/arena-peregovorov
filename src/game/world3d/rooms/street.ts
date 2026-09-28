@@ -182,7 +182,7 @@ function buildStreet(): RoomBuild {
     const col = new Float32Array(pos.count * 4)
     for (let i = 0; i < pos.count; i++) {
       const k = pos.getY(i) / hy // 0 у земли, 1 у лампы
-      col.set([1, 1, 1, 0.1 + 0.16 * k * k], i * 4)
+      col.set([1, 1, 1, 0.14 + 0.14 * k], i * 4)
     }
     geo.setAttribute('color', new BufferAttribute(col, 4))
     const m = kit.mesh(geo, coneMat)
@@ -203,7 +203,13 @@ function buildStreet(): RoomBuild {
   steam(0.06, 0.14, shx - 0.1, Y + 0.06, shz)
   steam(0.05, 0.12, cux, Y + 0.1, cuz)
   steam(0.34, 0.9, kx0 + 0.6, kh + 0.5, kz - kd + 0.45)
-  for (const [x, y, z, k] of P.chimneys) steam(k * 1.4, k * 5, x, y, z)
+  // пар из труб ОЭЗ — серее, иначе на бледном небе его не видно
+  const farSteam = kit.mat(steamTex, true, 0xa8b5b2)
+  for (const [x, y, z, k] of P.chimneys) {
+    const s = kit.mesh(new PlaneGeometry(k * 1.6, k * 6).translate(0, k * 3, 0), farSteam)
+    s.position.set(x, y, z)
+    g.add(s)
+  }
 
   // ------------------------------------------------------------------ туман кольцом, медленно ползёт
   const [fx, fzb, fzf, fh] = P.fogring
