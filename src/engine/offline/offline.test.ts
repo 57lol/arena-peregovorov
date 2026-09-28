@@ -88,3 +88,14 @@ describe('частота с прилагательным', () => {
     expect(parseOffer(offer, 'Один учебный день в неделю.').study).toBe(2)
   })
 })
+
+describe('числа словами в вариантах', () => {
+  it('«три года» — срок договора, хотя в запасе есть вариант «на три дня»; «прошлый год» — не срок', async () => {
+    const { client } = await import('../../content/scenarios/client')
+    const { parseOffer, mentionedIssues } = await import('./parseOffer')
+    expect(parseOffer(client, 'Предлагаю договор на три года.')).toEqual({ term: 2 })
+    expect(mentionedIssues(client, 'Предлагаю договор на три года.')).toEqual(['term'])
+    expect(parseOffer(client, 'Срок — три года, запас на две недели, индексация раз в квартал, скидка 3%.')).toEqual({ term: 2, stock: 3, index: 2, price: 1 })
+    expect(parseOffer(client, 'Прошлый год показал, что формула нужна.')).toEqual({})
+  })
+})

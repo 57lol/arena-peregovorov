@@ -1,7 +1,7 @@
 // Извлечение простых предложений из текста: «60 дней», «1,2 млн», «гарантия 2 года» → индексы вариантов.
 
 import type { Issue, IssueId, Offer, Scenario } from '../types'
-import { optionQuantity, quantities, type Dim } from './numbers'
+import { isNumberWord, optionQuantity, quantities, type Dim } from './numbers'
 
 /** Грубая основа слова: первые 5 букв (для русского хватает, чтобы ловить падежи). */
 export const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
@@ -23,7 +23,8 @@ function issueInfo(sc: Scenario): IssueInfo[] {
   const hit = infoCache.get(sc)
   if (hit) return hit
   // Слова из вариантов, которые встречаются только в этом пункте («квартира», «общежитие», «через»)
-  const optStems = sc.issues.map((i) => new Set(i.options.flatMap((o) => words(o)).map(stem)))
+  // Числа словами («на три дня») в приметы не берём: иначе «три года» уедет в пункт, где есть «три дня».
+  const optStems = sc.issues.map((i) => new Set(i.options.flatMap((o) => words(o)).filter((w) => !isNumberWord(w)).map(stem)))
   const out = sc.issues.map((issue, n) => {
     const values = issue.options.map(optionQuantity)
     const dims = values.filter((v) => v && v.dim !== 'plain').map((v) => v!.dim)
