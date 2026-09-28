@@ -1,0 +1,27 @@
+/* Слои 3D-встречи: холст в низком разрешении, растянутый без сглаживания, и слой DOM-бумаг поверх. */
+
+.w3-root {
+  position: relative;
+  overflow: hidden;
+  background: #10141f;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.w3-root.is-dragging {
+  cursor: grabbing;
+}
+.w3-canvas {
+  position: absolute;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.w3-css {
+  position: absolute !important;
+  pointer-events: none;
+}
+.w3-css * {
+  pointer-events: auto;
+}
