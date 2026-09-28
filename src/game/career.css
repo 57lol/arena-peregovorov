@@ -1,0 +1,275 @@
+/* Личное дело: звание, навыки, дела. Всё на тех же листах и шкалах, что и разбор. */
+
+/* ---------- шкала ---------- */
+
+.g-xp {
+  position: relative;
+  display: block;
+  height: calc(5 * var(--u));
+  background: var(--c-paper-2);
+  box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+}
+.g-xp-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--pen);
+}
+
+/* ---------- карточка на титуле и в папке ---------- */
+
+.g-career-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(4 * var(--u)) calc(8 * var(--u));
+  margin: 0 0 calc(10 * var(--u));
+  padding: calc(5 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  --on-desk: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    0 calc(3 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.g-career-card-text {
+  flex: 1 1 16em;
+  min-width: 0;
+}
+.g-career-kicker {
+  margin: 0;
+  color: var(--c-wood-2);
+}
+.g-career-rank {
+  margin: 0 0 calc(2 * var(--u));
+  font: 700 var(--fs-ui-big) / 1.15 var(--f-ui);
+  text-wrap: balance;
+}
+.g-career-next {
+  margin: calc(2 * var(--u)) 0 0;
+  color: var(--muted-on-light);
+}
+.g-setup-career {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.g-setup-career .g-career-card {
+  max-width: 720px;
+}
+
+/* совет в папке дел: метка рядом с корешком */
+.g-folder-advice {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  margin-left: calc(2 * var(--u));
+  padding: calc(1 * var(--u)) calc(4 * var(--u));
+  background: var(--c-leaf);
+  color: var(--c-paper);
+  box-shadow: 0 0 0 var(--u) var(--c-leaf-2);
+}
+.g-folder-why {
+  margin: 0 0 calc(3 * var(--u));
+  color: var(--c-leaf-2);
+  text-wrap: pretty;
+}
+
+/* ---------- экран «Личное дело» ---------- */
+
+.g-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(4 * var(--u)) calc(8 * var(--u));
+  max-width: 1240px;
+  margin: 0 auto calc(10 * var(--u));
+  box-sizing: border-box;
+  padding: calc(4 * var(--u)) calc(6 * var(--u));
+  background: var(--c-brass-hi);
+  color: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-wood-3),
+    0 calc(3 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.g-next p {
+  flex: 1 1 20em;
+  margin: 0;
+  text-wrap: pretty;
+}
+.g-career-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  gap: calc(10 * var(--u));
+  max-width: 1240px;
+  margin: 0 auto;
+  align-items: start;
+}
+.g-career-score {
+  margin: calc(3 * var(--u)) 0 calc(4 * var(--u));
+}
+.g-career-note {
+  margin: calc(3 * var(--u)) 0 0;
+  padding: calc(2 * var(--u)) calc(4 * var(--u));
+  background: var(--c-paper-2);
+}
+
+.g-ladder {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--u);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-ladder li {
+  display: grid;
+  grid-template-columns: calc(9 * var(--u)) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  padding: calc(1 * var(--u)) calc(3 * var(--u));
+  color: var(--c-steel);
+}
+.g-ladder li.is-done {
+  color: var(--c-steel-2);
+}
+.g-ladder li.is-now {
+  background: var(--c-brass-hi);
+  color: var(--c-ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 var(--u) var(--c-wood-hi);
+}
+.g-ladder-mark {
+  display: flex;
+}
+.g-ladder-at {
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  color: inherit;
+}
+
+.g-skill-list,
+.g-gain-list,
+.g-case-list {
+  margin: calc(4 * var(--u)) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.g-skill + .g-skill {
+  margin-top: calc(6 * var(--u));
+}
+.g-skill-head {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+  margin: 0 0 calc(2 * var(--u));
+}
+.g-skill-lvl {
+  padding: 0 calc(3 * var(--u));
+  background: var(--c-night);
+  color: var(--c-brass-hi);
+  white-space: nowrap;
+}
+.g-skill-hint {
+  margin: calc(2 * var(--u)) 0 0;
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  color: var(--c-steel-2);
+  text-wrap: pretty;
+}
+
+.g-traits-list {
+  display: grid;
+  gap: calc(2 * var(--u));
+  margin: 0;
+}
+.g-traits-list div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 calc(4 * var(--u));
+  padding-bottom: calc(2 * var(--u));
+  border-bottom: var(--u) dotted var(--c-mist);
+}
+.g-traits-list dt {
+  color: var(--c-wood-2);
+}
+.g-traits-list dd {
+  margin: 0;
+  text-align: right;
+}
+.g-traits-list .is-good dd {
+  color: var(--c-leaf-2);
+}
+.g-traits-list .is-bad dd {
+  color: var(--c-stamp);
+}
+
+.g-case {
+  padding: calc(4 * var(--u)) 0;
+  border-top: var(--u) dotted var(--c-mist);
+}
+.g-case:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.g-case-title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 calc(4 * var(--u));
+  margin: 0 0 calc(2 * var(--u));
+}
+.g-case-endings {
+  color: var(--c-wood-2);
+}
+.g-case-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(3 * var(--u));
+  margin: 0 0 calc(1 * var(--u));
+  color: var(--c-steel-2);
+}
+.g-case-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  margin-top: calc(2 * var(--u));
+}
+.g-case-actions .px-btn--ghost {
+  margin-left: calc(-4 * var(--u));
+}
+
+/* ---------- в разборе ---------- */
+
+.g-gain-list li + li {
+  margin-top: calc(2 * var(--u));
+}
+.g-gain-list {
+  margin-top: 0;
+}
+.g-gain-plus {
+  color: var(--c-leaf-2);
+}
+.g-gain-lvl {
+  padding: 0 calc(2 * var(--u));
+  background: var(--c-brass-hi);
+  font-weight: 700;
+}
+.g-gain-harder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(3 * var(--u)) calc(6 * var(--u));
+  margin-top: calc(5 * var(--u));
+  padding-top: calc(4 * var(--u));
+  border-top: var(--u) dotted var(--c-mist);
+}
+.g-gain-harder p {
+  flex: 1 1 16em;
+  margin: 0;
+  text-wrap: pretty;
+}
+@media (max-width: 1099px) {
+  .g-gain {
+    order: 1;
+  }
+}

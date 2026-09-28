@@ -225,16 +225,6 @@ body {
 .g-steps b {
   color: var(--pen);
 }
-.g-rank {
-  margin: 0 0 calc(6 * var(--u));
-  color: var(--on-desk);
-}
-.g-rank b {
-  color: var(--c-brass-hi);
-}
-[data-desk='office'] .g-rank b {
-  color: var(--c-wood-2);
-}
 .g-fineprint {
   margin: calc(6 * var(--u)) 0 0;
   color: var(--on-desk-muted);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Case } from '../../App'
-import { SCENARIOS, pickFromLibrary } from '../../content/scenarios'
+import { SCENARIOS, harder, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
 import { generate, type GenerateRequest, type Health } from '../api'
 import { DIFFICULTY_RU, difficultyRu, TONE_RU, plural, portraitFor } from '../cast'
@@ -10,6 +10,8 @@ import { Button, PixelIcon, Portrait } from '../ui'
 import { CoachEntry } from './CoachEntry'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
+import { CareerCard } from './Career'
+import { nextCase } from '../career'
 
 interface Props {
   progress: Progress
@@ -19,11 +21,15 @@ interface Props {
   /** кабинет руководителя: папка та же, но дело не открываем, а отдаём команде */
   coach?: boolean
   onCoach?: () => void
+  /** «Личное дело»: звание, навыки, что сыграть дальше */
+  onCareer?: () => void
   /** что показать над папкой (в кабинете — открытые тренировки) */
   intro?: React.ReactNode
 }
 
-export function Setup({ progress, server, onOpen, onBack, coach, onCoach, intro }: Props) {
+export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCareer, intro }: Props) {
+  // совет, а не замок: все дела открыты, отмечаем только одно
+  const advice = coach ? null : nextCase(progress)
   return (
     <div className="px-root g-page" data-desk="factory">
       <main className="px-desk g-desk g-setup">
@@ -41,10 +47,22 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, intro 
           </span>
         </p>
         {intro}
+        {!coach && onCareer && (
+          <div className="g-setup-career">
+            <CareerCard progress={progress} onOpen={onCareer} />
+          </div>
+        )}
 
         <div className="g-folders">
           {SCENARIOS.map((sc) => (
-            <Folder key={sc.id} sc={sc} progress={progress} coach={coach} onOpen={() => onOpen({ scenario: sc, fromLibrary: true })} />
+            <Folder
+              key={sc.id}
+              sc={sc}
+              progress={progress}
+              coach={coach}
+              advice={advice && (advice.scenario.id === sc.id || advice.scenario.id === harder(sc).id) ? advice : null}
+              onOpen={(s) => onOpen({ scenario: s, fromLibrary: true })}
+            />
           ))}
           <CustomCase server={server} onOpen={onOpen} coach={coach} />
         </div>
@@ -58,13 +76,27 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, intro 
   )
 }
 
-function Folder({ sc, progress, coach, onOpen }: { sc: Scenario; progress: Progress; coach?: boolean; onOpen: () => void }) {
+interface FolderProps {
+  sc: Scenario
+  progress: Progress
+  coach?: boolean
+  /** совет «сыграть следующим» — это дело или его жёсткая версия */
+  advice: ReturnType<typeof nextCase>
+  onOpen: (sc: Scenario) => void
+}
+
+function Folder({ sc, progress, coach, advice, onOpen }: FolderProps) {
   const rec = progress.cases[sc.id]
+  const hard = harder(sc)
+  const hrec = progress.cases[hard.id]
   const endings = progress.endings[sc.id]?.length ?? 0
+  // «Сыграть жёстче» — после первой сделки; ссылкой жёсткую версию можно открыть и раньше
+  const canHarder = !coach && (rec?.bestPoints != null || !!hrec)
   const c = sc.opponent.character
   return (
-    <article className="g-folder">
+    <article className={`g-folder${advice ? ' is-advised' : ''}`}>
       <span className="g-folder-tab">{sc.sphere}</span>
+      {advice && <span className="g-folder-advice">Советуем {advice.scenario.harder ? 'жёстче' : 'следующим'}</span>}
       <div className="g-folder-body">
         <div className="g-folder-photo" aria-hidden="true">
           <Portrait id={portraitFor(sc)} emotion="neutral" scale={1} />
@@ -99,12 +131,24 @@ function Folder({ sc, progress, coach, onOpen }: { sc: Scenario; progress: Progr
               {endings ? `, финалов ${endings} из ${ENDING_IDS.length}` : ''}
             </p>
           )}
+          {hrec && (
+            <p className="g-folder-record">
+              <span className="g-tag">жёстче</span> <Stars stars={hrec.stars} />
+              {hrec.bestPoints !== null ? `лучший итог ${hrec.bestPoints}` : 'сделки пока нет'}
+            </p>
+          )}
+          {advice && <p className="g-folder-why">{advice.why}</p>}
         </div>
       </div>
       <div className="g-folder-actions">
-        <Button variant="brass" icon={coach ? 'send' : 'notebook'} onClick={onOpen}>
+        <Button variant="brass" icon={coach ? 'send' : 'notebook'} onClick={() => onOpen(sc)}>
           {coach ? 'Дать команде' : 'Открыть дело'}
         </Button>
+        {canHarder && (
+          <Button variant="stamp" onClick={() => onOpen(hard)}>
+            Сыграть жёстче
+          </Button>
+        )}
         {!coach && <ShareButton scenario={sc} fromLibrary />}
       </div>
     </article>

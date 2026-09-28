@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getScenario } from './content/scenarios'
+import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { loadProgress, type Progress } from './game/progress'
@@ -14,12 +14,14 @@ import { Debrief } from './game/screens/Debrief'
 import { Coach } from './game/screens/Coach'
 import { Board } from './game/screens/Board'
 import { RoomReceipt } from './game/screens/RoomReceipt'
+import { Career } from './game/screens/Career'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
 import './game/coach.css'
+import './game/career.css'
 
-export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board'
+export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
 
 export interface Case {
   scenario: Scenario
@@ -74,6 +76,8 @@ export default function App() {
   // ход, с которого переигрываем: в поле ввода подставится прошлая реплика
   const [redo, setRedo] = useState<string>('')
   const [playKey, setPlayKey] = useState(0)
+  // «Личное дело» открывают с титула и из папки — туда же и возвращаемся
+  const [careerFrom, setCareerFrom] = useState<Screen>('title')
   const currentRef = useRef<Case | null>(null)
   currentRef.current = current
 
@@ -180,6 +184,12 @@ export default function App() {
       />
     )
 
+  const toCareer = (from: Screen) => {
+    setCareerFrom(from)
+    go('career')
+  }
+  if (screen === 'career') return <Career progress={progress} onOpen={open} onBack={() => go(careerFrom)} />
+
   if (screen === 'coach') return <Coach progress={progress} server={server} onBack={() => go('title')} />
 
   if (screen === 'title')
@@ -197,6 +207,7 @@ export default function App() {
           savePlayerName(name.trim())
         }}
         onCoach={() => go('coach')}
+        onCareer={() => toCareer('title')}
         onStart={() => {
           setNotice(null)
           if (invited && current) {
@@ -215,7 +226,16 @@ export default function App() {
     )
 
   if (screen === 'setup' || !current)
-    return <Setup progress={progress} server={server} onOpen={open} onBack={() => go('title')} onCoach={() => go('coach')} />
+    return (
+      <Setup
+        progress={progress}
+        server={server}
+        onOpen={open}
+        onBack={() => go('title')}
+        onCoach={() => go('coach')}
+        onCareer={() => toCareer('setup')}
+      />
+    )
 
   if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go('setup')} />
 
@@ -246,6 +266,7 @@ export default function App() {
       }}
       onReplayFrom={rewindTo}
       onAgain={start}
+      onHarder={current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id) ? () => open({ scenario: harder(current.scenario), fromLibrary: true }) : undefined}
       onOther={() => go('setup')}
       receipt={
         room && room.caseId === current.scenario.id && history.length ? (

@@ -9,7 +9,9 @@ import type { Scenario, TurnRecord } from '../../engine/types'
 import { endingOf } from '../../content/endings'
 import type { EndingId } from '../../engine/endings'
 import { firstName, g, isFemale, plural, portraitFor, pts, sceneFor } from '../cast'
-import { countStars, loadProgress, recordRun, starsOf, type Progress } from '../progress'
+import { countStars, loadProgress, recordRun, runLogOf, starsOf, storageOk, type Progress } from '../progress'
+import { baseCaseId } from '../../content/scenarios'
+import { SkillGain } from './Career'
 import { Button, PixelIcon, Portrait, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
 import { Finale } from './Finale'
@@ -25,13 +27,15 @@ interface Props {
   onRecorded: (p: Progress) => void
   onReplayFrom: (turn: number) => void
   onAgain: () => void
+  /** «Сыграть жёстче»: только у дел из папки, которые ещё не жёсткие */
+  onHarder?: () => void
   onOther: () => void
   /** корешок тренировки команды: результат ушёл руководителю */
   receipt?: React.ReactNode
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onOther, receipt }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, receipt }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
@@ -39,20 +43,27 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
   const [improved, setImproved] = useState<number | null>(null)
   const last = history[history.length - 1]
   const ending = useMemo(() => endingOf(sc, report, last?.stateAfter, isFemale(sc)), [sc, report, last])
-  const [opened, setOpened] = useState<EndingId[]>(() => loadProgress().endings[sc.id] ?? [])
+  // финалы копятся на исходное дело: у «жёсткой» версии они те же
+  const eid = baseCaseId(sc.id)
+  const [opened, setOpened] = useState<EndingId[]>(() => loadProgress().endings[eid] ?? [])
   const [fresh, setFresh] = useState(false)
+  const run = useMemo(() => runLogOf(sc.id, report, history.length, sc.turnLimit), [sc, report, history.length])
+  const [career, setCareer] = useState<{ before: Progress; after: Progress } | null>(null)
 
   useEffect(() => {
     if (recorded.current || alreadyRecorded || !history.length) return
     recorded.current = true
-    const prev = JSON.parse(localStorageSafe() ?? '{}')?.cases?.[sc.id]
-    const before = loadProgress().endings[sc.id] ?? []
-    const p = recordRun(sc.id, sc.title, report, ending.id)
+    const was = loadProgress()
+    const prev = was.cases[sc.id]
+    const before = was.endings[eid] ?? []
+    const p = recordRun(sc, report, history.length, ending.id)
     const now = countStars(starsOf(report))
     if (prev && now > (prev.bestStars ?? 0)) setImproved(now)
-    // без хранилища прогресс пустой — тогда не хвастаемся «новым финалом» каждый раз
-    if (!before.includes(ending.id) && p.endings[sc.id]?.includes(ending.id) && localStorageSafe() !== null) setFresh(true)
-    setOpened(p.endings[sc.id] ?? [])
+    // без хранилища прогресс пустой — тогда не хвастаемся «новым финалом» и «новым уровнем» каждый раз
+    const saved = storageOk()
+    if (!before.includes(ending.id) && p.endings[eid]?.includes(ending.id) && saved) setFresh(true)
+    if (saved) setCareer({ before: was, after: p })
+    setOpened(p.endings[eid] ?? [])
     onRecorded(p)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- записываем один раз при открытии разбора
   }, [history.length, report, sc.id, sc.title])
@@ -68,6 +79,20 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <div className="g-report-left">
           <Ledger sc={sc} report={report} history={history} name={name} improved={improved} />
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
+          {history.length > 0 && (
+            <SkillGain run={run} before={career?.before} after={career?.after}>
+              {onHarder && report.outcome.status === 'deal' && (
+                <div className="g-gain-harder">
+                  <p>
+                    Сделка есть. Та же история, но {name} упрямее и откровенничает реже.
+                  </p>
+                  <Button variant="stamp" onClick={onHarder}>
+                    Сыграть жёстче
+                  </Button>
+                </div>
+              )}
+            </SkillGain>
+          )}
           <section className="g-sheet g-why" aria-labelledby="why-h">
             <h2 id="why-h" className="g-sheet-title">
               Почему такой итог
@@ -106,6 +131,11 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <Button variant="brass" icon="rewind" className="g-big" onClick={onAgain}>
             Сыграть это дело заново
           </Button>
+          {onHarder && report.outcome.status === 'deal' && (
+            <Button variant="stamp" onClick={onHarder}>
+              Сыграть жёстче
+            </Button>
+          )}
           <Button icon="notebook" onClick={onOther}>
             Другое дело
           </Button>
@@ -138,14 +168,6 @@ function Fold({ summary, wide, children }: { summary: string; wide: boolean; chi
       {children}
     </details>
   )
-}
-
-function localStorageSafe(): string | null {
-  try {
-    return localStorage.getItem('peregovorka.progress.v1')
-  } catch {
-    return null
-  }
 }
 
 const STATUS: Record<string, string> = { deal: 'По рукам', walked_away: 'Без сделки', timeout: 'Время вышло', open: 'Не закончено' }

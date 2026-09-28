@@ -2,11 +2,12 @@ import { useRef, useState } from 'react'
 import type { Case } from '../../App'
 import type { Health } from '../api'
 import { firstName, portraitFor, sceneFor } from '../cast'
-import { rankOf, type Progress } from '../progress'
+import type { Progress } from '../progress'
 import type { RoomRef } from '../rooms'
 import { Button, Scene } from '../ui'
 import { CoachEntry } from './CoachEntry'
 import { Method } from './Method'
+import { CareerCard } from './Career'
 
 interface Props {
   progress: Progress
@@ -22,9 +23,10 @@ interface Props {
   onStart: () => void
   onLibrary: () => void
   onCoach: () => void
+  onCareer: () => void
 }
 
-export function Title({ progress, invited, notice, server, room, roomWait, playerName, onPlayerName, onStart, onLibrary, onCoach }: Props) {
+export function Title({ progress, invited, notice, server, room, roomWait, playerName, onPlayerName, onStart, onLibrary, onCoach, onCareer }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -36,8 +38,6 @@ export function Title({ progress, invited, notice, server, room, roomWait, playe
     }
     onStart()
   }
-  const rank = rankOf(progress)
-  const played = Object.keys(progress.cases).length > 0
   // по ссылке-приглашению первым делом — к какому делу позвали и кнопка, описание тренажёра ниже
   const lead = (
     <p className="g-lead">
@@ -122,12 +122,7 @@ export function Title({ progress, invited, notice, server, room, roomWait, playe
             </li>
           </ol>
 
-          {played && (
-            <p className="g-rank">
-              Звание: <b>{rank.title}</b>. Звёзд за дела: {rank.stars}
-              {rank.next ? `, до звания «${rank.next.title}» ещё ${rank.next.need}` : ''}.
-            </p>
-          )}
+          {!invited && <CareerCard progress={progress} onOpen={onCareer} />}
 
           <Method compact />
 
