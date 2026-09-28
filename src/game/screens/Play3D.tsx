@@ -244,7 +244,8 @@ export default function Play3D(props: Props) {
         const w = xr.offsetWidth
         const narrow = cw < 700
         const x = narrow ? 12 : Math.min(Math.max(p.x + 170, 12), cw - w - 12)
-        const y = narrow ? 12 : Math.max(p.y - 20, 12)
+        // на телефоне — под карточкой наставника, если она сверху
+        const y = narrow ? (mentor && at === 'top' ? mentor.bottom - rootBox.top + 8 : 12) : Math.max(p.y - 20, 12)
         xr.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
       }
     })
