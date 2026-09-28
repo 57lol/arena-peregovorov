@@ -13,7 +13,7 @@ const arg = (name: string, def: string) => {
 }
 const URL = arg('url', 'http://localhost:5173')
 const TAG = arg('tag', 'after')
-const ONLY = arg('only', 'cases,xray,slip,thresholds,walk,brief,custom').split(',')
+const ONLY = arg('only', 'cases,xray,slip,thresholds,walk,brief,custom,darina').split(',')
 const PH = Number(arg('h', '844')) // высота телефона: 844 или 667
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'fix3')
 mkdirSync(OUT, { recursive: true })
@@ -158,6 +158,23 @@ try {
     await shot(page, 'custom-play-1440')
     console.log('вступление:', await page.locator('.px-dialog-text').innerText())
     console.log('листок:', (await page.locator('.g-slip--side').innerText()).replace(/\n+/g, ' | '))
+  }
+  if (ONLY.includes('darina')) {
+    // жёсткая партия из критики: раньше на 4-м ходу Дарина откатывала уступки, на 3-м выдумывала причину
+    const page = await open(browser, 1440, 900)
+    await enter(page, 'Оффер')
+    await page.getByRole('button', { name: 'Рентген', exact: true }).click()
+    const moves = [
+      'Добрый день. Мы готовы предложить 150 тысяч, выход через две недели, без жилья и без учебных дней.',
+      'Это наше предложение, другого не будет. Либо соглашаетесь, либо ищем дальше.',
+      'Понимаю. А учебные дни — это для чего? Учитесь где-то?',
+      'Ладно. 170 тысяч, выход через месяц. Это максимум.',
+    ]
+    for (const [n, m] of moves.entries()) {
+      await say(page, m)
+      if (n >= 2) await shot(page, `darina-t${n + 1}-1440`)
+      console.log(`ход ${n + 1}:`, await page.locator('.px-dialog-text').innerText(), '| листок:', (await page.locator('.g-slip--side .g-slip-foot').innerText()).split('\n')[0])
+    }
   }
 } finally {
   await browser.close()
