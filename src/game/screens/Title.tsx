@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Case } from '../../App'
+import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { firstName, portraitFor, sceneFor } from '../cast'
 import type { Progress } from '../progress'
@@ -8,6 +9,7 @@ import { Button, Scene } from '../ui'
 import { CoachEntry } from './CoachEntry'
 import { Method } from './Method'
 import { CareerCard } from './Career'
+import '../onboarding.css'
 
 interface Props {
   progress: Progress
@@ -20,13 +22,17 @@ interface Props {
   roomWait?: boolean
   playerName: string
   onPlayerName: (name: string) => void
+  /** с какого дела начать по большой кнопке «Играть» и почему */
+  next: { scenario: Scenario; why: string } | null
+  /** «Играть»: сразу в рекомендованное дело (или на карту кампании, когда она есть) */
+  onPlay: () => void
   onStart: () => void
   onLibrary: () => void
   onCoach: () => void
   onCareer: () => void
 }
 
-export function Title({ progress, invited, notice, server, room, roomWait, playerName, onPlayerName, onStart, onLibrary, onCoach, onCareer }: Props) {
+export function Title({ progress, invited, notice, server, room, roomWait, playerName, onPlayerName, next, onPlay, onStart, onLibrary, onCoach, onCareer }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -41,10 +47,11 @@ export function Title({ progress, invited, notice, server, room, roomWait, playe
   // по ссылке-приглашению первым делом — к какому делу позвали и кнопка, описание тренажёра ниже
   const lead = (
     <p className="g-lead">
-      Тренажёр деловых переговоров. Вы договариваетесь с собеседником своими словами, а после встречи видите, что было
-      у него под столом и сколько вы на этом столе оставили.
+      Игра, где учатся договариваться. Говорите с персонажем своими словами, как в жизни. В конце покажем, что получилось
+      и как можно было лучше.
     </p>
   )
+  const newbie = !progress.runs.length && !Object.keys(progress.cases).length
   return (
     <div className="px-root g-page" data-desk={invited ? sceneFor(invited.scenario) : 'factory'}>
       <main className="px-desk g-desk g-title">
@@ -96,33 +103,56 @@ export function Title({ progress, invited, notice, server, room, roomWait, playe
           )}
           {notice && <p className="g-error" role="alert">{notice}</p>}
 
-          <div className="g-title-actions">
-            <Button variant="brass" icon="send" className="g-big" onClick={start}>
-              {invited ? `К делу «${invited.scenario.title}»` : 'Начать'}
-            </Button>
-            {invited && (
+          {invited ? (
+            <div className="g-title-actions">
+              <Button variant="brass" icon="send" className="g-big" onClick={start}>
+                {`К делу «${invited.scenario.title}»`}
+              </Button>
               <Button variant="ghost" onClick={onLibrary}>
                 Выбрать другое дело
               </Button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="g-title-play">
+              <Button variant="brass" icon="send" className="g-big g-play-btn" onClick={onPlay}>
+                Играть
+              </Button>
+              {next && (
+                <p className="g-title-next">
+                  {newbie
+                    ? `Начнём с «${next.scenario.title}». Наставник подскажет, что где.`
+                    : `Дальше — «${next.scenario.title}». ${next.why}`}
+                </p>
+              )}
+              <div className="g-title-more">
+                <Button variant="ghost" icon="notebook" onClick={onStart}>
+                  Все дела
+                </Button>
+                {!newbie && (
+                  <Button variant="ghost" icon="stamp" onClick={onCareer}>
+                    Личное дело
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           {invited && lead}
 
           <ol className="g-steps">
             <li>
-              <b>Бриф.</b> Кто вы, что вам важно и ваш запасной вариант, если не договоритесь.
+              <b>Кто напротив.</b> Коротко: кто вы, с кем говорите и чего хотите.
             </li>
             <li>
               <b>Встреча.</b> Пишите как в жизни. {invited ? firstName(invited.scenario) : 'Собеседник'} отвечает по своим
-              скрытым интересам, а часы идут.
+              скрытым причинам, а часы идут.
             </li>
             <li>
-              <b>Разбор.</b> Сколько вы взяли, карта всех возможных сделок и три момента, которые всё решили.
+              <b>Разбор.</b> Что получилось, что можно было лучше и где переиграть.
             </li>
           </ol>
 
-          {!invited && <CareerCard progress={progress} onOpen={onCareer} />}
+          {!invited && !newbie && <CareerCard progress={progress} onOpen={onCareer} />}
 
           <Method compact />
 

@@ -3,6 +3,8 @@ import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { loadProgress, type Progress } from './game/progress'
+import { nextCase } from './game/career'
+import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
 import { loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
 import { loadVoiceOn, unlockAudio } from './game/speech'
@@ -17,6 +19,7 @@ import { Board } from './game/screens/Board'
 import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
+import { nextStory } from './game/story'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
@@ -239,13 +242,19 @@ export default function App() {
         }}
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
+        next={nextStory(progress) ?? nextCase(progress)}
+        // «Играть» — на карту кампании «Новенький»: там следующая глава подсвечена, первая — самая мягкая
+        onPlay={() => {
+          setNotice(null)
+          go('map')
+        }}
         onStart={() => {
           setNotice(null)
           if (invited && current) {
             clearLink()
             setInvited(false)
             open(current)
-          } else go('map')
+          } else go('setup')
         }}
         onLibrary={() => {
           clearLink()
@@ -277,7 +286,7 @@ export default function App() {
       setHistory,
       redo,
       speech: server?.speech,
-      tutorial: !progress.tutorialDone,
+      tutorial: !progress.tutorialDone && tutorialAllowed(),
       onTutorialOff: () => setProgress(loadProgress()),
       onFinish: () => go('report'),
       onQuit: () => go(from),
