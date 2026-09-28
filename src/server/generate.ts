@@ -249,6 +249,15 @@ export function storyProblems(raw: z.infer<typeof Raw>): string[] {
   return raw.interests
     .filter((it) => third.test(it.text.trim()) || /(?<!\p{L})игрок/iu.test(it.text) || (stem && it.text.toLowerCase().includes(stem)))
     .map((it) => `интерес «${it.text.slice(0, 60)}…» написан от третьего лица — перепиши от первого, как сам ${first || 'оппонент'} сказал бы собеседнику`)
+    .concat(clerical(raw))
+}
+
+const CLERICAL = /(минимизир|оптимизац|оптимальн|осуществл|в рамках|является|данн(ый|ая|ое|ого) )/iu
+/** Канцелярит в том, что читает игрок: бриф, первая реплика, интересы, варианты. */
+function clerical(raw: z.infer<typeof Raw>): string[] {
+  const texts = [raw.playerBrief, raw.opening, ...raw.interests.map((i) => i.text), ...raw.issues.flatMap((i) => i.options)]
+  const hit = texts.map((t) => CLERICAL.exec(t)?.[0]).filter(Boolean)
+  return hit.length ? [`канцелярит: ${[...new Set(hit)].map((w) => `«${w!.trim()}»`).join(', ')} — скажи проще, как в жизни`] : []
 }
 
 export interface GenerateResult {
