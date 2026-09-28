@@ -23,7 +23,7 @@ export interface TurnResult {
   source: string
 }
 
-async function post<T>(path: string, body: unknown, ms = 60_000): Promise<T> {
+async function post<T>(path: string, body: unknown, ms = 90_000): Promise<T> {
   const r = await fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
