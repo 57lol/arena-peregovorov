@@ -16,6 +16,7 @@ import { Coach } from './game/screens/Coach'
 import { Board } from './game/screens/Board'
 import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
+import { MapScreen } from './game/screens/Map'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
@@ -26,7 +27,7 @@ import './game/career.css'
 const loadPlay3D = () => import('./game/screens/Play3D')
 const Play3D = lazy(loadPlay3D)
 
-export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
+export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
 
 export interface Case {
   scenario: Scenario
@@ -44,6 +45,8 @@ interface Saved {
   room?: RoomRef | null
   startedAt?: number
   sent?: string
+  /** откуда открыли дело: с карты кампании или из папки — туда и возвращаемся */
+  from?: 'map' | 'setup'
 }
 function loadSession(): Saved | null {
   try {
@@ -74,6 +77,7 @@ export default function App() {
   const [player, setPlayer] = useState(loadPlayer)
   const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
   const [sent, setSent] = useState(saved?.sent ?? '')
+  const [from, setFrom] = useState<'map' | 'setup'>(saved?.from ?? 'setup')
   const [progress, setProgress] = useState<Progress>(loadProgress)
   const [invited, setInvited] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -94,11 +98,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, startedAt, sent } satisfies Saved))
+      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, startedAt, sent, from } satisfies Saved))
     } catch {
       // нет хранилища — после перезагрузки начнём с титула
     }
-  }, [screen, current, history, recorded, room, startedAt, sent])
+  }, [screen, current, history, recorded, room, startedAt, sent, from])
 
   useEffect(() => {
     health().then(setServer)
@@ -155,7 +159,8 @@ export default function App() {
     return () => window.removeEventListener('popstate', back)
   }, [])
 
-  const open = (c: Case) => {
+  const open = (c: Case, origin: 'map' | 'setup' = 'setup') => {
+    setFrom(origin)
     setCurrent(c)
     setHistory([])
     setRedo('')
@@ -199,7 +204,19 @@ export default function App() {
     setCareerFrom(from)
     go('career')
   }
-  if (screen === 'career') return <Career progress={progress} onOpen={open} onBack={() => go(careerFrom)} />
+  if (screen === 'career') return <Career progress={progress} onOpen={(c) => open(c)} onBack={() => go(careerFrom)} />
+
+  if (screen === 'map')
+    return (
+      <MapScreen
+        progress={progress}
+        onProgress={setProgress}
+        onOpen={(c) => open(c, 'map')}
+        onBack={() => go('title')}
+        onFree={() => go('setup')}
+        onCareer={() => toCareer('map')}
+      />
+    )
 
   if (screen === 'coach') return <Coach progress={progress} server={server} onBack={() => go('title')} />
 
@@ -225,7 +242,7 @@ export default function App() {
             clearLink()
             setInvited(false)
             open(current)
-          } else go('setup')
+          } else go('map')
         }}
         onLibrary={() => {
           clearLink()
@@ -248,7 +265,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go('setup')} />
+  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(from)} />
 
   if (screen === 'play') {
     const meeting = {
@@ -260,7 +277,7 @@ export default function App() {
       tutorial: !progress.tutorialDone,
       onTutorialOff: () => setProgress(loadProgress()),
       onFinish: () => go('report'),
-      onQuit: () => go('setup'),
+      onQuit: () => go(from),
     }
     if (view === '3d')
       return (
@@ -312,7 +329,8 @@ export default function App() {
       onReplayFrom={rewindTo}
       onAgain={start}
       onHarder={current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id) ? () => open({ scenario: harder(current.scenario), fromLibrary: true }) : undefined}
-      onOther={() => go('setup')}
+      onOther={() => go(from)}
+      otherLabel={from === 'map' ? 'К карте недели' : undefined}
       receipt={
         room && room.caseId === current.scenario.id && history.length ? (
           <RoomReceipt
