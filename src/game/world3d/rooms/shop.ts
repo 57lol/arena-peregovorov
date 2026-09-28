@@ -5,7 +5,7 @@
 // За витриной в левой стене — вечерняя улица и общага напротив, нарисованные лучами из глаз игрока.
 // Живое: одна лампа дневного света моргает, иногда за витриной проезжает машина.
 
-import { AmbientLight, BoxGeometry, CircleGeometry, DirectionalLight, Group, Object3D, PlaneGeometry } from 'three'
+import { AmbientLight, BoxGeometry, CircleGeometry, DirectionalLight, Group, Object3D, PlaneGeometry, SphereGeometry } from 'three'
 import { CLOCK, EYE, ROOM as BOX, TABLE } from '../layout'
 import type { RoomBuild } from '../room'
 import { F, Kit, Soup, at, flatY, quads } from '../roomkit'
@@ -149,6 +149,19 @@ function buildShop(): RoomBuild {
   for (const [gtx, gtz] of P.gates) box(0.5, 1.5, 0.07, F('gate', 'gate_edge', 'gate_edge'), gtx, 0, gtz)
   const [bsx, bsz] = P.baskets
   for (let k = 0; k < 6; k++) box(0.46, 0.24, 0.34, F(k % 2 ? 'basket_g' : 'basket', k % 2 ? 'basket_g' : 'basket', k % 2 ? 'c7' : 'c26'), bsx, k * 0.05, bsz, (k % 3) * 0.04)
+
+  // огнетушитель у передней стены, камера под потолком и табличка про видео, воблеры на ниточках
+  cyl(0.075, 0.075, 0.46, 10, ['ext', 'c27', 'c27'], HW - 0.1, 0.32, 1.9)
+  box(0.03, 0.08, 0.03, 'c37', HW - 0.1, 0.78, 1.9)
+  box(0.02, 0.3, 0.02, 'c37', HW - 0.16, 0.42, 1.95, 0, 0, 0.2)
+  box(0.12, 0.04, 0.06, 'c40', HW - 0.03, 0.3, 1.9, -PI / 2)
+  art(0.22, 0.22, 'ext_sign', HW - 0.003, 1.02, 1.9, -PI / 2, 1)
+  soup.add(new SphereGeometry(0.09, 10, 4, 0, 2 * PI, PI / 2, PI / 2), at(-2.7, H - 0.001, -2.35), 'c37')
+  art(0.7, 0.25, 'cctv', -2.6, 2.07, BACK + 0.004, 0, 0)
+  for (const [x, z, name, ry] of [[-1.6, -0.6, 'akcia', 0.3], [1.1, 0.9, 'hit', -0.5], [-0.2, 1.6, 'akcia', 0.1]] as const) {
+    box(0.006, 0.36, 0.006, 'c43', x, H - 0.36, z)
+    soup.add(new PlaneGeometry(0.36, 0.24), at(x, H - 0.48, z, ry), name, 0)
+  }
 
   // ------------------------------------------------------------------ собрать суп
   const atlas0 = kit.tex('shop_atlas0')
