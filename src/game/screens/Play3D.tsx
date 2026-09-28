@@ -408,7 +408,7 @@ export default function Play3D(props: Props) {
             <MeetingTime turn={state.turn} limit={sc.turnLimit} clock={meetingClock(sc)} />
           </p>
           {held ? (
-            <Button variant="ghost" icon="down" className="w3-look" onClick={() => setHeld(null)}>
+            <Button variant="ghost" icon="down" className={`w3-look${lit('look')}`} onClick={() => setHeld(null)}>
               На стол
             </Button>
           ) : pose === 'face' ? (
