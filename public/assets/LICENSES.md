@@ -13,4 +13,4 @@ Apollo, 46 цветов. Автор AdamCYounis, lospec.com/palette-list/apollo.
 
 ## Портреты, сцены, рамки, иконки (`portraits/`, `scenes/`, `ui/`)
 
-Нарисованы командой программно, по пиксельной сетке, без нейросетей и чужих ассетов. Исходники лежат в `tools/art/` (`portraits.py`, `scenes.py`, `frames.py`), иконки в `src/game/ui/PixelIcon.tsx`. Лицензия та же, что у кода проекта.
+Нарисованы командой программно, по пиксельной сетке, без нейросетей и чужих ассетов. Исходники лежат в `tools/art/` (`portraits.py`, `people.py`, `pixel.py`, `scenes.py`, `frames.py`), иконки в `src/game/ui/PixelIcon.tsx`. Лицензия та же, что у кода проекта.
