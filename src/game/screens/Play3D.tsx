@@ -385,7 +385,7 @@ export default function Play3D(props: Props) {
         )}
         {pose === 'desk' && !held && !done && world?.portrait && (
           <p className="w3-hint w3-hint--desk" aria-hidden="true">
-            Нажмите на лист, чтобы взять его в руки
+            Нажмите на лист — возьмёте в руки
           </p>
         )}
         {!looked && !done && history.length === 0 && (

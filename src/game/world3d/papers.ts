@@ -328,7 +328,9 @@ export class Desk {
       const forward = -camZ.dot(vB) // лист перед глазами, а не за спиной
       // когда один лист в руках, остальные страницы на столе прячем: DOM не знает глубины и лез бы поверх
       const other = this.holding !== null && this.holding !== s.id
-      const shown = live && !other && forward < -0.2 ? Math.max(MathUtils.smoothstep(facing, 0.72, 0.84), s.held > 0.6 ? 1 : 0) : 0
+      // на телефоне страница видна только у листа в руках: на столе он слишком мелкий и косой, его берут тапом
+      const onTable = this.tall ? 0 : MathUtils.smoothstep(facing, 0.72, 0.84)
+      const shown = live && !other && forward < -0.2 ? Math.max(onTable, s.held > 0.6 ? 1 : 0) : 0
       s.shown = shown
       s.host.style.opacity = String(shown)
       s.host.style.visibility = shown < 0.02 ? 'hidden' : 'visible'
