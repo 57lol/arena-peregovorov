@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Case } from '../../App'
-import { SCENARIOS } from '../../content/scenarios'
+import { SCENARIOS, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
 import { generate, type GenerateRequest, type Health } from '../api'
 import { DIFFICULTY_RU, TONE_RU, plural, portraitFor } from '../cast'
@@ -125,9 +125,14 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
 
   const set = <K extends keyof GenerateRequest>(k: K, v: GenerateRequest[K]) => setReq((r) => ({ ...r, [k]: v }))
 
+  const noServer = {
+    message: 'Сервер не отвечает, новое дело сейчас не собрать. Можно сыграть похожее из папки — с тем характером и сложностью, что вы выбрали.',
+  }
   const submit = async () => {
-    setBusy(true)
     setFallback(null)
+    // сервера нет вовсе (статический хостинг, нет сети) — сразу предлагаем дело из папки, без ожидания
+    if (server === null) return setFallback({ ...noServer, scenario: pickFromLibrary(req, SCENARIOS) })
+    setBusy(true)
     try {
       const r = await generate(req)
       if (r.source === 'llm') return onOpen({ scenario: tidy(r.scenario), fromLibrary: false })
@@ -138,7 +143,7 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
         scenario: r.scenario,
       })
     } catch {
-      setFallback({ message: 'Сервер не ответил. Сыграйте готовое дело из папки или попробуйте ещё раз через минуту.' })
+      setFallback({ ...noServer, scenario: pickFromLibrary(req, SCENARIOS) })
     } finally {
       setBusy(false)
     }

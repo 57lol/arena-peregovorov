@@ -9,3 +9,4 @@ export function getScenario(id: string): Scenario | undefined {
 }
 
 export { auditScenario, type ScenarioAudit } from './analyze'
+export { pickFromLibrary, type LibraryRequest } from './pick'

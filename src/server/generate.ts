@@ -4,7 +4,7 @@
 // не прошло — повтор с замечаниями, потом подбор из библиотеки.
 
 import { z } from 'zod'
-import { auditScenario } from '../content/scenarios'
+import { auditScenario, pickFromLibrary } from '../content/scenarios'
 import { checkScenario } from '../engine/validate'
 import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
 import { maxScore } from '../engine/utility'
@@ -273,19 +273,4 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   }
   if (passable) return { scenario: passable, source: 'llm', attempts, problems: [] }
   return { scenario: pickFromLibrary(req, library), source: 'library', attempts, problems }
-}
-
-/** Ближайший по сфере и сложности сценарий из библиотеки, с нужным характером оппонента. */
-export function pickFromLibrary(req: GenerateRequest, library: Scenario[]): Scenario {
-  const sphere = req.sphere.toLowerCase()
-  const near = (s: Scenario) => (s.sphere.toLowerCase().includes(sphere) || sphere.includes(s.sphere.toLowerCase()) ? 0 : 1)
-  const ranked = [...library].sort(
-    (a, b) => near(a) - near(b) || Math.abs(a.difficulty - req.difficulty) - Math.abs(b.difficulty - req.difficulty) || a.id.localeCompare(b.id),
-  )
-  const base = ranked[0]
-  return {
-    ...base,
-    difficulty: req.difficulty as Difficulty,
-    opponent: { ...base.opponent, character: { ...base.opponent.character, tone: req.opponentTone as Tone } },
-  }
 }
