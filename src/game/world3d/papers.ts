@@ -38,7 +38,7 @@ interface Spot {
 const WIDE: Record<PaperId, Spot> = {
   notebook: { x: -0.2, z: -0.02, w: 0.26, h: 0.32, rot: 2 },
   card: { x: 0.3, z: 0.04, w: 0.15, h: 0.2, rot: -5 },
-  slip: { x: 0.11, z: -0.2, w: 0.21, h: 0.22, rot: 3 },
+  slip: { x: 0.1, z: -0.21, w: 0.24, h: 0.23, rot: 3 },
 }
 const TALL: Record<PaperId, Spot> = {
   notebook: { x: -0.04, z: 0.06, w: 0.26, h: 0.36, rot: 3 },
@@ -195,6 +195,9 @@ export class Desk {
   holding: PaperId | null = null
   /** лист с предложением на столе вообще есть */
   slipVisible = false
+  /** свободная полоса экрана для листа в руках (доли высоты): сверху кнопка меню, снизу поле ввода */
+  freeTop = 0.08
+  freeBottom = 0.8
 
   constructor() {
     const mk = (id: PaperId): Sheet => {
@@ -295,10 +298,13 @@ export class Desk {
       if (Math.abs(s.held - target) < 0.002) s.held = target
       if (s.held > 0) {
         const aspect = cam.aspect
-        const dW = sp.w / (2 * 0.9 * tanH * aspect)
-        const dH = sp.h / (2 * 0.66 * tanH)
+        const band = Math.max(0.3, this.freeBottom - this.freeTop)
+        const dW = sp.w / (2 * 0.92 * tanH * aspect)
+        const dH = sp.h / (2 * 0.94 * band * tanH)
         const d = Math.max(dW, dH)
-        vB.copy(cam.position).addScaledVector(camZ, -d).addScaledVector(camY, d * tanH * 0.12)
+        // центр листа — посередине свободной полосы
+        const yNdc = 1 - (this.freeTop + this.freeBottom)
+        vB.copy(cam.position).addScaledVector(camZ, -d).addScaledVector(camY, yNdc * d * tanH)
         mA.makeBasis(camX, camZ, vC.copy(camY).negate())
         qB.setFromRotationMatrix(mA)
         const k = s.held * s.held * (3 - 2 * s.held)

@@ -22,8 +22,9 @@ import './game/game.css'
 import './game/coach.css'
 import './game/career.css'
 
-// 3D-встреча тянет three.js — грузим её, только когда садимся за стол
-const Play3D = lazy(() => import('./game/screens/Play3D'))
+// 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
+const loadPlay3D = () => import('./game/screens/Play3D')
+const Play3D = lazy(loadPlay3D)
 
 export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
 
@@ -85,6 +86,9 @@ export default function App() {
   // вид встречи: 3D за столом или классический; «не тянет» — переключаемся сами и говорим об этом
   const [view, setView] = useState<View>(loadView)
   const [viewNote, setViewNote] = useState('')
+  useEffect(() => {
+    if (view === '3d' && (screen === 'brief' || screen === 'report')) loadPlay3D().catch(() => {})
+  }, [view, screen])
   const currentRef = useRef<Case | null>(null)
   currentRef.current = current
 

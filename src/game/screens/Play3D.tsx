@@ -185,6 +185,8 @@ export default function Play3D(props: Props) {
       const cw = world.cw
       const ch = world.ch
       const trayTop = trayRef.current ? trayRef.current.getBoundingClientRect().top - (rootRef.current?.getBoundingClientRect().top ?? 0) : ch
+      world.desk.freeTop = 64 / ch
+      world.desk.freeBottom = (trayTop - 8) / ch
       if (box) {
         world.project(lead.anchor('chest', chin), p)
         const w = box.offsetWidth
@@ -345,7 +347,7 @@ export default function Play3D(props: Props) {
             </Button>
           ) : pose === 'face' ? (
             <Button variant={newOffer ? 'brass' : 'ghost'} icon="down" className={`w3-look${newOffer ? ' is-new' : ''}`} onClick={() => lookAt('desk')}>
-              {newOffer ? 'Стол: предложение' : 'Стол'}
+              {newOffer ? <>Стол<span className="w3-wide">: предложение</span></> : 'Стол'}
             </Button>
           ) : (
             <Button variant="ghost" icon="up" className="w3-look" onClick={() => lookAt('face')}>
@@ -372,6 +374,11 @@ export default function Play3D(props: Props) {
           </div>
         ) : (
           <SayForm m={m} />
+        )}
+        {pose === 'desk' && !held && !done && world?.portrait && (
+          <p className="w3-hint w3-hint--desk" aria-hidden="true">
+            Нажмите на лист, чтобы взять его в руки
+          </p>
         )}
         {!looked && !done && history.length === 0 && (
           <p className="w3-hint" aria-hidden="true">
@@ -401,7 +408,7 @@ function MeetingTime({ turn, limit }: { turn: number; limit: number }) {
   const t = `${Math.floor(now / 60)}:${String(Math.floor(now % 60)).padStart(2, '0')}`
   return (
     <span className={left <= 2 ? 'is-late' : undefined}>
-      {t}, {left === 0 ? 'время вышло' : `ещё ${left} ${plural(left, 'реплика', 'реплики', 'реплик')}`}
+      {t}, {left === 0 ? 'время вышло' : <>ещё {left}<span className="w3-wide"> {plural(left, 'реплика', 'реплики', 'реплик')}</span></>}
     </span>
   )
 }
@@ -452,7 +459,7 @@ function SayForm({ m }: { m: Meeting }) {
           {m.error}
         </p>
       )}
-      {m.source === 'local' && <p className="w3-source">Сервер недоступен, играем офлайн</p>}
+      {m.source === 'local' && <p className="w3-source">Играем офлайн: сервер недоступен</p>}
     </form>
   )
 }

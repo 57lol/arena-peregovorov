@@ -228,7 +228,7 @@
   text-shadow: var(--px-shadow);
   animation: w3-in 0.6s 1.2s steps(3) both;
 }
-.w3-play[data-pose='desk'] .w3-hint {
+.w3-play[data-pose='desk'] .w3-hint:not(.w3-hint--desk) {
   display: none;
 }
 
@@ -972,6 +972,11 @@
     line-height: 16px;
   }
   .w3-toast--verdict > span:not(.w3-stamp-mini) {
+    display: none;
+  }
+}
+@media (max-width: 420px) {
+  .w3-wide {
     display: none;
   }
 }
