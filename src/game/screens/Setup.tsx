@@ -238,7 +238,7 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
               <PixelIcon name="pen" px={3} color="var(--c-denim)" color2="var(--c-brass)" />
             </span>
             <span>{STEPS[step]}</span>
-            <span className="g-writing-note">Обычно это 15–40 секунд.</span>
+            <span className="g-writing-note">Обычно это секунд десять, если придётся переписывать — до минуты.</span>
           </div>
         ) : (
           <div className="g-folder-actions">

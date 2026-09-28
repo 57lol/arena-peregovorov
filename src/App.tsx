@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SCENARIOS } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
@@ -56,6 +56,8 @@ export default function App() {
   // ход, с которого переигрываем: в поле ввода подставится прошлая реплика
   const [redo, setRedo] = useState<string>('')
   const [playKey, setPlayKey] = useState(0)
+  const currentRef = useRef<Case | null>(null)
+  currentRef.current = current
 
   useEffect(() => {
     try {
@@ -92,8 +94,8 @@ export default function App() {
   useEffect(() => {
     const back = (e: PopStateEvent) => {
       const s = (e.state?.screen as Screen | undefined) ?? 'title'
-      // вернуться в законченную встречу нельзя — только в разбор или к делам
-      setScreen(s === 'play' ? 'setup' : s)
+      // «вперёд» в переговоры возвращает ту же встречу, пока дело открыто; без дела — к списку дел
+      setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
     }
     window.addEventListener('popstate', back)
     return () => window.removeEventListener('popstate', back)
