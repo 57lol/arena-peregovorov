@@ -22,7 +22,7 @@ describe('библиотека сценариев', () => {
         // Ищем в реплике число из выбранного варианта («212», «10», «2 года» → «два года» тоже ок).
         const opt = i.options[anchor[i.id]!]
         const num = opt.match(/\d+/)?.[0]
-        const words: Record<string, string> = { '212': 'двести двенадцать', '10': 'десять', '2': 'два', '210': 'двести десять', '1': 'один' }
+        const words: Record<string, string> = { '212': 'двести двенадцать', '10': 'десять', '2': 'два', '210': 'двести десять', '1': 'один', '12': 'двенадцать', '90': 'девяносто' }
         const said = sc.opening.toLowerCase()
         const ok = said.includes(opt.toLowerCase()) || (num !== undefined && (said.includes(num) || said.includes(words[num] ?? '@@')))
         expect(ok, `${i.id}: «${opt}» не прозвучало во вступлении`).toBe(true)
@@ -40,9 +40,11 @@ describe('бриф не подсказывает ответ', () => {
   it('в «Что потренируете» нет скрытых интересов собеседника', async () => {
     const { tara } = await import('./tara')
     const { offer } = await import('./offer')
+    const { client } = await import('./client')
     const spoilers: [typeof tara, RegExp][] = [
       [tara, /крупн|быстр\p{L}* деньг|срочн/iu],
       [offer, /сесси|магистр|собак|жиль|два раза в год/iu],
+      [client, /формул|индекс|сыр|пошлин|локализ|преми|оборот|запас|недел|конвейер|границ/iu],
     ]
     for (const [sc, re] of spoilers) {
       for (const g of sc.goals ?? []) expect(g, sc.id).not.toMatch(re)
