@@ -11,7 +11,7 @@ import { checkScenario } from '../engine/validate'
 import { walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
-import { dict, findScenario, scenarios } from './library'
+import { allScenarios, dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
 import { llmMode, makeLLM, type LLM } from './llm'
 import { makeSpeech, type Speech } from './speech'
@@ -84,7 +84,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length, speech: speech.status() }),
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
 
   app.get('/api/scenarios', (c) =>

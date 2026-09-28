@@ -74,3 +74,30 @@ describe('строка из блокнота', async () => {
     expect(isNotebookLine(tara, 'Предлагаю так: давайте 196 и разойдёмся.')).toBe(false)
   })
 })
+
+describe('дела кампании на сервере', async () => {
+  const { CHAPTERS } = await import('../content/story')
+  it('health считает все дела: папку и главы', async () => {
+    const r = (await (await app.request('/api/health')).json()) as { scenarios: number }
+    expect(r.scenarios).toBeGreaterThanOrEqual(CHAPTERS.length)
+    expect(CHAPTERS.length).toBeGreaterThanOrEqual(7)
+  })
+
+  it.each(CHAPTERS.flatMap((c) => [c.id, `${c.id}-hard`]))('%s: сервер отдаёт дело и играет три хода', async (id) => {
+    expect((await app.request(`/api/scenarios/${id}`)).status).toBe(200)
+    const history: TurnRecord[] = []
+    for (const playerText of ['Привет! Давай спокойно разберёмся.', 'А тебе что важнее всего?', 'Давай так: если ты уступишь тут, я уступлю там.']) {
+      const r = await app.request('/api/turn', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scenarioId: id, history, playerText }),
+      })
+      expect(r.status).toBe(200)
+      const j = (await r.json()) as { record: TurnRecord; sources: { analysis: string; voice: string } }
+      expect(j.sources.analysis).toBe('offline')
+      expect(j.record.opponentLine.length).toBeGreaterThan(5)
+      history.push(j.record)
+      if (j.record.stateAfter.status !== 'open') break
+    }
+  })
+})
