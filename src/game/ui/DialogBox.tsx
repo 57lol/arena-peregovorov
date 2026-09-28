@@ -58,6 +58,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
   const boxRef = useRef<HTMLSpanElement>(null)
   const caretRef = useRef<HTMLSpanElement>(null)
   const [clipped, setClipped] = useState(false)
+  const [above, setAbove] = useState(false)
 
   useEffect(() => {
     onTalkingChange?.(!done)
@@ -65,7 +66,10 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
 
   const measure = () => {
     const el = boxRef.current
-    if (el) setClipped(el.scrollTop + el.clientHeight < el.scrollHeight - 2)
+    if (!el) return
+    setClipped(el.scrollTop + el.clientHeight < el.scrollHeight - 2)
+    // начало реплики уехало вверх — подскажем, что его можно вернуть
+    setAbove(el.scrollTop > 2)
   }
 
   // новая реплика — с начала
@@ -118,6 +122,27 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
           <span className="px-dialog-ghost">{text.slice(shown.length)}</span>
         </span>
         <span className="px-visually-hidden">{text}</span>
+        {above && done && (
+          <span
+            role="button"
+            tabIndex={0}
+            className="px-dialog-up"
+            aria-label="К началу реплики"
+            onClick={(e) => {
+              e.stopPropagation()
+              boxRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                e.stopPropagation()
+                boxRef.current?.scrollTo({ top: 0 })
+              }
+            }}
+          >
+            ↑ ещё
+          </span>
+        )}
         {done && (
           <span className="px-dialog-more">
             <PixelIcon name="more" px={2} />

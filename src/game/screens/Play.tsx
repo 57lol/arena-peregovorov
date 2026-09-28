@@ -305,6 +305,23 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
                   send(draft)
                 }}
               >
+                {canAccept && theirsForMe !== null && (
+                  <div className="g-ontable">
+                    {/* телефон: главное с листка — прямо над полем ввода; сам листок ниже */}
+                    <button
+                      type="button"
+                      className="g-ontable-text"
+                      aria-label="Показать листок на столе"
+                      onClick={() => document.querySelector('.g-slip--stage')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                    >
+                      На столе вам <b className={theirsForMe < P.batna ? 'is-low' : undefined}>{theirsForMe}</b>
+                      <span className="g-ontable-batna">{acceptSure ? ' — меньше запасного' : `, запасной ${P.batna}`}</span>
+                    </button>
+                    <Button variant={acceptSure ? 'stamp' : 'paper'} icon="check" disabled={!!pending} onClick={accept}>
+                      {acceptSure ? 'Всё равно' : 'Принять'}
+                    </Button>
+                  </div>
+                )}
                 <SpeechField
                   label={pending ? `${name} думает…` : 'Ваша реплика'}
                   value={pending ?? draft}
@@ -399,7 +416,7 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
               </Notebook>
             </div>
 
-            {xray && <XRay sc={sc} state={state} last={last} name={name} />}
+            {xray && <XRay sc={sc} state={state} last={last} name={name} onClose={() => setXray(false)} />}
 
             {history.length > 0 && (
               <details className="g-protocol">
@@ -565,7 +582,7 @@ const HOLD_RU = (sc: Scenario): Record<string, string> => ({
 })
 
 /** «Рентген»: скрытое состояние собеседника и почему оно сдвинулось на последнем ходу. */
-function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; last?: TurnRecord; name: string }) {
+function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: OpponentState; last?: TurnRecord; name: string; onClose: () => void }) {
   const dTrust = last?.deltas.filter((d) => d.field === 'trust').reduce((s, d) => s + d.by, 0) ?? 0
   const dTension = last?.deltas.filter((d) => d.field === 'tension').reduce((s, d) => s + d.by, 0) ?? 0
   const hidden = sc.opponent.profile.interests.filter((i) => !state.revealed.includes(i.id))
@@ -586,6 +603,10 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
       <h2 className="g-xray-title">
         <PixelIcon name="eye" px={2} color="var(--c-grid)" color2="var(--c-coral)" />
         Рентген: что под столом
+        {/* на телефоне рентген — шторка поверх встречи, её можно убрать */}
+        <button type="button" className="g-xray-close" aria-label="Закрыть рентген" onClick={onClose}>
+          <PixelIcon name="cross" px={2} color="var(--c-mist)" />
+        </button>
       </h2>
       <div className="g-xray-meter">
         <Meter label="Доверие" value={state.trust} tone="trust" />
@@ -618,7 +639,8 @@ function XRay({ sc, state, last, name }: { sc: Scenario; state: OpponentState; l
       )}
       <p className="g-xray-note">
         {g(sc, 'Рассказал', 'Рассказала')} о себе {state.revealed.length} из {sc.opponent.profile.interests.length}.
-        {next ? ` Следующее расскажет при доверии от ${next.trustToReveal}, если спросить.` : ''} Уйдёт, если напряжение дойдёт до
+        {/* если только что отказал, порог уже назван выше — второй, про другое, только путает */}
+        {next && !closed ? ` Следующее расскажет при доверии от ${next.trustToReveal}, если спросить.` : ''} Уйдёт, если напряжение дойдёт до
         90.
       </p>
     </section>

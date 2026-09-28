@@ -1952,3 +1952,107 @@ body {
     display: none;
   }
 }
+
+/* ---------- третья волна: телефон ---------- */
+
+/* подзаголовок экрана дел: полосы стола не должны перечёркивать строки */
+.g-sub > span {
+  background: var(--desk);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  box-shadow: 0 var(--u) 0 var(--desk), 0 calc(-1 * var(--u)) 0 var(--desk);
+}
+
+/* «На столе вам 57, запасной 26 [Принять]» — над полем ввода, только на телефоне, в одну строку */
+.g-ontable {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  margin-bottom: calc(2 * var(--u));
+}
+.g-ontable-text {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 calc(3 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  color: var(--c-ink);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.g-ontable-text b {
+  color: var(--pen);
+}
+.g-ontable-text b.is-low {
+  color: var(--c-stamp);
+}
+.g-ontable-batna {
+  color: var(--c-steel-2);
+}
+.g-ontable .px-btn {
+  flex: none;
+  margin: 0;
+}
+@media (max-width: 380px) {
+  .g-ontable-batna {
+    display: none;
+  }
+}
+.g-xray-close {
+  display: none;
+}
+@media (min-width: 900px) {
+  .g-ontable {
+    display: none;
+  }
+}
+@media (max-width: 899px) {
+  /* рентген на телефоне — шторка снизу поверх встречи, а не панель в трёх экранах ниже */
+  .g-side[data-xray='true'] .g-xray {
+    position: fixed;
+    z-index: 30;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 46svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: calc(6 * var(--u) + env(safe-area-inset-bottom));
+    box-shadow: 0 calc(-1 * var(--u)) 0 var(--u) var(--c-ink);
+  }
+  .g-play:has(.g-side[data-xray='true']) {
+    padding-bottom: 46svh;
+  }
+  .g-xray-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: calc(18 * var(--u));
+    height: calc(18 * var(--u));
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+}
+@media (max-width: 899px) {
+  /* над полем ввода ещё и строка «На столе» — окно реплики на строку короче, кнопка «Сказать» остаётся на экране */
+  .g-stage:has(.g-ontable) .g-you + .px-dialog .px-dialog-text {
+    max-height: calc(4 * var(--lh-read));
+  }
+  /* своя реплика в одну строку: целиком она есть в протоколе */
+  .g-stage:has(.g-ontable) .g-you {
+    -webkit-line-clamp: 1;
+  }
+}
+@media (max-width: 899px) and (max-height: 760px) {
+  .g-stage:has(.g-ontable) .g-you + .px-dialog .px-dialog-text {
+    min-height: calc(2 * var(--lh-read));
+    max-height: calc(2 * var(--lh-read));
+  }
+}

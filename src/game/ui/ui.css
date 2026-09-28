@@ -212,6 +212,16 @@
 .px-dialog-text.is-clipped {
   mask-image: linear-gradient(#000 calc(100% - var(--lh-read)), rgb(0 0 0 / 0.35) calc(100% - var(--lh-read)));
 }
+.px-dialog-up {
+  position: absolute;
+  right: calc(4 * var(--u));
+  top: calc(1 * var(--u));
+  padding: 0 calc(2 * var(--u));
+  background: var(--c-ink);
+  color: var(--c-brass);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  cursor: pointer;
+}
 .px-dialog-more {
   position: absolute;
   right: calc(4 * var(--u));
