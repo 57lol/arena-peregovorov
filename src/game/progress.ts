@@ -43,6 +43,8 @@ export interface Progress {
   endings: Record<string, EndingId[]>
   /** история партий, новые в конце */
   runs: RunLog[]
+  /** кампания «Новенький»: главы, чей мостик к следующей главе игрок уже прочитал на карте */
+  story?: { seen: string[] }
 }
 
 const KEY = 'peregovorka.progress.v2'
@@ -61,8 +63,14 @@ export function migrate(raw: unknown): Progress {
     tutorialDone: !!p.tutorialDone,
     endings: obj<EndingId[]>(p.endings),
     runs: Array.isArray(p.runs) ? (p.runs as RunLog[]).filter((r) => r && typeof r.caseId === 'string' && r.stars && r.beh) : [],
+    // кампания: пустое не храним, чтобы старые прогрессы оставались ровно такими, как были
+    ...story(strings(obj<unknown>(p.story).seen)),
   }
 }
+
+const story = (seen: string[]) => (seen.length ? { story: { seen } } : {})
+
+const strings = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [])
 
 export function loadProgress(): Progress {
   try {
@@ -157,4 +165,14 @@ export function markTutorialDone() {
 
 export function resetTutorial() {
   save({ ...loadProgress(), tutorialDone: false })
+}
+
+/** Мостик главы прочитан: на карте он больше не всплывает сам, но остаётся в карточке главы. */
+export function markStorySeen(chapterId: string): Progress {
+  const p = loadProgress()
+  const seen = p.story?.seen ?? []
+  if (seen.includes(chapterId)) return p
+  const next = { ...p, story: { seen: [...seen, chapterId] } }
+  save(next)
+  return next
 }

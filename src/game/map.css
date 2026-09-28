@@ -1,0 +1,411 @@
+/* Карта кампании «Новенький» (screens/Map.tsx). Всё кратно --u, цвета — токены палитры. */
+
+.mp-page > * {
+  max-width: 1408px;
+  margin-inline: auto;
+}
+.mp-page .mp-bar {
+  max-width: 1408px;
+}
+.mp-bar-right {
+  display: flex;
+  gap: calc(2 * var(--u));
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: calc(4 * var(--u)) calc(8 * var(--u));
+  flex-wrap: wrap;
+  margin-bottom: calc(4 * var(--u));
+}
+.mp-head .mp-title {
+  margin: 0;
+  max-width: none;
+  display: flex;
+  align-items: baseline;
+  gap: calc(6 * var(--u));
+  flex-wrap: wrap;
+}
+.mp-title small {
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--on-desk-muted);
+}
+.mp-count {
+  display: flex;
+  align-items: center;
+  gap: var(--u);
+  margin: 0;
+  color: var(--on-desk-muted);
+}
+.mp-count i {
+  width: calc(5 * var(--u));
+  height: calc(5 * var(--u));
+  background: var(--desk-lo);
+  box-shadow: inset 0 0 0 var(--u) var(--c-ink-2);
+}
+.mp-count i.is-done {
+  background: var(--c-leaf-hi);
+}
+.mp-count span {
+  margin-left: calc(2 * var(--u));
+}
+.mp-lead {
+  max-width: 760px;
+  margin: 0 0 calc(8 * var(--u));
+  color: var(--on-desk);
+}
+
+/* мостик к следующей главе — записка поверх стола */
+.mp-bridge {
+  text-align: left;
+  display: grid;
+  gap: calc(3 * var(--u));
+  justify-items: start;
+  margin-bottom: calc(8 * var(--u));
+  max-width: 760px;
+  border-left: calc(3 * var(--u)) solid var(--c-brass);
+}
+.mp-bridge-kicker {
+  margin: 0;
+  color: var(--c-steel-2);
+}
+.mp-bridge-text {
+  margin: 0;
+  font: var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.mp-bridge .px-btn {
+  margin-left: 0;
+}
+
+/* раскладка: карта и карточка главы */
+.mp-layout {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.mp-layout.is-side {
+  grid-template-columns: auto minmax(360px, 1fr);
+}
+
+.mp-frame {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  background: var(--c-ink-2);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    0 0 0 calc(3 * var(--u)) var(--c-paper-2),
+    0 0 0 calc(4 * var(--u)) var(--c-ink),
+    0 calc(6 * var(--u)) 0 calc(4 * var(--u)) var(--desk-lo);
+  margin: calc(4 * var(--u));
+}
+.mp-map {
+  position: relative;
+}
+.mp-img {
+  display: block;
+  image-rendering: pixelated;
+  user-select: none;
+}
+.mp-route {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mp-route polyline {
+  fill: none;
+  stroke-linejoin: miter;
+  shape-rendering: crispEdges;
+}
+.mp-route-todo {
+  stroke: var(--c-brass-hi);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  opacity: 0.9;
+}
+.mp-route-done {
+  stroke: var(--c-brass);
+  stroke-width: 1.5;
+}
+
+/* метки глав */
+.mp-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 700 var(--fs-ui) / 1 var(--f-ui);
+  color: var(--c-ink);
+  z-index: 1;
+}
+.mp-pin.is-sel {
+  z-index: 3;
+}
+.mp-pin-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: calc(13 * var(--u));
+  height: calc(13 * var(--u));
+  padding: 0 var(--u);
+  box-sizing: border-box;
+  background: var(--c-paper);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    0 var(--u) 0 var(--u) var(--c-ink);
+}
+/* ножка метки: пиксельный треугольник, остриё — в точке места */
+.mp-pin-badge::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: calc(6 * var(--u));
+  height: calc(4 * var(--u));
+  transform: translateX(-50%);
+  margin-top: var(--u);
+  background: var(--c-ink);
+  clip-path: polygon(0 0, 100% 0, 66% 50%, 50% 100%, 33% 50%);
+}
+.mp-pin {
+  padding-bottom: calc(5 * var(--u));
+}
+.mp-pin.is-done .mp-pin-badge {
+  background: var(--c-leaf-hi);
+}
+.mp-pin.is-next .mp-pin-badge {
+  background: var(--c-brass-hi);
+  animation: mp-bob 1.2s steps(2, jump-none) infinite;
+}
+.mp-pin.is-finale .mp-pin-badge {
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    0 0 0 calc(2 * var(--u)) var(--c-stamp),
+    0 var(--u) 0 calc(2 * var(--u)) var(--c-ink);
+}
+.mp-pin.is-sel .mp-pin-badge {
+  outline: var(--u) solid var(--c-paper);
+  outline-offset: calc(2 * var(--u));
+}
+.mp-pin:hover .mp-pin-badge {
+  transform: translateY(calc(-1 * var(--u)));
+}
+.mp-pin-label {
+  position: absolute;
+  top: calc(100% - var(--u));
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0 var(--u);
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-paper);
+  background: var(--c-ink);
+  pointer-events: none;
+}
+.mp-pin.is-sel .mp-pin-label,
+.mp-pin.is-next .mp-pin-label {
+  background: var(--c-night);
+  color: var(--c-brass-hi);
+}
+@keyframes mp-bob {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(calc(-2 * var(--u)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-pin.is-next .mp-pin-badge {
+    animation: none;
+  }
+}
+
+/* карточка главы */
+.mp-card {
+  text-align: left;
+  display: grid;
+  gap: calc(3 * var(--u));
+  align-content: start;
+  margin: calc(4 * var(--u)) 0;
+}
+.mp-card.is-finale {
+  border-top: calc(3 * var(--u)) solid var(--c-stamp);
+}
+.mp-card p {
+  margin: 0;
+}
+.mp-card-kicker {
+  color: var(--c-steel-2);
+}
+.mp-card-title {
+  margin: 0;
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
+  color: var(--c-ink);
+}
+.mp-card-place {
+  color: var(--c-denim);
+}
+.mp-card-who {
+  display: flex;
+  gap: calc(6 * var(--u));
+  align-items: center;
+}
+.mp-card-face {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  background: var(--c-paper-2);
+  box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+  overflow: hidden;
+}
+.mp-card-who dl {
+  margin: 0;
+  display: grid;
+  gap: calc(2 * var(--u));
+}
+.mp-card-who dt {
+  color: var(--c-steel-2);
+}
+.mp-card-who dd {
+  margin: 0;
+}
+.mp-card-intro {
+  font: var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.mp-card-teach b {
+  color: var(--c-stamp);
+}
+.mp-card-record {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  color: var(--c-steel-2);
+}
+.mp-card-after {
+  padding: calc(4 * var(--u));
+  background: var(--c-paper-2);
+  display: grid;
+  gap: var(--u);
+}
+.mp-card-after p:last-child {
+  font: var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.mp-card-after-h {
+  color: var(--c-steel-2);
+}
+.mp-card-after.is-end {
+  background: var(--c-brass-hi);
+}
+.mp-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(4 * var(--u));
+  margin-top: calc(2 * var(--u));
+}
+.mp-card-note {
+  color: var(--c-steel-2);
+}
+
+/* список глав под картой */
+.mp-list {
+  list-style: none;
+  padding: 0;
+  margin: calc(8 * var(--u)) auto 0;
+  display: grid;
+  gap: calc(2 * var(--u));
+}
+.mp-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: calc(14 * var(--u)) 13em minmax(0, 1fr) minmax(0, 1fr) 8em;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--on-desk);
+  background: var(--desk-lo);
+  cursor: pointer;
+}
+.mp-list li.is-sel button {
+  background: var(--c-night);
+  color: var(--c-paper);
+}
+.mp-list button:hover {
+  background: var(--c-night-2);
+}
+.mp-list-n {
+  display: grid;
+  place-items: center;
+  height: calc(12 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-weight: 700;
+}
+.mp-list li.is-done .mp-list-n {
+  background: var(--c-leaf-hi);
+}
+.mp-list li.is-next .mp-list-n {
+  background: var(--c-brass-hi);
+}
+.mp-list-when,
+.mp-list-place {
+  color: var(--on-desk-muted);
+}
+.mp-list li.is-sel .mp-list-when,
+.mp-list li.is-sel .mp-list-place {
+  color: var(--c-mist);
+}
+.mp-list-title {
+  font-weight: 700;
+}
+.mp-list-stars {
+  justify-self: end;
+  color: var(--c-brass-hi);
+}
+
+@media (max-width: 760px) {
+  .mp-list button {
+    grid-template-columns: calc(14 * var(--u)) minmax(0, 1fr) auto;
+    grid-template-areas:
+      'n title stars'
+      'n when when'
+      'n place place';
+    row-gap: 0;
+  }
+  .mp-list-n {
+    grid-area: n;
+    align-self: start;
+  }
+  .mp-list-title {
+    grid-area: title;
+  }
+  .mp-list-when {
+    grid-area: when;
+  }
+  .mp-list-place {
+    grid-area: place;
+  }
+  .mp-list-stars {
+    grid-area: stars;
+  }
+  .mp-bar-right .px-btn:first-child:not(:last-child) {
+    display: none;
+  }
+  .mp-card-who {
+    align-items: flex-start;
+  }
+}

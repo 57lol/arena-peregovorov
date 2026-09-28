@@ -13,6 +13,8 @@ export interface Chapter {
   day: string
   time: string
   place: string
+  /** подпись метки на карте — два-три слова */
+  label: string
   /** один приём, простыми словами — для карточки на карте */
   teaches: string
   /** 2–3 фразы перед брифом: где мы и что случилось */
@@ -40,6 +42,7 @@ export const STORY = {
 export const CHAPTERS: Chapter[] = [
   {
     id: 'dorm',
+    label: 'Общага',
     kind: 'life',
     day: 'Воскресенье',
     time: '21:10',
@@ -56,6 +59,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'stop',
+    label: 'Остановка',
     kind: 'life',
     day: 'Понедельник',
     time: '7:35',
@@ -72,6 +76,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'tara',
+    label: '«Водогрей»',
     kind: 'work',
     day: 'Понедельник',
     time: '10:00',
@@ -87,6 +92,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'shop',
+    label: '«Семёрочка»',
     kind: 'life',
     day: 'Вторник',
     time: '19:40',
@@ -103,6 +109,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'offer',
+    label: '«Штамп-К»',
     kind: 'work',
     day: 'Среда',
     time: '11:00',
@@ -118,6 +125,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'client',
+    label: '«Иней»',
     kind: 'work',
     day: 'Четверг',
     time: '15:00',
@@ -133,6 +141,7 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'launch',
+    label: 'Новый цех',
     kind: 'finale',
     day: 'Пятница',
     time: '23:10',

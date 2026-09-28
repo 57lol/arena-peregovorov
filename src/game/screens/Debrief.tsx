@@ -30,12 +30,14 @@ interface Props {
   /** «Сыграть жёстче»: только у дел из папки, которые ещё не жёсткие */
   onHarder?: () => void
   onOther: () => void
+  /** подпись кнопки «Другое дело»: с карты кампании — «К карте недели» */
+  otherLabel?: string
   /** корешок тренировки команды: результат ушёл руководителю */
   receipt?: React.ReactNode
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, receipt }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, otherLabel, receipt }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
@@ -137,7 +139,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
             </Button>
           )}
           <Button icon="notebook" onClick={onOther}>
-            Другое дело
+            {otherLabel ?? 'Другое дело'}
           </Button>
           <ShareButton scenario={sc} fromLibrary={game.fromLibrary} />
         </footer>
