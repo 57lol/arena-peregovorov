@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { canRecord, micError, recognize, startRecording, SttError, toPcm16k, type Recording } from '../speech'
+import { canRecord, MAX_REC_SEC, micError, recognize, startRecording, SttError, toPcm16k, type Recording } from '../speech'
 import { Button } from '../ui'
 
 interface Props {
@@ -11,9 +11,10 @@ interface Props {
   onOff: () => void
 }
 
-const LIMIT = 29
+const LIMIT = MAX_REC_SEC
+const clock = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`
 
-/** Кнопка «Голосом»: первый клик — запись, второй — стоп и распознавание. */
+/** Кнопка «Голосом»: первый клик — запись, второй — стоп и распознавание. Паузы в речи запись не прерывают, предел — минута. */
 export function MicButton({ disabled, onText, onError, onOff }: Props) {
   const [state, setState] = useState<'idle' | 'rec' | 'busy'>('idle')
   const [sec, setSec] = useState(0)
@@ -69,16 +70,25 @@ export function MicButton({ disabled, onText, onError, onOff }: Props) {
       icon="mic"
       disabled={disabled || state === 'busy'}
       aria-pressed={rec_}
-      aria-label={rec_ ? 'Остановить запись' : 'Сказать голосом'}
+      aria-label={rec_ ? 'Остановить запись и распознать' : 'Сказать голосом'}
+      title={rec_ ? 'Говорите сколько нужно, паузы не страшны. Закончили — нажмите «Стоп».' : undefined}
       onClick={() => (rec_ ? finish() : begin())}
     >
       {rec_ ? (
         <>
           <i className="g-rec-dot" aria-hidden="true" />
-          <span className="g-mic-label">Стоп</span> 0:{String(sec).padStart(2, '0')}
+          <span className="g-mic-label">Стоп</span>{' '}
+          {LIMIT - sec <= 10 ? (
+            `ещё ${LIMIT - sec} с`
+          ) : (
+            <>
+              {clock(sec)}
+              <span className="g-mic-limit"> / {clock(LIMIT)}</span>
+            </>
+          )}
         </>
       ) : state === 'busy' ? (
-        <span className="g-mic-label">Слушаю…</span>
+        <span className="g-mic-label">Распознаю…</span>
       ) : (
         <span className="g-mic-label">Голосом</span>
       )}

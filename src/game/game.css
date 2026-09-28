@@ -932,6 +932,10 @@ body {
     gap: 0;
     padding-inline: calc(3 * var(--u));
   }
+  /* на телефоне у записи только «0:12», предел в минуту — в подсказке кнопки */
+  .g-mic-limit {
+    display: none;
+  }
 }
 .g-rec-dot {
   display: inline-block;

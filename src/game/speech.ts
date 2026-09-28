@@ -137,7 +137,10 @@ export async function startRecording(): Promise<Recording> {
 }
 
 const RATE = 16000
-const MAX_SEC = 29.5
+/** Самая длинная реплика голосом: дальше кнопка сама жмёт «Стоп». Паузы запись не обрывают — только игрок или этот лимит. */
+export const MAX_REC_SEC = 60
+/** Синхронный SpeechKit берёт до 30 секунд за раз — длиннее режем на куски и склеиваем текст. */
+const CHUNK_SEC = 28
 
 /** Любую запись браузера (webm/opus в Chrome, mp4 в Safari) — в 16 кГц моно PCM, как ждёт SpeechKit. */
 export async function toPcm16k(blob: Blob): Promise<ArrayBuffer> {
@@ -151,7 +154,7 @@ export async function toPcm16k(blob: Blob): Promise<ArrayBuffer> {
   } finally {
     ctx.close().catch(() => {})
   }
-  const secs = Math.min(buf.duration, MAX_SEC)
+  const secs = Math.min(buf.duration, MAX_REC_SEC + 2)
   let mono: Float32Array
   try {
     const off = new OfflineAudioContext(1, Math.ceil(secs * RATE), RATE)
@@ -191,7 +194,7 @@ export class SttError extends Error {
   }
 }
 
-export async function recognize(pcm: ArrayBuffer): Promise<string> {
+async function recognizeChunk(pcm: Int16Array<ArrayBuffer>): Promise<string> {
   let r: Response
   try {
     r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: AbortSignal.timeout(25_000) })
@@ -204,6 +207,40 @@ export async function recognize(pcm: ArrayBuffer): Promise<string> {
   if (r.status === 429) throw new SttError('Лимит распознавания на сегодня исчерпан — напишите реплику текстом.', true)
   if (!r.ok) throw new SttError('Не получилось распознать. Попробуйте ещё раз или напишите текстом.')
   return j.text ?? ''
+}
+
+/**
+ * Режем запись на куски не длиннее CHUNK_SEC: в последних секундах каждого куска ищем самое тихое место,
+ * чтобы не разрезать слово пополам.
+ */
+export function splitPcm(s: Int16Array<ArrayBuffer>, max = CHUNK_SEC * RATE, look = 5 * RATE, win = RATE / 10): Int16Array<ArrayBuffer>[] {
+  const out: Int16Array<ArrayBuffer>[] = []
+  let a = 0
+  while (s.length - a > max) {
+    let cut = a + max
+    let quiet = Infinity
+    for (let w = a + max - look; w + win <= a + max; w += win / 2) {
+      let e = 0
+      for (let i = w; i < w + win; i++) e += Math.abs(s[i])
+      if (e < quiet) {
+        quiet = e
+        cut = w + win / 2
+      }
+    }
+    out.push(s.subarray(a, cut))
+    a = cut
+  }
+  out.push(s.subarray(a))
+  return out
+}
+
+/** Распознать запись любой длины (до MAX_REC_SEC): куски уходят на сервер параллельно, текст склеиваем по порядку. */
+export async function recognize(pcm: ArrayBuffer): Promise<string> {
+  const parts = splitPcm(new Int16Array(pcm))
+  // хвост короче полсекунды — это щелчок кнопки, не речь
+  const real = parts.filter((p, i) => i === 0 || p.length >= RATE / 2)
+  const texts = await Promise.all(real.map(recognizeChunk))
+  return texts.map((t) => t.trim()).filter(Boolean).join(' ')
 }
 
 /** Понятное сообщение об ошибке микрофона. */
