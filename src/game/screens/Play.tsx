@@ -87,6 +87,8 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
       setSource(r.source)
       setDraft('')
       if (opts.offer) setNotebook(false)
+      // на ноутбуке после ответа показываем верх правой колонки: там новый листок и кнопка «Принять»
+      sideRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {

@@ -1203,6 +1203,13 @@ body {
 .g-ledger-head .g-sheet-title {
   margin-bottom: calc(1 * var(--u));
 }
+@media (max-width: 480px) {
+  /* рядом с портретом заголовок рвал длинные слова («робототехник / а») — на телефоне он под портретом и штампом */
+  .g-ledger-head > div:nth-child(2) {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
 .g-ledger-face {
   flex: none;
   width: 64px;
@@ -1874,5 +1881,12 @@ body {
   }
   .g-map-panel {
     order: 3;
+  }
+}
+
+/* на телефоне Enter не отправляет — подсказка про клавиши не нужна */
+@media (hover: none) and (pointer: coarse) {
+  .g-say .px-field-hint {
+    display: none;
   }
 }
