@@ -6,6 +6,7 @@ import type { Report } from '../engine/report'
 import type { OpponentState, Scenario } from '../engine/types'
 import { bestOption, issueWeight } from '../engine/utility'
 import { baseCaseId } from './scenarios/harder'
+import { STORY_ENDINGS } from './scenarios/story'
 
 export type EndingTone = 'good' | 'mixed' | 'bad'
 
@@ -17,7 +18,7 @@ export interface EndingCard {
   tone: EndingTone
 }
 
-interface EndingText {
+export interface EndingText {
   title: string
   epilogue: string
   /** для «Сами себе дороже» без сделки: ушли от предложения лучше запасного */
@@ -46,7 +47,7 @@ const HINT: Record<EndingId, string> = {
   timeout: 'Проговорить все часы встречи',
 }
 
-const TITLE: Record<EndingId, string> = {
+export const TITLE: Record<EndingId, string> = {
   legend: 'Сделка, о которой расскажут',
   cold_win: 'Выиграли цену, проиграли человека',
   middling: 'Нормально. Но…',
@@ -294,7 +295,8 @@ function fill(text: string, sc: Scenario, report?: Report): string {
 }
 
 function textsFor(sc: Scenario, female: boolean) {
-  return LIBRARY[baseCaseId(sc.id)] ?? generic(female)
+  const id = baseCaseId(sc.id)
+  return LIBRARY[id] ?? STORY_ENDINGS[id] ?? generic(female)
 }
 
 /** Все финалы дела — для карты. */

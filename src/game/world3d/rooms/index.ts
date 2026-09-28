@@ -9,8 +9,14 @@ export type StoryKind = (typeof STORY_KINDS)[number]
 export type WorldKind = RoomKind | StoryKind
 
 type Builder = () => RoomBuild
-/** Сюда регистрируются комнаты кампании: `rooms/dorm.ts` → BUILDERS.dorm и т. д. */
+/** Комната места — файл rooms/<место>.ts с `export const ROOM = { kind: 'shop', build: buildShop }`. Находятся сами. */
+export interface StoryRoom {
+  kind: StoryKind
+  build: Builder
+}
+const found = import.meta.glob<{ ROOM?: StoryRoom }>(['./*.ts', '!./index.ts', '!./*.gen.ts', '!./*.test.ts'], { eager: true })
 const BUILDERS: Partial<Record<StoryKind, Builder>> = {}
+for (const m of Object.values(found)) if (m.ROOM) BUILDERS[m.ROOM.kind] = m.ROOM.build
 
 /** Запасная переговорная для места, у которого ещё нет своей комнаты. */
 const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office', shop: 'office', bytovka: 'factory' }
