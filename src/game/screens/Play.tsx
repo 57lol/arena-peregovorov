@@ -82,6 +82,14 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
     if (voiced && voiced.text !== line) stopAudio()
   }, [line, voiced])
   useEffect(() => stopAudio, [])
+  // голос включён с прошлого раза — собеседник здоровается вслух
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (greeted.current || !canVoice || !voiceRef.current || history.length) return
+    greeted.current = true
+    speak(sc.opening, 'neutral')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canVoice])
 
   /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
   async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {

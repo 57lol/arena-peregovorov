@@ -4,6 +4,7 @@ import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { loadProgress, type Progress } from './game/progress'
 import { clearLink, readLink } from './game/share'
+import { loadVoiceOn, unlockAudio } from './game/speech'
 import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
@@ -115,6 +116,8 @@ export default function App() {
   }
 
   const start = () => {
+    // «Войти в переговорку» — клик: прогреваем звук, чтобы собеседник поздоровался вслух (iOS)
+    if (server?.speech?.tts && loadVoiceOn()) unlockAudio()
     setHistory([])
     setRedo('')
     setPlayKey((k) => k + 1)
