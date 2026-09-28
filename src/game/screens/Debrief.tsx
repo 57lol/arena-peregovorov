@@ -5,6 +5,7 @@ import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { revealAt } from '../../engine/policy'
 import { buildReport, type Report } from '../../engine/report'
+import { maxScore } from '../../engine/utility'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { endingOf } from '../../content/endings'
 import type { EndingId } from '../../engine/endings'
@@ -18,6 +19,8 @@ import { Finale } from './Finale'
 import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
+import { summarize } from '../summary'
+import '../onboarding.css'
 
 interface Props {
   game: Case
@@ -72,14 +75,21 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
 
   const stars = starsOf(report)
   const wide = useWide()
+  const [more, setMore] = useState(false)
+  const moreRef = useRef<HTMLDetailsElement>(null)
+  const openMore = () => {
+    setMore(true)
+    setTimeout(() => moreRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
+  }
 
   return (
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
       <main className="px-desk g-desk g-report">
         {receipt}
-        <div className="g-report-top">
-          <div className="g-report-left">
-          <Ledger sc={sc} report={report} history={history} name={name} improved={improved} />
+        {/* сначала главное: три строки и что делать дальше; цифры, карта и моменты — в подробном разборе */}
+        <Main sc={sc} report={report} history={history} improved={improved} onAgain={onAgain} onMore={openMore} />
+
+        <div className="g-report-fun">
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
           {history.length > 0 && (
             <SkillGain run={run} before={career?.before} after={career?.after}>
@@ -95,42 +105,50 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
               )}
             </SkillGain>
           )}
-          <section className="g-sheet g-why" aria-labelledby="why-h">
-            <h2 id="why-h" className="g-sheet-title">
-              Почему такой итог
-            </h2>
-            <ul className="g-why-list">
-              {report.explanation.map((e) => (
-                <li key={e}>{censor(e)}</li>
-              ))}
-            </ul>
-            <Stars stars={stars} labels />
-          </section>
-          </div>
-          <section className="g-panel g-map-panel" aria-labelledby="map-h">
-            <h2 id="map-h" className="g-panel-title">
-              Карта всех возможных сделок
-            </h2>
-            <p className="g-panel-lead">
-              Каждая точка — один вариант договора: правее — лучше вам, выше — лучше {g(sc, 'ему', 'ей')}. Всё, что под золотой лестницей,
-              можно было улучшить обоим сразу.
-            </p>
-            <DealMap sc={sc} report={report} history={history} name={name} />
-          </section>
         </div>
 
-        <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} wide={wide} />
+        <details ref={moreRef} className="g-report-more" open={more} onToggle={(e) => setMore(e.currentTarget.open)}>
+          <summary>Подробный разбор: цифры, карта всех сделок, три главных момента</summary>
+          <div className="g-report-top">
+            <div className="g-report-left">
+              <Ledger sc={sc} report={report} history={history} name={name} improved={null} />
+              <section className="g-sheet g-why" aria-labelledby="why-h">
+                <h2 id="why-h" className="g-sheet-title">
+                  Почему такой итог
+                </h2>
+                <ul className="g-why-list">
+                  {report.explanation.map((e) => (
+                    <li key={e}>{censor(e)}</li>
+                  ))}
+                </ul>
+                <Stars stars={stars} labels />
+              </section>
+            </div>
+            <section className="g-panel g-map-panel" aria-labelledby="map-h">
+              <h2 id="map-h" className="g-panel-title">
+                Карта всех возможных сделок
+              </h2>
+              <p className="g-panel-lead">
+                Каждая точка — один вариант договора: правее — выгоднее вам, выше — {g(sc, 'ему', 'ей')}. Всё, что ниже золотой
+                лесенки, можно было улучшить сразу для обоих.
+              </p>
+              <DealMap sc={sc} report={report} history={history} name={name} />
+            </section>
+          </div>
 
-        <UnderTable sc={sc} report={report} state={last?.stateAfter} />
+          <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} wide={wide} />
 
-        <Behavior sc={sc} rows={report.benchmark} history={history} wide={wide} />
+          <UnderTable sc={sc} report={report} state={last?.stateAfter} />
 
-        <section className="g-sheet">
-          <Method />
-        </section>
+          <Behavior sc={sc} rows={report.benchmark} history={history} wide={wide} />
+
+          <section className="g-sheet">
+            <Method />
+          </section>
+        </details>
 
         <footer className="g-report-actions">
-          <Button variant="brass" icon="rewind" className="g-big" onClick={onAgain}>
+          <Button variant="brass" icon="rewind" onClick={onAgain}>
             Сыграть это дело заново
           </Button>
           {onHarder && report.outcome.status === 'deal' && (
@@ -172,6 +190,74 @@ function Fold({ summary, wide, children }: { summary: string; wide: boolean; chi
   )
 }
 
+/** Главное: чем кончилось, что получилось, что попробовать. Три строки и кнопки — остальное по запросу. */
+function Main({
+  sc,
+  report,
+  history,
+  improved,
+  onAgain,
+  onMore,
+}: {
+  sc: Scenario
+  report: Report
+  history: TurnRecord[]
+  improved: number | null
+  onAgain: () => void
+  onMore: () => void
+}) {
+  const s = summarize(sc, report, history)
+  const o = report.outcome
+  return (
+    <section className="g-sheet g-main" aria-labelledby="main-h">
+      <div className="g-ledger-head">
+        <div className="g-ledger-face" aria-hidden="true">
+          <Portrait id={portraitFor(sc)} emotion={toPortraitEmotion(history[history.length - 1]?.emotion)} scale={1} />
+        </div>
+        <div>
+          <h1 id="main-h" className="g-sheet-title">
+            Разбор: {sc.title}
+          </h1>
+          <p className="g-muted">{sc.opponent.character.name}</p>
+        </div>
+        <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
+          <span>{STATUS[o.status]}</span>
+        </div>
+      </div>
+      <dl className="g-main-lines">
+        <div>
+          <dt>Итог</dt>
+          <dd>{s.result}</dd>
+        </div>
+        <div className="is-good">
+          <dt>Получилось</dt>
+          <dd>
+            {s.good}
+            {s.quote && <q className="g-main-quote">{censor(s.quote)}</q>}
+          </dd>
+        </div>
+        <div className="is-next">
+          <dt>В следующий раз</dt>
+          <dd>{s.next}</dd>
+        </div>
+      </dl>
+      {improved !== null && (
+        <p className="g-ledger-new">
+          Новый личный рекорд по делу: {improved} {plural(improved, 'звезда', 'звезды', 'звёзд')} из 3.
+        </p>
+      )}
+      <div className="g-main-actions">
+        <Button variant="brass" icon="rewind" className="g-big" onClick={onAgain}>
+          Сыграть ещё раз
+        </Button>
+        <Button variant="ghost" icon="down" onClick={onMore}>
+          Подробный разбор
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 const STATUS: Record<string, string> = { deal: 'По рукам', walked_away: 'Без сделки', timeout: 'Время вышло', open: 'Не закончено' }
 
 function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report: Report; history: TurnRecord[]; name: string; improved: number | null }) {
@@ -192,38 +278,28 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
   const used = Math.min(history.length, sc.turnLimit)
   return (
     <section className="g-sheet g-ledger" aria-labelledby="ledger-h">
-      <div className="g-ledger-head">
-        <div className="g-ledger-face" aria-hidden="true">
-          <Portrait id={portraitFor(sc)} emotion={toPortraitEmotion(history[history.length - 1]?.emotion)} scale={1} />
-        </div>
-        <div>
-          <h1 id="ledger-h" className="g-sheet-title">
-            Разбор: {sc.title}
-          </h1>
-          <p className="g-muted">
-            {sc.opponent.character.name}. {used} {plural(used, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}, {who}.
-          </p>
-        </div>
-        <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
-          <span>{STATUS[o.status]}</span>
-        </div>
-      </div>
+      <h2 id="ledger-h" className="g-sheet-title">
+        Цифры встречи
+      </h2>
+      <p className="g-muted">
+        {used} {plural(used, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}, {who}. Выгода считается из {maxScore(sc.player.profile, sc.issues)}.
+      </p>
 
       {deal ? (
         <dl className="g-ledger-rows">
-          <Row label="Вы взяли" value={o.playerPoints} strong />
-          <Row label="Ваш запасной вариант" value={report.batna.player} />
-          <Row label="Сделка против запасного" value={diff >= 0 ? `+${diff}` : `−${-diff}`} tone={diff >= 0 ? 'good' : 'bad'} />
-          <Row label={`Взял${g(sc, '', 'а')} ${name}`} value={o.opponentPoints} />
-          <Row label="Осталось на столе" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />
-          <Row label="Эффективность по Парето" value={`${Math.round(o.paretoEfficiency * 100)}%`} />
+          <Row label="Ваша выгода" value={o.playerPoints} strong />
+          <Row label={<>Без сделки было бы <Term>BATNA</Term></>} value={report.batna.player} />
+          <Row label="Сделка лучше, чем без неё, на" value={diff >= 0 ? `+${diff}` : `−${-diff}`} tone={diff >= 0 ? 'good' : 'bad'} />
+          <Row label={`Выгода: ${name}`} value={o.opponentPoints} />
+          <Row label="Упустили вдвоём: можно было лучше обоим" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />
+          <Row label={<>Насколько сделка выгодна обоим <Term>эффективность по Парето</Term></>} value={`${Math.round(o.paretoEfficiency * 100)}%`} />
           <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
         </dl>
       ) : (
         <dl className="g-ledger-rows">
-          <Row label="Вы остаётесь с запасным" value={o.playerPoints} strong />
-          {could && <Row label="Могли бы взять, не обидев никого" value={could.player} tone="bad" />}
-          <Row label={`${name} остаётся с запасным`} value={o.opponentPoints} />
+          <Row label={<>Ваша выгода без сделки <Term>BATNA</Term></>} value={o.playerPoints} strong />
+          {could && <Row label="Могли бы взять, никого не обидев" value={could.player} tone="bad" />}
+          <Row label={`${name}: без сделки`} value={o.opponentPoints} />
           {could && <Row label={`А ${g(sc, 'ему', 'ей')} можно было дать`} value={could.opponent} />}
           <Row label="Вариантов, устраивавших обоих" value={report.zopa} />
           <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
@@ -238,7 +314,10 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
   )
 }
 
-function Row({ label, value, strong, tone }: { label: string; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
+/** Термин для тех, кто знает теорию, — мелко после простых слов. */
+const Term = ({ children }: { children: React.ReactNode }) => <small className="g-term">({children})</small>
+
+function Row({ label, value, strong, tone }: { label: React.ReactNode; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
   return (
     <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
       <dt>{label}</dt>
