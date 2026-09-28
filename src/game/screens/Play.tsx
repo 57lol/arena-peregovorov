@@ -4,8 +4,10 @@ import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
+import { mentorLine, useTutorial } from '../tutorial'
 import { MicButton } from './Mic'
 import { Margin, MarginOff } from './Margin'
+import { Mentor } from './Mentor'
 import { Notes, Slip, XRay } from './meetingParts'
 
 type Props = MeetingProps & {
@@ -34,13 +36,27 @@ export function Play(props: Props) {
     stamp, feedback, tip, send, putOnTable, accept, walk,
   } = m
 
+  // первая встреча — обучающая: то же, что в 3D, только бумаги не на столе, а в колонке справа
+  const tut = useTutorial(props.tutorial, props.onTutorialOff, m)
+  const mentor = tut.on
+    ? mentorLine(tut.step, { sc, pose: 'desk', phone: false, held: null, theirs: theirsOnTable, batna: P.batna })
+    : props.tutorial && done && history.length > 0
+      ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
+      : null
+  const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
+  // на телефоне блокнот спрятан под кнопкой — когда наставник о нём заговорил, открываем сами
+  const nbStep = tut.step === 'notebook'
+  useEffect(() => {
+    if (nbStep) setNotebook(true)
+  }, [nbStep])
+
   const openNotebook = () => {
     setNotebook((o) => !o)
     setTimeout(() => notebookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
   }
 
   const margin = (where: 'stage' | 'side') =>
-    instantOn ? (
+    tut.on ? null : instantOn ? (
       <Margin
         fb={feedback}
         tip={tip}
@@ -62,7 +78,7 @@ export function Play(props: Props) {
       where === 'side' && <MarginOff onOn={() => switchInstant(true)} />
     )
 
-  const voiceBtn = canVoice && (
+  const voiceBtn = canVoice && tut.shows('extras') && (
     <Button
       className="g-voice-btn"
       aria-label="Голос собеседника"
@@ -81,12 +97,17 @@ export function Play(props: Props) {
         <div className="g-play-grid">
           <div className="g-stage">
             <div className="g-hud">
-              <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} startAt={meetingClock(sc).start} minutes={meetingClock(sc).minutes} />
+              {tut.shows('desk') ? (
+                <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} startAt={meetingClock(sc).start} minutes={meetingClock(sc).minutes} />
+              ) : (
+                <span />
+              )}
               <div className="g-hud-actions">
                 {voiceBtn}
+                {tut.shows('feel') && (
                 <Button
-                  className="g-xray-btn"
-                  aria-label="Рентген"
+                  className={`g-xray-btn${lit('feel')}`}
+                  aria-label="Что чувствует"
                   variant={xray ? 'brass' : 'paper'}
                   icon="eye"
                   aria-pressed={xray}
@@ -98,9 +119,10 @@ export function Play(props: Props) {
                     if (!xray) setTimeout(() => sideRef.current?.scrollTo({ top: 0 }), 0)
                   }}
                 >
-                  <span className="g-xray-btn-label">Рентген</span>
+                  <span className="g-xray-btn-label">Что чувствует</span>
                 </Button>
-                {!done && (
+                )}
+                {!done && tut.shows('leave') && (
                   <Button variant="ghost" icon="leave" className={`g-leave${leaving ? ' is-sure' : ''}`} onClick={walk} aria-label="Встать и уйти">
                     <span className="g-leave-label">{leaving ? 'Точно уйти?' : 'Уйти'}</span>
                   </Button>
@@ -113,6 +135,19 @@ export function Play(props: Props) {
             </Scene>
 
             {margin('stage')}
+            {mentor && (
+              <Mentor
+                className="g-mentor--play"
+                line={mentor}
+                fb={tut.step === 'talk' ? null : feedback}
+                onAck={tut.ack}
+                onExample={(t) => {
+                  setDraft(t)
+                  document.getElementById('px-speech')?.focus()
+                }}
+                onSkip={tut.on ? tut.skip : undefined}
+              />
+            )}
 
             {(pending || last) && (
               <p className="g-you">
@@ -131,13 +166,15 @@ export function Play(props: Props) {
               extra={voiceBtn}
             />
 
-            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
+            {tut.shows('slip') && (
+              <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
+            )}
 
             {done ? (
               <div className="g-end">
                 <p className="g-end-text">{endText(state, sc, g)}</p>
                 <div className="g-say-row">
-                  <Button variant="brass" icon="stamp" className="g-big" onClick={onFinish}>
+                  <Button variant="brass" icon="stamp" className={`g-big${props.tutorial ? ' is-tutor' : ''}`} onClick={onFinish}>
                     Разбор встречи
                   </Button>
                   <Button variant="ghost" icon="rewind" onClick={() => setHistory((h) => h.slice(0, -1))}>
@@ -153,20 +190,20 @@ export function Play(props: Props) {
                   send(draft)
                 }}
               >
-                {canAccept && theirsForMe !== null && (
+                {canAccept && theirsForMe !== null && tut.shows('slip') && (
                   <div className="g-ontable">
                     {/* телефон: главное с листка — прямо над полем ввода; сам листок ниже */}
                     <button
                       type="button"
                       className="g-ontable-text"
-                      aria-label="Показать листок на столе"
+                      aria-label="Показать листок с предложением"
                       onClick={() => document.querySelector('.g-slip--stage')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                     >
-                      На столе вам <b className={theirsForMe < P.batna ? 'is-low' : undefined}>{theirsForMe}</b>
-                      <span className="g-ontable-batna">{acceptSure ? ' — меньше запасного' : `, запасной ${P.batna}`}</span>
+                      Предлагают: вам <b className={theirsForMe < P.batna ? 'is-low' : undefined}>{theirsForMe}</b>
+                      <span className="g-ontable-batna">{acceptSure ? ' — меньше, чем без сделки' : `, без сделки ${P.batna}`}</span>
                     </button>
                     <Button variant={acceptSure ? 'stamp' : 'paper'} icon="check" disabled={!!pending} onClick={accept}>
-                      {acceptSure ? 'Всё равно' : 'Принять'}
+                      {acceptSure ? 'Всё равно' : 'Согласиться'}
                     </Button>
                   </div>
                 )}
@@ -205,9 +242,11 @@ export function Play(props: Props) {
                       onOff={() => setMicOff(true)}
                     />
                   )}
+                  {tut.shows('notebook') && (
                   <Button icon="notebook" className="g-only-mobile" aria-expanded={notebook} aria-controls="g-notebook" onClick={openNotebook}>
                     {notebook ? 'Закрыть блокнот' : 'Блокнот'}
                   </Button>
+                  )}
                   {source === 'local' && <span className="g-source">сервер недоступен, играем офлайн</span>}
                 </div>
               </form>
@@ -216,28 +255,35 @@ export function Play(props: Props) {
 
           <aside className="g-side" data-xray={xray} ref={sideRef}>
             {margin('side')}
-            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="side" />
-            <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
+            {tut.shows('slip') && (
+              <div className={lit('slip').trim() || undefined}>
+                <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="side" />
+              </div>
+            )}
+            {tut.shows('notebook') && (
+            <div id="g-notebook" ref={notebookRef} className={`g-notebook-wrap${lit('notebook')}`} data-open={notebook}>
               <Notebook
                 title="Мой блокнот"
                 footer={
                   <>
-                    <Button variant={lowSure ? 'stamp' : 'brass'} icon="pen" disabled={done || !!pending} onClick={putOnTable}>
-                      {lowSure ? 'Всё равно положить' : 'Положить на стол'}
-                    </Button>
+                    {tut.shows('offer') && (
+                      <Button variant={lowSure ? 'stamp' : 'brass'} icon="pen" className={lit('offer') || undefined} disabled={done || !!pending} onClick={putOnTable}>
+                        {lowSure ? 'Всё равно предложить' : 'Предложить'}
+                      </Button>
+                    )}
                     <span className={`g-total${myTotal < P.batna ? ' is-low' : ''}`}>
-                      мне <b>{myTotal}</b>
+                      выгода <b>{myTotal}</b> из {m.max}
                     </span>
                   </>
                 }
               >
                 <p className="px-note">
-                  Запасной вариант даёт мне <b>{P.batna}</b>. Меньше брать нет смысла.
+                  Без сделки у меня будет выгода <b>{P.batna}</b>. Меньше брать нет смысла. Справа — насколько мне выгоден каждый
+                  вариант.
                 </p>
                 {lowSure && (
                   <p className="g-low" role="alert">
-                    Это предложение даёт вам {myTotal} — меньше, чем запасной вариант ({P.batna}). Если {name} согласится, вы
-                    проиграете по сравнению с тем, чтобы просто уйти.
+                    Выгода {myTotal} — меньше, чем без сделки ({P.batna}). Если {name} согласится, вы проиграете.
                   </p>
                 )}
                 <Notes sc={sc} state={state} issue={undefined} fresh={revealedNow} name={name} />
@@ -248,25 +294,29 @@ export function Play(props: Props) {
                       options={i.options}
                       points={P.points[i.id]}
                       value={picks[i.id]}
-                      onChange={(v) => m.pick(i.id, v)}
+                      onChange={(v) => {
+                        m.pick(i.id, v)
+                        tut.picked()
+                      }}
                     />
                     <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
                   </div>
                 ))}
                 {isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
                   <button type="button" className="g-link g-copy" onClick={() => m.setPicks({ ...(state.lastOpponentOffer as Record<string, number>) })}>
-                    Переписать с листка на столе
+                    Переписать условия с листка
                   </button>
                 )}
               </Notebook>
             </div>
+            )}
 
             {xray && <XRay sc={sc} state={state} last={last} name={name} onClose={() => setXray(false)} />}
 
-            {history.length > 0 && (
+            {history.length > 0 && tut.shows('extras') && (
               <details className="g-protocol">
                 <summary>
-                  Протокол встречи: {history.length} {plural(history.length, 'ход', 'хода', 'ходов')}
+                  Запись разговора: {history.length} {plural(history.length, 'ход', 'хода', 'ходов')}
                 </summary>
                 <ol>
                   {history.map((h) => (
