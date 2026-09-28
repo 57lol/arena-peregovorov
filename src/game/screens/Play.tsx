@@ -575,7 +575,7 @@ const DECISION_RU = (sc: Scenario): Record<Decision['kind'], string> => ({
 })
 const HOLD_RU = (sc: Scenario): Record<string, string> => ({
   no_offer: 'ждёт от вас конкретики',
-  no_movement: 'не двигается: вы ничего не дали взамен',
+  no_movement: 'не двигается: взамен пока мало',
   not_ready_to_reveal: `не ${g(sc, 'готов', 'готова')} рассказывать — мало доверия`,
   player_left: 'вы ушли',
   timeout: 'время вышло',

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { mentionedIssues, parseOffer, templateLine } from '../engine/offline'
 import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
-import { formatOffer } from '../engine/utility'
+import { bestOption, formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
@@ -53,7 +53,7 @@ ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.
 Ответ — JSON {"line": "...", "emotion": "${EMOTIONS.join('|')}"}.`
 }
 
-function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offer): string {
+function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offer, stepped = false): string {
   const offer = (o: Record<string, number | undefined>) => formatOffer(sc, o)
   switch (d.kind) {
     case 'accept':
@@ -88,7 +88,10 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
         case 'no_movement': {
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
-          return `Решение: ДЕРЖАТЬ ПОЗИЦИЮ. Двигаться не готов: собеседник ничего не дал взамен. Скажи, что твоё предложение в силе, и намекни, что ждёшь шага навстречу. Условия заново НЕ перечисляй${typeof was === 'number' ? `, можешь назвать только главное: ${main.title.toLowerCase()} — ${main.options[was]}` : ''}.`
+          const why = stepped
+            ? 'собеседник подвинулся, но этого мало. Признай его шаг, но скажи, что для тебя этого недостаточно. Не говори, что он ничего не дал'
+            : 'собеседник ничего не дал взамен. Намекни, что ждёшь шага навстречу'
+          return `Решение: ДЕРЖАТЬ ПОЗИЦИЮ. Двигаться не готов: ${why}. Скажи, что твоё предложение в силе. Условия заново НЕ перечисляй${typeof was === 'number' ? `, можешь назвать только главное: ${main.title.toLowerCase()} — ${main.options[was]}` : ''}.`
         }
         case 'player_left': return 'Решение: собеседник уходит. Коротко попрощайся, без сделки.'
         case 'timeout': return 'Решение: время вышло, сделки нет. Коротко закончи встречу.'
@@ -102,6 +105,15 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     case 'walk_away':
       return 'Решение: УЙТИ. Ты заканчиваешь переговоры, сделки не будет. Одна-две фразы.'
   }
+}
+
+/** Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте. */
+function steppedToward(sc: Scenario, before: Offer, after: Offer): boolean {
+  return sc.issues.some((i) => {
+    const a = before[i.id], b = after[i.id]
+    const best = bestOption(sc.opponent.profile, i.id)
+    return typeof a === 'number' && typeof b === 'number' && Math.abs(b - best) < Math.abs(a - best)
+  })
 }
 
 const NO_REASONS = 'Зачем тебе это — не объясняй и причин не придумывай: свои настоящие причины ты пока не раскрыл.'
@@ -240,7 +252,7 @@ export async function voice(
     .join('\n')
   const user = `${recent ? `Разговор до этого:\n${recent}\n\n` : `Ты начал встречу словами: «${sc.opening}»\n\n`}Игрок сейчас сказал: «${playerText}»
 
-${instruction(sc, d, state, prev)}
+${instruction(sc, d, state, prev, steppedToward(sc, history[history.length - 1]?.stateAfter.playerStance ?? {}, state.playerStance ?? {}))}
 ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
   const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys: system(sc), user }
   try {
