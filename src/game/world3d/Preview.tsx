@@ -16,6 +16,7 @@ const STORY_ROOM_CASE: Partial<Record<WorldKind, { caseId: string; face: string 
   street: { caseId: 'stop', face: 'gopnik' },
   shop: { caseId: 'shop', face: 'admin' },
   bytovka: { caseId: 'launch', face: 'palych' },
+  inei: { caseId: 'client', face: 'buyer' },
 }
 
 export default function Preview() {

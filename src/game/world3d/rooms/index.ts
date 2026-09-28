@@ -3,8 +3,8 @@
 
 import { buildRoom, type RoomBuild, type RoomKind } from '../room'
 
-/** Места кампании: комната в общаге, остановка у ларька, магазин у дома, бытовка цеха. */
-export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka'] as const
+/** Места кампании: комната в общаге, остановка у ларька, магазин у дома, бытовка цеха, кабинет закупок «Инея». */
+export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka', 'inei'] as const
 export type StoryKind = (typeof STORY_KINDS)[number]
 export type WorldKind = RoomKind | StoryKind
 
@@ -19,7 +19,7 @@ const BUILDERS: Partial<Record<StoryKind, Builder>> = {}
 for (const m of Object.values(found)) if (m.ROOM) BUILDERS[m.ROOM.kind] = m.ROOM.build
 
 /** Запасная переговорная для места, у которого ещё нет своей комнаты. */
-const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office', shop: 'office', bytovka: 'factory' }
+const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office', shop: 'office', bytovka: 'factory', inei: 'office' }
 
 export const isStoryKind = (k: string): k is StoryKind => (STORY_KINDS as readonly string[]).includes(k)
 

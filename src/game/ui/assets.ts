@@ -47,6 +47,7 @@ export const SCENES = {
   street: { bg: '/assets/scenes/street.png', desk: '/assets/scenes/street-desk.png', title: 'Остановка у ларька' },
   shop: { bg: '/assets/scenes/shop.png', desk: '/assets/scenes/shop-desk.png', title: 'Магазин у общежития' },
   bytovka: { bg: '/assets/scenes/bytovka.png', desk: '/assets/scenes/bytovka-desk.png', title: 'Бытовка цеха' },
+  inei: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Кабинет закупок «Инея»' },
 } as const
 export type SceneId = keyof typeof SCENES
 
