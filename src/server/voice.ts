@@ -76,7 +76,7 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     }
     case 'reveal': {
       const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-      return `Решение: ЧЕСТНО РАССКАЗАТЬ, что тебе на самом деле важно: «${it?.text}».${d.offer ? ` И предложить: ${offer(d.offer)}.` : ' Своё предложение не меняй и заново его не перечисляй.'}`
+      return `Решение: ЧЕСТНО РАССКАЗАТЬ, что тебе на самом деле важно: «${it?.text}». Скажи это конкретно, близко к этим словам, не обобщай.${d.offer ? ` И предложить: ${offer(d.offer)}.` : ' Своё предложение не меняй и заново его не перечисляй.'}`
     }
     case 'hold':
       switch (d.reason) {
@@ -122,6 +122,18 @@ function saysYes(line: string): boolean {
 
 const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*)|окончательн\p{L}*|тв[её]рдое слово|максимум,? что (я )?могу|больше не уступлю|это мой предел)/iu
 
+const COMMON = new Set(['больш', 'всего', 'очень', 'сразу', 'чтобы', 'когда', 'потом', 'тольк', 'этого', 'такой', 'может', 'через', 'нужно', 'будет', 'просто', 'честн'])
+const stems = (t: string) =>
+  (t.toLowerCase().replaceAll('ё', 'е').match(/\p{L}{5,}/gu) ?? []).map((w) => w.slice(0, Math.max(4, Math.min(5, w.length - 2)))).filter((w) => !COMMON.has(w))
+/** В реплике узнаётся интерес из сценария: хотя бы одно-два его значимых слова. */
+export function keepsGist(interest: string, line: string): boolean {
+  const want = [...new Set(stems(interest))]
+  if (!want.length) return true
+  const got = new Set(stems(line))
+  const hits = want.filter((w) => [...got].some((g) => g.startsWith(w) || w.startsWith(g))).length
+  return hits >= (want.length >= 4 ? 2 : 1)
+}
+
 /** Проверяем, что реплика не противоречит решению движка. */
 export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string): boolean {
   const low = line.toLowerCase()
@@ -137,6 +149,11 @@ export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: 
   if (expected) for (const [k, v] of Object.entries(said)) if (expected[k] !== undefined && expected[k] !== v) return false
   // «держу позицию» списком всех условий звучит как робот — такое не берём
   if ((holding || (d.kind === 'reveal' && !d.offer)) && Object.keys(said).length >= 3) return false
+  // раскрывая интерес, говорит о нём конкретно, а не «хочется чего-то нового»
+  if (d.kind === 'reveal') {
+    const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
+    if (it && !keepsGist(it.text, line)) return false
+  }
   // «последнее слово» не на последнем ходу — неправда: торг продолжается
   const bargaining = (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
   if (bargaining && FINAL.test(line)) return false

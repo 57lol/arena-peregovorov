@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { tara } from '../content/scenarios/tara'
 import { initialState } from '../engine/turn'
-import { lineFits } from './voice'
+import { keepsGist, lineFits } from './voice'
 
 describe('проверка реплики собеседника', () => {
   const state = initialState(tara)
@@ -29,5 +29,20 @@ describe('ложная окончательность', () => {
     const offer = { price: 0, payment: 0, rush: 0, term: 3, schedule: 2 }
     expect(lineFits(tara, { kind: 'counter', offer }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(false)
     expect(lineFits(tara, { kind: 'counter', offer, final: true }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(true)
+  })
+})
+
+describe('раскрытый интерес', () => {
+  it('конкретно, своими словами — годится; общими словами — нет', async () => {
+    const { offer } = await import('../content/scenarios/offer')
+    const it = offer.opponent.profile.interests.find((i) => i.text.includes('покрасочная'))!
+    expect(keepsGist(it.text, 'Честно? Меня зацепила покрасочная камера: хочу запустить линию сама, а не чинить чужое.')).toBe(true)
+    expect(keepsGist(it.text, 'Мне хочется чего-то нового, понимаете.')).toBe(false)
+    expect(keepsGist(tara.opponent.profile.interests[0].text, 'Склад у нас забит, отгружать каждую неделю нам самим удобнее.')).toBe(true)
+  })
+
+  it('шаблонные реплики офлайна со своим интересом проходят проверку', async () => {
+    const { offer } = await import('../content/scenarios/offer')
+    for (const sc of [tara, offer]) for (const i of sc.opponent.profile.interests) expect(keepsGist(i.text, i.text), i.text).toBe(true)
   })
 })
