@@ -29,6 +29,44 @@ export function saveVoiceOn(on: boolean) {
   }
 }
 
+// ---------- громкость ----------
+
+const VOL_KEY = 'peregovorka.volume.v1'
+/**
+ * Громкость голоса собеседника, 0..1. SpeechKit отдаёт речь громко и ровно: −18 дБ по речи, пики у −2 дБ
+ * у всех голосов и эмоций (scripts/tts-loudness.ts). На полной громкости первая реплика оглушает,
+ * а после микрофона система приглушает звук — поэтому по умолчанию чуть тише и без эхоподавления у микрофона.
+ */
+export const DEFAULT_VOLUME = 0.6
+
+export function loadVolume(): number {
+  try {
+    const v = Number(localStorage.getItem(VOL_KEY))
+    return localStorage.getItem(VOL_KEY) !== null && v >= 0 && v <= 1 ? v : DEFAULT_VOLUME
+  } catch {
+    return DEFAULT_VOLUME
+  }
+}
+
+let volume = typeof window === 'undefined' ? DEFAULT_VOLUME : loadVolume()
+
+export function setVolume(v: number) {
+  volume = Math.max(0, Math.min(1, v))
+  if (audio) audio.volume = volume
+  try {
+    localStorage.setItem(VOL_KEY, String(volume))
+  } catch {
+    // нет хранилища — громкость живёт до перезагрузки
+  }
+}
+
+/** Наш единственный <audio>, сразу с нужной громкостью. На iPhone volume не меняется — там громкость только кнопками. */
+function player(): HTMLAudioElement {
+  audio ??= new Audio()
+  audio.volume = volume
+  return audio
+}
+
 // ---------- озвучка ----------
 
 /** Filipp и Alena — самые живые по интонации голоса SpeechKit v1 (мерили разброс высоты тона на деловой реплике). */
@@ -43,10 +81,10 @@ const SILENT = `data:audio/wav;base64,UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAA
 /** Прогрев: вызывать синхронно в обработчике клика или Enter. Заодно обрывает прошлую реплику. */
 export function unlockAudio() {
   if (typeof Audio === 'undefined') return
-  audio ??= new Audio()
+  const a = player()
   stopAudio()
-  audio.src = SILENT
-  audio.play().catch(() => {})
+  a.src = SILENT
+  a.play().catch(() => {})
 }
 
 export function stopAudio() {
@@ -81,12 +119,12 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
 
 /** Играть подготовленную реплику. false — браузер не дал звук, печатаем как обычно. */
 export async function playPrepared(p: Prepared): Promise<boolean> {
-  if (!audio) audio = new Audio()
+  const a = player()
   stopAudio()
   url = p.url
-  audio.src = p.url
+  a.src = p.url
   try {
-    await audio.play()
+    await a.play()
     return true
   } catch {
     return false
@@ -114,7 +152,10 @@ export interface Recording {
 }
 
 export async function startRecording(): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+  // игрок заговорил — собеседник замолкает; эхо гасить незачем, а системное эхоподавление (Safari, iPhone)
+  // приглушает весь звук страницы, и после первой записи голос собеседника становится заметно тише
+  stopAudio()
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
   const rec = new MediaRecorder(stream)
   const chunks: Blob[] = []
   rec.ondataavailable = (e) => {

@@ -980,3 +980,13 @@
     display: none;
   }
 }
+/* громкость голоса в меню встречи */
+.w3-volume {
+  cursor: default;
+}
+.w3-volume input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--c-stamp);
+  cursor: pointer;
+}

@@ -18,6 +18,7 @@ import type { PaperId } from '../world3d/papers'
 import { World } from '../world3d/stage'
 import { Margin } from './Margin'
 import { MicButton } from './Mic'
+import { VolumeSlider } from './Volume'
 import { Notes, XRay } from './meetingParts'
 import '../world3d/world3d.css'
 import '../world3d/play3d.css'
@@ -704,6 +705,11 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
               <button type="button" className="w3-menu-item" aria-pressed={m.voiceOn} onClick={m.toggleVoice}>
                 <PixelIcon name={m.voiceOn ? 'sound' : 'mute'} px={2} /> Голос собеседника: {m.voiceOn ? 'вкл' : 'выкл'}
               </button>
+            </li>
+          )}
+          {m.canVoice && m.voiceOn && (
+            <li>
+              <VolumeSlider />
             </li>
           )}
           <li>
