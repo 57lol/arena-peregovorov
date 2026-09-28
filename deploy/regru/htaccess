@@ -1,6 +1,16 @@
 # Кладётся в корень основного домена (~/www/arena-peregovorov.ru/.htaccess).
 # Файлы из dist/ лежат тут же и отдаются веб-сервером, остальное (в том числе /api) — Node через Passenger.
 # Приложение Passenger — ~/www/app.js (корень приложения = родитель корня сайта).
+# Закрыто паролем до конца экспертизы: пускаем только по логину.
+SetEnvIf Request_URI "^/api/health$" health_ok
+AuthType Basic
+AuthName "Arena"
+AuthUserFile /var/www/u3662640/data/.arena_htpasswd
+<RequireAny>
+  Require env health_ok
+  Require valid-user
+</RequireAny>
+
 PassengerEnabled On
 
 # index.html без долгого кэша, чтобы после передеплоя сразу подтягивались новые ассеты
