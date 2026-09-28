@@ -63,11 +63,8 @@ export interface Report {
 
 const fmt = (n: number) => String(Math.round(n))
 const RU = new Intl.PluralRules('ru')
-const PTS = { one: 'очко', few: 'очка', many: 'очков', other: 'очка' } as Record<string, string>
 const VARIANTS = { one: 'вариант', few: 'варианта', many: 'вариантов', other: 'варианта' } as Record<string, string>
 const variants = (n: number) => VARIANTS[RU.select(n)]
-/** «1 очко», «3 очка», «12 очков» */
-const pts = (n: number) => `${fmt(n)} ${PTS[RU.select(Math.round(n))]}`
 
 export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorDict): Report {
   const last = history[history.length - 1]
@@ -252,10 +249,10 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
   const state = history[history.length - 1]?.stateAfter
   if (o.status === 'deal') {
     out.push(
-      `Сделка есть: у вас ${fmt(o.playerPoints)} из ${fmt(o.maxPlayerPoints)} возможных, у собеседника ${fmt(o.opponentPoints)}. ` +
+      `Сделка есть: ваша выгода ${fmt(o.playerPoints)} из ${fmt(o.maxPlayerPoints)}, у собеседника ${fmt(o.opponentPoints)}. ` +
         (o.playerPoints >= r.batna.player
-          ? `Это лучше вашего запасного варианта (${fmt(r.batna.player)}).`
-          : `Это хуже вашего запасного варианта (${fmt(r.batna.player)}) — выгоднее было уйти.`),
+          ? `Это больше, чем было бы без сделки (${fmt(r.batna.player)}).`
+          : `Это меньше, чем было бы без сделки (${fmt(r.batna.player)}), — выгоднее было уйти.`),
     )
   } else if (o.status === 'walked_away' && state?.endedBy === 'opponent') {
     const hot = history
@@ -270,9 +267,9 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     const onTable = isComplete(sc, last) ? score(sc.player.profile, last) : null
     const verdict =
       onTable === null ? ''
-      : onTable < r.batna.player ? ` Собеседник предлагал ${pts(onTable)} при вашем запасном ${fmt(r.batna.player)} — уйти было правильно.`
-      : ` А на столе лежало ${pts(onTable)} — больше запасного: уход стоил вам ${pts(onTable - r.batna.player)}.`
-    out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${verdict}${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
+      : onTable < r.batna.player ? ` Собеседник предлагал вам ${fmt(onTable)} — меньше, чем без сделки, так что уйти было правильно.`
+      : ` А собеседник предлагал вам ${fmt(onTable)} — больше, чем без сделки: уход стоил вам ${fmt(onTable - r.batna.player)} выгоды.`
+    out.push(`Вы ушли без сделки: у вас остаётся то, что было и без неё (${fmt(r.batna.player)}).${verdict}${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
   } else if (o.status === 'timeout') {
     out.push(`Время встречи вышло без сделки. Было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.`)
   }
@@ -283,16 +280,16 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
       .join(', ')
     out.push(
       o.status === 'deal'
-        ? `На столе осталось ${pts(r.leftOnTable)} общей ценности. Например: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
+        ? `Вдвоём упустили ${fmt(r.leftOnTable)} выгоды. Можно было, например, так: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
         : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, собеседнику ${fmt(r.betterDeal.opponent)}.`,
     )
   } else if (o.status === 'deal' && o.playerPoints < r.batna.player) {
-    out.push('Сделка на границе Парето, но в том её углу, где почти всё досталось собеседнику. Эффективность 100% не спасает: запасной вариант был лучше.')
+    out.push('Лучше для обоих сразу уже было нельзя, но почти всё досталось собеседнику: без сделки у вас было бы больше.')
   } else if (o.status === 'deal') {
-    out.push('Сделка на границе Парето: улучшить её для вас, не отняв у собеседника, уже нельзя.')
+    out.push('Выгоду не упустили: улучшить сделку для вас можно было только за счёт собеседника.')
   }
 
-  // Размен: пункты, где интересы разные по весу
+  // Обмен (размен): пункты, где интересы разные по весу
   const trades = r.issues.filter((i) => i.kind === 'integrative')
   for (const i of trades) {
     if (!r.deal) break
@@ -309,7 +306,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     out.push(
       t.avoided
         ? `По пункту «${t.title}» вы с собеседником хотели одного и того же («${t.bothWant}») — и так и записали.${t.asked ? ' Вы это выяснили вопросом — хорошо.' : ''}`
-        : `Ловушка: по пункту «${t.title}» вы оба хотели «${t.bothWant}», но записали «${t.got}». Оба потеряли очки, хотя спорить было не о чем.`,
+        : `Ловушка: по пункту «${t.title}» вы оба хотели «${t.bothWant}», но записали «${t.got}». Оба потеряли выгоду, хотя спорить было не о чем.`,
     )
   }
 
@@ -319,9 +316,9 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0
-  if (!asked) out.push('Вы ни разу не спросили, что важно собеседнику и почему. Вопросы об интересах — самый дешёвый способ найти размен.')
+  if (!asked) out.push('Вы ни разу не спросили, что важно собеседнику и почему. Такой вопрос — самый дешёвый способ найти обмен.')
   else if (!revealed) out.push('Вопросы были, но доверия не хватило, чтобы собеседник раскрылся.')
-  else out.push(`Собеседник раскрыл ${revealed} из ${sc.opponent.profile.interests.length} своих интересов.`)
+  else out.push(`Собеседник рассказал, что ему важно: ${revealed} из ${sc.opponent.profile.interests.length}.`)
 
   if (r.profile.bad) {
     const worst = Object.entries(r.profile.counts)

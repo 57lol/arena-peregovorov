@@ -40,9 +40,9 @@ describe('навыки', () => {
   it('партия: приёмы растят свою ось, один приём — не больше трёх очков', () => {
     const g = runGain(run({ beh: { summarize: 3, check: 1, ask_interest: 7 } }))
     expect(g.process.xp).toBe(4)
-    expect(g.process.why[0]).toBe('резюмировали 3 раза')
+    expect(g.process.why[0]).toBe('подводили итог 3 раза')
     expect(g.create.xp).toBe(3)
-    expect(g.create.why[0]).toBe('спросили об интересах 7 раз')
+    expect(g.create.why[0]).toBe('спросили, что важно собеседнику, 7 раз')
     expect(g.relate.xp).toBe(0)
   })
 

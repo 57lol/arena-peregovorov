@@ -163,10 +163,10 @@ export function DealMap({ sc, report, history, name }: Props) {
               <rect x={X(pick.x) - k - 1} y={Y(pick.y) - k - 1} width={k * 2 + 2} height={k * 2 + 2} fill="none" stroke="var(--c-paper)" strokeWidth={2} />
             )}
             <text x={X(batna.player) + 6} y={Y(0) - 6} className="g-map-note">
-              ваш запасной
+              вам без сделки
             </text>
             <text x={X(0) + 4} y={Y(batna.opponent) - 6} className="g-map-note">
-              {name}: запасной
+              {name}: без сделки
             </text>
           </svg>
         )}
@@ -188,10 +188,10 @@ export function DealMap({ sc, report, history, name }: Props) {
           <i className="g-sw g-sw--dot" /> возможная сделка
         </span>
         <span>
-          <i className="g-sw g-sw--pareto" /> граница Парето: лучше обоим уже нельзя
+          <i className="g-sw g-sw--pareto" /> золотая лесенка: лучше обоим сразу уже нельзя <small className="g-term">(граница Парето)</small>
         </span>
         <span>
-          <i className="g-sw g-sw--zone" /> лучше запасных вариантов обеих сторон
+          <i className="g-sw g-sw--zone" /> выгоднее, чем без сделки, обоим
         </span>
         {theirs.length > 0 && (
           <span>
