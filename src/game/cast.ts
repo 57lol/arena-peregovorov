@@ -57,3 +57,10 @@ export const pts = (n: number) => `${n} ${plural(n, 'очко', 'очка', 'о�
 /** Род собеседника для глаголов: «встал» / «встала». */
 export const isFemale = (sc: Scenario) => PORTRAITS[portraitFor(sc)].female
 export const g = (sc: Scenario, m: string, f: string) => (isFemale(sc) ? f : m)
+
+/** Часы встречи: с какой минуты суток начинается и сколько идёт. Главы кампании — в своё время (остановка — 7:35 и до автобуса). */
+export function meetingClock(sc: Scenario): { start: number; minutes: number } {
+  const ch = chapterOf(baseCaseId(sc.id))
+  const m = ch?.time.match(/^(\d{1,2}):(\d{2})$/)
+  return m ? { start: Number(m[1]) * 60 + Number(m[2]), minutes: ch?.minutes ?? 60 } : { start: 10 * 60, minutes: 60 }
+}

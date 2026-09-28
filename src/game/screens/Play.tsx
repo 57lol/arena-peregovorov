@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { isComplete, sameOffer } from '../../engine/utility'
-import { g, plural, portraitFor, sceneFor } from '../cast'
+import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
@@ -81,7 +81,7 @@ export function Play(props: Props) {
         <div className="g-play-grid">
           <div className="g-stage">
             <div className="g-hud">
-              <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} />
+              <MeetingClock turn={state.turn} turnLimit={sc.turnLimit} startAt={meetingClock(sc).start} minutes={meetingClock(sc).minutes} />
               <div className="g-hud-actions">
                 {voiceBtn}
                 <Button
