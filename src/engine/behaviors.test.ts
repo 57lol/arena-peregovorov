@@ -93,3 +93,31 @@ describe('профиль против эталона', () => {
     for (const b of BEHAVIORS) expect(g).toContain(b.id)
   })
 })
+
+describe('страховка поверх разметки нейросетью', async () => {
+  const { guardBehaviors } = await import('./behaviors')
+  const hit = (id: string, quote = 'x') => ({ id, quote })
+
+  it('«Это максимум» — не размен, а ультиматум', () => {
+    const text = 'Ладно. 170 тысяч, выход через месяц. Это максимум.'
+    const out = guardBehaviors(text, [hit('package'), hit('signpost')]).map((h) => h.id)
+    expect(out).toContain('ultimatum')
+    expect(out).not.toContain('package')
+    expect(out).not.toContain('signpost')
+    expect(ids(text)).toContain('ultimatum')
+  })
+
+  it('размен с двумя сторонами остаётся', () => {
+    const text = 'Если вы выходите через две недели, то квартиру на год мы берём на себя.'
+    expect(guardBehaviors(text, [hit('package')]).map((h) => h.id)).toEqual(['package'])
+  })
+
+  it('предложение без «что даю — что прошу» размена не получает', () => {
+    expect(guardBehaviors('Давайте 196 рублей и отсрочку 30 дней.', [hit('package')])).toEqual([])
+  })
+
+  it('атака гасит «объявление хода»', () => {
+    const out = guardBehaviors('Давайте без лирики, это бред. Вот наше предложение.', [hit('attack'), hit('signpost')]).map((h) => h.id)
+    expect(out).toEqual(['attack'])
+  })
+})

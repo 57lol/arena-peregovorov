@@ -64,3 +64,13 @@ describe('API в офлайне', () => {
     expect(j.report.explanation[0]).toMatch(/уйти было правильно|уход стоил вам/)
   })
 })
+
+describe('строка из блокнота', async () => {
+  const { isNotebookLine } = await import('./analyze')
+  const { tara } = await import('../content/scenarios/tara')
+  const { formatOffer } = await import('../engine/utility')
+  it('узнаётся и размечается правилами', () => {
+    expect(isNotebookLine(tara, `Предлагаю так: ${formatOffer(tara, { price: 2, payment: 1, rush: 0, term: 3, schedule: 2 })}.`)).toBe(true)
+    expect(isNotebookLine(tara, 'Предлагаю так: давайте 196 и разойдёмся.')).toBe(false)
+  })
+})

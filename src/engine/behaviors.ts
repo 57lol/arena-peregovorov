@@ -574,6 +574,9 @@ export const BEHAVIORS: Behavior[] = [
       re('‹(?:или|либо) мы (?:уходим|уйд[её]м|идём|пойд[её]м)'),
       re('‹если (?:вы|ты) не§{0,40}(?:уйд|уход|откаж|пойд[её]м (?:к|в)|найд[её]м друг|разорв|до свидания)'),
       re('‹(?:другого|лучшего|нового) (?:предложения|варианта) не будет'),
+      // «Это максимум», «выше не дам» — тоже «или так, или никак», только тише
+      re('‹это (?:мой |наш |уже |мой же |просто )?(?:максимум|предел|потолок)›'),
+      re('‹(?:выше|дальше|больше) (?:не (?:дам|дадим|подниму|поднимем|пойду|пойд[её]м|уступлю|уступим)|некуда)›'),
       re('‹(?:час|сутки|минут\\p{L}*|до конца дня|до вечера|до завтра) на (?:решение|раздумье|ответ)'),
       re('‹ни (?:рубля|копейки|шагу|дня|процента) (?:больше|меньше|не)›'),
       re('‹не нравится\\s*[—,-]?\\s*(?:до свидания|не держим|никто не держит|дверь)'),
@@ -611,9 +614,10 @@ export interface MoveContext {
 }
 
 // Если сработал ключ, индикаторы из значения снимаются: одна фраза — одно поведение.
+// Ультиматум и атака не бывают заодно «объявлением хода» или разменом: в «что работало» такая реплика не попадёт.
 const EXCLUDES: Partial<Record<BehaviorId, BehaviorId[]>> = {
-  ultimatum: ['alternative', 'meso', 'package'],
-  attack: ['label'],
+  ultimatum: ['alternative', 'meso', 'package', 'signpost'],
+  attack: ['label', 'signpost', 'package'],
 }
 
 // Если в ходе есть что-то из этого, встречное уже не «мгновенное».
@@ -652,6 +656,24 @@ export function detectBehaviors(text: string, ctx: MoveContext = {}): BehaviorHi
     hits.set('instant_counter', { id: 'instant_counter', quote: quoteAround(text, 0, 0) })
   if (engaged) hits.delete('instant_counter')
   return [...hits.values()]
+}
+
+/**
+ * Страховка поверх разметки нейросетью — там, где она путается:
+ * размен засчитываем, только если в реплике есть обе стороны («если вы…, то мы…», «в обмен», «при условии»);
+ * «последнее / финальное / это максимум» — ультиматум, даже если модель его не заметила;
+ * реплика с ультиматумом или атакой не получает хороших приёмов, которые с ними несовместимы.
+ */
+export function guardBehaviors(text: string, hits: BehaviorHit[]): BehaviorHit[] {
+  const rules = detectBehaviors(text)
+  const byRule = (id: BehaviorId) => rules.find((h) => h.id === id)
+  let out = hits.filter((h) => h.id !== 'package' || byRule('package'))
+  const ultimatum = byRule('ultimatum')
+  if (ultimatum && !out.some((h) => h.id === 'ultimatum')) out = [...out, ultimatum]
+  const ids = new Set(out.map((h) => h.id))
+  for (const [id, drop] of Object.entries(EXCLUDES) as [BehaviorId, BehaviorId[]][])
+    if (ids.has(id)) out = out.filter((h) => !drop.includes(h.id as BehaviorId))
+  return out
 }
 
 // ——— профиль против эталона ———

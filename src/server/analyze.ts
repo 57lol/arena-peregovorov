@@ -1,7 +1,7 @@
 // Разбор реплики игрока через LLM: temperature 0, строгий JSON, проверка, кэш. При любой беде — офлайн.
 
 import { z } from 'zod'
-import { BEHAVIOR_DICT, behaviorGuide } from '../engine/behaviors'
+import { BEHAVIOR_DICT, behaviorGuide, guardBehaviors } from '../engine/behaviors'
 import type { BehaviorDict } from '../engine/dictionary'
 import { analyzeOffline, isRude } from '../engine/offline'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../engine/types'
@@ -143,6 +143,15 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   return out
 }
 
+/** Служебные реплики интерфейса: «Предлагаю так: …» из блокнота и «Согласен. Принимаю…» с кнопки. */
+export function isNotebookLine(sc: Scenario, text: string): boolean {
+  const t = text.trim()
+  if (t === 'Согласен. Принимаю ваше предложение.') return true
+  const m = /^Предлагаю так: (.+)\.$/u.exec(t)
+  if (!m) return false
+  return m[1].split(', ').every((part) => sc.issues.some((i) => i.options.some((o) => part === `${i.title.toLowerCase()} — ${o}`)))
+}
+
 export interface AnalyzeResult {
   analysis: MoveAnalysis
   source: 'llm' | 'cache' | 'offline'
@@ -158,6 +167,9 @@ export async function analyzeMove(
   lastOpponentOffer?: Offer,
 ): Promise<AnalyzeResult> {
   if (llm.name === 'offline') return { analysis: analyzeOffline(sc, text, dict), source: 'offline' }
+  // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
+  // один и тот же разбор, без капризов модели.
+  if (isNotebookLine(sc, text)) return { analysis: analyzeOffline(sc, text, dict), source: 'offline' }
   const key = {
     v: PROMPT_VERSION,
     llm: `${llm.name}:${llm.model}`,
@@ -177,7 +189,7 @@ export async function analyzeMove(
         schema: schemaFor(sc, dict),
       })),
     )
-    return { analysis: value, source: hit ? 'cache' : 'llm' }
+    return { analysis: { ...value, behaviors: guardBehaviors(text, value.behaviors) }, source: hit ? 'cache' : 'llm' }
   } catch (e) {
     return { analysis: analyzeOffline(sc, text, dict), source: 'offline', error: (e as Error).message }
   }
