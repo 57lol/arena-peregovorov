@@ -5,7 +5,7 @@ import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { buildReport, type Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
-import { firstName, g, plural, portraitFor, sceneFor } from '../cast'
+import { firstName, g, plural, portraitFor, pts, sceneFor } from '../cast'
 import { countStars, recordRun, starsOf, type Progress } from '../progress'
 import { Button, PixelIcon, Portrait, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
@@ -318,7 +318,7 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
           Что было под столом
         </h2>
         <p className="g-under-teaser">
-          У {g(sc, 'него', 'неё')} была своя таблица очков и {sc.opponent.profile.interests.length} причин, о которых {g(sc, 'он', 'она')} молчал{g(sc, '', 'а')}.
+          У {g(sc, 'него', 'неё')} была своя таблица очков и {sc.opponent.profile.interests.length} {plural(sc.opponent.profile.interests.length, 'причина', 'причины', 'причин')}, о которых {g(sc, 'он', 'она')} молчал{g(sc, '', 'а')}.
           Вы узнали {told}. Переверните листок — там всё.
         </p>
         <Button variant="brass" icon="eye" onClick={() => setOpen(true)}>
@@ -380,14 +380,14 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
           <li key={it.id} className={revealed.has(it.id) ? 'is-told' : undefined}>
             <PixelIcon name={revealed.has(it.id) ? 'check' : 'cross'} px={2} color={revealed.has(it.id) ? 'var(--c-leaf)' : 'var(--c-steel)'} />
             <span>
-              {capitalize(it.text)}.{' '}
+              {capitalize(it.text.replace(/[.!\s]+$/u, ''))}.{' '}
               <em>{revealed.has(it.id) ? `Рассказал${g(sc, '', 'а')} вам.` : `Рассказал${g(sc, '', 'а')} бы при доверии от ${it.trustToReveal}.`}</em>
             </span>
           </li>
         ))}
       </ul>
       <p className="g-muted">
-        {g(sc, 'Его', 'Её')} запасной вариант: {sc.opponent.profile.batnaText} Это {report.batna.opponent} очков по {g(sc, 'его', 'её')} таблице.
+        {g(sc, 'Его', 'Её')} запасной вариант: {sc.opponent.profile.batnaText.replace(/[.!\s]*$/u, '.')} Это {pts(report.batna.opponent)} по {g(sc, 'его', 'её')} таблице.
       </p>
     </section>
   )
@@ -396,6 +396,15 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const VERDICT: Record<string, string> = { skilled: 'как у сильных', between: 'между', average: 'как у средних' }
+/** «как у средних» при атаках в 60% реплик против 6% у средних — неправда: это заметно хуже средних. */
+function verdictRu(r: ProfileRow) {
+  const b = r.benchmark
+  if (r.verdict === 'average' && b && r.value !== undefined && b.unit !== 'reasons') {
+    const worse = r.polarity === 'strong' ? r.value < b.average / 2 : r.value > b.average * 1.5
+    if (worse) return 'хуже средних'
+  }
+  return VERDICT[r.verdict!]
+}
 
 function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[]; history: TurnRecord[]; wide: boolean }) {
   const quotes = new Map<string, string[]>()
@@ -446,7 +455,7 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
                 <b>{r.title}</b>
                 <span className="g-beh-count">
                   {kind === 'missing' ? 'ни разу' : `${r.count} из ${n}`}
-                  {r.verdict && kind !== 'missing' ? `, ${VERDICT[r.verdict]}` : ''}
+                  {r.verdict && kind !== 'missing' ? `, ${verdictRu(r)}` : ''}
                 </span>
               </p>
               {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} />}

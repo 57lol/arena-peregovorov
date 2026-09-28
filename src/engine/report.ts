@@ -64,6 +64,8 @@ export interface Report {
 const fmt = (n: number) => String(Math.round(n))
 const RU = new Intl.PluralRules('ru')
 const PTS = { one: 'очко', few: 'очка', many: 'очков', other: 'очка' } as Record<string, string>
+const VARIANTS = { one: 'вариант', few: 'варианта', many: 'вариантов', other: 'варианта' } as Record<string, string>
+const variants = (n: number) => VARIANTS[RU.select(n)]
 /** «1 очко», «3 очка», «12 очков» */
 const pts = (n: number) => `${fmt(n)} ${PTS[RU.select(Math.round(n))]}`
 
@@ -264,9 +266,9 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
       .slice(0, 2)
     out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
   } else if (o.status === 'walked_away') {
-    out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${r.zopa ? ` При этом было ${r.zopa} вариантов, которые устроили бы обоих.` : ''}`)
+    out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
   } else if (o.status === 'timeout') {
-    out.push(`Время встречи вышло без сделки. Было ${r.zopa} вариантов, которые устроили бы обоих.`)
+    out.push(`Время встречи вышло без сделки. Было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.`)
   }
 
   if (r.betterDeal) {
@@ -278,6 +280,8 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
         ? `На столе осталось ${pts(r.leftOnTable)} общей ценности. Например: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
         : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, собеседнику ${fmt(r.betterDeal.opponent)}.`,
     )
+  } else if (o.status === 'deal' && o.playerPoints < r.batna.player) {
+    out.push('Сделка на границе Парето, но в том её углу, где почти всё досталось собеседнику. Эффективность 100% не спасает: запасной вариант был лучше.')
   } else if (o.status === 'deal') {
     out.push('Сделка на границе Парето: улучшить её для вас, не отняв у собеседника, уже нельзя.')
   }

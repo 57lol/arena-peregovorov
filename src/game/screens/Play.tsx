@@ -86,6 +86,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
       setHistory((h) => [...h, r.record])
       setSource(r.source)
       setDraft('')
+      setAcceptSure(false)
       if (opts.offer) setNotebook(false)
       // на ноутбуке после ответа показываем верх правой колонки: там новый листок и кнопка «Принять»
       sideRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
@@ -103,7 +104,14 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
     setLowSure(false)
     send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
   }
-  const accept = () => send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
+  const theirsForMe = isComplete(sc, state.lastOpponentOffer) ? score(P, state.lastOpponentOffer) : null
+  const [acceptSure, setAcceptSure] = useState(false)
+  const accept = () => {
+    // принять то, что хуже запасного варианта, — переспросим один раз, как и в блокноте
+    if (theirsForMe !== null && theirsForMe < P.batna && !acceptSure) return setAcceptSure(true)
+    setAcceptSure(false)
+    send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
+  }
   const walk = () => {
     if (!leaving) return setLeaving(true)
     setLeaving(false)
@@ -199,7 +207,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
               onTalkingChange={setTalking}
             />
 
-            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="stage" />
+            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
 
             {mentor('stage')}
 
@@ -257,7 +265,7 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
 
           <aside className="g-side" data-xray={xray} ref={sideRef}>
             {mentor('side')}
-            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} where="side" />
+            <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="side" />
             <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
               <Notebook
                 title="Мой блокнот"
@@ -377,6 +385,7 @@ function Slip({
   name,
   canAccept,
   onAccept,
+  sure,
   where,
 }: {
   sc: Scenario
@@ -385,6 +394,7 @@ function Slip({
   name: string
   canAccept: boolean
   onAccept: () => void
+  sure?: boolean
   where: 'stage' | 'side'
 }) {
   const offer = state.tableOffer
@@ -417,9 +427,14 @@ function Slip({
             <>Про {silent.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} пока никто ничего не сказал.</>
           )}
         </p>
+        {canAccept && sure && mine !== null && (
+          <p className="g-low" role="alert">
+            Это меньше вашего запасного варианта: {mine} против {P.batna}. Выгоднее встать и уйти.
+          </p>
+        )}
         {canAccept && (
-          <Button variant="paper" icon="check" onClick={onAccept}>
-            Принять
+          <Button variant={sure ? 'stamp' : 'paper'} icon="check" onClick={onAccept}>
+            {sure ? 'Всё равно принять' : 'Принять'}
           </Button>
         )}
       </div>
