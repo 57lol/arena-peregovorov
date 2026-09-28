@@ -7,7 +7,9 @@ import { z } from 'zod'
 import { auditScenario, pickFromLibrary } from '../content/scenarios'
 import { checkScenario } from '../engine/validate'
 import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
-import { maxScore } from '../engine/utility'
+import { mentionedIssues, parseOffer } from '../engine/offline'
+import { openingAnchor } from '../engine/policy'
+import { formatOffer, maxScore } from '../engine/utility'
 import { hashOf } from './cache'
 import type { LLM } from './llm'
 
@@ -116,7 +118,7 @@ const SYSTEM = `Ты — методист, который придумывает
 - interests — 2–4 скрытых интереса оппонента: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs и про shared).
   text — от первого лица, так, как он сам признался бы собеседнику: «склад у меня старый, каждый ремонт съедает прибыль», «мне важнее деньги сразу — плачу за кредит».
   Без его имени, без «он/она/ему», без канцелярита («минимизировать риски», «обеспечить стабильный доход»).
-- opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по split и theirs (максимум в свою пользу). У игрока нет имени — не называй его по имени.
+- opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по всем пунктам, кроме shared, — по каждому ПОСЛЕДНИЙ вариант из options, дословно (это максимум в его пользу). Про shared в opening молчит. У игрока нет имени — не называй его по имени.
 - opponentSpeech — манера речи в двух-трёх фразах; opponentBio — пара живых деталей о человеке.`
 
 // Модель раз за разом зовёт всех «Игорь Петров» / «Сергей Кузнецов». Подсказываем первую букву имени —
@@ -130,7 +132,7 @@ function userPrompt(req: GenerateRequest, problems: string[]): string {
 Тема: ${req.theme || 'на твой выбор'}
 Роль игрока: ${req.playerRole || 'на твой выбор'}
 Характер оппонента: ${tone}
-Цели игрока: ${req.goals || 'не указаны'}
+Что игрок хочет потренировать: ${req.goals || 'не указано'}${req.goals ? ' — построй кейс так, чтобы это пришлось делать' : ''}
 Имя оппонента начинается на «${nameHint(req)}».
 ${problems.length ? `\nПрошлый вариант не прошёл проверку:\n- ${problems.join('\n- ')}\nИсправь это.` : ''}
 Верни кейс JSON-объектом.`
@@ -158,11 +160,61 @@ function echoes(role: string, company: string): boolean {
 }
 
 const cap = (t: string) => t.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase())
+/** «30000» → «30 000»; четырёхзначные — только перед рублями, чтобы не трогать годы. */
+const digits = (t: string) =>
+  t.replace(/(?<![\d,.])\d{5,}(?![\d,.])|(?<![\d,.])\d{4}(?=\s?(₽|руб))/gu, (n) => Number(n).toLocaleString('ru-RU').replace(/\s/g, '\u00a0'))
+/** Текст для людей: с заглавной, с точкой в конце, числа с разрядами. */
+const sentence = (t: string) => {
+  const x = digits(cap(t))
+  return !x || /[.!?…»)]$/u.test(x) ? x : `${x}.`
+}
+
+/** Таблица стороны к сотне: сумма лучших вариантов ровно 100, как в делах из папки («25 из 100», а не «из 88»). */
+export function to100(tables: number[][]): number[][] {
+  const max = tables.reduce((s, p) => s + Math.max(...p), 0)
+  if (!max) return tables
+  const out = tables.map((p) => p.map((x) => Math.round((x * 100) / max)))
+  const diff = 100 - out.reduce((s, p) => s + Math.max(...p), 0)
+  // остаток от округления — в самый тяжёлый пункт, в его лучший вариант
+  const k = out.reduce((b, p, n) => (Math.max(...p) > Math.max(...out[b]) ? n : b), 0)
+  const at = out[k].indexOf(Math.max(...out[k]))
+  out[k][at] += diff
+  return out
+}
+
+/** Что игрок написал в «Что хотите потренировать»: по пунктам, с заглавной, без точки. */
+function goalsFrom(text: string): string[] | undefined {
+  const g = text.split(/[\n;]+/).map((x) => cap(x).replace(/[.\s]+$/u, '')).filter((x) => x.length > 1).slice(0, 4)
+  return g.length ? g : undefined
+}
+
+/**
+ * Первая реплика собеседника должна называть ровно его стартовое предложение — то, что лежит на столе.
+ * Модель любит «начать с середины» или назвать совсем другое. Тогда оставляем из её реплики разговорную
+ * часть без условий, а условия собираем по листку.
+ */
+export function fitOpening(sc: Scenario): string {
+  const anchor = openingAnchor(sc)
+  const said = parseOffer(sc, sc.opening)
+  const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
+  const ok = Object.entries(said).every(([k, v]) => anchor[k] === v) && said[main.id] === anchor[main.id]
+  if (ok) return sc.opening
+  const talk = (sc.opening.match(/[^.!?…]+[.!?…]*/gu) ?? [])
+    .map((x) => x.trim())
+    .filter((x) => x && !/\d/.test(x) && !mentionedIssues(sc, x).length && !Object.keys(parseOffer(sc, x)).length)
+  return [...talk, `Мои условия такие: ${formatOffer(sc, anchor)}.`].join(' ')
+}
+
+/** Последние штрихи к делу, которое прошло проверки. */
+export function finish(sc: Scenario): Scenario {
+  return { ...sc, opening: fitOpening(sc) }
+}
 
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
 function pointsFor(role: Role, n: number, k: number, jitter = 0) {
-  // ±15% к весам пункта по хэшу дела: иначе у всех сгенерированных дел одинаковые 30/28/18/8
-  const j = 1 + ((jitter % 7) - 3) * 0.05
+  // ±10% к весам пункта по хэшу дела: иначе у всех сгенерированных дел одинаковые 30/28/18/8.
+  // Больше нельзя: после приведения таблиц к сотне делимый пункт перекосится, а разменный выровняется.
+  const j = 1 + ((jitter % 7) - 3) / 30
   const r = { player: ROLES[role].player * j, opponent: ROLES[role].opponent * (2 - j) }
   const down = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * (n - 1 - i)) / (n - 1)))
   const up = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * i) / (n - 1)))
@@ -186,9 +238,11 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     seen.set(i.role, k + 1)
     return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16))
   })
-  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: cap(i.title), options: orient(i), kind: ROLES[i.role].kind }))
-  const pp = Object.fromEntries(ids.map((id, n) => [id, tables[n].player]))
-  const op = Object.fromEntries(ids.map((id, n) => [id, tables[n].opponent]))
+  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: cap(i.title), options: orient(i).map(digits), kind: ROLES[i.role].kind }))
+  const mine = to100(tables.map((t) => t.player))
+  const theirs = to100(tables.map((t) => t.opponent))
+  const pp = Object.fromEntries(ids.map((id, n) => [id, mine[n]]))
+  const op = Object.fromEntries(ids.map((id, n) => [id, theirs[n]]))
   const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
   const oMax = maxScore({ points: op, batna: 0, batnaText: '', interests: [] }, issues)
   const d = req.difficulty as Difficulty
@@ -201,10 +255,11 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     difficulty: d,
     turnLimit: 10 + d,
     issues,
+    ...(goalsFrom(req.goals) ? { goals: goalsFrom(req.goals) } : {}),
     player: {
       role: raw.playerRole,
-      brief: raw.playerBrief,
-      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: cap(raw.playerBatnaText), interests: [] },
+      brief: sentence(raw.playerBrief),
+      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: sentence(raw.playerBatnaText), interests: [] },
     },
     opponent: {
       character: {
@@ -213,20 +268,20 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
         company: echoes(raw.opponentRole, raw.opponentCompany) ? '' : raw.opponentCompany,
         tone: req.opponentTone as Tone,
         portrait: raw.opponentGender === 'f' ? 'olga' : raw.opponentGender === 'm' ? 'rinat' : `tone-${req.opponentTone}`,
-        speech: raw.opponentSpeech, bio: raw.opponentBio,
+        speech: raw.opponentSpeech, bio: sentence(raw.opponentBio),
       },
-      brief: raw.opponentBrief,
+      brief: sentence(raw.opponentBrief),
       profile: {
         points: op,
         batna: Math.round(oMax * OPP_BATNA[d]),
-        batnaText: cap(raw.opponentBatnaText),
+        batnaText: sentence(raw.opponentBatnaText),
         interests: raw.interests.map((it, n) => {
           const k = raw.issues.findIndex((i) => i.id === it.issue)
           return { id: `i${n + 1}`, text: it.text.trim().replace(/[.!\s]+$/u, ''), issue: k >= 0 ? ids[k] : undefined, trustToReveal: k >= 0 ? TRUST[raw.issues[k].role] : 70 }
         }),
       },
     },
-    opening: cap(raw.opening),
+    opening: sentence(raw.opening),
   }
   return sc
 }
@@ -291,11 +346,11 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
         passableSoft = soft.length
       }
       problems = [...r.problems, ...soft]
-      if (!problems.length && r.scenario) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
+      if (!problems.length && r.scenario) return { scenario: finish(r.scenario), source: 'llm', attempts, problems: [] }
     } catch (e) {
       problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
     }
   }
-  if (passable) return { scenario: passable, source: 'llm', attempts, problems: [] }
+  if (passable) return { scenario: finish(passable), source: 'llm', attempts, problems: [] }
   return { scenario: pickFromLibrary(req, library), source: 'library', attempts, problems }
 }

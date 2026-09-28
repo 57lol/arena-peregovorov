@@ -61,7 +61,7 @@ describe('генерация сценария', () => {
 
   it('веса пунктов слегка разные у разных дел, а проверки проходят всегда', () => {
     const totals = new Set<string>()
-    for (let n = 0; n < 40; n++) {
+    for (let n = 0; n < 100; n++) {
       const r = { ...raw, title: `Склад ${n}` }
       for (const difficulty of [1, 2, 3] as const) {
         const sc = toScenario(r, GenerateRequest.parse({ difficulty }))
@@ -70,5 +70,50 @@ describe('генерация сценария', () => {
       }
     }
     expect(totals.size).toBeGreaterThan(5)
+  })
+})
+
+describe('своё дело: то, что видит игрок', async () => {
+  const { finish, fitOpening, to100 } = await import('./generate')
+  const { maxScore, formatOffer } = await import('../engine/utility')
+  const { openingAnchor } = await import('../engine/policy')
+  const { tara } = await import('../content/scenarios/tara')
+  const { offer } = await import('../content/scenarios/offer')
+
+  it('таблицы обеих сторон — из 100, как в папке', () => {
+    for (let n = 0; n < 20; n++)
+      for (const difficulty of [1, 2, 3] as const) {
+        const sc = toScenario({ ...raw, title: `Склад ${n}` }, GenerateRequest.parse({ difficulty }))
+        expect(maxScore(sc.player.profile, sc.issues)).toBe(100)
+        expect(maxScore(sc.opponent.profile, sc.issues)).toBe(100)
+      }
+    expect(to100([[30, 0], [8, 0], [50, 0]]).reduce((s, p) => s + p[0], 0)).toBe(100)
+  })
+
+  it('«Что хотите потренировать» попадает в дело', () => {
+    const sc = toScenario(raw, GenerateRequest.parse({ goals: 'не уступать в цене сразу; спрашивать про интересы' }))
+    expect(sc.goals).toEqual(['Не уступать в цене сразу', 'Спрашивать про интересы'])
+    expect(toScenario(raw, GenerateRequest.parse({})).goals).toBeUndefined()
+  })
+
+  it('первая реплика называет ровно стартовое предложение, а не что-то своё', () => {
+    const sc = scenarioProblems(toScenario({ ...raw, opening: 'Здравствуйте. Ставка 800 за метр, депозит два месяца.' }, GenerateRequest.parse({}))).scenario
+    const line = fitOpening(sc)
+    expect(line).toMatch(/^Здравствуйте\./)
+    expect(line).toContain(formatOffer(sc, openingAnchor(sc)))
+    expect(line).not.toContain('800')
+    // верная реплика остаётся как есть
+    const good = { ...sc, opening: `Добрый день. ${formatOffer(sc, openingAnchor(sc))}.` }
+    expect(finish(good).opening).toBe(good.opening)
+  })
+
+  it('вступления дел из папки проходят ту же проверку', () => {
+    for (const sc of [tara, offer]) expect(fitOpening(sc), sc.id).toBe(sc.opening)
+  })
+
+  it('тексты с заглавной и с точкой, числа с разрядами', () => {
+    const sc = toScenario({ ...raw, playerBatnaText: 'склад в Зеленодольске за 30000 ₽', opponentBio: 'любит рыбалку' }, GenerateRequest.parse({}))
+    expect(sc.player.profile.batnaText).toBe('Склад в Зеленодольске за 30 000 ₽.')
+    expect(sc.opponent.character.bio).toBe('Любит рыбалку.')
   })
 })
