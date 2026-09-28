@@ -1900,7 +1900,8 @@ body {
   }
 }
 .g-side .px-issue-value,
-.g-notebook-wrap .px-issue-value {
+.g-notebook-wrap .px-issue-value,
+.w3-note .px-issue-value {
   white-space: normal;
   line-height: 20px;
 }
@@ -2403,4 +2404,14 @@ body {
   .g-stage .g-margin--stage + .px-dialog .px-dialog-text {
     max-height: calc(3 * var(--lh-read));
   }
+}
+
+/* «Устройство не тянет 3D…» — строка над классической встречей (она вне .px-root, поэтому шрифт задаём сами) */
+.g-view-note {
+  margin: 0;
+  padding: calc(3 * var(--u)) 16px;
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  -webkit-font-smoothing: none;
+  background: var(--c-night);
+  color: var(--c-paper);
 }
