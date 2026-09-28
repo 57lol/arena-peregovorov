@@ -19,7 +19,7 @@ interface Props {
 }
 
 /** Масштаб и ширина кадра: высота 180 точек целым масштабом, под субтитры остаётся полоса. */
-export function fit(cw: number, ch: number): { s: number; vw: number } {
+function fit(cw: number, ch: number): { s: number; vw: number } {
   const s = Math.max(1, Math.min(Math.floor((ch - 120) / H), Math.floor(cw / H)))
   const vw = Math.max(160, Math.min(320, Math.floor(cw / s)))
   return { s, vw }
