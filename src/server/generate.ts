@@ -249,7 +249,13 @@ export function storyProblems(raw: z.infer<typeof Raw>): string[] {
   return raw.interests
     .filter((it) => third.test(it.text.trim()) || /(?<!\p{L})игрок/iu.test(it.text) || (stem && it.text.toLowerCase().includes(stem)))
     .map((it) => `интерес «${it.text.slice(0, 60)}…» написан от третьего лица — перепиши от первого, как сам ${first || 'оппонент'} сказал бы собеседнику`)
-    .concat(clerical(raw))
+    .concat(clerical(raw), longOptions(raw))
+}
+
+/** Вариант пункта — это то, что пишут в листок: «1 месяц», «за свой счёт». Больше пяти слов — уже фраза. */
+function longOptions(raw: z.infer<typeof Raw>): string[] {
+  const long = raw.issues.flatMap((i) => i.options).filter((o) => o.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length > 5)
+  return long.length ? [`слишком длинные варианты: ${long.map((o) => `«${o}»`).join(', ')} — до 5 слов, как в листке`] : []
 }
 
 const CLERICAL = /(минимизир|оптимизац|оптимальн|осуществл|в рамках|является|данн(ый|ая|ое|ого) )/iu
@@ -271,6 +277,7 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   let problems: string[] = []
   let attempts = 0
   let passable: Scenario | undefined // прошло проверки движка, но с замечаниями к тексту
+  let passableSoft = Infinity
   while (llm.name !== 'offline' && attempts < 3) {
     attempts++
     try {
@@ -278,7 +285,11 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
       const order = orderProblems(raw)
       const r = order.length ? { problems: order, scenario: undefined } : scenarioProblems(toScenario(raw, req))
       const soft = r.problems.length ? [] : storyProblems(raw)
-      if (!r.problems.length) passable = r.scenario
+      // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту
+      if (!r.problems.length && soft.length < passableSoft) {
+        passable = r.scenario
+        passableSoft = soft.length
+      }
       problems = [...r.problems, ...soft]
       if (!problems.length && r.scenario) return { scenario: r.scenario, source: 'llm', attempts, problems: [] }
     } catch (e) {

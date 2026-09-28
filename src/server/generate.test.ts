@@ -45,6 +45,14 @@ describe('генерация сценария', () => {
     expect(orderProblems(middle)).toHaveLength(1)
   })
 
+  it('вариант длиннее пяти слов — замечание, цифры словами не считаются', () => {
+    expect(storyProblems(raw)).toEqual([])
+    const long = { ...raw, issues: raw.issues.map((i) => (i.id === 'ramp' ? { ...i, options: ['два новых пандуса за счёт владельца склада', '1 новый', 'как есть'] } : i)) }
+    expect(storyProblems(long).join(' ')).toMatch(/длинные варианты/)
+    const numbers = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, options: ['от 700 до 750 ₽ за м²', ...i.options.slice(1)] } : i)) }
+    expect(storyProblems(numbers)).toEqual([])
+  })
+
   it('компания, которая повторяет должность, не дублируется', () => {
     const dup = toScenario({ ...raw, opponentRole: 'руководитель строительной фирмы', opponentCompany: 'строительная фирма' }, GenerateRequest.parse({}))
     expect(dup.opponent.character.company).toBe('')
