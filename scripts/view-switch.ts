@@ -10,10 +10,13 @@ const check = (ok: boolean, m: string) => {
   if (!ok) problems.push(m)
 }
 
-async function enter(page: Page, url: string) {
+async function enter(page: Page, url: string, view?: string) {
   await page.route('**/api/**', (r) => r.fulfill({ status: 503, body: '{}' }))
   await page.goto(url)
-  await page.evaluate(() => localStorage.clear())
+  await page.evaluate((v) => {
+    localStorage.clear()
+    if (v) localStorage.setItem('peregovorka.view.v1', v)
+  }, view)
   await page.goto(url)
   await page.getByRole('button', { name: 'Начать' }).click()
   await page.locator('.g-folder').filter({ hasText: 'Тара' }).getByRole('button', { name: 'Открыть дело' }).click()
@@ -24,7 +27,7 @@ const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-un
 {
   console.log('3D → классический → 3D')
   const page = await b.newPage({ viewport: { width: 1440, height: 900 } })
-  await enter(page, URL)
+  await enter(page, URL, '3d')
   await page.waitForSelector('.w3-canvas')
   await page.locator('.w3-say textarea').fill('Добрый день. Что для вас в этой сделке главное?')
   await page.getByRole('button', { name: 'Сказать', exact: true }).click()
