@@ -17,6 +17,13 @@ interface Props {
 export function Title({ progress, invited, notice, server, onStart, onLibrary }: Props) {
   const rank = rankOf(progress)
   const played = Object.keys(progress.cases).length > 0
+  // по ссылке-приглашению первым делом — к какому делу позвали и кнопка, описание тренажёра ниже
+  const lead = (
+    <p className="g-lead">
+      Тренажёр деловых переговоров. Вы договариваетесь с собеседником своими словами, а после встречи видите, что было
+      у него под столом и сколько вы на этом столе оставили.
+    </p>
+  )
   return (
     <div className="px-root g-page" data-desk={invited ? sceneFor(invited.scenario) : 'factory'}>
       <main className="px-desk g-desk g-title">
@@ -36,10 +43,7 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
         </div>
 
         <div className="g-title-copy">
-          <p className="g-lead">
-            Тренажёр деловых переговоров. Вы договариваетесь с собеседником своими словами, а после встречи видите, что
-            было у него под столом и сколько вы на этом столе оставили.
-          </p>
+          {!invited && lead}
 
           {invited ? (
             <p className="g-invite">
@@ -59,6 +63,8 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
               </Button>
             )}
           </div>
+
+          {invited && lead}
 
           <ol className="g-steps">
             <li>
