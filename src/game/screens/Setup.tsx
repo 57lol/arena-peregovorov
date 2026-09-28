@@ -26,7 +26,9 @@ export function Setup({ progress, server, onOpen, onBack }: Props) {
           </Button>
         </header>
         <h1 className="g-h1">Выберите дело</h1>
-        <p className="g-sub">Готовое из папки или своё — под вашу сферу и задачу.</p>
+        <p className="g-sub">
+          <span>Готовое из папки или своё — под вашу сферу и задачу.</span>
+        </p>
 
         <div className="g-folders">
           {SCENARIOS.map((sc) => (

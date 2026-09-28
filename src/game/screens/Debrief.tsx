@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Case } from '../../App'
-import { BEHAVIOR_DICT, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
+import { BEHAVIOR_DICT, MINUTES_PER_TURN, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
 import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { buildReport, type Report } from '../../engine/report'
@@ -396,11 +396,11 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const VERDICT: Record<string, string> = { skilled: 'как у сильных', between: 'между', average: 'как у средних' }
-/** «как у средних» при атаках в 60% реплик против 6% у средних — неправда: это заметно хуже средних. */
+/** «как у средних» при результате хуже среднего — неправда. «Как у средних» — только если почти вровень. */
 function verdictRu(r: ProfileRow) {
   const b = r.benchmark
   if (r.verdict === 'average' && b && r.value !== undefined && b.unit !== 'reasons') {
-    const worse = r.polarity === 'strong' ? r.value < b.average / 2 : r.value > b.average * 1.5
+    const worse = r.polarity === 'strong' ? r.value < b.average * 0.9 : r.value > b.average * 1.1
     if (worse) return 'хуже средних'
   }
   return VERDICT[r.verdict!]
@@ -475,7 +475,10 @@ function Bench({ row }: { row: ProfileRow }) {
   const v = row.value ?? 0
   const max = Math.max(v, b.skilled, b.average) * 1.15 || 1
   const pct = (x: number) => `${Math.min(100, (x / max) * 100)}%`
-  const unit = b.unit === 'share' ? '%' : ' в час'
+  // «в час» на встрече из десяти реплик звучит странно: у Rackham час, у нас — те же 12 реплик по 5 минут
+  const perTurns = `на ${60 / MINUTES_PER_TURN} реплик`
+  const unit = b.unit === 'share' ? '%' : ` ${perTurns}`
+  const short = b.unit === 'share' ? '%' : ''
   return (
     <div className="g-bench" aria-label={`Вы: ${v}${unit}; сильные: ${b.skilled}${unit}; средние: ${b.average}${unit}`}>
       <div className="g-bench-bar">
@@ -485,8 +488,8 @@ function Bench({ row }: { row: ProfileRow }) {
       </div>
       <p className="g-bench-legend">
         <span className="g-bench-l-you">вы {fmt(v)}{unit}</span>
-        <span className="g-bench-l-skilled">сильные {fmt(b.skilled)}{unit}</span>
-        <span className="g-bench-l-average">средние {fmt(b.average)}{unit}</span>
+        <span className="g-bench-l-skilled">сильные {fmt(b.skilled)}{short}</span>
+        <span className="g-bench-l-average">средние {fmt(b.average)}{short}</span>
       </p>
     </div>
   )
