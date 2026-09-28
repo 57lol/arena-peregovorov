@@ -5,7 +5,7 @@
 .g-coach-note {
   position: relative;
   margin: calc(10 * var(--u)) 0 0;
-  padding: calc(7 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u));
+  padding: calc(11 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u));
   background: var(--c-paper-2);
   color: var(--c-ink);
   box-shadow:
@@ -65,6 +65,9 @@
 /* ---------- кабинет: ордер на тренировку ---------- */
 
 .g-coach .g-h1,
+.g-coach .g-bar {
+  max-width: 820px;
+}
 .g-board .g-h1,
 .g-board .g-sub,
 .g-board-tools {
@@ -244,6 +247,14 @@
   }
 }
 
+.g-bar .g-board-refresh {
+  margin: 0;
+  padding-inline: calc(5 * var(--u));
+}
+.g-team-axis > .g-muted {
+  margin-top: calc(3 * var(--u));
+}
+
 /* финалы команды: столбики */
 .g-endbars {
   display: grid;
@@ -384,7 +395,7 @@
   }
   .g-roll-table tr {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: calc(1 * var(--u)) calc(4 * var(--u));
     padding: calc(3 * var(--u)) 0;
     border-bottom: var(--u) solid var(--c-mist);
@@ -406,8 +417,12 @@
     font: 400 var(--fs-small) / 1.5 var(--f-read);
     color: var(--c-steel-2);
   }
-  .g-roll-table td[data-label='Очки'] {
-    grid-column: 1 / -1;
+  .g-roll-table td[data-label='Финал'],
+  .g-roll-table td[data-label='Время'] {
+    grid-column: span 2;
+  }
+  .g-roll-table td[data-label='Очки'] small {
+    display: block;
   }
 }
 

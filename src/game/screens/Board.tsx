@@ -74,7 +74,7 @@ export function Board({ server, id, secret, onExit }: Props) {
             К игре
           </Button>
           {data && (
-            <Button variant="ghost" icon="rewind" onClick={refresh} disabled={busy} className="g-bar-go">
+            <Button icon="rewind" onClick={refresh} disabled={busy} className="g-board-refresh">
               {busy ? 'Обновляем…' : 'Обновить'}
             </Button>
           )}
@@ -191,10 +191,10 @@ function TeamLedger({ sum }: { sum: ReturnType<typeof summarize> }) {
         <Row label="Хуже запасного варианта" value={sum.short ? `${sum.short} из ${sum.n}` : 'ни одной'} tone={sum.short ? 'bad' : 'good'} />
         <Row label="Медиана очков" value={num(sum.medianPoints)} />
         <Row label="Эффективность по Парето" value={sum.deals ? pct(sum.avgEfficiency) : '—'} tone={sum.avgEfficiency >= 0.9 ? 'good' : undefined} />
-        <Row label="Доверие в среднем" value={`${Math.round(sum.avgTrust)} из 100`} tone={sum.avgTrust >= 60 ? 'good' : sum.avgTrust < 35 ? 'bad' : undefined} />
+        <Row label="Доверие, среднее" value={`${Math.round(sum.avgTrust)} из 100`} tone={sum.avgTrust >= 60 ? 'good' : sum.avgTrust < 35 ? 'bad' : undefined} />
         {sum.growth && (
           <Row
-            label={`Прирост к лучшей попытке (переигрывали ${sum.growth.players})`}
+            label={`Прирост при переигровке (${sum.growth.players} чел.)`}
             value={`${sum.growth.avg >= 0 ? '+' : '−'}${num(Math.abs(sum.growth.avg))}`}
             tone={sum.growth.avg > 0 ? 'good' : undefined}
           />
@@ -418,6 +418,7 @@ function Profile({ sum }: { sum: ReturnType<typeof summarize> }) {
               <h3 className="g-h3">
                 {a.title} <span className={a.avg > 0 ? 'is-good' : a.avg < 0 ? 'is-bad' : ''}>{a.avg > 0 ? '+' : a.avg < 0 ? '−' : ''}{num(Math.abs(a.avg))}</span>
               </h3>
+              {!rows.length && <p className="g-muted">Для приёмов этой оси у Rackham нет эталона частоты, их видно в разборе каждого.</p>}
               {rows.map((r) => {
                 const b = BEHAVIORS.find((x) => x.id === r.id)!
                 const row: ProfileRow = { id: b.id, title: b.title, polarity: b.polarity, count: 0, value: Math.round(r.avg * 10) / 10, benchmark: b.benchmark }
@@ -457,7 +458,9 @@ function downloadCsv(data: BoardData, sc: Scenario, catalog: EndingCard[]) {
   const head = ['Участник', 'Попыток', 'Попытка', 'Итог', 'Очки', 'Запасной', 'Максимум', 'Парето, %', 'Доверие', 'Финал', 'Звёзд', 'Реплик', 'Время, с', 'Записано']
   const lines = [head]
   for (const p of data.players)
-    for (const [which, a] of [['первая', p.first], ['лучшая', p.best], ['последняя', p.last]] as const)
+    for (const [which, a] of [['первая', p.first], ['лучшая', p.best], ['последняя', p.last]] as const) {
+      // одна и та же попытка бывает и первой, и лучшей — пишем её один раз
+      if ((which === 'лучшая' && a.at === p.first.at) || (which === 'последняя' && (a.at === p.best.at || a.at === p.first.at))) continue
       lines.push([
         p.name,
         String(p.attempts),
@@ -474,6 +477,7 @@ function downloadCsv(data: BoardData, sc: Scenario, catalog: EndingCard[]) {
         String(a.seconds),
         new Date(a.at).toLocaleString('ru-RU'),
       ])
+    }
   const csv = '﻿' + lines.map((l) => l.map(cell).join(';')).join('\r\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')

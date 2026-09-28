@@ -119,8 +119,8 @@ function OpenRoom({ game, onBack }: { game: Case; onBack: () => void }) {
             <div>
               <h2 className="g-sheet-title">{sc.title}</h2>
               <p className="g-muted">
-                {c.name}, {c.role}. {TONE_RU[c.tone]}, {DIFFICULTY_RU[sc.difficulty]}, {sc.turnLimit}{' '}
-                {plural(sc.turnLimit, 'реплика', 'реплики', 'реплик')}.
+                {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {DIFFICULTY_RU[sc.difficulty]}. Встреча на {sc.turnLimit}{' '}
+                {plural(sc.turnLimit, 'реплику', 'реплики', 'реплик')}.
               </p>
             </div>
             {room && (
