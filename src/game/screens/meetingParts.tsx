@@ -171,7 +171,7 @@ export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: 
 }
 
 /** Сдвиги с одной причиной — в одну строку: «+4 доверие −1 напряжение Открытый приоритет». */
-export function groupDeltas(ds: TurnRecord['deltas']) {
+function groupDeltas(ds: TurnRecord['deltas']) {
   const out: { because: string; trust: number; tension: number }[] = []
   for (const d of ds) {
     let row = out.find((r) => r.because === d.because)
@@ -181,4 +181,4 @@ export function groupDeltas(ds: TurnRecord['deltas']) {
   return out
 }
 
-export const signed = (n: number) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`)
+const signed = (n: number) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`)
