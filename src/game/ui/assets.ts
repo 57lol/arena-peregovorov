@@ -42,10 +42,10 @@ export const SCENES = {
   factory: { bg: '/assets/scenes/factory.png', desk: '/assets/scenes/factory-desk.png', title: 'Кабинет на гофрокомбинате' },
   office: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Переговорная в бизнес-центре' },
   // места кампании «Новенький» (src/content/story.ts); пока своей 2D-сцены нет — ближайшая по духу
-  dorm: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Комната в общежитии' },
-  street: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Остановка у ларька' },
-  shop: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Магазин у общежития' },
-  bytovka: { bg: '/assets/scenes/factory.png', desk: '/assets/scenes/factory-desk.png', title: 'Бытовка цеха' },
+  dorm: { bg: '/assets/scenes/dorm.png', desk: '/assets/scenes/dorm-desk.png', title: 'Комната в общежитии' },
+  street: { bg: '/assets/scenes/street.png', desk: '/assets/scenes/street-desk.png', title: 'Остановка у ларька' },
+  shop: { bg: '/assets/scenes/shop.png', desk: '/assets/scenes/shop-desk.png', title: 'Магазин у общежития' },
+  bytovka: { bg: '/assets/scenes/bytovka.png', desk: '/assets/scenes/bytovka-desk.png', title: 'Бытовка цеха' },
 } as const
 export type SceneId = keyof typeof SCENES
 
