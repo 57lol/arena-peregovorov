@@ -338,7 +338,7 @@ export default function Play3D(props: Props) {
 
       {/* верх экрана: меню; взгляд — стол/собеседник */}
       <div className="w3-top w3-ui" data-nodrag>
-        <Button variant="paper" icon="more" className="w3-menu-btn" aria-label="Меню" aria-expanded={menu} onClick={() => setMenu(true)}>
+        <Button variant="paper" icon="menu" className="w3-menu-btn" aria-label="Меню" aria-expanded={menu} onClick={() => setMenu(true)}>
           <span className="w3-menu-label">Меню</span>
         </Button>
       </div>
@@ -583,7 +583,7 @@ function ActionCard({ m, onXray, onProtocol, onMenu }: { m: Meeting; onXray: () 
     { icon: m.voiceOn ? 'sound' : 'mute', label: 'Голос', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
     { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn) },
     { icon: 'rewind', label: 'Протокол', click: onProtocol, show: m.history.length > 0 },
-    { icon: 'more', label: 'Меню', click: onMenu },
+    { icon: 'menu', label: 'Меню', click: onMenu },
     { icon: 'leave', label: m.leaving ? 'Точно уйти?' : 'Встать и уйти', tone: 'stamp', click: m.walk, show: !m.done },
   ]
   return (
