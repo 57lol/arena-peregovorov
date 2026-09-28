@@ -66,6 +66,7 @@ export const PROLOGUE: Cutscene = {
     },
     {
       set: 'phone',
+      mood: 'dusk',
       behind: 'bus',
       dur: 14.8,
       drive: 90,
@@ -129,6 +130,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       },
       {
         set: 'phone',
+        mood: 'morning',
         behind: 'street',
         cam: S.stop,
         dur: 4.6,
@@ -154,6 +156,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       },
       {
         set: 'phone',
+        mood: 'morning',
         behind: 'bus',
         drive: 110,
         dur: 8.8,
@@ -189,6 +192,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       },
       {
         set: 'phone',
+        mood: 'dusk',
         behind: 'street',
         cam: S.shop + 120,
         dur: 4.6,
@@ -222,6 +226,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       },
       {
         set: 'phone',
+        mood: 'night',
         behind: 'street',
         cam: S.dorm,
         dur: 8.8,
@@ -251,6 +256,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       },
       {
         set: 'phone',
+        mood: 'day',
         behind: 'oez',
         cam: O.parking,
         dur: 8.8,
@@ -280,6 +286,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       map('client', 'launch', 'Пятница, ночь. Линия стартует в понедельник.'),
       {
         set: 'phone',
+        mood: 'dusk',
         behind: 'oez',
         cam: O.vodogrey,
         dur: 8.8,

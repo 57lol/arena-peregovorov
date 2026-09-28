@@ -154,7 +154,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
           {line && (
             <span key={`${ui.i}:${ui.line}`}>
               {line.who && <b>{line.who}: </b>}
-              {line.text}
+              {keepWords(line.text)}
             </span>
           )}
         </p>
@@ -172,6 +172,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       </button>
     </div>
   )
+}
+
+/** Слова через дефис («Штамп-К») не рвём по строкам. */
+function keepWords(text: string) {
+  return text.split(/(\S*[\p{L}\d]-[\p{L}\d]\S*)/u).map((part, k) => (k % 2 ? <span key={k} className="cs-nowrap">{part}</span> : part))
 }
 
 const sameRect = (a?: number[], b?: number[]) => (!a && !b) || (!!a && !!b && a.every((v, k) => v === b[k]))

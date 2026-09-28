@@ -12,7 +12,7 @@ const FOG: RGB = [199, 207, 204]
 const TONES: Record<Mood, Tone> = {
   day: ([r, g, b]) => [r, g, b],
   dusk: ([r, g, b]) => [r * 0.84 + 6, g * 0.74 + 4, b * 0.8 + 10],
-  morning: ([r, g, b]) => [r + (FOG[0] - r) * 0.42, g + (FOG[1] - g) * 0.42, b + (FOG[2] - b) * 0.42],
+  morning: ([r, g, b]) => [r + (FOG[0] - r) * 0.3, g + (FOG[1] - g) * 0.3, b + (FOG[2] - b) * 0.3],
   night: ([r, g, b]) => [r * 0.36 + 4, g * 0.42 + 6, b * 0.62 + 18],
 }
 
@@ -37,14 +37,18 @@ export function nearest(c: readonly number[]): number {
   return best
 }
 
-const luts = new Map<Mood, number[]>()
+const luts = new Map<string, number[]>()
 
-/** Индекс цвета палитры → индекс после тонировки. Для дня — тождество. */
-export function lut(mood: Mood): number[] {
-  let l = luts.get(mood)
+/** Приглушить: мир за телефоном в руках темнеет и холодеет. */
+const DIM = ([r, g, b]: number[]) => [r * 0.42, g * 0.46, b * 0.58 + 6]
+
+/** Индекс цвета палитры → индекс после тонировки (dim — ещё и приглушить). Для дня — тождество. */
+export function lut(mood: Mood, dim = false): number[] {
+  const k = `${mood}${dim ? ':dim' : ''}`
+  let l = luts.get(k)
   if (!l) {
-    l = RGB_OF.map((c, i) => (mood === 'day' ? i : nearest(TONES[mood](c))))
-    luts.set(mood, l)
+    l = RGB_OF.map((c, i) => (mood === 'day' && !dim ? i : nearest(dim ? DIM(TONES[mood](c)) : TONES[mood](c))))
+    luts.set(k, l)
   }
   return l
 }
@@ -53,14 +57,14 @@ const key = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b
 const INDEX = new Map(RGB_OF.map((c, i) => [key(c[0], c[1], c[2]), i]))
 
 /** Картинка в другом времени суток — новый холст того же размера. */
-export function recolor(img: CanvasImageSource & { width: number; height: number }, mood: Mood): HTMLCanvasElement {
+export function recolor(img: CanvasImageSource & { width: number; height: number }, mood: Mood, dim = false): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = img.width
   c.height = img.height
   const ctx = c.getContext('2d', { willReadFrequently: true })!
   ctx.drawImage(img, 0, 0)
-  if (mood === 'day') return c
-  const map = lut(mood)
+  if (mood === 'day' && !dim) return c
+  const map = lut(mood, dim)
   const data = ctx.getImageData(0, 0, c.width, c.height)
   const d = data.data
   const cache = new Map<number, RGB>()

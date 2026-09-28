@@ -302,3 +302,6 @@
     background-size: 576px 1152px;
   }
 }
+.cs-nowrap {
+  white-space: nowrap;
+}

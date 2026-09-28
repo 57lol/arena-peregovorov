@@ -106,6 +106,7 @@
 
 .jr-grid {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: calc(8 * var(--u)) calc(8 * var(--u));
   align-items: start;
@@ -133,7 +134,7 @@
 /* кампания: семь глав плиткой */
 .jr-chapters {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: calc(4 * var(--u));
   margin: 0;
   padding: 0;
@@ -169,6 +170,7 @@
 }
 .jr-chapter-name {
   font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  overflow-wrap: anywhere;
 }
 .jr-chapter-when {
   font: 400 var(--fs-small) / 14px var(--f-read);
@@ -296,7 +298,7 @@
 /* катсцены */
 .jr-cuts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: calc(2 * var(--u)) calc(4 * var(--u));
   margin: 0 0 calc(4 * var(--u));
   padding: 0;
@@ -353,6 +355,27 @@
 }
 
 @media (max-width: 480px) {
+  .jr-grid > *,
+  .jr-path > * {
+    min-width: 0;
+  }
+  .jr-chapters,
+  .jr-cuts {
+    grid-template-columns: 1fr;
+  }
+  .jr-toggle {
+    min-height: 36px;
+    padding: var(--u) calc(3 * var(--u));
+    font: 400 var(--fs-small) / 16px var(--f-read);
+  }
+  .jr-mode {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
+  .jr-cut {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
   .jr-lead {
     font-size: var(--fs-small);
     line-height: 16px;
@@ -367,10 +390,13 @@
     font-size: var(--fs-small);
     line-height: 16px;
   }
-  .jr-cases li {
-    flex-wrap: wrap;
+  .jr-case {
+    min-width: 0;
   }
-  .jr-chapters {
-    grid-template-columns: 1fr 1fr;
+  .jr-case-name {
+    overflow-wrap: anywhere;
+  }
+  .jr-hard {
+    padding-inline: calc(4 * var(--u));
   }
 }

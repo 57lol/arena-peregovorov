@@ -56,7 +56,7 @@ export function Jury(p: Props) {
         </header>
 
         <h1 className="g-h1 jr-h1">Для жюри</h1>
-        <p className="jr-lead">Всё открыто, катсцен нет. Главный путь — за минуту:</p>
+        <p className="jr-lead">Всё открыто сразу. Главный путь кейса — за минуту:</p>
 
         <ol className="jr-path">
           <li>

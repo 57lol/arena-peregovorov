@@ -34,7 +34,7 @@ interface SetDef {
 
 const outside = (dy = 0): Layer[] => [
   { src: 'sky', par: 0, sky: true, dy },
-  { src: 'road_far.png', par: 0.18, tile: true, drive: true, dy, fog: 0.4 },
+  { src: 'road_far.png', par: 0.18, tile: true, drive: true, dy, fog: 0.3 },
   { src: 'road_river.png', par: 0.42, tile: true, drive: true, dy },
   { src: 'road_near.png', par: 1, tile: true, drive: true, dy, fog: 0.12 },
   { src: 'road_lights.png', par: 1, tile: true, drive: true, dy, lights: true },
@@ -42,7 +42,7 @@ const outside = (dy = 0): Layer[] => [
 
 const town = (name: 'street' | 'oez'): Layer[] => [
   { src: 'sky', par: 0, sky: true },
-  { src: `${name}_far.png`, par: 0.45, tile: true, fog: 0.45 },
+  { src: `${name}_far.png`, par: 0.45, tile: true, fog: 0.34 },
   { src: `${name}_far_lights.png`, par: 0.45, tile: true, lights: true },
   { src: `${name}_near.png`, par: 1, fog: 0.12 },
   { src: `${name}_lights.png`, par: 1, lights: true },
@@ -63,7 +63,7 @@ export function imagesOf(shot: Shot): string[] {
   if (set === 'map') out.push('/assets/map/elabuga.png')
   else if (set !== 'black') {
     const def = SETS[set]
-    for (const l of [...def.back, ...(def.front ?? [])]) out.push(l.sky ? `${DIR}sky_${shot.set === 'phone' ? 'night' : mood}.png` : DIR + l.src)
+    for (const l of [...def.back, ...(def.front ?? [])]) out.push(l.sky ? `${DIR}sky_${mood}.png` : DIR + l.src)
     if (set === 'bus') out.push(DIR + BUS_IN.sit.src)
   }
   if (shot.set === 'phone') out.push(DIR + PHONE.src)
@@ -124,14 +124,19 @@ export class Painter {
   }
 
   /** Картинка в нужном времени суток (или как есть). Нет файла — null, слой просто пропускаем. */
-  private img(src: string, mood: Mood, raw = false): CanvasImageSource & { width: number; height: number } | null {
+  /** Мир за телефоном в руках: приглушён (кроме огней). */
+  private dim = false
+
+  private img(src: string, mood: Mood, raw = false): (CanvasImageSource & { width: number; height: number }) | null {
     const im = this.imgs.get(src)
     if (!im) return null
-    if (raw || mood === 'day') return im
-    const k = `${src}|${mood}`
+    const m: Mood = raw ? 'day' : mood
+    const dim = this.dim && !(raw && src.includes('lights'))
+    if (m === 'day' && !dim) return im
+    const k = `${src}|${m}|${dim}`
     let c = this.baked.get(k)
     if (!c) {
-      c = recolor(im, mood)
+      c = recolor(im, m, dim)
       this.baked.set(k, c)
     }
     return c
@@ -151,7 +156,10 @@ export class Painter {
       const w = SETS[behind].w
       const want = behind === 'bus' ? BUS_IN.focus : sample(shot.cam, t, w / 2)
       const cam = Math.max(vw / 2, Math.min(w - vw / 2, want))
-      this.drawSet(behind, { ...shot, set: behind, mood: 'night', actors: shot.actors ?? [] }, t, cam)
+      // мир за телефоном притухает — ближайшими тёмными цветами палитры
+      this.dim = true
+      this.drawSet(behind, { ...shot, set: behind, actors: shot.actors ?? [] }, t, cam)
+      this.dim = false
       const px = Math.round(vw / 2 - PHONE.fw / 2)
       const py = H - PHONE.fh
       const sheet = this.imgs.get(DIR + PHONE.src)
@@ -196,7 +204,7 @@ export class Painter {
           for (; x < vw; x += im.width) ctx.drawImage(im, x, dy)
         } else ctx.drawImage(im, -Math.round(off), dy)
       }
-      if (l.fog && mood === 'morning') this.fog(l.fog, t)
+      if (l.fog && mood === 'morning' && !this.dim) this.fog(l.fog, t)
     }
     for (const l of def.back) layer(l)
     if (set === 'bus') this.drawSitter(shot, t, left)
