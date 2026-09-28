@@ -1,7 +1,7 @@
 // Сквозной прогон игры в браузере: титул → дело → бриф → переговоры → разбор, на обоих сценариях,
 // на телефоне (390) и ноутбуке (1280). Скриншоты каждого экрана — в ~/Arena-materials/shots/game/.
 //
-// Запуск: npm run dev (или npm start), потом
+// Запуск: npm run dev:offline (или LLM_PROVIDER=offline npm start), потом (с моделью — флаг --live)
 //   npx tsx scripts/e2e-game.ts [--url http://localhost:5173] [--only tara] [--sizes 390,1280] [--tag offline] [--generate]
 // Браузер — WebKit из Playwright (npx playwright install webkit).
 
@@ -11,12 +11,14 @@ import { join } from 'node:path'
 import { webkit, type Page } from 'playwright'
 import { SCENARIOS } from '../src/content/scenarios'
 import type { Offer, Scenario } from '../src/engine/types'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const ONLY = arg('only', 'tara,offer').split(',')
 const SIZES = arg('sizes', '390,1280').split(',').map(Number)
 const TAG = arg('tag', '')

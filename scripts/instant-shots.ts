@@ -1,18 +1,20 @@
 /// <reference lib="dom" />
 // Снимки разбора хода на полях: партия на Таре с разными ходами на 1440 и на телефоне 390×844 / 390×667,
 // плюс ход без сервера. Проверяет, что поле ввода и «Сказать» на телефоне остаются на первом экране.
-// Запуск: npm run dev, потом npx tsx scripts/instant-shots.ts [--url http://localhost:5173] [--only wide,phone,short,offline,off]
+// Запуск: npm run dev:offline, потом npx tsx scripts/instant-shots.ts [--url http://localhost:5173] [--only wide,phone,short,offline,off] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const ONLY = arg('only', 'wide,phone,short,offline,off').split(',')
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'instant')
 mkdirSync(OUT, { recursive: true })

@@ -4,7 +4,7 @@
 // ссылка команды до загрузки комнаты, без сервера. На каждом экране — консоль без ошибок и без горизонтальной прокрутки.
 // Снимки — в ~/Arena-materials/shots/final/.
 //
-// Запуск: npm run dev, потом
+// Запуск: npm run dev:offline, потом
 //   npx tsx scripts/regress-final.ts [--url http://localhost:5173] [--parts cases,custom,reload,race,noserver] [--sizes 390,1440]
 //     [--only offer,tara,client] [--tag офлайн] [--shots]   (--shots — писать снимки для презентации)
 
@@ -14,12 +14,14 @@ import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
 import { SCENARIOS } from '../src/content/scenarios'
 import type { Offer, Scenario } from '../src/engine/types'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const PARTS = arg('parts', 'cases,custom,reload,race,noserver').split(',')
 const SIZES = arg('sizes', '390,1440').split(',').map(Number)
 const ONLY = arg('only', 'offer,tara,client').split(',')

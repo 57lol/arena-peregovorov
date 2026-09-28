@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,green \"vite\" \"npm:server\"",
     "web": "vite",
+    "dev:offline": "LLM_PROVIDER=offline npm run dev",
     "server": "tsx src/server/index.ts",
+    "server:offline": "LLM_PROVIDER=offline tsx src/server/index.ts",
     "build": "tsc -b && vite build",
     "build:server": "esbuild src/server/prod.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist-server/server.mjs --log-level=warning --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
     "start": "NODE_ENV=production tsx src/server/prod.ts",

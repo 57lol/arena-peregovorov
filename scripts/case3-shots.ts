@@ -1,14 +1,16 @@
 /// <reference lib="dom" />
 // Снимки третьего дела: папка с тремя делами (ноутбук и телефон), досье «Удержать клиента», переговорка с Розой.
-// Запуск: npm run dev, потом npx tsx scripts/case3-shots.ts [--url http://localhost:5173] [--say]
+// Запуск: npm run dev:offline, потом npx tsx scripts/case3-shots.ts [--url http://localhost:5173] [--say] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const i = process.argv.indexOf('--url')
 const URL = i > 0 ? process.argv[i + 1] : 'http://localhost:5173'
+await requireOffline(URL)
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'case3')
 const talk = process.argv.includes('--say')
 mkdirSync(OUT, { recursive: true })

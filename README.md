@@ -122,9 +122,14 @@ YANDEX_FOLDER_ID=...
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` | запасные провайдеры |
 | `PORT` | порт сервера, 8787 по умолчанию |
 | `LLM_TIMEOUT_MS` | через сколько бросать модель и уходить в офлайн, 25000 |
+| `LLM_DAILY_RUB` | суточный бюджет на модель, 150 ₽: с 80% — `YANDEX_FALLBACK_MODEL` (`yandexgpt-lite`), со 100% — офлайн |
+| `YANDEX_PRICE_IN`, `YANDEX_PRICE_OUT` | цена 1000 токенов основной модели, 0.8 ₽ (у Lite — `YANDEX_LITE_PRICE_IN/OUT`, 0.2 ₽) |
+| `TTS_DAILY_CHARS`, `STT_DAILY_SEC` | суточный лимит голоса: 40 000 символов озвучки и 3600 секунд распознавания |
 | `CACHE_DIR` | где хранить кэш ответов, озвучку, сгенерированные дела и комнаты тренировок, `.cache` |
 | `SPEECH` | `off` — выключить голос, даже если ключ есть |
 | `TTS_IP_DAY_LIMIT`, `STT_IP_DAY_LIMIT`, `SPEECH_DAY_LIMIT` | лимиты голоса в сутки: на IP (400 фраз озвучки, 150 распознаваний) и на весь сервер (5000) |
+
+Расход считается по `usage` из ответов модели и лежит по дням в `CACHE_DIR/usage/<дата>.json`, раз в час сводка пишется в лог сервера. `/api/health` показывает только режим: `pro`, `lite` или `offline`. Для разработки в `.env` стоит `YANDEX_MODEL=yandexgpt-lite`, Pro — только на проде. Скрипты прогонов из `scripts/` отказываются работать с сервером на живой модели: их запускают против `npm run dev:offline` (или `npm run server:offline`), а модель включают флагом `--live`. Размер промптов: `npx tsx scripts/prompt-size.ts --tokens`.
 
 Проверки: `npm test` (движок, сервер, сценарии), `npx tsx scripts/check-scenarios.ts` (проверяет, что в каждом деле есть что разменять), `npx tsx scripts/voice-check.ts` при запущенном `npm run dev` (голос вживую: фраза проходит TTS → STT по кругу, запись с микрофона в браузере, снимки кнопок), `npx tsx scripts/board-e2e.ts` (руководитель открывает тренировку, трое играют по ссылке, доска показывает всех).
 

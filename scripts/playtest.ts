@@ -1,6 +1,6 @@
-// Живой прогон переговоров через API тремя стилями игрока.
-// Запуск: npx tsx scripts/playtest.ts [--api http://localhost:8787] [--scenario tara] [--out dir] [--styles rude,splitter,explorer,patient]
-// Сервер должен быть поднят (npm run server).
+// Прогон переговоров через API тремя стилями игрока.
+// Запуск: npm run server:offline, потом npx tsx scripts/playtest.ts [--api http://localhost:8787] [--scenario tara] [--out dir] [--styles rude,splitter,explorer,patient]
+// На живой модели (npm run server и --live) — только точечно: партия из трёх стилей на Pro стоит десятки рублей.
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -9,12 +9,14 @@ import type { Scenario, TurnRecord } from '../src/engine/types'
 import type { Report } from '../src/engine/report'
 import { formatOffer } from '../src/engine/utility'
 import { explorer, patient, rude, splitter, type Player } from './players'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const API = arg('api', 'http://localhost:8787')
+await requireOffline(API)
 const SCENARIO = arg('scenario', 'tara')
 const OUT = arg('out', join(homedir(), 'Arena-materials', 'playtests'))
 const STYLES = arg('styles', 'rude,splitter,explorer').split(',')

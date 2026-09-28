@@ -1,5 +1,8 @@
 // Быстрый взгляд на 3D-встречу: вход в дело и снимок. npx tsx scripts/smoke3d.ts [tara|client] [WxH] [out]
 import { chromium } from 'playwright'
+import { requireOffline } from './offline-guard'
+
+await requireOffline('http://localhost:5173')
 const [kase = 'tara', size = '1440x900', out = '/tmp/smoke3d.png', act = ''] = process.argv.slice(2)
 const [w, h] = size.split('x').map(Number)
 const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })

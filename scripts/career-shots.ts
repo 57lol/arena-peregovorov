@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // Снимки карьеры: карточка на титуле, папка с советом и «Сыграть жёстче», «Личное дело», «Что прокачали» в разборе,
 // бриф жёсткой версии. Прогресс подкладываем в localStorage, партию для разбора играем офлайн движком.
-// Запуск: npm run dev, потом npx tsx scripts/career-shots.ts [--url http://localhost:5173]
+// Запуск: npm run dev:offline, потом npx tsx scripts/career-shots.ts [--url http://localhost:5173] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -13,9 +13,11 @@ import { analyzeOffline, templateLine, withContext } from '../src/engine/offline
 import { initialState, step } from '../src/engine/turn'
 import type { TurnRecord } from '../src/engine/types'
 import { explorer } from './players'
+import { requireOffline } from './offline-guard'
 
 const i = process.argv.indexOf('--url')
 const URL = i > 0 ? process.argv[i + 1] : 'http://localhost:5173'
+await requireOffline(URL)
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'career')
 mkdirSync(OUT, { recursive: true })
 

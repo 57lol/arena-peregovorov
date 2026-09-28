@@ -1,9 +1,11 @@
 /// <reference lib="dom" />
 // Переключение видов встречи: 3D → меню → «Классический вид» (ход сохраняется) → «Сесть за стол в 3D»;
-// и браузер без WebGL сразу получает классический вид. Запуск: npm run dev, потом npx tsx scripts/view-switch.ts
+// и браузер без WebGL сразу получает классический вид. Запуск: npm run dev:offline, потом npx tsx scripts/view-switch.ts
 import { chromium, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const URL = 'http://localhost:5173'
+await requireOffline(URL)
 const problems: string[] = []
 const check = (ok: boolean, m: string) => {
   console.log(ok ? '  ок:' : '  ПРОБЛЕМА:', m)

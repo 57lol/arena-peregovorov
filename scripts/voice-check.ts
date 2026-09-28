@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 // Проверка голоса на живом сервере: озвучка, распознавание по кругу (TTS → STT), кнопки в браузере.
-// Запуск: npm run dev, потом npx tsx scripts/voice-check.ts [--url http://localhost:5173]
+// Запуск: npm run dev:offline, потом npx tsx scripts/voice-check.ts [--url http://localhost:5173]
 // Нужен YANDEX_API_KEY в .env: фразу для «микрофона» синтезируем прямо в SpeechKit.
 
 import { mkdirSync } from 'node:fs'

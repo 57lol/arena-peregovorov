@@ -1,17 +1,19 @@
 /// <reference lib="dom" />
 // Точечные проверки второй волны QA: старт партии на телефоне, ссылка на своё дело, уход после грубости.
-// Запуск: npm run dev, потом npx tsx scripts/qa2-shots.ts [--url http://localhost:5173] [--tag before]
+// Запуск: npm run dev:offline, потом npx tsx scripts/qa2-shots.ts [--url http://localhost:5173] [--tag before] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { webkit, type Browser, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const TAG = arg('tag', '')
 const ONLY = arg('only', 'start,link,rude').split(',')
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'qa2')

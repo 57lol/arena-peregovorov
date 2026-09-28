@@ -1,13 +1,15 @@
 /// <reference lib="dom" />
 // Снимки своих дел с лицами из пула: титул по ссылке, досье, переговорка.
-// Запуск: npm run dev, потом npx tsx scripts/faces-shots.ts gen-xxxx [gen-yyyy ...] [--say]
+// Запуск: npm run dev:offline, потом npx tsx scripts/faces-shots.ts gen-xxxx [gen-yyyy ...] [--say] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const URL = 'http://localhost:5173'
+await requireOffline(URL)
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'faces')
 mkdirSync(OUT, { recursive: true })
 const ids = process.argv.slice(2).filter((a) => a.startsWith('gen-'))

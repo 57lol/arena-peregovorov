@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 // Снимки разбора с разными финалами: партии собираются движком, разбор открывается из sessionStorage.
-// Запуск: npm run dev, потом npx tsx scripts/endings-shots.ts [--url http://localhost:5173]
+// Запуск: npm run dev:offline, потом npx tsx scripts/endings-shots.ts [--url http://localhost:5173] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -15,12 +15,14 @@ import { templateLine } from '../src/engine/offline'
 import { buildReport } from '../src/engine/report'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../src/engine/types'
 import { allDeals, formatOffer } from '../src/engine/utility'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'endings')
 mkdirSync(OUT, { recursive: true })
 

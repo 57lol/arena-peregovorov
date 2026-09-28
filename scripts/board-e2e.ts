@@ -2,7 +2,7 @@
 // Кабинет руководителя вживую: руководитель открывает тренировку → трое играют по ссылке команды разными стилями
 // (один ещё и переигрывает) → доска показывает всех. Снимки — в ~/Arena-materials/shots/board/.
 //
-// Запуск: npm run dev, потом npx tsx scripts/board-e2e.ts [--url http://localhost:5173]
+// Запуск: npm run dev:offline, потом npx tsx scripts/board-e2e.ts [--url http://localhost:5173] [--live]
 
 import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -10,12 +10,14 @@ import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
 import { tara } from '../src/content/scenarios/tara'
 import type { Offer } from '../src/engine/types'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'board')
 mkdirSync(OUT, { recursive: true })
 const sc = tara

@@ -1,19 +1,21 @@
 /// <reference lib="dom" />
 // Партия целиком в 3D: вход, осмотреться, реплика, разбор хода, стол, блокнот, предложение, «Принять», штамп, разбор встречи.
 // Тара и Клиент на 1440×900 и 390×844. Снимки — в ~/Arena-materials/shots/3d/.
-// Запуск: npm run dev, потом npx tsx scripts/play3d-e2e.ts [--only tara-wide,client-phone] [--offline]
+// Запуск: npm run dev:offline, потом npx tsx scripts/play3d-e2e.ts [--only tara-wide,client-phone] [--offline] [--live]
 //   --offline — без сервера: /api отвечает 503, ход считается в браузере.
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const OFFLINE = process.argv.includes('--offline')
 const ONLY = arg('only', 'tara-wide,tara-phone,client-wide,client-phone').split(',')
 const OUT = join(homedir(), 'Arena-materials', 'shots', '3d')

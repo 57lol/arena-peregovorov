@@ -1,17 +1,19 @@
 /// <reference lib="dom" />
 // Снимки третьей волны (по критике): телефон — рентген, листок и «Принять»; ноутбук — пороги в рентгене, разбор ухода.
-// Запуск: npm run dev, потом npx tsx scripts/fix3-shots.ts --tag before|after [--url http://localhost:5173] [--only cases,xray,slip,thresholds,walk]
+// Запуск: npm run dev:offline, потом npx tsx scripts/fix3-shots.ts --tag before|after [--url http://localhost:5173] [--only cases,xray,slip,thresholds,walk] [--live]
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 ? process.argv[i + 1] : def
 }
 const URL = arg('url', 'http://localhost:5173')
+await requireOffline(URL)
 const TAG = arg('tag', 'after')
 const ONLY = arg('only', 'cases,xray,slip,thresholds,walk,brief,custom,darina').split(',')
 const PH = Number(arg('h', '844')) // высота телефона: 844 или 667
