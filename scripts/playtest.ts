@@ -1,5 +1,5 @@
 // Живой прогон переговоров через API тремя стилями игрока.
-// Запуск: npx tsx scripts/playtest.ts [--api http://localhost:8787] [--scenario tara] [--out dir] [--styles rude,splitter,explorer]
+// Запуск: npx tsx scripts/playtest.ts [--api http://localhost:8787] [--scenario tara] [--out dir] [--styles rude,splitter,explorer,patient]
 // Сервер должен быть поднят (npm run server).
 
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -113,7 +113,22 @@ const explorer: Player = (sc, h) => {
     : `Хорошо, иду навстречу по деньгам: ${say(sc, pkg)}.`
 }
 
-const PLAYERS: Record<string, Player> = { rude, splitter, explorer }
+// 4. Терпеливый исследователь (--styles patient): спрашивает и кладёт размен, как исследователь, а потом держит его
+//    до конца встречи и соглашается только на последнее предложение. Проверка для сложности 3: жёсткий собеседник
+//    уступает под занавес, и кто сдался раньше, оставил очки на столе.
+const patient: Player = (sc, h) => {
+  const last = h[h.length - 1]
+  const theirs = last?.stateAfter.lastOpponentOffer
+  if (last?.stateAfter.lastCall)
+    return isComplete(sc, theirs) && score(sc.player.profile, theirs) >= sc.player.profile.batna
+      ? 'Хорошо, согласен на то, что вы предложили. Договорились.'
+      : 'Тогда без сделки. Спасибо за встречу, всего доброго.'
+  const asks = sc.issues.filter((i) => i.kind !== 'distributive').length
+  if (h.length <= asks + 1) return explorer(sc, h)
+  return `Понимаю вас, но наше предложение прежнее: ${say(sc, last.stateAfter.playerStance ?? {})}. Вы получаете то, что важно вам, мы — то, что важно нам.`
+}
+
+const PLAYERS: Record<string, Player> = { rude, splitter, explorer, patient }
 
 async function run(style: string, sc: Scenario) {
   const history: TurnRecord[] = []
