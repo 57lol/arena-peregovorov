@@ -27,6 +27,8 @@ export interface Chapter {
   room: SceneId
   /** массовка за столом (лица из src/game/ui/assets.ts); нет — обычные коллеги из пула */
   extras?: string[]
+  /** отголоски прошлых глав во вступлении: как закончилась глава `after` — сделкой или нет */
+  echoes?: { after: string; deal: string; other: string }[]
 }
 
 export const STORY = {
@@ -159,7 +161,20 @@ export const CHAPTERS: Chapter[] = [
     minutes: 50,
     room: 'bytovka',
     extras: ['gopnik', 'worker', 'workerf', 'sosed'],
+    echoes: [
+      { after: 'stop', deal: 'Это Серый с остановки. Он кивает вам первым: «Этот нормальный, я говорил».', other: 'Это Серый с остановки. Он делает вид, что вас не узнал.' },
+      { after: 'dorm', deal: 'У двери Тимур с пачкой сушек: он тут на практике и явно болеет за вас.', other: 'У двери Тимур: он тут на практике. Кивает, но садится подальше.' },
+    ],
   },
 ]
 
 export const chapterOf = (caseId: string) => CHAPTERS.find((c) => c.id === caseId.replace(/-hard$/, ''))
+
+/** Вступление главы с отголосками прошлых: `status` — чем кончилась последняя партия главы (deal, walked_away…). */
+export function introOf(ch: Chapter, status: (caseId: string) => string | undefined): string {
+  const echo = (ch.echoes ?? []).flatMap((e) => {
+    const st = status(e.after)
+    return st ? [st === 'deal' ? e.deal : e.other] : []
+  })
+  return [ch.intro, ...echo].join(' ')
+}

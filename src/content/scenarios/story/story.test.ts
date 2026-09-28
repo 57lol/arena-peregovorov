@@ -10,7 +10,7 @@ import { harder } from '../harder'
 import { ENDING_IDS } from '../../../engine/endings'
 import { isRude } from '../../../engine/offline'
 import { openingAnchor } from '../../../engine/policy'
-import { CHAPTERS } from '../../story'
+import { CHAPTERS, introOf } from '../../story'
 import { endingCatalog } from '../../endings'
 import { auditScenario, getScenario, SCENARIOS } from '../index'
 import { STORY_CASES } from './index'
@@ -117,5 +117,15 @@ describe('дела кампании «Новенький»', () => {
   it('каждая глава карты открывает дело', () => {
     const pending = new Set(['shop', 'launch']) // пишутся, подключим следующим коммитом
     for (const ch of CHAPTERS) if (!pending.has(ch.id)) expect(getScenario(ch.id), ch.id).toBeDefined()
+  })
+
+  it('финал вспоминает, чем кончились остановка и общага', () => {
+    const fin = CHAPTERS.find((c) => c.kind === 'finale')!
+    expect(introOf(fin, () => undefined)).toBe(fin.intro)
+    const good = introOf(fin, () => 'deal')
+    const bad = introOf(fin, (id) => (id === 'stop' ? 'walked_away' : undefined))
+    expect(good).toContain('Этот нормальный')
+    expect(bad).toContain('не узнал')
+    expect(bad).not.toContain('Тимур')
   })
 })

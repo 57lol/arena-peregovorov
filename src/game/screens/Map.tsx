@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Case } from '../../App'
 import { harder } from '../../content/scenarios'
-import { CHAPTERS, STORY } from '../../content/story'
+import { CHAPTERS, introOf, STORY } from '../../content/story'
 import { ENDING_IDS } from '../../engine/endings'
 import type { Scenario } from '../../engine/types'
 import { difficultyRu, portraitFor, TONE_RU } from '../cast'
@@ -167,6 +167,7 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
             <ChapterCard
               ref={card}
               row={row}
+              intro={introOf(row.ch, (id) => progress.cases[id]?.lastStatus ?? progress.cases[`${id}-hard`]?.lastStatus)}
               next={sel === nextIdx}
               weekDone={weekDone}
               onOpen={(sc) => onOpen({ scenario: sc, fromLibrary: true })}
@@ -196,13 +197,14 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
 
 interface CardProps {
   row: Row
+  intro: string
   next: boolean
   weekDone: boolean
   onOpen: (sc: Scenario) => void
   ref?: React.Ref<HTMLElement>
 }
 
-function ChapterCard({ row, next, weekDone, onOpen, ref }: CardProps) {
+function ChapterCard({ row, intro, next, weekDone, onOpen, ref }: CardProps) {
   const { ch, sc, n } = row
   const c = sc.opponent.character
   const finale = ch.kind === 'finale'
@@ -232,7 +234,7 @@ function ChapterCard({ row, next, weekDone, onOpen, ref }: CardProps) {
           </div>
         </dl>
       </div>
-      <p className="mp-card-intro">{ch.intro}</p>
+      <p className="mp-card-intro">{intro}</p>
       <p className="mp-card-teach">
         <b>Приём:</b> {ch.teaches}
       </p>
