@@ -93,6 +93,7 @@ const SCHEMA = {
 
 const SYSTEM = `Ты — методист, который придумывает учебные кейсы для тренажёра деловых переговоров по нескольким пунктам (как упражнение New Recruit).
 Кейс правдоподобный, российский по реалиям, с живыми людьми, без канцелярита и пафоса. Пиши как человек, а не как отдел кадров.
+Не пиши «минимизировать», «оптимальный», «обеспечить», «осуществлять», «данный», «в рамках», «является» — говори проще: «чтобы не потерять деньги», «побыстрее», «сделать».
 
 Структура:
 - 4 или 5 пунктов. У каждого — role:
@@ -147,6 +148,8 @@ export function orderProblems(raw: z.infer<typeof Raw>): string[] {
     .map((i) => `«${i.title}»: bestForPlayer должен дословно совпадать с первым вариантом, а варианты идти от лучшего для игрока к худшему`)
 }
 
+const cap = (t: string) => t.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase())
+
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
 function pointsFor(role: Role, n: number, k: number) {
   const r = ROLES[role]
@@ -189,11 +192,13 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     player: {
       role: raw.playerRole,
       brief: raw.playerBrief,
-      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: raw.playerBatnaText, interests: [] },
+      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: cap(raw.playerBatnaText), interests: [] },
     },
     opponent: {
       character: {
-        name, role: raw.opponentRole, company: raw.opponentCompany,
+        name, role: raw.opponentRole,
+        // «руководитель строительной компании, строительная компания» — второй раз компанию не пишем
+        company: raw.opponentRole.toLowerCase().includes(raw.opponentCompany.trim().toLowerCase()) ? '' : raw.opponentCompany,
         tone: req.opponentTone as Tone,
         portrait: raw.opponentGender === 'f' ? 'olga' : raw.opponentGender === 'm' ? 'rinat' : `tone-${req.opponentTone}`,
         speech: raw.opponentSpeech, bio: raw.opponentBio,
@@ -202,14 +207,14 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
       profile: {
         points: op,
         batna: Math.round(oMax * OPP_BATNA[d]),
-        batnaText: raw.opponentBatnaText,
+        batnaText: cap(raw.opponentBatnaText),
         interests: raw.interests.map((it, n) => {
           const k = raw.issues.findIndex((i) => i.id === it.issue)
           return { id: `i${n + 1}`, text: it.text.trim().replace(/[.!\s]+$/u, ''), issue: k >= 0 ? ids[k] : undefined, trustToReveal: k >= 0 ? TRUST[raw.issues[k].role] : 70 }
         }),
       },
     },
-    opening: raw.opening.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase()),
+    opening: cap(raw.opening),
   }
   return sc
 }
