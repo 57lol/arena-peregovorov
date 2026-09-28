@@ -887,51 +887,6 @@ body {
   color: var(--c-stamp);
 }
 
-.g-mentor {
-  position: relative;
-  padding: calc(5 * var(--u)) calc(6 * var(--u)) calc(3 * var(--u));
-  background: var(--c-brass-hi);
-  color: var(--c-ink);
-  box-shadow:
-    0 0 0 var(--u) var(--c-wood-3),
-    0 calc(2 * var(--u)) 0 var(--u) var(--desk-lo);
-}
-.g-mentor::before {
-  /* кусок скотча */
-  content: '';
-  position: absolute;
-  top: calc(-3 * var(--u));
-  left: 50%;
-  width: calc(24 * var(--u));
-  height: calc(6 * var(--u));
-  transform: translateX(-50%);
-  background: color-mix(in srgb, var(--c-paper) 70%, transparent);
-}
-.g-mentor p {
-  margin: 0 0 calc(2 * var(--u));
-  max-width: 64ch;
-  text-wrap: pretty;
-}
-.g-mentor-who {
-  display: flex;
-  align-items: center;
-  gap: calc(3 * var(--u));
-  color: var(--c-wood-2);
-  font-weight: 700;
-}
-.g-mentor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: calc(4 * var(--u));
-  margin-left: calc(-2 * var(--u));
-}
-.g-mentor .g-link {
-  color: var(--c-denim);
-}
-.g-mentor .g-link--quiet {
-  color: var(--c-wood-2);
-}
-
 .g-say {
   display: flex;
   flex-direction: column;
@@ -1893,10 +1848,7 @@ body {
   .g-slip--side {
     display: none;
   }
-  /* телефон: реплика, поле ввода и кнопка — на первом экране; записка наставника и листок ниже */
-  .g-stage > .g-mentor--stage {
-    order: 1;
-  }
+  /* телефон: реплика, строка разбора хода, поле ввода и кнопка — на первом экране; листок ниже */
   .g-stage > .g-slip--stage {
     order: 2;
   }
@@ -2004,30 +1956,32 @@ body {
   margin-top: 0;
 }
 
-/* записка наставника и рентген: на ноутбуке — в правой колонке, чтобы поле ввода оставалось на экране */
+/* разбор хода и рентген: на ноутбуке — в правой колонке, чтобы поле ввода оставалось на экране */
 @media (min-width: 900px) {
-  .g-mentor--stage {
+  .g-margin--stage {
     display: none;
   }
-  .g-side > .g-mentor { order: 0; }
+  .g-side > .g-margin,
+  .g-side > .g-margin-on { order: 0; }
   .g-side > .g-slip { order: 1; }
   .g-side > .g-xray { order: 2; }
   .g-side > .g-notebook-wrap { order: 3; }
   .g-side > .g-protocol { order: 4; }
-  .g-side > .g-mentor {
-    margin-top: calc(3 * var(--u));
-  }
-  /* открыли рентген — листок и рентген наверху, записка наставника под ними: на экране 800 px всё главное видно без прокрутки */
-  .g-side[data-xray='true'] > .g-mentor { order: 3; margin-top: 0; }
+  /* открыли рентген — листок и рентген наверху, разбор хода под ними: на экране 800 px всё главное видно без прокрутки */
+  .g-side[data-xray='true'] > .g-margin { order: 3; }
   .g-side[data-xray='true'] > .g-notebook-wrap { order: 4; }
   .g-side[data-xray='true'] > .g-protocol { order: 5; }
 }
 @media (max-width: 899px) {
-  .g-mentor--side {
+  .g-margin--side {
     display: none;
   }
   .g-side > .g-xray {
     order: -1;
+  }
+  .g-side > .g-margin-on {
+    order: 10;
+    align-self: flex-start;
   }
 }
 
@@ -2182,5 +2136,267 @@ body {
   .g-stage:has(.g-ontable) .g-you + .px-dialog .px-dialog-text {
     min-height: calc(2 * var(--lh-read));
     max-height: calc(2 * var(--lh-read));
+  }
+}
+
+/* ---------- разбор хода на полях ---------- */
+
+/* листок с полями: слева красная линия, как в тетради, пометки ручкой стоят на полях */
+.g-margin--side,
+.g-margin-sheet,
+.g-margin-bar {
+  --field: calc(14 * var(--u));
+  background-color: var(--c-paper);
+  background-image: linear-gradient(
+    90deg,
+    transparent calc(var(--field) - var(--u)),
+    var(--c-coral) calc(var(--field) - var(--u)) var(--field),
+    transparent var(--field)
+  );
+  color: var(--c-ink);
+}
+.g-margin--side {
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    0 calc(2 * var(--u)) 0 var(--u) var(--desk-lo);
+}
+.g-margin {
+  transition: opacity 0.2s steps(2);
+}
+.g-margin.is-dim {
+  opacity: 0.55;
+}
+.g-margin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) 0 calc(var(--field) + 4 * var(--u));
+  color: var(--c-steel-2);
+}
+.g-margin-body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(1 * var(--u)) calc(var(--field) + 4 * var(--u));
+}
+.g-margin-body p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* штампик: оттиск прямоугольной печатью, при новом ходе — «шлёп» */
+.g-margin-stamp {
+  --ink-c: var(--c-steel);
+  flex: none;
+  padding: 0 calc(3 * var(--u));
+  color: var(--ink-c);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 0 0 var(--u) var(--ink-c);
+  animation: px-thump 0.32s steps(4) both;
+}
+.g-margin-stamp.is-good {
+  --ink-c: var(--c-leaf);
+}
+.g-margin-stamp.is-bad {
+  --ink-c: var(--c-stamp);
+}
+
+.g-margin-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-margin-notes li {
+  position: relative;
+  padding: calc(1 * var(--u)) 0 calc(2 * var(--u));
+  text-wrap: pretty;
+}
+.g-margin-notes li + li {
+  border-top: var(--u) dotted var(--c-mist);
+  padding-top: calc(2 * var(--u));
+}
+.g-margin-mark {
+  position: absolute;
+  left: calc(-1 * var(--field) - 3 * var(--u));
+  width: var(--field);
+  display: flex;
+  justify-content: center;
+  padding-top: calc(1 * var(--u));
+}
+.g-margin-notes b {
+  margin-right: calc(2 * var(--u));
+}
+.g-margin-notes .is-good b {
+  color: var(--c-leaf-2);
+}
+.g-margin-notes .is-bad b {
+  color: var(--c-stamp);
+}
+.g-margin-notes .is-plain b {
+  color: var(--c-steel-2);
+}
+/* цитата подчёркнута ручкой: зелёной ровно, красной — волной */
+.g-margin-notes q {
+  quotes: '«' '»';
+  color: var(--c-ink);
+  text-decoration: underline;
+  text-decoration-thickness: var(--u);
+  text-underline-offset: calc(2 * var(--u));
+  text-decoration-skip-ink: none;
+}
+.g-margin-notes .is-good q {
+  text-decoration-color: var(--c-leaf-hi);
+}
+.g-margin-notes .is-bad q {
+  text-decoration-color: var(--c-coral);
+  text-decoration-style: wavy;
+}
+.g-margin-notes .is-plain q {
+  text-decoration-color: var(--c-mist);
+}
+.g-margin-why {
+  display: block;
+  color: var(--c-steel-2);
+}
+.g-margin-plain {
+  color: var(--c-steel-2);
+}
+.g-margin-effect {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: calc(4 * var(--u));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.g-margin-effect .is-up {
+  color: var(--c-leaf-2);
+}
+.g-margin-effect .is-down {
+  color: var(--c-stamp);
+}
+.g-margin-reply {
+  color: var(--pen);
+}
+.g-margin-tip {
+  margin-top: calc(1 * var(--u));
+  padding-top: calc(2 * var(--u));
+  border-top: var(--u) dashed var(--c-mist);
+}
+.g-margin-tip b {
+  color: var(--c-wood-2);
+}
+.g-margin-tip .g-link,
+.g-margin-off {
+  margin-left: calc(-2 * var(--u));
+  align-self: flex-start;
+}
+.g-margin-on {
+  align-self: flex-start;
+  color: var(--c-mist);
+}
+
+/* телефон: полоска со штампиком на месте вашей реплики — главный приём хода; тап — листок снизу */
+@media (min-width: 900px) {
+  .g-margin--stage {
+    display: none;
+  }
+}
+@media (max-width: 899px) {
+  .g-stage:has(.g-margin--stage) .g-you {
+    display: none;
+  }
+  .g-margin--stage {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    margin: calc(-20 * var(--u)) 0 calc(6 * var(--u));
+  }
+  /* открытая шторка должна лечь поверх таблички с именем и окна реплики */
+  .g-margin--stage[data-open='true'] {
+    z-index: 40;
+  }
+  .g-margin-bar .g-margin-stamp {
+    letter-spacing: 0;
+  }
+  .g-stage .g-margin--stage + .px-dialog {
+    margin-top: 0;
+  }
+  .g-margin-bar {
+    --field: calc(8 * var(--u));
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: calc(3 * var(--u));
+    width: 100%;
+    min-height: 44px;
+    padding: 0 calc(4 * var(--u)) 0 calc(var(--field) + 3 * var(--u));
+    border: 0;
+    box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .g-margin-bar-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .g-margin-bar > svg {
+    flex: none;
+  }
+  .g-margin-bar[aria-expanded='true'] > svg {
+    transform: rotate(180deg);
+  }
+  /* листок разбора — шторка снизу поверх встречи, как рентген */
+  .g-margin-sheet {
+    position: fixed;
+    z-index: 31;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 62svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: calc(4 * var(--u) + env(safe-area-inset-bottom));
+    box-shadow: 0 calc(-1 * var(--u)) 0 var(--u) var(--c-ink);
+  }
+  .g-margin-sheet .g-margin-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-top: calc(2 * var(--u));
+    background: inherit;
+  }
+  .g-margin-sheet .g-margin-head > span:first-child {
+    margin-right: auto;
+  }
+  .g-margin-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    margin-right: calc(-3 * var(--u));
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+}
+/* полоска разбора над окном собеседника до первого хода — окно на строку короче, как с вашей репликой */
+@media (max-width: 899px) {
+  .g-stage .g-margin--stage + .px-dialog .px-dialog-text {
+    max-height: calc(5 * var(--lh-read));
+  }
+}
+@media (max-width: 899px) and (max-height: 760px) {
+  .g-stage .g-margin--stage + .px-dialog .px-dialog-text {
+    max-height: calc(3 * var(--lh-read));
   }
 }

@@ -24,7 +24,8 @@ import {
   toPortraitEmotion,
 } from '../ui'
 import { MicButton } from './Mic'
-import { mentorHint, type HintId } from './mentor'
+import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from '../instant'
+import { Margin, MarginOff } from './Margin'
 
 interface Props {
   game: Case
@@ -56,8 +57,9 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
   const [xrayUsed, setXrayUsed] = useState(false)
   const [notebook, setNotebook] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const [hintsOn, setHintsOn] = useState(tutorial)
-  const [seen, setSeen] = useState<Set<HintId>>(new Set())
+  // разбор хода на полях: включён у всех, кто не выключил сам; в первой партии к советам добавляются записки наставника
+  const [instantOn, setInstantOn] = useState(loadInstantOn)
+  const [marginOpen, setMarginOpen] = useState(false)
   const [source, setSource] = useState<string>('')
   const notebookRef = useRef<HTMLDivElement>(null)
   const sideRef = useRef<HTMLElement>(null)
@@ -115,10 +117,20 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
     if (!pending) speak(line, last?.emotion)
   }
 
-  const hint = useMemo(
-    () => (hintsOn && !done && !pending ? mentorHint(sc, history, state, { xrayUsed, seen }) : null),
-    [hintsOn, done, pending, sc, history, state, xrayUsed, seen],
+  const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
+  const tip = useMemo(
+    () => (instantOn && !done && !pending ? nextTip(sc, history, { tutorial, xrayUsed }) : null),
+    [instantOn, done, pending, sc, history, tutorial, xrayUsed],
   )
+  const switchInstant = (on: boolean) => {
+    setInstantOn(on)
+    saveInstantOn(on)
+    // выключили подсказки в первой партии — обучение пройдено, как раньше по «Без подсказок»
+    if (!on && tutorial) {
+      markTutorialDone()
+      onTutorialOff()
+    }
+  }
 
   useEffect(() => {
     if (!leaving) return
@@ -180,38 +192,27 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
     setTimeout(() => notebookRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30)
   }
 
-  const mentor = (where: 'stage' | 'side') =>
-    hint && (
-
-              <aside className={`g-mentor g-mentor--${where}`} aria-label="Подсказка наставника">
-                <p className="g-mentor-who">
-                  <PixelIcon name="pen" px={2} color="var(--c-denim)" color2="var(--c-brass)" />
-                  Записка наставника
-                </p>
-                <p>{hint.text}</p>
-                <div className="g-mentor-actions">
-                  {hint.example && (
-                    <button type="button" className="g-link" onClick={() => setDraft(hint.example!)}>
-                      Вставить пример
-                    </button>
-                  )}
-                  <button type="button" className="g-link" onClick={() => setSeen((s) => new Set(s).add(hint.id))}>
-                    Понятно
-                  </button>
-                  <button
-                    type="button"
-                    className="g-link g-link--quiet"
-                    onClick={() => {
-                      setHintsOn(false)
-                      markTutorialDone()
-                      onTutorialOff()
-                    }}
-                  >
-                    Без подсказок
-                  </button>
-                </div>
-              </aside>
-            
+  const margin = (where: 'stage' | 'side') =>
+    instantOn ? (
+      <Margin
+        fb={feedback}
+        tip={tip}
+        where={where}
+        open={marginOpen}
+        dim={!!pending}
+        onOpen={(o) => {
+          setMarginOpen(o)
+          // на телефоне разбор и рентген — шторки снизу, двум сразу там тесно
+          if (o) setXray(false)
+        }}
+        onExample={(t) => {
+          setDraft(t)
+          document.getElementById('px-speech')?.focus()
+        }}
+        onOff={() => switchInstant(false)}
+      />
+    ) : (
+      where === 'side' && <MarginOff onOn={() => switchInstant(true)} />
     )
 
   const voiceBtn = canVoice && (
@@ -247,6 +248,7 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
                   onClick={() => {
                     setXray(!xray)
                     setXrayUsed(true)
+                    if (!xray) setMarginOpen(false)
                     // на ноутбуке рентген встаёт сразу под листком — покажем его, не заставляя листать колонку
                     if (!xray) setTimeout(() => sideRef.current?.scrollTo({ top: 0 }), 0)
                   }}
@@ -264,6 +266,8 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
             <Scene scene={sceneFor(sc)} character={portraitFor(sc)} emotion={emotion} talking={talking && !pending} maxScale={maxScale}>
               {stamp && <Stamp kind={stamp} />}
             </Scene>
+
+            {margin('stage')}
 
             {(pending || last) && (
               <p className="g-you">
@@ -283,8 +287,6 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
             />
 
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="stage" />
-
-            {mentor('stage')}
 
             {done ? (
               <div className="g-end">
@@ -368,7 +370,7 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
           </div>
 
           <aside className="g-side" data-xray={xray} ref={sideRef}>
-            {mentor('side')}
+            {margin('side')}
             <Slip sc={sc} state={state} theirs={theirsOnTable} name={name} canAccept={canAccept && !pending} onAccept={accept} sure={acceptSure} where="side" />
             <div id="g-notebook" ref={notebookRef} className="g-notebook-wrap" data-open={notebook}>
               <Notebook
