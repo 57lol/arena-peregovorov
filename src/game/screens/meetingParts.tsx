@@ -1,4 +1,4 @@
-// Части встречи, общие для классического и 3D-вида: листок «на столе», заметки в блокноте, рентген.
+// Части встречи, общие для классического и 3D-вида: листок с предложением, заметки в блокноте, «что чувствует».
 
 import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { pickInterest } from '../../engine/turn'
@@ -8,7 +8,7 @@ import { isComplete, score } from '../../engine/utility'
 import { g } from '../cast'
 import { Button, Meter, PixelIcon } from '../ui'
 
-/** Листок «на столе»: последнее предложение и сколько оно даёт вам. */
+/** Листок с предложением: последнее предложение и сколько оно даёт вам. */
 export function Slip({
   sc,
   state,
@@ -36,7 +36,7 @@ export function Slip({
   const mine = full ? score(P, offer) : null
   const from = state.status === 'deal' ? 'Подписано' : theirs ? (state.lastCall ? `${name}: последнее предложение, да или нет` : `${name} предлагает`) : 'Вы предлагаете'
   return (
-    <aside className={`px-slip g-slip g-slip--${where}${state.lastCall ? ' is-last' : ''}`} aria-label="Предложение на столе">
+    <aside className={`px-slip g-slip g-slip--${where}${state.lastCall ? ' is-last' : ''}`} aria-label="Предложение">
       <p className="px-slip-from">{from}</p>
       <dl className="px-slip-rows">
         {rows.map((i) => (
@@ -52,7 +52,7 @@ export function Slip({
         <p>
           {mine !== null ? (
             <>
-              Вам это даёт <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, запасной вариант — {P.batna}.
+              Ваша выгода <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, без сделки — {P.batna}.
             </>
           ) : (
             <>Про {silent.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} пока никто ничего не сказал.</>
@@ -60,12 +60,12 @@ export function Slip({
         </p>
         {canAccept && sure && mine !== null && (
           <p className="g-low" role="alert">
-            Это меньше вашего запасного варианта: {mine} против {P.batna}. Выгоднее встать и уйти.
+            Это меньше, чем без сделки: {mine} против {P.batna}. Выгоднее встать и уйти.
           </p>
         )}
         {canAccept && (
           <Button variant={sure ? 'stamp' : 'paper'} icon="check" onClick={onAccept}>
-            {sure ? 'Всё равно принять' : 'Принять'}
+            {sure ? 'Всё равно согласиться' : 'Согласиться'}
           </Button>
         )}
       </div>
@@ -104,7 +104,7 @@ const HOLD_RU = (sc: Scenario): Record<string, string> => ({
   timeout: 'время вышло',
 })
 
-/** «Рентген»: скрытое состояние собеседника и почему оно сдвинулось на последнем ходу. */
+/** «Что чувствует» (в коде — рентген): скрытое состояние собеседника и почему оно сдвинулось на последнем ходу. */
 export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: OpponentState; last?: TurnRecord; name: string; onClose: () => void }) {
   const dTrust = last?.deltas.filter((d) => d.field === 'trust').reduce((s, d) => s + d.by, 0) ?? 0
   const dTension = last?.deltas.filter((d) => d.field === 'tension').reduce((s, d) => s + d.by, 0) ?? 0
@@ -122,12 +122,12 @@ export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: 
   }
   const bad = last?.analysis.behaviors.filter((b) => BEHAVIOR_DICT[b.id]?.kind === 'bad') ?? []
   return (
-    <section className="g-xray" aria-label="Рентген: что чувствует собеседник">
+    <section className="g-xray" aria-label={`Что чувствует ${name}`}>
       <h2 className="g-xray-title">
         <PixelIcon name="eye" px={2} color="var(--c-grid)" color2="var(--c-coral)" />
-        Рентген: что под столом
-        {/* на телефоне рентген — шторка поверх встречи, её можно убрать */}
-        <button type="button" className="g-xray-close" aria-label="Закрыть рентген" onClick={onClose}>
+        Что чувствует {name}
+        {/* на телефоне это шторка поверх встречи, её можно убрать */}
+        <button type="button" className="g-xray-close" aria-label="Закрыть" onClick={onClose}>
           <PixelIcon name="cross" px={2} color="var(--c-mist)" />
         </button>
       </h2>
@@ -149,7 +149,7 @@ export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: 
                   {x.trust !== 0 && <span className={x.trust > 0 ? 'is-up' : 'is-down'}>{signed(x.trust)} доверие </span>}
                   {x.tension !== 0 && <span className={x.tension < 0 ? 'is-up' : 'is-down'}>{signed(x.tension)} напряжение </span>}
                   {/* цитату игрок только что написал сам — в рентгене хватит названия приёма, так он влезает в экран ноутбука */}
-                  {x.because.replace(/: «[^»]*»/u, '')}
+                  {plainReason(sc, x.because.replace(/: «[^»]*»/u, ''))}
                 </li>
               ))}
             </ul>
@@ -158,7 +158,7 @@ export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: 
           {bad.length > 0 && <p className="g-xray-sub">Слабые приёмы: {bad.map((b) => BEHAVIOR_DICT[b.id]?.label).join(', ').toLowerCase()}.</p>}
         </>
       ) : (
-        <p className="g-xray-sub">Здесь будет видно, как каждая ваша реплика сдвигает доверие и напряжение — и почему.</p>
+        <p className="g-xray-sub">Здесь будет видно, как каждая ваша реплика меняет доверие и напряжение собеседника — и почему.</p>
       )}
       <p className="g-xray-note">
         {g(sc, 'Рассказал', 'Рассказала')} о себе {state.revealed.length} из {sc.opponent.profile.interests.length}.
@@ -169,6 +169,15 @@ export function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: 
     </section>
   )
 }
+
+// Причины сдвигов от движка, сказанные проще (сами строки — ключи в разборе хода, их не трогаем)
+const PLAIN: Record<string, (sc: Scenario) => string> = {
+  'Предложение хуже их запасного варианта': (sc) => `Предложение хуже, чем у ${g(sc, 'него', 'неё')} есть без вас`,
+  'Нарушен деловой тон': () => 'Резкий тон',
+  'Шаг навстречу в предложении': () => 'Шаг навстречу',
+  'Третий раз то же самое предложение': () => 'Третий раз одно и то же',
+}
+const plainReason = (sc: Scenario, r: string) => PLAIN[r]?.(sc) ?? r
 
 /** Сдвиги с одной причиной — в одну строку: «+4 доверие −1 напряжение Открытый приоритет». */
 function groupDeltas(ds: TurnRecord['deltas']) {

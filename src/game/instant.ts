@@ -1,7 +1,7 @@
 // Разбор хода прямо во встрече: что сработало, что помешало, как это сдвинуло собеседника и что делать дальше.
 // Всё считается из того, что уже пришло с ответом (разбор реплики, сдвиги с причинами, решение движка), —
 // без второго запроса к нейросети. Поэтому одинаково работает онлайн, офлайн и без сервера.
-// Бывшие записки наставника первой партии — часть советов «что дальше» (помечены tutorial).
+// Первую встречу ведёт наставник (tutorial.ts), поэтому здесь советов про интерфейс нет — только про разговор.
 
 import { behaviorById } from '../engine/behaviors'
 import type { OpponentState, Scenario, TurnRecord } from '../engine/types'
@@ -31,7 +31,7 @@ export interface TurnFeedback {
 
 export type TipId =
   | 'start' | 'last' | 'below' | 'tone' | 'tension' | 'reveal' | 'hold' | 'clock'
-  | 'ask' | 'offer' | 'trade' | 'summary' | 'xray' | 'priority' | 'check'
+  | 'ask' | 'offer' | 'trade' | 'summary' | 'priority' | 'check'
 
 export interface Tip {
   id: TipId
@@ -115,8 +115,8 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
     const deal = st.status === 'deal'
     notes.push(
       mine < P.batna
-        ? { key: 'offer', ink: 'bad', title: deal ? 'Сделка себе в убыток' : 'Себе в убыток', why: `Вам это даёт ${mine}, а запасной вариант — ${P.batna}. Уйти было бы выгоднее.` }
-        : { key: 'offer', ink: 'plain', title: deal ? 'Сделка' : 'Ваше предложение', why: `Вам это даёт ${mine}, запасной вариант — ${P.batna}.` },
+        ? { key: 'offer', ink: 'bad', title: deal ? 'Сделка себе в убыток' : 'Себе в убыток', why: `Ваша выгода ${mine}, а без сделки — ${P.batna}. Уйти было бы выгоднее.` }
+        : { key: 'offer', ink: 'plain', title: deal ? 'Сделка' : 'Ваше предложение', why: `Ваша выгода ${mine}, без сделки — ${P.batna}.` },
     )
   }
   const order: Record<Ink, number> = { good: 0, bad: 1, plain: 2 }
@@ -148,10 +148,10 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
       return `${n} ${g(sc, 'согласился', 'согласилась')}. Сделка.`
     case 'counter': {
       const mine = isComplete(sc, d.offer) ? score(P, d.offer) : null
-      const what = d.final ? 'последнее предложение' : 'встречное'
+      const what = d.final ? 'последний вариант' : 'свой вариант'
       return mine === null
-        ? `${n} ${g(sc, 'положил', 'положила')} ${what}.`
-        : `${n} ${g(sc, 'положил', 'положила')} ${what}: вам ${mine}, запасной ${P.batna}.`
+        ? `${n} ${g(sc, 'предложил', 'предложила')} ${what}.`
+        : `${n} ${g(sc, 'предложил', 'предложила')} ${what}: вам ${mine}, без сделки ${P.batna}.`
     }
     case 'reveal':
       return `${n} ${g(sc, 'рассказал', 'рассказала')}, что ${g(sc, 'ему', 'ей')} на самом деле важно. Записано в блокноте.`
@@ -179,7 +179,7 @@ const used = (h: TurnRecord, id: string) => h.analysis.behaviors.some((b) => b.i
 const offered = (h: TurnRecord) => !!h.analysis.offer && Object.keys(h.analysis.offer).length > 0
 
 /** Все советы, которые подходят к положению партии, от самого срочного. */
-function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolean; xrayUsed: boolean }): Tip[] {
+function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   const n = firstName(sc)
   const him = g(sc, 'ему', 'ей')
   const he = g(sc, 'он', 'она')
@@ -204,8 +204,8 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
     out.push({
       id: 'last',
       text:
-        `Это последнее предложение, дальше торга не будет. Вам оно даёт ${mine}, запасной вариант — ${P.batna}. ` +
-        (mine >= P.batna ? 'Больше запасного — можно принимать.' : 'Меньше запасного — выгоднее уйти.'),
+        `Это последнее предложение, дальше торга не будет. Ваша выгода ${mine}, без сделки — ${P.batna}. ` +
+        (mine >= P.batna ? 'Это больше — можно соглашаться.' : 'Это меньше — выгоднее уйти.'),
     })
   }
 
@@ -214,7 +214,7 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
     if (mine < P.batna)
       out.push({
         id: 'below',
-        text: `Поднимите планку. Ваше предложение даёт вам ${mine}, запасной вариант — ${P.batna}: если ${n} согласится, вы проиграете. Ниже ${P.batna} брать нет смысла.`,
+        text: `Поднимите планку. Ваше предложение даёт вам ${mine}, а без сделки у вас ${P.batna}: если ${n} согласится, вы проиграете. Меньше ${P.batna} брать нет смысла.`,
       })
   }
 
@@ -248,7 +248,7 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
   if (left > 0 && left <= 2 && !state.lastCall)
     out.push({
       id: 'clock',
-      text: `До конца встречи ${left} ${plural(left, 'ход', 'хода', 'ходов')}. Хотите сделку — кладите полное предложение или принимайте то, что на столе.`,
+      text: `До конца встречи ${left} ${plural(left, 'ход', 'хода', 'ходов')}. Хотите сделку — предложите условия по всем пунктам или соглашайтесь на то, что на листке.`,
     })
 
   if (!history.some((h) => used(h, 'ask_interest'))) {
@@ -262,22 +262,17 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
   }
 
   const anyOffer = history.some(offered)
-  if (!anyOffer && ctx.tutorial)
+  if (!anyOffer && (history.length >= 3 || (last.decision.kind === 'hold' && last.decision.reason === 'no_offer')))
     out.push({
       id: 'offer',
-      text: 'Когда будете готовы, соберите предложение в блокноте стрелками — цифра справа показывает, сколько это даёт вам — и положите на стол.',
-    })
-  else if (!anyOffer && (history.length >= 3 || (last.decision.kind === 'hold' && last.decision.reason === 'no_offer')))
-    out.push({
-      id: 'offer',
-      text: `${n} ждёт цифр. Соберите в блокноте пакет сразу по всем пунктам и положите на стол: так проще менять одно на другое.`,
+      text: `${n} ждёт конкретики. Соберите в блокноте условия сразу по всем пунктам и нажмите «Предложить»: так проще менять одно на другое.`,
     })
 
   const firstReveal = history.findIndex((h) => h.decision.kind === 'reveal')
   if (firstReveal >= 0 && last.decision.kind !== 'reveal' && !history.slice(firstReveal).some((h) => used(h, 'package') || used(h, 'meso')))
     out.push({
       id: 'trade',
-      text: `Вы уже знаете, что ${him} важно, — это в блокноте. Предложите размен: уступите там, где ${him} важнее, в обмен на своё.`,
+      text: `Вы уже знаете, что ${him} важно, — это в блокноте. Предложите обмен: уступите там, где ${him} важнее, а взамен попросите своё.`,
       example: 'Если вы берёте на себя ',
     })
 
@@ -286,12 +281,6 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
       id: 'summary',
       text: 'Давно не подводили итог. Скажите, о чём уже договорились и что осталось открытым: так видно, что ещё можно разменять.',
       example: 'Давайте сверимся, на чём мы сейчас: ',
-    })
-
-  if (ctx.tutorial && history.length >= 2 && !ctx.xrayUsed)
-    out.push({
-      id: 'xray',
-      text: 'Кнопка «Рентген» наверху показывает, что собеседник чувствует и почему. В жизни такого нет, а для учёбы полезно.',
     })
 
   // запасные — если в реплике не нашлось ни одного приёма и больше сказать нечего
@@ -310,7 +299,7 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
 }
 
 const FALLBACK: TipId[] = ['priority', 'check']
-const ONCE: TipId[] = ['start', 'xray', 'offer']
+const ONCE: TipId[] = ['start', 'offer']
 
 /** О чём спросить: пункт, где ставка собеседника вам дороже всего и о чём ещё не спрашивали. */
 function askAbout(sc: Scenario, history: TurnRecord[], state: OpponentState) {
@@ -331,17 +320,17 @@ function askAbout(sc: Scenario, history: TurnRecord[], state: OpponentState) {
 
 /**
  * Совет «что дальше» после истории ходов: не больше одного, без повтора подряд.
- * Разовые (первый ход, рентген, блокнот) — один раз за партию. Запасные — только если в последней реплике
+ * Разовые (первый ход, «предложите») — один раз за партию. Запасные — только если в последней реплике
  * не нашлось ни одного приёма. Чистая функция: тот же ход — тот же совет.
  */
-export function nextTip(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolean; xrayUsed: boolean }): Tip | null {
+export function nextTip(sc: Scenario, history: TurnRecord[]): Tip | null {
   const shown: (Tip | null)[] = []
   for (let k = 0; k <= history.length; k++) {
     const h = history.slice(0, k)
     const prev = shown[k - 1]?.id
     const empty = k > 0 && turnFeedback(sc, h[k - 1]).empty
     const pick =
-      candidates(sc, h, ctx).find(
+      candidates(sc, h).find(
         (t) =>
           t.id !== prev &&
           !(ONCE.includes(t.id) && shown.some((s) => s?.id === t.id)) &&

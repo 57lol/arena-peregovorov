@@ -1004,9 +1004,6 @@
   .w3-mentor[data-at='bottom'] {
     width: calc(100% - 24px);
   }
-  .w3-mentor .g-mentor-text {
-    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
-  }
 }
 /* громкость голоса в меню встречи */
 .w3-volume {
@@ -1017,4 +1014,12 @@
   min-width: 0;
   accent-color: var(--c-stamp);
   cursor: pointer;
+}
+/* телефон, лист в руках: наставник — одной репликой, без шапки; своя реплика не нужна — место под лист */
+@media (max-width: 699px) {
+  .w3-play:not([data-held='']) .w3-mentor .g-mentor-who,
+  .w3-play:not([data-held='']) .w3-mentor .g-mentor-fb,
+  .w3-play:not([data-held='']) .w3-you {
+    display: none;
+  }
 }

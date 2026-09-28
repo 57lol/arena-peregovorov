@@ -113,8 +113,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
 
   const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
   const tip = useMemo(
-    () => (instantOn && !done && !pending ? nextTip(sc, history, { tutorial, xrayUsed }) : null),
-    [instantOn, done, pending, sc, history, tutorial, xrayUsed],
+    () => (instantOn && !done && !pending ? nextTip(sc, history) : null),
+    [instantOn, done, pending, sc, history],
   )
   const switchInstant = (on: boolean) => {
     setInstantOn(on)
