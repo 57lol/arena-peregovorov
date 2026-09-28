@@ -115,8 +115,7 @@ describe('дела кампании «Новенький»', () => {
   })
 
   it('каждая глава карты открывает дело', () => {
-    const pending = new Set(['shop', 'launch']) // пишутся, подключим следующим коммитом
-    for (const ch of CHAPTERS) if (!pending.has(ch.id)) expect(getScenario(ch.id), ch.id).toBeDefined()
+    for (const ch of CHAPTERS) expect(getScenario(ch.id), ch.id).toBeDefined()
   })
 
   it('финал вспоминает, чем кончились остановка и общага', () => {

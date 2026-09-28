@@ -6,6 +6,8 @@ import type { Scenario } from '../../../engine/types'
 import type { EndingText } from '../../endings'
 import { dormCase } from './dorm'
 import { stopCase } from './stop'
+import { shopCase } from './shop'
+import { launchCase } from './launch'
 
 export interface StoryCase {
   scenario: Scenario
@@ -13,7 +15,7 @@ export interface StoryCase {
   endings: Record<EndingId, EndingText>
 }
 
-export const STORY_CASES: StoryCase[] = [dormCase, stopCase]
+export const STORY_CASES: StoryCase[] = [dormCase, stopCase, shopCase, launchCase]
 
 export const STORY_SCENARIOS: Scenario[] = STORY_CASES.map((c) => c.scenario)
 
