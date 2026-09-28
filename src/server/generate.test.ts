@@ -50,4 +50,17 @@ describe('генерация сценария', () => {
     expect(dup.opponent.character.company).toBe('')
     expect(toScenario(raw, GenerateRequest.parse({})).opponent.character.company).toBe('Логопарк')
   })
+
+  it('веса пунктов слегка разные у разных дел, а проверки проходят всегда', () => {
+    const totals = new Set<string>()
+    for (let n = 0; n < 40; n++) {
+      const r = { ...raw, title: `Склад ${n}` }
+      for (const difficulty of [1, 2, 3] as const) {
+        const sc = toScenario(r, GenerateRequest.parse({ difficulty }))
+        expect(scenarioProblems(sc).problems, `${n}/${difficulty}`).toEqual([])
+        totals.add(JSON.stringify(sc.player.profile.points))
+      }
+    }
+    expect(totals.size).toBeGreaterThan(5)
+  })
 })

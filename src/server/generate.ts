@@ -160,8 +160,10 @@ function echoes(role: string, company: string): boolean {
 const cap = (t: string) => t.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase())
 
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
-function pointsFor(role: Role, n: number, k: number) {
-  const r = ROLES[role]
+function pointsFor(role: Role, n: number, k: number, jitter = 0) {
+  // ±15% к весам пункта по хэшу дела: иначе у всех сгенерированных дел одинаковые 30/28/18/8
+  const j = 1 + ((jitter % 7) - 3) * 0.05
+  const r = { player: ROLES[role].player * j, opponent: ROLES[role].opponent * (2 - j) }
   const down = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * (n - 1 - i)) / (n - 1)))
   const up = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * i) / (n - 1)))
   const scale = k > 0 ? 0.6 : 1 // второй пункт той же роли весит меньше
@@ -178,10 +180,11 @@ const TRUST: Record<Role, number> = { shared: 30, mine: 40, theirs: 50, split: 6
 export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scenario {
   const seen = new Map<Role, number>()
   const ids = raw.issues.map((i, n) => (i.id.replace(/[^a-z0-9_]/gi, '').toLowerCase() || `issue${n}`) + (raw.issues.findIndex((j) => j.id === i.id) < n ? n : ''))
-  const tables = raw.issues.map((i) => {
+  const h = hashOf(raw)
+  const tables = raw.issues.map((i, n) => {
     const k = seen.get(i.role) ?? 0
     seen.set(i.role, k + 1)
-    return pointsFor(i.role, i.options.length, k)
+    return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16))
   })
   const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: orient(i), kind: ROLES[i.role].kind }))
   const pp = Object.fromEntries(ids.map((id, n) => [id, tables[n].player]))
