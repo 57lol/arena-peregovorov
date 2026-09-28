@@ -347,15 +347,20 @@ export class Person {
     // уходит из-за стола: встаёт и уходит вбок
     if (this.leaving) {
       this.gone += dt
+      // встаёт, отступает от стола за спины соседей и уходит к двери (она слева в обеих комнатах)
       const up = Math.min(1, this.gone / 0.5)
-      const away = Math.max(0, this.gone - 0.6)
+      const back = MathUtils.smoothstep(this.gone, 0.5, 1.1)
+      const away = Math.max(0, this.gone - 0.9)
       this.body.position.y = BUST_BOTTOM - EXT * M + up * 0.3
-      this.body.position.x = away * away * 1.4
+      this.body.position.z = -back * 0.45
+      this.body.position.x = -away * away * 1.6
       if (this.hands) this.hands.visible = false
-      this.body.visible = this.gone < 2.6
+      this.body.visible = this.gone < 2.8
     } else {
       this.body.position.y = BUST_BOTTOM - EXT * M + (this.jolt > 0 ? M : 0)
       this.body.position.x = 0
+      this.body.position.z = 0
+      this.gone = 0
       this.body.visible = true
       if (this.hands) this.hands.visible = true
     }

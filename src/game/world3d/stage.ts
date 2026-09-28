@@ -50,6 +50,9 @@ export class World {
   xray = 0
   xrayTarget = 0
   fade = 1
+  /** игрок встал из-за стола (ушёл без сделки): 0 — сидим, 1 — стоим */
+  standTarget = 0
+  private stand = 0
   /** время встречи, минуты от полуночи — стрелки часов доезжают до него плавно */
   clockTarget = 10 * 60
   private clockNow = 10 * 60
@@ -171,8 +174,9 @@ export class World {
     // склоняемся над бумагами: вперёд и чуть вверх; и еле заметно дышим
     // над бумагами не дышим: кнопки на листах должны стоять на месте
     const breathe = Math.sin(this.t * 1.3) * 0.003 * (1 - Math.min(1, lean * 4))
+    this.stand += (this.standTarget - this.stand) * (1 - Math.exp(-dt * 1.8))
     const cam = this.camera
-    cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe, EYE.z - lean * 0.3)
+    cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe + this.stand * 0.42, EYE.z - lean * 0.3 + this.stand * 0.25)
     cam.rotation.set(h.pitch, h.yaw, 0)
     cam.updateMatrixWorld()
 

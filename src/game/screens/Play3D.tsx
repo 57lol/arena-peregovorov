@@ -126,10 +126,18 @@ export default function Play3D(props: Props) {
     return () => clearTimeout(t)
   }, [world, dealt, history.length])
 
-  // собеседник встал из-за стола
+  // собеседник встал из-за стола — уходит к двери; ушли мы — встаём и оборачиваемся к двери
   useEffect(() => {
-    const lead = world?.company?.lead
+    if (!world) return
+    const lead = world.company?.lead
     if (lead) lead.leaving = state.status === 'walked_away' && state.endedBy === 'opponent'
+    const we = state.status === 'walked_away' && state.endedBy !== 'opponent'
+    const wasStanding = world.standTarget === 1
+    world.standTarget = we ? 1 : 0
+    if (we) {
+      world.head.ty = 55 * (Math.PI / 180)
+      world.head.tp = -4 * (Math.PI / 180)
+    } else if (wasStanding) world.look('face') // отменили уход — садимся обратно
   }, [world, state.status, state.endedBy])
 
   // листок на столе: появился или сменился — едет по столу от того, кто положил
