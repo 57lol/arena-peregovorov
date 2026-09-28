@@ -163,6 +163,8 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
         ? 'время вышло'
         : 'сделка подписана'
   const could = !deal && report.betterDeal ? report.betterDeal : null
+  // ответ на последнее предложение («да или нет») сверх лимита не считаем: иначе «13 реплик из 12»
+  const used = Math.min(history.length, sc.turnLimit)
   return (
     <section className="g-sheet g-ledger" aria-labelledby="ledger-h">
       <div className="g-ledger-head">
@@ -174,7 +176,7 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
             Разбор: {sc.title}
           </h1>
           <p className="g-muted">
-            {sc.opponent.character.name}. {history.length} {plural(history.length, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}, {who}.
+            {sc.opponent.character.name}. {used} {plural(used, 'реплика', 'реплики', 'реплик')} из {sc.turnLimit}, {who}.
           </p>
         </div>
         <div className={`g-ledger-stamp g-ledger-stamp--${o.status}`} aria-hidden="true">
