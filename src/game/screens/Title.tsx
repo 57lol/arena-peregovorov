@@ -120,7 +120,7 @@ export function Title({ progress, invited, notice, server, room, roomWait, playe
               {next && (
                 <p className="g-title-next">
                   {newbie
-                    ? `Начнём с «${next.scenario.title}». Наставник подскажет, что где.`
+                    ? `Первое дело — «${next.scenario.title}». Наставник подскажет, что где.`
                     : `Дальше — «${next.scenario.title}». ${next.why}`}
                 </p>
               )}

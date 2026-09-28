@@ -90,7 +90,7 @@ export function Notes({ sc, state, issue, fresh, name }: { sc: Scenario; state: 
 
 const DECISION_RU = (sc: Scenario): Record<Decision['kind'], string> => ({
   accept: 'соглашается',
-  counter: 'кладёт встречное предложение',
+  counter: 'предлагает свой вариант',
   reveal: `рассказывает, что ${g(sc, 'ему', 'ей')} важно`,
   hold: 'держит позицию',
   warn_tone: 'одёргивает за тон',

@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Scenario, TurnRecord } from '../engine/types'
+import { chapterOf } from '../content/story'
 import { firstName, g } from './cast'
 import { markTutorialDone } from './progress'
 
@@ -94,6 +95,7 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
   // нужная бумага лежит на столе, а мы смотрим на собеседника или (телефон) ещё не взяли лист в руки
   const reach = (paper: 'notebook' | 'slip' | 'card', what: string): MentorLine | null => {
     if (c.pose === 'face') return { text: `${what} Опусти взгляд на стол: кнопка «Стол» внизу${c.phone ? '' : ' или стрелка ↓'}.`, target: 'look' }
+    if (c.phone && c.held && c.held !== paper) return { text: `${what} Положи лист — кнопка «На стол» внизу.`, target: 'look' }
     if (c.phone && c.held !== paper) return { text: `${what} Нажми на ${PAPER_RU[paper]}, чтобы взять в руки.`, target: 'hold' }
     return null
   }
@@ -101,7 +103,11 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
     case 'talk':
       return {
         text: `Напротив — ${n}. Просто ответь ${him}, как в жизни. Для начала спроси, что для ${his} главное.`,
-        example: 'Здравствуйте! Прежде чем обсуждать детали, расскажите: что для вас в этом главное и почему?',
+        // в бытовых главах кампании на «ты», в деловых делах — на «вы»
+        example:
+          chapterOf(c.sc.id)?.kind === 'life'
+            ? 'Привет! Давай сначала разберёмся: что для тебя тут самое важное и почему?'
+            : 'Здравствуйте! Прежде чем обсуждать детали, расскажите: что для вас в этом главное и почему?',
       }
     case 'notebook':
       return (

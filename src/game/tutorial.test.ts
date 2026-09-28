@@ -50,6 +50,8 @@ describe('обучающая встреча', () => {
     expect(mentorLine('notebook', ctx)).toMatchObject({ target: 'look' })
     expect(mentorLine('notebook', { ...ctx, pose: 'desk', phone: true })).toMatchObject({ target: 'hold' })
     expect(mentorLine('notebook', { ...ctx, pose: 'desk' })).toMatchObject({ target: 'notebook', ack: true })
+    // в руках другой лист — сначала положить его
+    expect(mentorLine('feel', { ...ctx, pose: 'desk', phone: true, held: 'slip' })).toMatchObject({ target: 'look' })
     const offer = mentorLine('offer', { ...ctx, pose: 'desk' })!
     expect(offer.text).toContain(`выгода ${sc.player.profile.batna}`)
     // «уйти» не мигает: новичок жмёт то, что мигает
