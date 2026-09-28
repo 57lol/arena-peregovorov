@@ -20,6 +20,7 @@ import {
 } from 'three'
 import { TABLE } from '../layout'
 import type { RoomBuild } from '../room'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { F, Kit, Soup, at, faceEye, flatY, quads } from '../roomkit'
 import type { StoryRoom } from './index'
 import { ATLAS, PLACE } from './street.gen'
@@ -173,43 +174,35 @@ function buildStreet(): RoomBuild {
   dim.visible = false
   g.add(dim)
 
-  // ------------------------------------------------------------------ свет фонарей в тумане: конус
+  // ------------------------------------------------------------------ свет фонарей в тумане: конусы одним мешем
   const coneMat = new MeshBasicMaterial({ color: 0xe7d5b3, transparent: true, depthWrite: false, side: DoubleSide, vertexColors: true })
   kit.trash.push(coneMat)
-  for (const [, , hx, hy, hz, r] of P.lamps) {
-    const geo = new CylinderGeometry(0.16, r * 0.75, hy - 0.05, 18, 3, true).translate(0, (hy - 0.05) / 2, 0)
+  const cones = P.lamps.map(([, , hx, hy, hz, r]) => {
+    const geo = new CylinderGeometry(0.16, r * 0.75, hy - 0.05, 18, 3, true).translate(hx, (hy - 0.05) / 2, hz)
     const pos = geo.getAttribute('position')
     const col = new Float32Array(pos.count * 4)
-    for (let i = 0; i < pos.count; i++) {
-      const k = pos.getY(i) / hy // 0 у земли, 1 у лампы
-      col.set([1, 1, 1, 0.14 + 0.14 * k], i * 4)
-    }
+    for (let i = 0; i < pos.count; i++) col.set([1, 1, 1, 0.14 + (0.14 * pos.getY(i)) / hy], i * 4) // у лампы плотнее
     geo.setAttribute('color', new BufferAttribute(col, 4))
-    const m = kit.mesh(geo, coneMat)
-    m.position.set(hx, 0, hz)
-    m.renderOrder = 1
-    g.add(m)
-  }
+    return geo
+  })
+  const coneMesh = kit.mesh(mergeGeometries(cones)!, coneMat)
+  for (const c of cones) c.dispose()
+  coneMesh.renderOrder = 1
+  g.add(coneMesh)
 
   // ------------------------------------------------------------------ пар: шаурма, чай, вытяжка, трубы ОЭЗ
+  /** плоскость лицом к глазам: низ в (x, y0, z) */
+  const facing = (w: number, h: number, x: number, y0: number, z: number) => {
+    const r = faceEye(x, z)
+    const cx = (Math.cos(r) * w) / 2
+    const cz = (-Math.sin(r) * w) / 2
+    return { p: [x - cx, y0, z - cz, x + cx, y0, z + cz, x + cx, y0 + h, z + cz, x - cx, y0 + h, z - cz], uv }
+  }
   const steamTex = kit.tex('steam', { repeat: true })
-  const steamMat = kit.mat(steamTex, true)
-  const steam = (w: number, h: number, x: number, y: number, z: number) => {
-    const s = kit.mesh(new PlaneGeometry(w, h).translate(0, h / 2, 0), steamMat)
-    s.position.set(x, y, z)
-    s.rotation.y = faceEye(x, z)
-    g.add(s)
-  }
-  steam(0.06, 0.14, shx - 0.1, Y + 0.06, shz)
-  steam(0.05, 0.12, cux, Y + 0.1, cuz)
-  steam(0.34, 0.9, kx0 + 0.6, kh + 0.5, kz - kd + 0.45)
+  g.add(kit.mesh(quads([facing(0.06, 0.14, shx - 0.1, Y + 0.06, shz), facing(0.05, 0.12, cux, Y + 0.1, cuz), facing(0.34, 0.9, kx0 + 0.6, kh + 0.5, kz - kd + 0.45)]), kit.mat(steamTex, true)))
   // пар из труб ОЭЗ — серее, иначе на бледном небе его не видно
-  const farSteam = kit.mat(steamTex, true, 0xa8b5b2)
-  for (const [x, y, z, k] of P.chimneys) {
-    const s = kit.mesh(new PlaneGeometry(k * 1.6, k * 6).translate(0, k * 3, 0), farSteam)
-    s.position.set(x, y, z)
-    g.add(s)
-  }
+  const chim = P.chimneys.map(([x, y, z, k]) => ({ p: [x - k * 0.8, y, z, x + k * 0.8, y, z, x + k * 0.8, y + k * 6, z, x - k * 0.8, y + k * 6, z], uv }))
+  g.add(kit.mesh(quads(chim), kit.mat(steamTex, true, 0xa8b5b2)))
 
   // ------------------------------------------------------------------ туман кольцом, медленно ползёт
   const [fx, fzb, fzf, fh] = P.fogring
@@ -228,30 +221,46 @@ function buildStreet(): RoomBuild {
   )
   g.add(fog)
 
-  // ------------------------------------------------------------------ машина: фары из тумана и мимо
+  /** uv прямоугольника атласа: u0, низ, u1, верх — с тем же отступом, что в супе */
+  const uvOf = (name: string) => {
+    const r = rects[name]
+    const u0 = (r[0] + 0.02) / ATLAS.w
+    const u1 = u0 + (r[2] - 0.04) / ATLAS.w
+    const top = 1 - (r[1] + 0.02) / ATLAS.h
+    return [u0, top - (r[3] - 0.04) / ATLAS.h, u1, top]
+  }
+  const setUV = (attr: BufferAttribute, quad: number, [u0, v0, u1, v1]: number[]) => {
+    const q = [u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1] // порядок вершин как в quads()
+    for (let i = 0; i < 6; i++) attr.setXY(quad * 6 + i, q[i * 2], q[i * 2 + 1])
+    attr.needsUpdate = true
+  }
+
+  // ------------------------------------------------------------------ машина: фары из тумана и мимо (один меш, кадр — через uv)
   const carMat = new MeshBasicMaterial({ map: atlas0, transparent: true, alphaTest: 0.02, side: DoubleSide, depthWrite: false })
   kit.trash.push(carMat)
-  const carFrame = (name: string, w: number) => {
-    const s = new Soup(ATLAS.w, ATLAS.h, rects)
-    s.add(new PlaneGeometry(w, 1.47).translate(0, 0.735, 0), at(0, 0, 0), name, 0)
-    const m = s.build(kit, [carMat, carMat, carMat])[0]
-    m.visible = false
-    g.add(m)
-    return m
-  }
-  const car = { front: carFrame('car_front', 2.2), back: carFrame('car_back', 2.2), side: carFrame('car_side', 4.4) }
+  const car = kit.mesh(quads([{ p: [-0.5, 0, 0, 0.5, 0, 0, 0.5, 1.47, 0, -0.5, 1.47, 0], uv }]), carMat)
+  car.visible = false
+  g.add(car)
+  const carUV = car.geometry.getAttribute('uv') as BufferAttribute
+  const frames = { front: uvOf('car_front'), back: uvOf('car_back'), side: uvOf('car_side') }
+  let carFrame = ''
   const [, , , laneIn, laneOut] = P.road
   const CAR_T = 21
 
-  // листья: несколько штук кружатся над столом и падают, потом снова появляются наверху
-  const leaves = [0, 1, 2, 3, 4].map((i) => {
-    const s = new Soup(ATLAS.w, ATLAS.h, rects)
-    s.add(new PlaneGeometry(0.05, 0.035), at(0, 0, 0), `leaf${i % 3}`, 0)
-    const m = s.build(kit, maps)[0]
-    g.add(m)
-    // между лицами, если смотреть из глаз: собеседник по центру, соседи под углом ±28°
-    return { m, x: [-0.95, -0.24, 0.24, 0.95, 1.42][i], z: [-0.3, -0.25, -0.35, -0.3, -0.05][i], ph: i * 2.3, period: 9 + i * 1.7 }
-  })
+  // листья: пять штук кружатся над столом и падают, потом снова появляются наверху (один меш)
+  const LEAVES = [
+    { x: -0.95, z: -0.3 },
+    { x: -0.24, z: -0.25 },
+    { x: 0.24, z: -0.35 },
+    { x: 0.95, z: -0.3 },
+    { x: 1.42, z: -0.05 },
+  ] // между лицами, если смотреть из глаз: собеседник по центру, соседи под углом ±28°
+  const leafMesh = kit.mesh(quads(LEAVES.map(() => ({ p: new Array(12).fill(0), uv }))), maps[0])
+  const leafPos = leafMesh.geometry.getAttribute('position') as BufferAttribute
+  const leafUV = leafMesh.geometry.getAttribute('uv') as BufferAttribute
+  LEAVES.forEach((_l, i) => setUV(leafUV, i, uvOf(`leaf${i % 3}`)))
+  leafMesh.frustumCulled = false
+  g.add(leafMesh)
 
   // свет — для Lambert-материалов людей (сама улица не освещается)
   g.add(new AmbientLight(0xffffff, 2.4))
@@ -264,27 +273,44 @@ function buildStreet(): RoomBuild {
     fogTex.offset.x = t * 0.004
     // трубка: раз в ~9 с короткий сбой, раз в ~23 с гаснет на полсекунды
     dim.visible = (t % 9.3 > 8.75 && Math.sin(t * 53) > -0.1) || t % 23 > 22.5
-    for (const l of leaves) {
-      const k = ((t + l.ph) % l.period) / l.period // 0 — вверху, 1 — на столе
-      l.m.position.set(l.x + Math.sin(t * 1.3 + l.ph) * 0.07, 3.2 - k * (3.2 - ty - 0.01), l.z + Math.cos(t * 0.9 + l.ph) * 0.1)
-      l.m.rotation.set(Math.sin(t * 3 + l.ph) * 1.2, t * 1.7 + l.ph, Math.cos(t * 2.3 + l.ph) * 0.8)
-    }
+    LEAVES.forEach((l, i) => {
+      const ph = i * 2.3
+      const k = ((t + ph) % (9 + i * 1.7)) / (9 + i * 1.7) // 0 — вверху, 1 — на столе
+      const cx = l.x + Math.sin(t * 1.3 + ph) * 0.07
+      const cy = 3.2 - k * (3.2 - ty - 0.012)
+      const cz = l.z + Math.cos(t * 0.9 + ph) * 0.1
+      const a = t * 1.7 + ph // крутится
+      const tilt = Math.sin(t * 3 + ph) * 0.9 * (1 - k * k) // на столе ложится плашмя
+      const ux = Math.cos(a) * Math.cos(tilt) * 0.025
+      const uy = Math.sin(tilt) * 0.025
+      const uz = Math.sin(a) * Math.cos(tilt) * 0.025
+      const vx = -Math.sin(a) * 0.0175
+      const vz = Math.cos(a) * 0.0175
+      const c4 = [
+        [cx - ux - vx, cy - uy, cz - uz - vz],
+        [cx + ux - vx, cy + uy, cz + uz - vz],
+        [cx + ux + vx, cy + uy, cz + uz + vz],
+        [cx - ux + vx, cy - uy, cz - uz + vz],
+      ]
+      ;[0, 1, 2, 0, 2, 3].forEach((j, n) => leafPos.setXYZ(i * 6 + n, c4[j][0], c4[j][1], c4[j][2]))
+    })
+    leafPos.needsUpdate = true
     // машина: к нам по ближней полосе, потом от нас по дальней
     const c = t % (2 * CAR_T)
     const going = c < CAR_T ? 1 : -1
     const k = (c % CAR_T) / 4.2 // 4.2 с на проезд
-    for (const m of Object.values(car)) m.visible = false
+    car.visible = k < 1
     if (k < 1) {
       const z = going > 0 ? ZB + 0.6 + k * (ZF - ZB - 1.2) : ZF - 0.6 - k * (ZF - ZB - 1.2)
       const x = going > 0 ? laneIn : laneOut
-      const dx = x
       const dz = z - 0.62
-      const side = Math.abs(dx) / Math.hypot(dx, dz) > 0.75
-      const m = side ? car.side : going > 0 ? (dz < 0 ? car.front : car.back) : dz < 0 ? car.back : car.front
-      m.visible = true
-      m.position.set(x, 0, z)
-      m.rotation.y = faceEye(x, z)
-      m.scale.x = side && going < 0 ? -1 : 1
+      const side = Math.abs(x) / Math.hypot(x, dz) > 0.75
+      const f = side ? 'side' : (going > 0) === dz < 0 ? 'front' : 'back'
+      if (f !== carFrame) setUV(carUV, 0, frames[f])
+      carFrame = f
+      car.position.set(x, 0, z)
+      car.rotation.y = faceEye(x, z)
+      car.scale.x = (side ? 4.4 : 2.2) * (side && going < 0 ? -1 : 1)
       carMat.opacity = Math.min(1, k * 6, (1 - k) * 6)
     }
   }
