@@ -1139,6 +1139,9 @@ def table_tex(P):
     t.px(X(kx + 0.13), Zt(kz + 0.13), 5)
     _ = inner
     t.shade_ellipse(X(kx + 0.01), Zt(kz + 0.01), 0.085 / s, 0.075 / s, 1)
+    # абажур светит в середину стола, к торцам темнее
+    lx, lz = P['lamp']
+    falloff(t, X(lx), Zt(lz), 1.25 / s, 1.1 / s, steps=1, start=1.0, width=0.6, soft=0.06)
     t.frame(0, 0, w - 1, h - 1, 12)
     t.rect(0, 1, w - 1, 1, 14)
     return t
