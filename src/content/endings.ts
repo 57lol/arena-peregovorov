@@ -7,6 +7,9 @@ import type { OpponentState, Scenario } from '../engine/types'
 import { bestOption, issueWeight } from '../engine/utility'
 import { baseCaseId } from './scenarios/harder'
 import { STORY_ENDINGS } from './scenarios/story'
+import { TITLE } from './endingTitles'
+
+export { TITLE }
 
 export type EndingTone = 'good' | 'mixed' | 'bad'
 
@@ -47,16 +50,6 @@ const HINT: Record<EndingId, string> = {
   timeout: 'Проговорить все часы встречи',
 }
 
-export const TITLE: Record<EndingId, string> = {
-  legend: 'Сделка, о которой расскажут',
-  cold_win: 'Выиграли цену, проиграли человека',
-  middling: 'Нормально. Но…',
-  lose_lose: 'Оба в минусе',
-  short: 'Сами себе дороже',
-  walked: 'Ушли вовремя',
-  slammed: 'Хлопнул дверью',
-  timeout: 'Время вышло',
-}
 
 // {got} — что записали по совместимому пункту.
 const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
