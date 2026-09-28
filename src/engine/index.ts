@@ -4,6 +4,7 @@ export * from './utility'
 export * from './policy'
 export * from './turn'
 export * from './report'
+export * from './endings'
 
 import type { BehaviorDict } from './dictionary'
 import { initialState, step } from './turn'
