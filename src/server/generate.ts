@@ -62,7 +62,7 @@ const Raw = z.object({
 })
 
 const str = { type: 'string' }
-const SCHEMA = {
+export const SCHEMA = {
   name: 'scenario',
   schema: {
     type: 'object',
@@ -96,7 +96,7 @@ const SCHEMA = {
   },
 }
 
-const SYSTEM = `Ты — методист, который придумывает учебные кейсы для тренажёра деловых переговоров по нескольким пунктам (как упражнение New Recruit).
+export const SYSTEM = `Ты — методист, который придумывает учебные кейсы для тренажёра деловых переговоров по нескольким пунктам (как упражнение New Recruit).
 Кейс правдоподобный, российский по реалиям, с живыми людьми, без канцелярита и пафоса. Пиши как человек, а не как отдел кадров.
 Не пиши «минимизировать», «оптимальный», «обеспечить», «осуществлять», «данный», «в рамках», «является» — говори проще: «чтобы не потерять деньги», «побыстрее», «сделать».
 
@@ -130,7 +130,7 @@ const SYSTEM = `Ты — методист, который придумывает
 const LETTERS = 'АБВГДЕЗИКЛМНОРСТЭЮЯ'
 const nameHint = (req: GenerateRequest) => LETTERS[parseInt(hashOf(req).slice(0, 8), 16) % LETTERS.length]
 
-function userPrompt(req: GenerateRequest, problems: string[]): string {
+export function userPrompt(req: GenerateRequest, problems: string[]): string {
   const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'напористый', evasive: 'уклончивый' }[req.opponentTone]
   return `Сфера: ${req.sphere}
 Тема: ${req.theme || 'на твой выбор'}

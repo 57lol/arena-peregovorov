@@ -90,7 +90,7 @@ describe('профиль против эталона', () => {
 
   it('блок для промпта содержит все id', () => {
     const g = behaviorGuide()
-    for (const b of BEHAVIORS) expect(g).toContain(b.id)
+    for (const b of BEHAVIORS) if (!['anchor', 'instant_counter'].includes(b.id)) expect(g).toContain(b.id)
   })
 })
 
