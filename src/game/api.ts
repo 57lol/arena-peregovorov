@@ -71,7 +71,7 @@ function localTurn(t: TurnInput): TurnRecord {
     : withContext(withFormalOffer(analyzeOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
   if (t.accept) analysis = { ...analysis, accepts: true }
   const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
-  const { line, emotion } = templateLine(t.scenario, r.decision, r.state)
+  const { line, emotion } = templateLine(t.scenario, r.decision, r.state, before.lastOpponentOffer)
   return { turn: r.state.turn, playerText: t.text, analysis, deltas: r.deltas, decision: r.decision, opponentLine: line, emotion, stateAfter: r.state }
 }
 

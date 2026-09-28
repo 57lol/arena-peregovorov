@@ -1,7 +1,7 @@
 // Шаблонные реплики оппонента: озвучивают решение движка в характере персонажа.
 // Вариант выбирается по номеру хода — без случайности, чтобы повтор давал тот же текст.
 
-import type { Decision, Emotion, OpponentState, Scenario, Tone } from '../types'
+import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone } from '../types'
 import { formatOffer } from '../utility'
 
 type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_news' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
@@ -91,7 +91,11 @@ export function emotionFor(d: Decision, state: OpponentState): Emotion {
   }
 }
 
-export function templateLine(sc: Scenario, d: Decision, state: OpponentState): { line: string; emotion: Emotion } {
+/**
+ * `prev` — прошлое предложение собеседника: во встречном он называет только то, что изменилось,
+ * а не зачитывает весь листок заново («остальное как было»).
+ */
+export function templateLine(sc: Scenario, d: Decision, state: OpponentState, prev?: Offer): { line: string; emotion: Emotion } {
   const k = kindOf(d, state)
   const tone = sc.opponent.character.tone
   // Свои реплики персонажа (из сценария) важнее общих по тону.
@@ -102,7 +106,8 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState): {
     d.kind === 'counter' ? d.offer
     : d.kind === 'accept' ? state.deal ?? state.tableOffer
     : state.lastOpponentOffer ?? {}
-  line = line.replace('{offer}', formatOffer(sc, offer)).replace('{main}', mainTerm(sc, offer))
+  const text = d.kind === 'counter' && !d.final ? changesOnly(sc, offer, prev) : formatOffer(sc, offer)
+  line = line.replace('{offer}', text).replace('{main}', mainTerm(sc, offer))
   if (d.kind === 'counter' && d.feigned?.length) {
     const what = d.feigned
       .map((id) => sc.issues.find((i) => i.id === id)!)
@@ -113,9 +118,19 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState): {
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
     line = line.replace('{interest}', lowerFirst(it?.text ?? ''))
-    if (d.offer) line += ` Поэтому могу так: ${formatOffer(sc, d.offer)}.`
+    if (d.offer) line += ` Поэтому могу так: ${changesOnly(sc, d.offer, prev)}.`
   }
   return { line, emotion: emotionFor(d, state) }
+}
+
+function changesOnly(sc: Scenario, offer: Offer, prev: Offer | undefined): string {
+  if (!prev) return formatOffer(sc, offer)
+  const changed = sc.issues.filter((i) => typeof prev[i.id] === 'number' && offer[i.id] !== prev[i.id])
+  const same = sc.issues.filter((i) => typeof prev[i.id] === 'number' && offer[i.id] === prev[i.id])
+  if (!changed.length || !same.length) return formatOffer(sc, offer)
+  // новые пункты (которых в прошлом листке не было) тоже называем
+  const shown = Object.fromEntries(sc.issues.filter((i) => !same.includes(i)).map((i) => [i.id, offer[i.id]]))
+  return `${formatOffer(sc, shown)}, остальное как было`
 }
 
 /** Главный пункт одной фразой: «цена за короб — 212 ₽». */
