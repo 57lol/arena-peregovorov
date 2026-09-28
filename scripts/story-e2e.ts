@@ -155,6 +155,9 @@ async function play(kase: string, phone: boolean) {
     deviceScaleFactor: phone ? 2 : 1,
     hasTouch: phone,
   })
+  // прогоны идут программным рендером параллельно с другими — fps тут ничего не говорит о живом устройстве,
+  // поэтому проверку «не тянет 3D» (она смотрит только на видимую вкладку) в прогоне отключаем
+  await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
   const page = await ctx.newPage()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(String(e)))
