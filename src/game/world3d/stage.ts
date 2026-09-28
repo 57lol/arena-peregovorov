@@ -1,7 +1,7 @@
 // Сцена встречи: рендер в низком разрешении, голова игрока, комната, люди, бумаги на столе (DOM в 3D).
 // React сюда не заходит: World живёт сам по себе, экран встречи только передаёт ему состояние и слушает кадры.
 
-import { MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3 } from 'three'
+import { DefaultLoadingManager, MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3 } from 'three'
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import type { PortraitId } from '../ui/assets'
 import { Company } from './company'
@@ -62,6 +62,9 @@ export class World {
   private listeners = new Set<(f: Frame) => void>()
   private ro: ResizeObserver
   private lastKey = ''
+  /** текстуры комнаты и лица загрузились — можно проявлять кадр из темноты */
+  private ready = false
+  private texturesLeft = 1
   private fpsT = 0
   private fpsN = 0
   /** средний fps за последние секунды — экран встречи решает, не пора ли в 2D */
@@ -82,6 +85,11 @@ export class World {
     this.cssLayer.style.overflow = 'clip'
     this.cssLayer.addEventListener('scroll', () => this.cssLayer.scrollTo(0, 0))
     el.appendChild(this.cssLayer)
+    // пока грузятся текстуры и листы лиц, держим экран тёмным (но не дольше 3 секунд)
+    DefaultLoadingManager.onStart = () => void (this.texturesLeft = 1)
+    DefaultLoadingManager.onProgress = (_u, loaded, total) => void (this.texturesLeft = total - loaded)
+    DefaultLoadingManager.onLoad = () => void (this.texturesLeft = 0)
+    DefaultLoadingManager.onError = () => void (this.texturesLeft = 0)
     this.room = buildRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
@@ -169,7 +177,8 @@ export class World {
     const h = this.head
     h.update(dt)
     this.xray += (this.xrayTarget - this.xray) * (1 - Math.exp(-dt * 6))
-    if (this.fade > 0) this.fade = Math.max(0, this.fade - dt * 1.4)
+    if (!this.ready) this.ready = this.t > 3 || (this.texturesLeft === 0 && (this.company?.lead.ready ?? true))
+    if (this.fade > 0 && this.ready) this.fade = Math.max(0, this.fade - dt * 1.4)
     const lean = h.lean
     // склоняемся над бумагами: вперёд и чуть вверх; и еле заметно дышим
     // над бумагами не дышим: кнопки на листах должны стоять на месте

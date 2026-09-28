@@ -423,6 +423,13 @@ function MeetingTime({ turn, limit }: { turn: number; limit: number }) {
 
 /** Поле ввода и «Сказать» — парят над миром. */
 function SayForm({ m }: { m: Meeting }) {
+  // сказали с клавиатуры — после ответа курсор снова в поле: пишем дальше, не хватаясь за мышь
+  const byKey = useRef(false)
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (wasPending.current && !m.pending && byKey.current) document.getElementById('px-speech')?.focus()
+    wasPending.current = !!m.pending
+  }, [m.pending])
   return (
     <form
       className="w3-say"
@@ -441,9 +448,11 @@ function SayForm({ m }: { m: Meeting }) {
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault()
+            byKey.current = true
             m.send(m.draft)
           }
         }}
+        onPointerDown={() => (byKey.current = false)}
       />
       <div className="w3-say-row">
         <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
