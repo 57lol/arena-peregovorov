@@ -92,16 +92,21 @@ function buildShop(): RoomBuild {
   // ------------------------------------------------------------------ задняя стена: уголок покупателя, «Возврат», часы
   const [bx0, bx1, by0, by1] = P.board
   box(bx1 - bx0, by1 - by0, 0.025, F('board', 'c20'), (bx0 + bx1) / 2, by0, BACK + 0.013)
+  const [qx0, qx1, qy0, qy1] = P.brand_box
+  box(qx1 - qx0, qy1 - qy0, 0.06, F('brand_box', 'c8', 'c8'), (qx0 + qx1) / 2, qy0, BACK + 0.03)
   const [rx, ry, rw, rh] = P.ret_sign
   box(rw, rh, 0.02, F('ret_sign', 'c8'), rx, ry - rh / 2, BACK + 0.012)
+  // часы над левым стеллажом: над собеседницей — световой короб «Семёрочки», чтобы и в узком кадре телефона был магазин
+  const [ckx, cky] = P.clock
+  const ckz = CLOCK.z
   const R = CLOCK.r * (20 / 17)
-  cyl(R, R, 0.045, 20, 'clock_rim', CLOCK.x, CLOCK.y, CLOCK.z - 0.03, 0, PI / 2, 0, true)
-  soup.add(new CircleGeometry(R, 24), at(CLOCK.x, CLOCK.y, CLOCK.z + 0.015), 'clock', 0)
-  cyl(0.012, 0.012, 0.012, 6, 'c37', CLOCK.x, CLOCK.y, CLOCK.z + 0.02, 0, PI / 2)
+  cyl(R, R, 0.045, 20, 'clock_rim', ckx, cky, ckz - 0.03, 0, PI / 2, 0, true)
+  soup.add(new CircleGeometry(R, 24), at(ckx, cky, ckz + 0.015), 'clock', 0)
+  cyl(0.012, 0.012, 0.012, 6, 'c37', ckx, cky, ckz + 0.02, 0, PI / 2)
   const handMat = kit.mat(null, false, 0x10141f)
   const hand = (len: number, w: number) => {
     const pivot = new Object3D()
-    pivot.position.set(CLOCK.x, CLOCK.y, CLOCK.z + 0.024)
+    pivot.position.set(ckx, cky, ckz + 0.024)
     pivot.add(kit.mesh(new BoxGeometry(w, len, 0.004).translate(0, len / 2 - 0.02, 0), handMat))
     g.add(pivot)
     return pivot
