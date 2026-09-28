@@ -20,6 +20,10 @@ export const PORTRAITS = {
   hr: { sheet: '/assets/portraits/hr.png', label: 'Кадровик, 42', female: true },
   realtor: { sheet: '/assets/portraits/realtor.png', label: 'Арендодатель, 34', female: true },
   buyer: { sheet: '/assets/portraits/buyer.png', label: 'Закупщица, 52', female: true },
+  // кампания «Новенький» (src/content/story.ts, рисует tools/art/people_story.py); в пул своих дел не входят
+  sosed: { sheet: '/assets/portraits/sosed.png', label: 'Тимур, сосед по общаге', female: false },
+  gopnik: { sheet: '/assets/portraits/gopnik.png', label: 'Серый', female: false },
+  admin: { sheet: '/assets/portraits/admin.png', label: 'Лариса Петровна, администратор', female: true },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
 
