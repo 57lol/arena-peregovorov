@@ -14,6 +14,7 @@ try {
 // после .env: кэш читает CACHE_DIR при импорте
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
+const { logBudgetHourly } = await import('./budget')
 
 const { llm, error } = makeLLM()
 const indexHtml = readFileSync('dist/index.html', 'utf8')
@@ -27,3 +28,4 @@ const port = Number(process.env.PORT ?? 8787)
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
   console.log(`Прод: порт ${port} · провайдер ${llm.name} (${llm.model})${error ? ` — ${error}, работаю офлайн` : ''}`)
 })
+logBudgetHourly()

@@ -13,7 +13,7 @@ import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
-import { makeLLM, type LLM } from './llm'
+import { llmMode, makeLLM, type LLM } from './llm'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
 import { roomsApi } from './rooms'
@@ -82,9 +82,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // 413 от лимита тела и прочие HTTP-ошибки — как есть, ошибки проверки — 400
   app.onError((e, c) => (e instanceof HTTPException ? e.getResponse() : c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500)))
 
-  // только имя модели: у Яндекса в полном id зашит folder id облака
-  app.get('/api/health', (c) =>
-    c.json({ ok: true, provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length, speech: speech.status() }),
+  // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
+  app.get('/api/health', async (c) =>
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: scenarios.length, speech: speech.status() }),
   )
 
   app.get('/api/scenarios', (c) =>

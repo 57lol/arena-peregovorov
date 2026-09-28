@@ -3,6 +3,7 @@
 
 import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
+import { budget as sharedBudget, type Budget } from './budget'
 
 export interface JsonRequest {
   system: string
@@ -49,7 +50,7 @@ function anthropic(): LLM {
   return {
     name: 'anthropic',
     model,
-    async json({ system, user, temperature, maxTokens }) {
+    async json({ system, user, temperature, maxTokens, schema }) {
       const r = await post(
         'https://api.anthropic.com/v1/messages',
         { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -58,7 +59,7 @@ function anthropic(): LLM {
           max_tokens: maxTokens ?? 1024,
           temperature,
           system: system + '\n\nОтвечай только JSON-объектом, без пояснений.',
-          messages: [{ role: 'user', content: user }],
+          messages: [{ role: 'user', content: schema ? `${user}\n\nФормат ответа — JSON по схеме:\n${JSON.stringify(schema.schema)}` : user }],
         },
       )
       const text = (r.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
@@ -73,6 +74,7 @@ function openaiCompatible(
   url: string,
   headers: Record<string, string>,
   model: string,
+  onUsage?: (tokensIn: number, tokensOut: number) => Promise<void>,
 ): LLM {
   return {
     name,
@@ -91,6 +93,14 @@ function openaiCompatible(
           : { type: 'json_object' },
       })
       const text = r.choices?.[0]?.message?.content
+      // usage есть в каждом ответе Яндекса; нет — считаем грубо, ~3 символа на токен
+      if (onUsage) {
+        const u = r.usage ?? {}
+        await onUsage(
+          Number(u.prompt_tokens ?? Math.ceil((system.length + user.length) / 3)),
+          Number(u.completion_tokens ?? Math.ceil(String(text ?? '').length / 3)),
+        )
+      }
       if (typeof text !== 'string') throw new Error('Пустой ответ')
       return extractJson(text)
     },
@@ -104,17 +114,48 @@ function openai(): LLM {
   return openaiCompatible('openai', `${base}/chat/completions`, { authorization: `Bearer ${key}` }, process.env.OPENAI_MODEL ?? 'gpt-4.1-mini')
 }
 
-function yandex(): LLM {
+/**
+ * YandexGPT под суточным бюджетом (budget.ts): Pro, с 80% лимита — YANDEX_FALLBACK_MODEL (Lite),
+ * со 100% — исключение, и вызывающий код доигрывает ход офлайн. `model` меняется вместе с режимом,
+ * поэтому ответы Lite и Pro лежат в кэше под разными ключами.
+ */
+export function yandex(b: Budget = sharedBudget(), transport?: (model: string) => LLM): LLM {
   const key = process.env.YANDEX_API_KEY
   const folder = process.env.YANDEX_FOLDER_ID
-  if (!key || !folder) throw new Error('Нет YANDEX_API_KEY или YANDEX_FOLDER_ID')
-  const model = process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
-  return openaiCompatible(
-    'yandex',
-    process.env.YANDEX_URL ?? 'https://ai.api.cloud.yandex.net/v1/chat/completions',
-    { authorization: `Api-Key ${key}`, 'x-folder-id': folder, 'x-data-logging-enabled': 'false' },
-    model.startsWith('gpt://') ? model : `gpt://${folder}/${model}`,
-  )
+  if (!transport && (!key || !folder)) throw new Error('Нет YANDEX_API_KEY или YANDEX_FOLDER_ID')
+  const uri = (m: string) => (m.startsWith('gpt://') ? m : `gpt://${folder}/${m}`)
+  const make = transport ?? ((model: string) =>
+    openaiCompatible(
+      'yandex',
+      process.env.YANDEX_URL ?? 'https://ai.api.cloud.yandex.net/v1/chat/completions',
+      { authorization: `Api-Key ${key}`, 'x-folder-id': folder!, 'x-data-logging-enabled': 'false' },
+      uri(model),
+      (i, o) => b.addLlm(model.split('/').pop()!, i, o),
+    ))
+  const primaryName = process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
+  const fallbackName = process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite'
+  const primary = make(primaryName)
+  const fallback = fallbackName === primaryName ? primary : make(fallbackName)
+  const pick = () => (b.modeNow() === 'pro' ? primary : fallback)
+  void b.mode() // подтянуть сегодняшний счёт с диска до первого хода
+  return {
+    name: 'yandex',
+    get model() {
+      return pick().model
+    },
+    async json(req) {
+      if ((await b.mode()) === 'offline') throw new Error('Суточный лимит на нейросеть исчерпан — ход разобран правилами')
+      return pick().json(req)
+    },
+  }
+}
+
+/** Режим для /api/health: pro, lite или offline. Сумм наружу не отдаём. */
+export async function llmMode(llm: LLM, b: Budget = sharedBudget()): Promise<'pro' | 'lite' | 'offline'> {
+  if (llm.name === 'offline') return 'offline'
+  if (llm.name !== 'yandex') return 'pro'
+  const m = await b.mode()
+  return m === 'pro' && /lite/i.test(llm.model) ? 'lite' : m
 }
 
 /** Локальный Claude Code по подписке — для ночной разработки без ключей. */

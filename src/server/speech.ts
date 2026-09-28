@@ -8,6 +8,7 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import type { Emotion } from '../engine/types'
+import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
 
 const TTS_URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
@@ -43,12 +44,15 @@ export interface SpeechOptions {
   sttPerIp?: number
   /** на весь сервер в сутки — чтобы один бот не выел грант */
   perDay?: number
+  /** суточный счёт символов озвучки и секунд распознавания (TTS_DAILY_CHARS, STT_DAILY_SEC) */
+  budget?: Budget
 }
 
 export function makeSpeech(opts: SpeechOptions = {}) {
   const env = process.env
   const key = opts.key ?? (env.SPEECH === 'off' ? undefined : env.YANDEX_API_KEY)
   const f = opts.fetch ?? fetch
+  const quota = opts.budget ?? sharedBudget()
   const limits = {
     tts: opts.ttsPerIp ?? Number(env.TTS_IP_DAY_LIMIT ?? 400),
     stt: opts.sttPerIp ?? Number(env.STT_IP_DAY_LIMIT ?? 150),
@@ -102,10 +106,12 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       // нет в кэше
     }
     if (!allow('tts', ipOf(c))) return c.json({ error: 'Лимит озвучки на сегодня' }, 429)
+    if (!(await quota.ttsAllowed(text.length))) return c.json({ error: 'Озвучка на сегодня закончилась' }, 429)
     const form = new URLSearchParams({ text, lang: 'ru-RU', voice: b.voice, format: 'mp3', speed: String(style.speed) })
     if (style.role) form.set('emotion', style.role)
     try {
       const audio = new Uint8Array(await (await yandex(TTS_URL, { method: 'POST', body: form }, 'tts', 10_000)).arrayBuffer())
+      await quota.addTts(text.length)
       await mkdir(join(CACHE_DIR, 'tts'), { recursive: true })
       await writeFile(file, audio)
       return c.body(audio, 200, { ...headers, 'x-cache': 'miss' })
@@ -121,9 +127,12 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const pcm = new Uint8Array(await c.req.arrayBuffer())
     if (pcm.length < 16000 * 2 * 0.3) return c.json({ error: 'Слишком короткая запись' }, 400)
     if (!allow('stt', ipOf(c))) return c.json({ error: 'Лимит распознавания на сегодня' }, 429)
+    if (!(await quota.sttAllowed())) return c.json({ error: 'Распознавание на сегодня закончилось' }, 429)
     const q = new URLSearchParams({ lang: 'ru-RU', format: 'lpcm', sampleRateHertz: '16000' })
     try {
       const r = await yandex(`${STT_URL}?${q}`, { method: 'POST', body: pcm, headers: { 'content-type': 'application/octet-stream' } }, 'stt', 20_000)
+      // SpeechKit считает распознавание кусками по 15 секунд
+      await quota.addStt(Math.ceil(pcm.length / 32000 / 15) * 15)
       const j = (await r.json()) as { result?: string }
       return c.json({ text: tidyTranscript(j.result ?? '') })
     } catch (e) {
