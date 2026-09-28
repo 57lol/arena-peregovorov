@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auditScenario, pickFromLibrary } from '../content/scenarios'
 import { checkScenario } from '../engine/validate'
 import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
+import { looksFemale, pickFace } from '../content/faces'
 import { mentionedIssues, parseOffer } from '../engine/offline'
 import { openingAnchor } from '../engine/policy'
 import { maxScore } from '../engine/utility'
@@ -40,6 +41,8 @@ const Raw = z.object({
   opponentName: z.string(),
   // пол — чтобы портрет и «встал/встала» совпадали с именем; в старых ответах его нет
   opponentGender: z.enum(['m', 'f']).optional(),
+  // возраст — чтобы лицо из пула было похоже по годам; модель иногда пишет строкой
+  opponentAge: z.coerce.number().int().min(18).max(90).optional().catch(undefined),
   opponentRole: z.string(),
   opponentCompany: z.string(),
   opponentSpeech: z.string(),
@@ -67,7 +70,7 @@ const SCHEMA = {
     required: Object.keys(Raw.shape),
     properties: {
       title: str, playerRole: str, playerBrief: str, playerBatnaText: str,
-      opponentName: str, opponentGender: { type: 'string', enum: ['m', 'f'] }, opponentRole: str, opponentCompany: str, opponentSpeech: str, opponentBio: str,
+      opponentName: str, opponentGender: { type: 'string', enum: ['m', 'f'] }, opponentAge: { type: 'integer' }, opponentRole: str, opponentCompany: str, opponentSpeech: str, opponentBio: str,
       opponentBrief: str, opponentBatnaText: str, opening: str,
       issues: {
         type: 'array',
@@ -112,6 +115,7 @@ const SYSTEM = `Ты — методист, который придумывает
 - id пунктов — латиницей, коротко (price, payment, term...).
 - opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
 - opponentGender — m или f, по имени.
+- opponentAge — возраст оппонента числом, 25–65, под его должность и биографию.
 - playerBrief — к игроку на «вы»; что знает игрок: ситуация и что важно ему (про mine — прямо, про shared — пусть думает, что оппонент против).
 - opponentBrief — как оппонент выглядит снаружи.
 - playerBatnaText, opponentBatnaText — запасной вариант каждой стороны словами, конкретно.
@@ -252,9 +256,11 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
   const oMax = maxScore({ points: op, batna: 0, batnaText: '', interests: [] }, issues)
   const d = req.difficulty as Difficulty
   const name = raw.opponentName.split(',')[0].trim()
+  const id = `gen-${hashOf({ raw, req }).slice(0, 10)}`
+  const female = raw.opponentGender ? raw.opponentGender === 'f' : looksFemale(name)
 
   const sc: Scenario = {
-    id: `gen-${hashOf({ raw, req }).slice(0, 10)}`,
+    id,
     title: cap(raw.title),
     sphere: req.sphere,
     difficulty: d,
@@ -272,7 +278,8 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
         // «руководитель строительной компании, строительная компания» — второй раз компанию не пишем
         company: echoes(raw.opponentRole, raw.opponentCompany) ? '' : raw.opponentCompany,
         tone: req.opponentTone as Tone,
-        portrait: raw.opponentGender === 'f' ? 'olga' : raw.opponentGender === 'm' ? 'rinat' : `tone-${req.opponentTone}`,
+        // лицо из пула: по полу, сфере и должности, возрасту; разные дела — разные лица
+        portrait: pickFace({ id, female, age: raw.opponentAge, text: `${req.sphere} ${raw.title} ${raw.opponentRole} ${raw.opponentCompany}` }),
         speech: raw.opponentSpeech, bio: sentence(raw.opponentBio),
       },
       brief: sentence(raw.opponentBrief),

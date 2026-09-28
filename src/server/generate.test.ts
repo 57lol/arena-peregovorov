@@ -26,7 +26,7 @@ describe('генерация сценария', () => {
   it('портрет по полу, имя без должности, интерес без точки в конце', () => {
     const sc = toScenario({ ...raw, opponentName: 'Алсу Галиева, владелица склада', opponentGender: 'f', interests: [{ issue: 'deposit', text: 'кредит под склад.' }, raw.interests[1]] }, GenerateRequest.parse({}))
     expect(sc.opponent.character.name).toBe('Алсу Галиева')
-    expect(sc.opponent.character.portrait).toBe('olga')
+    expect(['hr', 'realtor', 'buyer']).toContain(sc.opponent.character.portrait)
     expect(sc.opponent.profile.interests[0].text).toBe('кредит под склад')
   })
 

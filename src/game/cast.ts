@@ -1,17 +1,16 @@
 // Кто сидит напротив и где: портрет и сцена для любого сценария, в том числе сгенерированного.
 
+import { looksFemale, pickFace } from '../content/faces'
 import type { Scenario } from '../engine/types'
 import { PORTRAITS, type PortraitId, type SceneId } from './ui'
 
-const FEMALE = /(ова|ева|ина|ына|ая|ская|цкая)$/i
-
 export function portraitFor(sc: Scenario): PortraitId {
   const c = sc.opponent.character
-  if (c.portrait in PORTRAITS) return c.portrait as PortraitId
-  // Своего спрайта у сгенерированного персонажа нет: берём ближайший по полу.
-  const [first = '', last = ''] = c.name.trim().split(/\s+/)
-  const female = FEMALE.test(last) || /[ая]$/i.test(first) && !/(илья|никита|фома|лука|кузьма|савва)$/i.test(first)
-  return female ? 'olga' : 'rinat'
+  const own = sc.id.startsWith('gen-')
+  // Марат и Дарина — лица дел из папки. Старые свои дела ссылались на них по полу — подбираем им лицо из пула.
+  if (c.portrait in PORTRAITS && !(own && (c.portrait === 'rinat' || c.portrait === 'olga'))) return c.portrait as PortraitId
+  const female = c.portrait === 'olga' || (c.portrait !== 'rinat' && looksFemale(c.name))
+  return pickFace({ id: sc.id, female, text: `${sc.sphere} ${sc.title} ${c.role} ${c.company}` })
 }
 
 export function sceneFor(sc: Scenario): SceneId {
@@ -44,5 +43,5 @@ export function plural(n: number, one: string, few: string, many: string) {
 export const pts = (n: number) => `${n} ${plural(n, 'очко', 'очка', 'очков')}`
 
 /** Род собеседника для глаголов: «встал» / «встала». */
-export const isFemale = (sc: Scenario) => portraitFor(sc) === 'olga'
+export const isFemale = (sc: Scenario) => PORTRAITS[portraitFor(sc)].female
 export const g = (sc: Scenario, m: string, f: string) => (isFemale(sc) ? f : m)

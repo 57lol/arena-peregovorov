@@ -10,11 +10,17 @@ export type PortraitFrame = keyof typeof FRAMES
 
 export const PORTRAIT_SIZE = 96
 
-/** id портрета = Character.portrait в сценарии */
+/** id портрета = Character.portrait в сценарии. Первые два — герои дел из папки, остальные — пул для своих дел (src/content/faces.ts). */
 export const PORTRAITS = {
-  rinat: { sheet: '/assets/portraits/rinat.png', label: 'Марат Гимадиев' },
-  olga: { sheet: '/assets/portraits/olga.png', label: 'Дарина Лукманова' },
-} as const
+  rinat: { sheet: '/assets/portraits/rinat.png', label: 'Марат Гимадиев', female: false },
+  olga: { sheet: '/assets/portraits/olga.png', label: 'Дарина Лукманова', female: true },
+  foreman: { sheet: '/assets/portraits/foreman.png', label: 'Прораб, 50', female: false },
+  dev: { sheet: '/assets/portraits/dev.png', label: 'Айтишник, 28', female: false },
+  official: { sheet: '/assets/portraits/official.png', label: 'Госзаказчик, 60', female: false },
+  hr: { sheet: '/assets/portraits/hr.png', label: 'Кадровик, 42', female: true },
+  realtor: { sheet: '/assets/portraits/realtor.png', label: 'Арендодатель, 34', female: true },
+  buyer: { sheet: '/assets/portraits/buyer.png', label: 'Закупщица, 52', female: true },
+} as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
 
 export const SCENE_W = 192
