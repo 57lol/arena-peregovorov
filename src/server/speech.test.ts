@@ -10,6 +10,17 @@ const { makeLLM } = await import('./llm')
 const { makeSpeech, styleFor, tidyTranscript } = await import('./speech')
 
 const offline = makeLLM('offline').llm
+// ответ SpeechKit: v3 — строка JSON с куском mp3 в base64, v1 — сразу mp3
+const mp3 = new Uint8Array(4000).fill(7)
+const v3Line = (ms = 1500) => JSON.stringify({ result: { audioChunk: { data: Buffer.from(mp3).toString('base64') }, lengthMs: String(ms) } }) + '\n'
+const fakeYandex = (v3ok = true) =>
+  vi.fn(async (url: string | URL | Request) =>
+    String(url).includes('/v3/')
+      ? v3ok
+        ? new Response(v3Line(), { status: 200 })
+        : new Response('{}', { status: 500 })
+      : new Response(mp3, { status: 200 }),
+  )
 const tts = (app: ReturnType<typeof createApp>, body: object, ip = '1.1.1.1') =>
   app.request('/api/tts', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify(body) })
 
@@ -22,17 +33,50 @@ describe('голос', () => {
   })
 
   it('озвучка идёт в кэш: второй раз SpeechKit не зовём; лимит на IP', async () => {
-    const f = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+    const f = fakeYandex()
     const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, ttsPerIp: 2 }))
     const text = `Миллион четыреста ${Math.random()}`
     const a = await tts(app, { text, voice: 'filipp', emotion: 'angry' })
     expect(a.status).toBe(200)
     expect(a.headers.get('content-type')).toBe('audio/mpeg')
+    expect(a.headers.get('x-tts-api')).toBe('v3')
+    expect(a.headers.get('x-audio-ms')).toBe('1500')
     expect((await tts(app, { text, voice: 'filipp', emotion: 'angry' })).headers.get('x-cache')).toBe('hit')
     expect(f).toHaveBeenCalledTimes(1)
     expect((await tts(app, { text: text + '!', voice: 'filipp' })).status).toBe(200)
     expect((await tts(app, { text: text + '?', voice: 'filipp' })).status).toBe(429)
     expect((await tts(app, { text: text + '?', voice: 'filipp' }, '2.2.2.2')).status).toBe(200)
+  })
+
+  it('v3: новые голоса только через v3, старые при сбое v3 доигрывают через v1', async () => {
+    const down = fakeYandex(false)
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: down as typeof fetch }))
+    const text = `Давайте обсудим ${Math.random()}`
+    const old = await tts(app, { text, voice: 'alena' })
+    expect(old.status).toBe(200)
+    expect(old.headers.get('x-tts-api')).toBe('v1')
+    expect((await tts(app, { text, voice: 'kirill', emotion: 'annoyed' })).status).toBe(502)
+    const body = JSON.parse(String((down.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body))
+    expect(body.hints).toEqual([{ voice: 'kirill' }, { speed: 1.05 }, { role: 'strict' }])
+    expect(body.loudnessNormalizationType).toBe('LUFS')
+    // явный v1 — старый ключ кэша
+    const v1 = await tts(app, { text: text + '.', voice: 'jane', api: 'v1' })
+    expect(v1.headers.get('x-tts-api')).toBe('v1')
+  })
+
+  it('чужие провайдеры без ключа — «нужен ключ», каталог ключей не светит', async () => {
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: fakeYandex() as typeof fetch }))
+    for (const [provider, voice, need] of [['openai', 'coral', 'OPENAI_API_KEY'], ['elevenlabs', 'JBFqnCBsd6RMkjVDRZzb', 'ELEVENLABS_API_KEY'], ['salute', 'Nec_24000', 'SALUTE_AUTH_KEY']]) {
+      if (process.env[need]) continue
+      const r = await tts(app, { text: 'Привет', voice, provider })
+      expect(r.status).toBe(503)
+      expect(((await r.json()) as { error: string }).error).toContain(need)
+    }
+    const cat = await (await app.request('/api/voices')).text()
+    expect(cat).not.toMatch(/"k"/)
+    const j = JSON.parse(cat) as Record<string, { ready: boolean; voices: { id: string }[] }>
+    expect(j.yandex.ready).toBe(true)
+    expect(j.yandex.voices.map((v) => v.id)).toEqual(expect.arrayContaining(['anton', 'kirill', 'alexander', 'dasha', 'lera', 'masha', 'julia']))
   })
 
   it('чужой голос и пустой текст — 400', async () => {
@@ -58,6 +102,8 @@ describe('голос', () => {
     expect(styleFor('marina', 'happy')).toEqual({ role: 'friendly', speed: 1 })
     expect(styleFor('omazh', 'angry')).toEqual({ role: 'evil', speed: 1.1 })
     expect(styleFor('omazh', 'pleased')).toEqual({ speed: 1 })
+    expect(styleFor('julia', 'annoyed')).toEqual({ role: 'strict', speed: 1.05 })
+    expect(styleFor('dasha', 'pleased')).toEqual({ role: 'good', speed: 1 })
     expect(tidyTranscript('цена 196 р а отсрочка 30 дней')).toBe('цена 196 ₽ а отсрочка 30 дней')
     expect(tidyTranscript('разговор')).toBe('разговор')
   })

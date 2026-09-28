@@ -13,7 +13,8 @@ import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
-import { llmMode, makeLLM, type LLM } from './llm'
+import { llmMode, llmStatus, makeLLM, type LabLlm, type LLM } from './llm'
+import { ttsStatus } from './tts'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
 import { roomsApi } from './rooms'
@@ -87,6 +88,41 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
 
+  // Лаборатория (/?lab): ход можно сыграть другой моделью — заголовок x-lab-llm. Модель создаётся один раз,
+  // без ключа заголовок молча не действует. Свой суточный лимит на IP, LAB=off выключает всё.
+  const labLlms = new Map<string, LLM>()
+  const labCount = new Map<string, number>()
+  let labDay = ''
+  const labLimit = Number(process.env.LAB_IP_DAY_LIMIT ?? 60)
+  function labLLM(want: string | undefined, ip: string): { llm: LLM; lab?: string } {
+    if (!want || process.env.LAB === 'off' || !(want in llmStatus())) return { llm }
+    const today = new Date().toISOString().slice(0, 10)
+    if (today !== labDay) {
+      labCount.clear()
+      labDay = today
+    }
+    const n = labCount.get(ip) ?? 0
+    if (n >= labLimit) return { llm, lab: 'лимит лаборатории на сегодня' }
+    let alt = labLlms.get(want)
+    if (!alt) {
+      const made = makeLLM(want)
+      if (made.error) return { llm, lab: `нужен ключ ${llmStatus()[want as LabLlm].need}` }
+      alt = made.llm
+      labLlms.set(want, alt)
+    }
+    labCount.set(ip, n + 1)
+    return { llm: alt, lab: `${alt.name}:${alt.model.split('/').pop()}` }
+  }
+
+  app.get('/api/lab', async (c) =>
+    c.json({
+      enabled: process.env.LAB !== 'off',
+      main: { provider: llm.name, model: llm.model.split('/').pop(), mode: await llmMode(llm) },
+      llm: llmStatus(),
+      tts: { ...ttsStatus(), yandex: { ...ttsStatus().yandex, ready: speech.status().tts } },
+    }),
+  )
+
   app.get('/api/scenarios', (c) =>
     c.json(scenarios.map((s) => ({ id: s.id, title: s.title, sphere: s.sphere, difficulty: s.difficulty, opponent: s.opponent.character.name }))),
   )
@@ -122,6 +158,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   app.post('/api/turn', async (c) => {
     const body = TurnBody.parse(await c.req.json())
+    const { llm, lab } = labLLM(c.req.header('x-lab-llm'), c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local')
     const sc = await resolveScenario(body)
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
@@ -155,7 +192,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       state: r.state,
       record,
       ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
-      sources: { analysis: a.source, voice: v.source, ...(a.error || v.error ? { errors: [a.error, v.error].filter(Boolean) } : {}) },
+      sources: { analysis: a.source, voice: v.source, ...(lab ? { lab } : {}), ...(a.error || v.error ? { errors: [a.error, v.error].filter(Boolean) } : {}) },
     })
   })
 

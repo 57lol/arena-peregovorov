@@ -4,6 +4,7 @@
 import { spawn } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { budget as sharedBudget, type Budget } from './budget'
+import { sberFetch, sberToken } from './sber'
 
 export interface JsonRequest {
   system: string
@@ -14,7 +15,7 @@ export interface JsonRequest {
 }
 
 export interface LLM {
-  name: 'anthropic' | 'openai' | 'yandex' | 'claude-cli' | 'offline'
+  name: 'anthropic' | 'openai' | 'yandex' | 'gigachat' | 'claude-cli' | 'offline'
   model: string
   json(req: JsonRequest): Promise<unknown>
 }
@@ -119,7 +120,7 @@ function openai(): LLM {
  * со 100% — исключение, и вызывающий код доигрывает ход офлайн. `model` меняется вместе с режимом,
  * поэтому ответы Lite и Pro лежат в кэше под разными ключами.
  */
-export function yandex(b: Budget = sharedBudget(), transport?: (model: string) => LLM): LLM {
+export function yandex(b: Budget = sharedBudget(), transport?: (model: string) => LLM, only?: string): LLM {
   const key = process.env.YANDEX_API_KEY
   const folder = process.env.YANDEX_FOLDER_ID
   if (!transport && (!key || !folder)) throw new Error('Нет YANDEX_API_KEY или YANDEX_FOLDER_ID')
@@ -132,8 +133,9 @@ export function yandex(b: Budget = sharedBudget(), transport?: (model: string) =
       uri(model),
       (i, o) => b.addLlm(model.split('/').pop()!, i, o),
     ))
-  const primaryName = process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
-  const fallbackName = process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite'
+  // only — одна модель без переключения (лаборатория сравнивает Pro и Lite)
+  const primaryName = only ?? process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
+  const fallbackName = only ?? process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite'
   const primary = make(primaryName)
   const fallback = fallbackName === primaryName ? primary : make(fallbackName)
   const pick = () => (b.modeNow() === 'pro' ? primary : fallback)
@@ -201,6 +203,58 @@ function claudeCli(): LLM {
   }
 }
 
+/**
+ * GigaChat (Сбер): OAuth по GIGACHAT_AUTH_KEY, дальше OpenAI-подобный chat/completions. Строгого JSON по схеме
+ * у него нет — схему кладём в текст и достаём JSON из ответа, как у Anthropic.
+ */
+function gigachat(): LLM {
+  const key = process.env.GIGACHAT_AUTH_KEY
+  if (!key) throw new Error('Нет GIGACHAT_AUTH_KEY')
+  const model = process.env.GIGACHAT_MODEL ?? 'GigaChat-2'
+  const scope = process.env.GIGACHAT_SCOPE ?? 'GIGACHAT_API_PERS'
+  return {
+    name: 'gigachat',
+    model,
+    async json({ system, user, temperature, maxTokens, schema }) {
+      const token = await sberToken(key, scope)
+      const r = await sberFetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          model,
+          // ноль GigaChat не любит — берём почти ноль, это та же жадная выборка
+          temperature: Math.max(temperature, 0.01),
+          max_tokens: maxTokens ?? 1024,
+          messages: [
+            { role: 'system', content: system + '\n\nОтвечай только JSON-объектом, без пояснений.' },
+            { role: 'user', content: schema ? `${user}\n\nФормат ответа — JSON по схеме:\n${JSON.stringify(schema.schema)}` : user },
+          ],
+        }),
+        ms: timeout(),
+      })
+      const text = r.body.toString('utf8')
+      if (r.status !== 200) throw new Error(`GigaChat → ${r.status}: ${text.slice(0, 300)}`)
+      const content = JSON.parse(text).choices?.[0]?.message?.content
+      if (typeof content !== 'string') throw new Error('Пустой ответ')
+      return extractJson(content)
+    },
+  }
+}
+
+/** Какие LLM можно включить и какой ключ нужен — для лаборатории. Ключей наружу не отдаём. */
+export function llmStatus(env = process.env) {
+  const yc = !!env.YANDEX_API_KEY && !!env.YANDEX_FOLDER_ID
+  return {
+    yandex: { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_MODEL ?? 'yandexgpt-5.1' },
+    'yandex-lite': { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite' },
+    openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_MODEL ?? 'gpt-4.1-mini' },
+    anthropic: { ready: !!env.ANTHROPIC_API_KEY, need: 'ANTHROPIC_API_KEY', model: env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5' },
+    gigachat: { ready: !!env.GIGACHAT_AUTH_KEY, need: 'GIGACHAT_AUTH_KEY', model: env.GIGACHAT_MODEL ?? 'GigaChat-2' },
+    offline: { ready: true, need: '', model: 'правила и шаблоны' },
+  }
+}
+export type LabLlm = keyof ReturnType<typeof llmStatus>
+
 const offline: LLM = {
   name: 'offline',
   model: 'rules',
@@ -213,6 +267,8 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline'): { llm: LL
       case 'anthropic': return { llm: anthropic() }
       case 'openai': return { llm: openai() }
       case 'yandex': return { llm: yandex() }
+      case 'yandex-lite': return { llm: yandex(undefined, undefined, process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite') }
+      case 'gigachat': return { llm: gigachat() }
       case 'claude-cli': return { llm: claudeCli() }
       default: return { llm: offline }
     }

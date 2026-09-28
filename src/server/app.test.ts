@@ -101,3 +101,34 @@ describe('дела кампании на сервере', async () => {
     }
   })
 })
+
+describe('лаборатория', () => {
+  const labTurn = (want: string) =>
+    app.request('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-lab-llm': want },
+      body: JSON.stringify({ scenarioId: 'tara', history: [], playerText: 'Добрый день! Что для вас важнее всего?' }),
+    })
+
+  it('/api/lab знает всех провайдеров и какие ключи нужны, самих ключей не отдаёт', async () => {
+    const j = (await (await app.request('/api/lab')).json()) as { llm: Record<string, { ready: boolean; need: string }>; tts: Record<string, { ready: boolean; need: string }> }
+    expect(Object.keys(j.llm)).toEqual(expect.arrayContaining(['yandex', 'yandex-lite', 'openai', 'anthropic', 'gigachat', 'offline']))
+    expect(Object.keys(j.tts)).toEqual(expect.arrayContaining(['yandex', 'openai', 'elevenlabs', 'salute']))
+    expect(j.llm.gigachat.need).toBe('GIGACHAT_AUTH_KEY')
+    expect(JSON.stringify(j)).not.toMatch(/api-key|Bearer/i)
+  })
+
+  it('без ключа ход играется основной моделью и говорит, какой ключ нужен', async () => {
+    if (process.env.GIGACHAT_AUTH_KEY) return
+    const r = await labTurn('gigachat')
+    expect(r.status).toBe(200)
+    const j = (await r.json()) as { sources: { lab?: string; analysis: string } }
+    expect(j.sources.lab).toBe('нужен ключ GIGACHAT_AUTH_KEY')
+    expect(j.sources.analysis).toBe('offline')
+  })
+
+  it('чужое имя провайдера игнорируется', async () => {
+    const j = (await (await labTurn('claude-cli')).json()) as { sources: { lab?: string } }
+    expect(j.sources.lab).toBeUndefined()
+  })
+})

@@ -7,46 +7,28 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
-import type { Emotion } from '../engine/types'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
+import { styleFor, synthesize, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
 
-const TTS_URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
-/**
- * Все русские голоса SpeechKit v1 и роли, которые они умеют (каждый проверен запросом, справка — ~/Arena-materials/VOICES.md).
- * Filipp и Madirus ролей не знают — у них эмоцию передаёт только темп.
- */
-const ROLES: Record<string, string[]> = {
-  filipp: [],
-  ermil: ['good'],
-  zahar: ['good'],
-  madirus: [],
-  alena: ['good'],
-  jane: ['good', 'evil'],
-  omazh: ['evil'],
-  marina: ['friendly', 'whisper'],
-}
-export const VOICES = Object.keys(ROLES) as [string, ...string[]]
-
-/** Эмоция движка → роль и темп: довольный теплее, раздражённый быстрее, задумчивый медленнее. */
-export function styleFor(voice: string, emotion: Emotion | undefined): { role?: string; speed: number } {
-  const roles = ROLES[voice] ?? []
-  const warm = emotion === 'pleased' || emotion === 'happy'
-  const kind = roles.includes('good') ? 'good' : roles.includes('friendly') ? 'friendly' : undefined
-  const role = warm && kind ? kind : emotion === 'angry' && roles.includes('evil') ? 'evil' : undefined
-  const speed = emotion === 'angry' ? 1.1 : emotion === 'annoyed' ? 1.05 : emotion === 'thinking' ? 0.92 : 1
-  return { ...(role ? { role } : {}), speed }
-}
+export { styleFor } from './tts'
+/** Голоса SpeechKit, которые принимает /api/tts без поля provider (каталог с ролями — tts.ts, справка — ~/Arena-materials/VOICES.md). */
+export const VOICES = YANDEX_VOICES.map((v) => v.id) as [string, ...string[]]
 
 /** «196 р» в распознанном тексте — это рубли, как в листке на столе. */
 export const tidyTranscript = (t: string) => t.trim().replace(/(\d)\s*р\.?(?=[\s,.!?]|$)/gu, '$1 ₽')
 
+const EMOTION = z.enum(['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry'])
 const TtsBody = z.object({
   text: z.string().trim().min(1).max(1000),
-  voice: z.enum(VOICES),
-  emotion: z.enum(['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']).optional(),
+  voice: z.string().min(1).max(60),
+  emotion: EMOTION.optional(),
+  /** по умолчанию SpeechKit; остальные — для лаборатории и сравнения голосов, если есть ключ */
+  provider: z.enum(['yandex', 'openai', 'elevenlabs', 'salute']).default('yandex'),
+  api: z.enum(['v1', 'v3']).optional(),
+  instructions: z.string().trim().max(400).optional(),
 })
 
 export interface SpeechOptions {
@@ -106,29 +88,70 @@ export function makeSpeech(opts: SpeechOptions = {}) {
 
   const app = new Hono()
 
+  // чужие платные голоса (лаборатория, сравнение) — отдельный суточный потолок символов поверх общих лимитов
+  let alt = { day: '', chars: 0 }
+  const altCap = Number(env.TTS_ALT_DAILY_CHARS ?? 15000)
+  const altAllowed = (n: number) => {
+    const today = new Date().toISOString().slice(0, 10)
+    if (alt.day !== today) alt = { day: today, chars: 0 }
+    return alt.chars + n <= altCap
+  }
+
+  /** Каталог голосов и какие провайдеры готовы — для страниц сравнения и лаборатории. Ключей наружу не отдаём. */
+  app.get('/api/voices', (c) => {
+    const st = ttsStatus({ ...env, YANDEX_API_KEY: key })
+    if (denied.tts) st.yandex.ready = false
+    return c.json(Object.fromEntries((Object.keys(st) as TtsProvider[]).map((p) => [p, { ...st[p], voices: voicesOf(p) }])))
+  })
+
   app.post('/api/tts', async (c) => {
-    if (!status().tts) return c.json({ error: 'Озвучка выключена' }, 503)
     const b = TtsBody.parse(await c.req.json())
+    const yandexOnly = b.provider === 'yandex'
+    const ready = yandexOnly ? status().tts : ttsStatus(env)[b.provider].ready
+    if (!ready) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
+    if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
     const text = b.text.replace(/[«»"]/g, '')
     const style = styleFor(b.voice, b.emotion)
-    const file = join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice: b.voice, ...style })}.mp3`)
-    const headers = { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable' }
+    const v3only = YANDEX_VOICES.find((v) => v.id === b.voice)?.v3only
+    // SpeechKit по умолчанию — v3; TTS_YANDEX_API=v1 возвращает старую озвучку для голосов, которые её знают
+    const api = yandexOnly ? (b.api ?? (env.TTS_YANDEX_API === 'v1' && !v3only ? 'v1' : 'v3')) : undefined
+    const id = yandexOnly
+      ? api === 'v1'
+        ? { v: 1, text, voice: b.voice, ...style } // тот же ключ, что у озвучки до v3: старый кэш живёт
+        : { v: 3, text, voice: b.voice, ...style }
+      : { p: b.provider, m: ttsStatus(env)[b.provider].model, text, voice: b.voice, emotion: b.emotion, i: b.instructions }
+    const ext = b.provider === 'salute' ? 'wav' : 'mp3'
+    const type = ext === 'wav' ? 'audio/wav' : 'audio/mpeg'
+    const file = join(CACHE_DIR, 'tts', `${hashOf(id)}.${ext}`)
+    const headers = { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api' }
+    // длительность для печати в такт: у SpeechKit mp3 64 кбит/с, у ElevenLabs 128, wav 24 кГц 16 бит; у OpenAI браузер узнает сам
+    const msOf = (n: number) => (yandexOnly ? (n * 8) / 64 : b.provider === 'elevenlabs' ? (n * 8) / 128 : b.provider === 'salute' ? ((n - 44) / 48000) * 1000 : 0)
     try {
-      return c.body(new Uint8Array(await readFile(file)), 200, { ...headers, 'x-cache': 'hit' })
+      const audio = new Uint8Array(await readFile(file))
+      const ms = Math.round(msOf(audio.length))
+      return c.body(audio, 200, { ...headers, 'x-cache': 'hit', ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
     } catch {
       // нет в кэше
     }
     if (!allow('tts', ipOf(c))) return c.json({ error: 'Лимит озвучки на сегодня' }, 429)
     if (!(await quota.ttsAllowed(text.length))) return c.json({ error: 'Озвучка на сегодня закончилась' }, 429)
-    const form = new URLSearchParams({ text, lang: 'ru-RU', voice: b.voice, format: 'mp3', speed: String(style.speed) })
-    if (style.role) form.set('emotion', style.role)
+    if (!yandexOnly && !altAllowed(text.length)) return c.json({ error: 'Лимит на пробные голоса на сегодня' }, 429)
     try {
-      const audio = new Uint8Array(await (await yandex(TTS_URL, { method: 'POST', body: form }, 'tts', 10_000)).arrayBuffer())
+      const r = await synthesize(b.provider, { text, voice: b.voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), instructions: b.instructions }, f, { ...env, YANDEX_API_KEY: key })
       await quota.addTts(text.length)
+      if (!yandexOnly) alt.chars += text.length
+      // v3 упал и ответил v1 — кладём под ключ v1, чтобы v3 попробовать снова в следующий раз
+      const out = r.api && r.api !== api ? join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice: b.voice, ...style })}.mp3`) : file
       await mkdir(join(CACHE_DIR, 'tts'), { recursive: true })
-      await writeFile(file, audio)
-      return c.body(audio, 200, { ...headers, 'x-cache': 'miss' })
+      await writeFile(out, r.audio)
+      const ms = r.ms ?? Math.round(msOf(r.audio.length))
+      return c.body(r.audio, 200, { ...headers, 'x-cache': 'miss', ...(r.api ? { 'x-tts-api': r.api } : {}), ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
     } catch (e) {
+      const st = (e as { status?: number }).status
+      if (yandexOnly && (st === 401 || st === 403)) {
+        denied.tts = true
+        console.warn(`[speech] tts: SpeechKit ответил ${st} — у сервисного аккаунта нет роли ai.speechkit-tts.user, выключаю`)
+      }
       return c.json({ error: (e as Error).message }, 502)
     }
   })
