@@ -67,7 +67,7 @@ describe('карточка хода', () => {
 
   it('длинная цитата обрезается по слову', () => {
     const q = fragment('Скажите, пожалуйста, а почему для вас так важна оплата именно по факту отгрузки, а не через месяц?')
-    expect(q.length).toBeLessThanOrEqual(65)
+    expect(q.length).toBeLessThanOrEqual(49)
     expect(q.endsWith('…')).toBe(true)
     expect(q).not.toMatch(/\s…$/)
   })

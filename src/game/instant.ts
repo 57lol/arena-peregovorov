@@ -37,9 +37,10 @@ export interface Tip {
   id: TipId
   text: string
   example?: string         // можно вставить в поле реплики
+  short?: string           // для свёрнутой полоски на телефоне, если первая фраза совета не о главном
 }
 
-const QUOTE_MAX = 64
+const QUOTE_MAX = 48
 
 /** Фрагмент реплики для пометки на полях: до ~64 знаков, по границе слова. */
 export function fragment(q: string): string {
@@ -96,8 +97,8 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
     // движок пометил повтор или спираль — скажем и об этом, одним хвостиком
     const note = rec.deltas.find((d) => d.because.startsWith(b.title))?.because ?? ''
     const tail = note.includes('(повтор') ? ' Второй раз подряд — работает вдвое слабее.' : note.includes('(спираль') ? ' Уже второй промах подряд — бьёт сильнее.' : ''
-    const quote = hit.quote?.trim() || rec.playerText
-    notes.push({ key: b.id, ink, title: b.title, why: b.moment + tail, quote: quote ? fragment(quote) : undefined })
+    const raw = hit.quote?.trim() || rec.playerText
+    notes.push({ key: b.id, ink, title: b.title, why: b.moment + tail, quote: raw ? fragment(raw) : undefined })
   }
   for (const d of rec.deltas) {
     const o = OTHER[d.because]
@@ -120,6 +121,10 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
   }
   const order: Record<Ink, number> = { good: 0, bad: 1, plain: 2 }
   notes.sort((a, b) => order[a.ink] - order[b.ink])
+  // та же фраза уже процитирована пометкой выше — второй раз не повторяем
+  notes.forEach((n, k) => {
+    if (n.quote && notes.slice(0, k).some((m) => m.quote?.slice(0, 16) === n.quote!.slice(0, 16))) n.quote = undefined
+  })
 
   const trust = rec.deltas.filter((d) => d.field === 'trust').reduce((s, d) => s + d.by, 0)
   const tension = rec.deltas.filter((d) => d.field === 'tension').reduce((s, d) => s + d.by, 0)
@@ -189,6 +194,7 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
       id: 'start',
       text: `Пишите как в жизни. Для начала спросите, что для ${g(sc, 'него', 'неё')} в этой сделке главное и почему: вопрос стоит дёшево, а узнать можно много.`,
       example: 'Добрый день. Прежде чем обсуждать цифры, хочу понять: что для вас в этой договорённости главное и почему?',
+      short: `Спросите, что для ${g(sc, 'него', 'неё')} главное и почему`,
     })
     return out
   }
@@ -229,13 +235,13 @@ function candidates(sc: Scenario, history: TurnRecord[], ctx: { tutorial: boolea
   if (last.decision.kind === 'reveal')
     out.push({
       id: 'reveal',
-      text: `${n} ${g(sc, 'проговорился', 'проговорилась')}, что ${him} на самом деле важно, — это уже в блокноте. Где ${him} важно, а вам не очень, уступите в обмен на своё: «если… то…».`,
+      text: `Теперь есть что менять: где ${him} важно, а вам не очень, уступите в обмен на своё — «если вы…, то мы…».`,
     })
 
   if (last.decision.kind === 'hold' && last.decision.reason === 'not_ready_to_reveal')
     out.push({
       id: 'hold',
-      text: `${n} пока не ${g(sc, 'готов', 'готова')} откровенничать — доверия мало. Покажите, что слушаете: перескажите ${g(sc, 'его', 'её')} слова или скажите, что важно вам.`,
+      text: `Сначала покажите, что слушаете: перескажите ${g(sc, 'его', 'её')} слова или скажите, что важно вам. Потом спросите ещё раз.`,
     })
 
   const left = sc.turnLimit - state.turn
@@ -344,4 +350,24 @@ export function nextTip(sc: Scenario, history: TurnRecord[], ctx: { tutorial: bo
     shown.push(pick)
   }
   return shown[history.length]
+}
+
+// ——— переключатель «Подсказки на ходу»: по умолчанию включены, выключают для честного экзамена ———
+
+const KEY = 'peregovorka.instant.v1'
+
+export function loadInstantOn(): boolean {
+  try {
+    return localStorage.getItem(KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+export function saveInstantOn(on: boolean) {
+  try {
+    localStorage.setItem(KEY, on ? '1' : '0')
+  } catch {
+    // нет хранилища — настройка живёт до перезагрузки
+  }
 }
