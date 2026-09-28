@@ -33,7 +33,7 @@ export function CareerCard({ progress, onOpen }: { progress: Progress; onOpen: (
           <>
             <XpBar into={rank.score.total - from} span={rank.next.at - from} label={`До звания «${rank.next.title}»`} />
             <p className="g-career-next">
-              До «{rank.next.title}» ещё {rank.next.need} {pointsWord(rank.next.need)}
+              До звания «{rank.next.title}» ещё {rank.next.need} {pointsWord(rank.next.need)}
             </p>
           </>
         ) : (
@@ -98,7 +98,7 @@ export function Career({ progress, onOpen, onBack }: Props) {
             <p className="g-muted">{rank.note}</p>
             <p className="g-career-score">
               Звёзд {rank.score.stars}, финалов {rank.score.endings}: всего {rank.score.total} {pointsWord(rank.score.total)}.
-              {rank.next ? ` До «${rank.next.title}» ещё ${rank.next.need}.` : ''}
+              {rank.next ? ` До звания «${rank.next.title}» ещё ${rank.next.need}.` : ''}
             </p>
             <ol className="g-ladder">
               {RANKS.map((r, i) => (
@@ -244,7 +244,12 @@ export function SkillGain({ run, before, after, children }: { run: RunLog; befor
                 +{g[a].xp} {SKILL_RU[a].to}
               </b>
               : вы {g[a].why.slice(0, 2).join(', ')}.
-              {lv && lv.a[a].level > lv.b[a].level && <span className="g-gain-lvl"> Уровень {lv.a[a].level}.</span>}
+              {lv && lv.a[a].level > lv.b[a].level && (
+                <>
+                  {' '}
+                  <span className="g-gain-lvl">Уровень {lv.a[a].level}.</span>
+                </>
+              )}
             </li>
           ))}
         </ul>

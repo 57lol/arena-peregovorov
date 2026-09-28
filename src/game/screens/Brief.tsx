@@ -1,4 +1,5 @@
 import type { Case } from '../../App'
+import { HARDER_REVEAL } from '../../engine/policy'
 import { maxScore } from '../../engine/utility'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait } from '../ui'
@@ -57,6 +58,12 @@ export function Brief({ game, onStart, onBack }: Props) {
                 <p className="g-muted">
                   Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
                 </p>
+                {sc.harder ? (
+                  <p className="g-muted">
+                    <span className="g-tag">жёстче</span> Уступает медленнее, чем в прошлый раз, а о своём рассказывает, только
+                    когда доверия на {HARDER_REVEAL} больше.
+                  </p>
+                ) : null}
               </div>
             </aside>
           </div>
