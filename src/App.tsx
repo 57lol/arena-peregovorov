@@ -20,6 +20,10 @@ import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
 import { nextStory } from './game/story'
+import { cutsceneLink, juryLink, markCutsceneSeen, seenCutscenes, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
+import { cutsceneById } from './game/cutscene/scripts'
+import { markStorySeen } from './game/progress'
+import { chapterOf } from './content/story'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
@@ -29,8 +33,11 @@ import './game/career.css'
 // 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
 const loadPlay3D = () => import('./game/screens/Play3D')
 const Play3D = lazy(loadPlay3D)
+// катсцены сюжета и хаб жюри — тоже отдельными кусками
+const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
+const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
 
-export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
+export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury'
 
 export interface Case {
   scenario: Scenario
@@ -48,8 +55,8 @@ interface Saved {
   room?: RoomRef | null
   startedAt?: number
   sent?: string
-  /** откуда открыли дело: с карты кампании или из папки — туда и возвращаемся */
-  from?: 'map' | 'setup'
+  /** откуда открыли дело: с карты кампании («Сюжет»), из папки или из хаба жюри — туда и возвращаемся */
+  from?: 'map' | 'setup' | 'jury'
 }
 function loadSession(): Saved | null {
   try {
@@ -68,9 +75,17 @@ const saved = loadSession()
 const boardRef = readBoardParam()
 /** Подпись партии: разбор одной и той же партии записываем в прогресс один раз. */
 const runKey = (c: Case | null, h: TurnRecord[]) => (c ? `${c.scenario.id}:${h.map((x) => x.playerText).join('|')}` : '')
+// /?cutscene=prologue&t=12 — катсцена по ссылке (с t — стоп-кадр); /?jury — сразу хаб жюри
+const filmLink = cutsceneLink()
+const firstScreen = (): Screen => {
+  if (boardRef) return 'board'
+  if (filmLink && cutsceneById(filmLink.id)) return 'cutscene'
+  if (juryLink()) return 'jury'
+  return saved?.screen === 'cutscene' ? 'map' : (saved?.screen ?? 'title')
+}
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(boardRef ? 'board' : (saved?.screen ?? 'title'))
+  const [screen, setScreen] = useState<Screen>(firstScreen)
   const [current, setCurrent] = useState<Case | null>(saved?.current ?? null)
   const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
   const [recorded, setRecorded] = useState(saved?.recorded ?? '')
@@ -80,7 +95,11 @@ export default function App() {
   const [player, setPlayer] = useState(loadPlayer)
   const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
   const [sent, setSent] = useState(saved?.sent ?? '')
-  const [from, setFrom] = useState<'map' | 'setup'>(saved?.from ?? 'setup')
+  const [from, setFrom] = useState<'map' | 'setup' | 'jury'>(saved?.from ?? 'setup')
+  // катсцена на экране и что после неё
+  const [film, setFilm] = useState<{ id: string; at?: number; then: () => void } | null>(() =>
+    filmLink ? { id: filmLink.id, at: filmLink.at, then: () => setScreen('title') } : null,
+  )
   const [progress, setProgress] = useState<Progress>(loadProgress)
   const [invited, setInvited] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -148,9 +167,9 @@ export default function App() {
 
   // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
   // «Все дела» открывают с титула и с карты — «Назад» возвращает туда же
-  const [setupBack, setSetupBack] = useState<'title' | 'map'>('title')
+  const [setupBack, setSetupBack] = useState<'title' | 'map' | 'jury'>(juryLink() ? 'jury' : 'title')
   const go = useCallback((s: Screen) => {
-    if (s === 'title' || s === 'map') setSetupBack(s)
+    if (s === 'title' || s === 'map' || s === 'jury') setSetupBack(s)
     setScreen(s)
     window.history.pushState({ screen: s }, '')
     window.scrollTo({ top: 0 })
@@ -165,7 +184,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', back)
   }, [])
 
-  const open = (c: Case, origin: 'map' | 'setup' = 'setup') => {
+  const open = (c: Case, origin: 'map' | 'setup' | 'jury' = 'setup') => {
     setFrom(origin)
     setCurrent(c)
     setHistory([])
@@ -183,6 +202,32 @@ export default function App() {
     go('play')
   }
 
+  // «Сюжет»: катсцена (если есть), потом бриф следующей главы или карта недели
+  const follow = (n: Next) => {
+    const sc = n.to === 'brief' ? getScenario(n.caseId) : undefined
+    if (sc) open({ scenario: sc, fromLibrary: true }, 'map')
+    else go('map')
+  }
+  const run = (step: Step) => {
+    const cs = step.cutscene
+    if (!cs) return follow(step.then)
+    setFilm({
+      id: cs.id,
+      then: () => {
+        markCutsceneSeen(cs.id)
+        follow(step.then)
+      },
+    })
+    go('cutscene')
+  }
+  const watch = (id: string, back: Screen) => {
+    setFilm({ id, then: () => go(back) })
+    go('cutscene')
+  }
+  useEffect(() => {
+    if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('map')
+  }, [screen, film])
+
   const rewindTo = (turn: number) => {
     // turn — номер хода (с 1); оставляем всё, что было до него
     const before = history.slice(0, Math.max(0, turn - 1))
@@ -192,6 +237,47 @@ export default function App() {
     setPlayKey((k) => k + 1)
     go('play')
   }
+
+  if (screen === 'cutscene') {
+    const cs = film && cutsceneById(film.id)
+    return cs ? (
+      <Suspense fallback={<div className="cs-root" />}>
+        <CutscenePlayer key={film.id} script={cs} at={film.at} onDone={film.then} />
+      </Suspense>
+    ) : null
+  }
+
+  if (screen === 'jury')
+    return (
+      <Suspense fallback={null}>
+        <Jury
+          progress={progress}
+          server={server}
+          view={view}
+          onView={(v) => {
+            saveView(v)
+            setView(v)
+            setViewNote('')
+          }}
+          onProgress={setProgress}
+          onOpen={(c) => open(c, 'jury')}
+          onDemo={(c, h) => {
+            // готовая встреча: сразу разбор, в прогресс игрока её не пишем
+            setFrom('jury')
+            setCurrent(c)
+            setHistory(h)
+            setRecorded(runKey(c, h))
+            go('report')
+          }}
+          onSetup={() => go('setup')}
+          onCoach={() => go('coach')}
+          onCareer={() => toCareer('jury')}
+          onCutscene={(id) => watch(id, 'jury')}
+          onStory={() => run(storyStart(progress, seenCutscenes()))}
+          onBack={() => go('title')}
+        />
+      </Suspense>
+    )
 
   if (screen === 'board' && boardRef)
     return (
@@ -224,7 +310,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'coach') return <Coach progress={progress} server={server} onBack={() => go('title')} />
+  if (screen === 'coach') return <Coach progress={progress} server={server} onBack={() => go(setupBack === 'jury' ? 'jury' : 'title')} />
 
   if (screen === 'title')
     return (
@@ -243,10 +329,15 @@ export default function App() {
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
         next={nextStory(progress) ?? nextCase(progress)}
-        // «Играть» — на карту кампании «Новенький»: там следующая глава подсвечена, первая — самая мягкая
+        // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {
           setNotice(null)
-          go('map')
+          run(storyStart(progress, seenCutscenes()))
+        }}
+        // «Для жюри»: всё открыто, без катсцен
+        onJury={() => {
+          setNotice(null)
+          go('jury')
         }}
         onStart={() => {
           setNotice(null)
@@ -341,8 +432,22 @@ export default function App() {
       onReplayFrom={rewindTo}
       onAgain={start}
       onHarder={current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id) ? () => open({ scenario: harder(current.scenario), fromLibrary: true }) : undefined}
-      onOther={() => go(from)}
-      otherLabel={from === 'map' ? 'К карте недели' : undefined}
+      onOther={() => {
+        if (from !== 'map') return go(from)
+        // «Сюжет»: после главы — катсцена-переход к следующей; мостик на карте уже не нужен
+        const ch = chapterOf(current.scenario.id)
+        if (ch) setProgress(markStorySeen(ch.id))
+        run(storyAfter(current.scenario.id, progress, seenCutscenes()))
+      }}
+      otherLabel={
+        from === 'map'
+          ? storyAfter(current.scenario.id, progress, seenCutscenes()).cutscene
+            ? 'Дальше'
+            : 'К карте недели'
+          : from === 'jury'
+            ? 'К жюри'
+            : undefined
+      }
       receipt={
         room && room.caseId === current.scenario.id && history.length ? (
           <RoomReceipt

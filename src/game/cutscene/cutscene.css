@@ -1,0 +1,269 @@
+/* Катсцены: чёрная сцена, пиксельный кадр целым масштабом (--s), субтитры одной строкой под кадром. */
+
+.cs-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: #090a14;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cs-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cs-frame {
+  position: relative;
+  overflow: hidden;
+  background: #090a14;
+}
+
+.cs-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* затемнение ступенями — прозрачность меняет рисовальщик */
+.cs-shade {
+  position: absolute;
+  inset: 0;
+  background: #090a14;
+  pointer-events: none;
+}
+
+.cs-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--s) * 1px);
+  background: rgba(9, 10, 20, 0.6);
+}
+.cs-bar b {
+  display: block;
+  height: 100%;
+  background: var(--c-brass);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+.cs-sub {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 96px;
+  margin: 0;
+  padding: 20px 16px 0;
+  font-family: var(--f-read);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  color: var(--c-paper);
+  text-align: center;
+  text-wrap: balance;
+}
+.cs-sub span {
+  animation: cs-in 0.25s steps(3) both;
+}
+.cs-sub b {
+  color: var(--c-brass-hi);
+  font-weight: 400;
+}
+
+.cs-skip {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  padding: 6px 12px;
+  border: var(--u) solid var(--c-steel-2);
+  background: #090a14;
+  color: var(--c-mist);
+  font: inherit;
+  font-size: var(--fs-ui);
+  cursor: pointer;
+}
+.cs-skip:hover,
+.cs-skip:focus-visible {
+  color: var(--c-paper);
+  border-color: var(--c-mist);
+}
+
+/* ——— телефон: живой текст на экране нарисованного телефона ——— */
+
+.cs-phone {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: calc(var(--s) * 4px);
+  background: var(--c-paper);
+  color: var(--c-ink);
+  animation: cs-swipe 0.3s steps(4) both;
+}
+
+.cs-phone-head {
+  margin: calc(var(--s) * -4px) calc(var(--s) * -4px) calc(var(--s) * 6px);
+  padding: calc(var(--s) * 3px) calc(var(--s) * 4px);
+  background: var(--c-brass);
+  color: var(--c-ink);
+  font-family: var(--f-read);
+  font-size: calc(var(--s) * 6px);
+  line-height: calc(var(--s) * 7px);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cs-phone-head span {
+  color: var(--c-wood-2);
+}
+
+.cs-memo-title {
+  margin: auto 0 calc(var(--s) * 5px);
+  font-family: var(--f-ui);
+  font-weight: 700;
+  font-size: calc(var(--s) * 9px);
+  line-height: calc(var(--s) * 11px);
+  color: var(--c-stamp-2);
+}
+
+.cs-memo-text {
+  margin: 0 0 auto;
+  font-family: var(--f-read);
+  font-size: calc(var(--s) * 6px);
+  line-height: calc(var(--s) * 8px);
+  color: var(--c-steel-3);
+}
+
+.cs-chat-head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * 3px);
+  background: var(--c-denim);
+  color: var(--c-paper);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cs-face {
+  flex: none;
+  width: calc(var(--s) * 12px);
+  height: calc(var(--s) * 12px);
+  background-repeat: no-repeat;
+  background-color: var(--c-sky);
+  background-size: calc(var(--s) * 144px) calc(var(--s) * 288px);
+  background-position: calc(var(--s) * -18px) calc(var(--s) * -8px);
+  image-rendering: pixelated;
+}
+
+.cs-chat-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.cs-bubble {
+  margin: 0;
+  padding: calc(var(--s) * 3px) calc(var(--s) * 4px);
+  background: #fff;
+  border: var(--u) solid var(--c-mist);
+  font-family: var(--f-read);
+  font-size: calc(var(--s) * 6px);
+  line-height: calc(var(--s) * 8px);
+  color: var(--c-ink);
+  animation: cs-in 0.25s steps(3) both;
+}
+.cs-bubble.is-typing {
+  display: flex;
+  gap: calc(var(--s) * 2px);
+  align-self: flex-start;
+}
+.cs-bubble.is-typing i {
+  width: calc(var(--s) * 2px);
+  height: calc(var(--s) * 2px);
+  background: var(--c-steel);
+  animation: cs-dot 0.6s steps(2) infinite;
+}
+.cs-bubble.is-typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.cs-bubble.is-typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ——— титр главы ——— */
+
+.cs-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--s) * 3px);
+  padding: 16px;
+  text-align: center;
+  animation: cs-in 0.5s steps(4) both;
+}
+.cs-card-kicker {
+  margin: 0;
+  font-family: var(--f-read);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  color: var(--c-brass-hi);
+}
+.cs-card-title {
+  margin: 0;
+  font-family: var(--f-ui);
+  font-weight: 700;
+  font-size: var(--fs-ui-huge);
+  line-height: 1.2;
+  color: var(--c-paper);
+}
+.cs-card-sub {
+  margin: 0;
+  font-family: var(--f-read);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  color: var(--c-mist);
+}
+
+@keyframes cs-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cs-swipe {
+  from {
+    transform: translateY(12%);
+    opacity: 0;
+  }
+}
+@keyframes cs-dot {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (max-width: 480px) {
+  .cs-sub {
+    min-height: 80px;
+    padding-top: 16px;
+  }
+  .cs-card-kicker,
+  .cs-card-sub {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
+  .cs-card-title {
+    font-size: var(--fs-ui-big);
+  }
+}

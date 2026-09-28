@@ -1,0 +1,376 @@
+/* «Для жюри»: путь за минуту крупно, под ним листы на столе — кампания, дела, настройки, катсцены. */
+
+.jr-page > * {
+  max-width: 1240px;
+  margin-inline: auto;
+}
+
+.jr-h1 {
+  margin-bottom: 0;
+}
+
+.jr-lead {
+  margin-top: calc(2 * var(--u));
+  margin-bottom: calc(6 * var(--u));
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--on-desk-muted);
+}
+
+/* ——— три шага ——— */
+
+.jr-path {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(6 * var(--u));
+  margin-bottom: calc(12 * var(--u));
+  padding: 0;
+  list-style: none;
+}
+
+.jr-step {
+  appearance: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: calc(5 * var(--u));
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: calc(6 * var(--u)) calc(7 * var(--u)) calc(7 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    inset 0 calc(-2 * var(--u)) 0 var(--c-paper-2),
+    0 0 0 var(--u) var(--c-ink),
+    0 calc(4 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.jr-step:hover {
+  box-shadow:
+    inset 0 calc(-2 * var(--u)) 0 var(--c-mist),
+    0 0 0 var(--u) var(--c-ink),
+    0 calc(4 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.jr-step:active {
+  transform: translateY(calc(2 * var(--u)));
+}
+.jr-step.is-hot {
+  background: var(--c-brass);
+  box-shadow:
+    inset 0 calc(-2 * var(--u)) 0 var(--c-wood-hi),
+    0 0 0 var(--u) var(--c-wood-3),
+    0 calc(4 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+/* стрелка между шагами */
+.jr-path li + li .jr-step::before {
+  content: '';
+  position: absolute;
+  left: calc(-5 * var(--u));
+  top: 50%;
+  width: calc(4 * var(--u));
+  height: calc(4 * var(--u));
+  background: var(--c-brass-hi);
+  transform: translate(-50%, -50%);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.jr-step-n {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: var(--c-night);
+  color: var(--c-brass-hi);
+  font: 700 var(--fs-ui-big) / 1 var(--f-ui);
+}
+.jr-step.is-hot .jr-step-n {
+  background: var(--c-wood-3);
+}
+.jr-step-name {
+  font: 700 var(--fs-ui-big) / 1.15 var(--f-ui);
+}
+.jr-step-note {
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-steel-2);
+}
+.jr-step.is-hot .jr-step-note {
+  color: var(--c-wood-3);
+}
+
+/* ——— листы ——— */
+
+.jr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(8 * var(--u)) calc(8 * var(--u));
+  align-items: start;
+}
+
+.jr-h2 {
+  margin: 0 0 calc(4 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-ink);
+}
+
+.jr-face {
+  flex: none;
+  display: block;
+  width: 48px;
+  height: 48px;
+  background-color: var(--c-sky);
+  background-repeat: no-repeat;
+  background-size: 288px 576px;
+  background-position: -24px -6px;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+}
+
+/* кампания: семь глав плиткой */
+.jr-chapters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: calc(4 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jr-chapter {
+  appearance: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: calc(4 * var(--u));
+  width: 100%;
+  margin: 0;
+  padding: calc(3 * var(--u));
+  border: 0;
+  background: var(--c-paper-2);
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-mist);
+}
+.jr-chapter:hover {
+  background: var(--c-brass-hi);
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-brass);
+}
+.jr-chapter .jr-face {
+  grid-row: 1 / 4;
+}
+.jr-chapter-n {
+  font: 400 var(--fs-small) / 14px var(--f-read);
+  color: var(--c-stamp);
+}
+.jr-chapter-name {
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.jr-chapter-when {
+  font: 400 var(--fs-small) / 14px var(--f-read);
+  color: var(--c-steel-2);
+}
+.jr-done {
+  position: absolute;
+  top: calc(2 * var(--u));
+  right: calc(2 * var(--u));
+  color: var(--c-leaf);
+}
+
+/* дела из папки */
+.jr-cases {
+  display: grid;
+  gap: calc(3 * var(--u));
+  margin: 0 0 calc(4 * var(--u));
+  padding: 0;
+  list-style: none;
+}
+.jr-cases li {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+}
+.jr-case {
+  appearance: none;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: calc(4 * var(--u));
+  align-items: center;
+  margin: 0;
+  padding: calc(3 * var(--u));
+  border: 0;
+  background: var(--c-paper-2);
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-mist);
+}
+.jr-case:hover {
+  background: var(--c-brass-hi);
+  box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--c-brass);
+}
+.jr-case .jr-face {
+  grid-row: 1 / 3;
+}
+.jr-case-name {
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.jr-case-sphere {
+  font: 400 var(--fs-small) / 14px var(--f-read);
+  color: var(--c-steel-2);
+}
+.jr-hard {
+  flex: none;
+}
+.jr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 calc(3 * var(--u));
+}
+
+/* настройки */
+.jr-set {
+  display: grid;
+  gap: calc(3 * var(--u));
+  margin: 0;
+}
+.jr-set > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  padding-bottom: calc(3 * var(--u));
+  border-bottom: var(--u) dashed var(--c-mist);
+}
+.jr-set > div:last-child {
+  border-bottom: 0;
+}
+.jr-set dt {
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.jr-set dd {
+  margin: 0;
+}
+.jr-seg {
+  display: flex;
+  gap: 0;
+}
+.jr-toggle {
+  appearance: none;
+  min-height: 40px;
+  margin: 0;
+  padding: calc(2 * var(--u)) calc(5 * var(--u));
+  border: 0;
+  background: var(--c-paper-2);
+  color: var(--c-steel-2);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 var(--u) var(--c-steel);
+}
+.jr-toggle + .jr-toggle {
+  margin-left: calc(-1 * var(--u));
+}
+.jr-toggle.is-on {
+  background: var(--c-night);
+  color: var(--c-brass-hi);
+  box-shadow: inset 0 0 0 var(--u) var(--c-ink);
+}
+.jr-toggle:disabled {
+  cursor: not-allowed;
+  color: var(--c-fog);
+  background: var(--c-paper-2);
+}
+.jr-mode {
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-steel-2);
+}
+
+/* катсцены */
+.jr-cuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  margin: 0 0 calc(4 * var(--u));
+  padding: 0;
+  list-style: none;
+}
+.jr-cut {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  width: 100%;
+  margin: 0;
+  padding: calc(2 * var(--u)) 0;
+  border: 0;
+  background: none;
+  color: var(--c-ink);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-align: left;
+  cursor: pointer;
+}
+.jr-cut svg {
+  flex: none;
+  color: var(--c-stamp);
+}
+.jr-cut span {
+  flex: 1;
+  text-decoration: underline;
+  text-decoration-thickness: var(--u);
+  text-underline-offset: calc(2 * var(--u));
+}
+.jr-cut small {
+  font: 400 var(--fs-small) / 14px var(--f-read);
+  color: var(--c-steel-2);
+}
+.jr-fine {
+  margin: 0;
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-steel-2);
+}
+
+@media (max-width: 900px) {
+  .jr-path {
+    grid-template-columns: 1fr;
+    gap: calc(5 * var(--u));
+  }
+  .jr-path li + li .jr-step::before {
+    left: 50%;
+    top: calc(-3 * var(--u));
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .jr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .jr-lead {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
+  .jr-step {
+    padding: calc(4 * var(--u)) calc(5 * var(--u)) calc(5 * var(--u));
+  }
+  .jr-step-name {
+    font-size: var(--fs-ui);
+  }
+  .jr-set dt {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
+  .jr-cases li {
+    flex-wrap: wrap;
+  }
+  .jr-chapters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
