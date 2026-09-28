@@ -99,9 +99,9 @@ def lut_mix(target, f, allow=None):
 FOG_C = 44
 FOG_LEVELS = [0.0, 0.14, 0.28, 0.42, 0.56, 0.7, 0.82, 0.92]
 # в тумане цвета сводим только к спокойным (серые, голубые, бежевые) — без неожиданной зелени и сиреневого
-FOG_ALLOW = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23, 26, 27, 28, 29,
+FOG_ALLOW = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23, 26, 27, 28, 29,
              36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
-FOG_LUT = np.stack([lut_mix(FOG_C, f, FOG_ALLOW) for f in FOG_LEVELS])
+FOG_LUT = np.stack([np.append(np.arange(46), T) if f == 0 else lut_mix(FOG_C, f, FOG_ALLOW) for f in FOG_LEVELS])
 # тёплый свет фонаря — вручную: серое уходит в бежевое, коричневое светлеет, зелень светлеет; синее не трогаем
 _W = list(range(46))
 for _a, _b in ((36, 12), (37, 12), (38, 13), (39, 13), (40, 13), (41, 14), (42, 15), (43, 16), (44, 17), (45, 17),
@@ -326,8 +326,9 @@ def ground_tex(x0, x1, z0, z1, s, fine=True, fog=True):
     spill &= (BAYER2[ys % 2, xs_ % 2] < 0.7 - (Z - kz) * 0.35)
     warm(t.a, spill, 1)
     if fog:
+        # вблизи туман реже: трава у стола остаётся зелёной, сереет только дальше
         d = np.hypot(X - EYE[0], Z - EYE[2])
-        t.a = apply_fog(t.a, fog_level(d), ys, xs_)
+        t.a = apply_fog(t.a, fog_level(d, 34.0 if fine is False else 60.0), ys, xs_)
     return t, X, Z
 
 
@@ -444,7 +445,7 @@ def fence_color(u, y):
     return a
 
 
-def birch_sprite(s, seed, w_m=3.2, h_m=8.0, color='yellow'):
+def birch_sprite(s, seed, w_m=3.2, h_m=8.0, color='yellow', clean=False):
     """Берёза в осенней листве. s — м на тексель. Ствол по центру снизу."""
     r2 = np.random.default_rng(seed)
     w, h = round(w_m / s), round(h_m / s)
@@ -487,11 +488,11 @@ def birch_sprite(s, seed, w_m=3.2, h_m=8.0, color='yellow'):
     for bx, by in sorted(blobs, key=lambda p: p[1]):
         rx, ry = rr * r2.uniform(0.9, 1.6), rr * r2.uniform(0.8, 1.2)
         m = ((xs - bx) / rx) ** 2 + ((ys - by) / ry) ** 2 <= 1
-        hole = r2.random(m.shape) < 0.08
+        hole = r2.random(m.shape) < (0.02 if clean else 0.08)
         t.mask(m & ~hole, pal[1])
         t.mask(m & ~hole & (ys < by - ry * 0.3), pal[2])
         t.mask(m & ~hole & (xs > bx + rx * 0.3) & (ys > by), pal[0])
-        t.mask(m & (r2.random(m.shape) < 0.05), pal[3])
+        t.mask(m & (r2.random(m.shape) < (0.01 if clean else 0.05)), pal[3])
     # свисающие плети с листьями
     for _ in range(int(w * 0.25)):
         x = cx + r2.normal(0, w * 0.22)
@@ -695,7 +696,7 @@ def ray_wall(pts):
 def make_billboards():
     bb = []
     r2 = np.random.default_rng(3)
-    spr = [birch_sprite(0.1, 100 + i, 2.6, 6.0 + (i % 3) * 0.8, color=('yellow', 'late', 'yellow', 'green')[i % 4]) for i in range(6)]
+    spr = [birch_sprite(0.1, 100 + i, 2.6, 6.0 + (i % 3) * 0.8, color=('yellow', 'late', 'yellow', 'green')[i % 4], clean=True) for i in range(6)]
     lamp = lamp_far_sprite(0.1)
     # фонари вдоль дороги, уходящие в туман
     for lz in (-21.0, -31.4, -41.8, -52.2, -62.6):
