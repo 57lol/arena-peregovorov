@@ -992,7 +992,7 @@ def kiosk_window_dim(front):
 
 
 def street_atlas():
-    at = Atlas(512, 512)
+    at = Atlas(512, 256)
     R.common_items(at)
     for c in (2, 3, 7, 8, 26, 23, 29, 41):
         at.add(f'c{c}', R.solid(c))
