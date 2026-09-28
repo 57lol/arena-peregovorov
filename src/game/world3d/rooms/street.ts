@@ -177,7 +177,7 @@ function buildStreet(): RoomBuild {
   const coneMat = new MeshBasicMaterial({ color: 0xe7d5b3, transparent: true, depthWrite: false, side: DoubleSide, vertexColors: true })
   kit.trash.push(coneMat)
   for (const [, , hx, hy, hz, r] of P.lamps) {
-    const geo = new CylinderGeometry(0.16, r * 0.85, hy - 0.05, 18, 3, true).translate(0, (hy - 0.05) / 2, 0)
+    const geo = new CylinderGeometry(0.16, r * 0.75, hy - 0.05, 18, 3, true).translate(0, (hy - 0.05) / 2, 0)
     const pos = geo.getAttribute('position')
     const col = new Float32Array(pos.count * 4)
     for (let i = 0; i < pos.count; i++) {
@@ -243,6 +243,16 @@ function buildStreet(): RoomBuild {
   const [, , , laneIn, laneOut] = P.road
   const CAR_T = 21
 
+  // листья: несколько штук кружатся над столом и падают, потом снова появляются наверху
+  const leaves = [0, 1, 2, 3, 4].map((i) => {
+    const s = new Soup(ATLAS.w, ATLAS.h, rects)
+    s.add(new PlaneGeometry(0.05, 0.035), at(0, 0, 0), `leaf${i % 3}`, 0)
+    const m = s.build(kit, maps)[0]
+    g.add(m)
+    // между лицами, если смотреть из глаз: собеседник по центру, соседи под углом ±28°
+    return { m, x: [-0.95, -0.24, 0.24, 0.95, 1.42][i], z: [-0.3, -0.25, -0.35, -0.3, -0.05][i], ph: i * 2.3, period: 9 + i * 1.7 }
+  })
+
   // свет — для Lambert-материалов людей (сама улица не освещается)
   g.add(new AmbientLight(0xffffff, 2.4))
   const sun = new DirectionalLight(0xffffff, 1.1)
@@ -254,6 +264,11 @@ function buildStreet(): RoomBuild {
     fogTex.offset.x = t * 0.004
     // трубка: раз в ~9 с короткий сбой, раз в ~23 с гаснет на полсекунды
     dim.visible = (t % 9.3 > 8.75 && Math.sin(t * 53) > -0.1) || t % 23 > 22.5
+    for (const l of leaves) {
+      const k = ((t + l.ph) % l.period) / l.period // 0 — вверху, 1 — на столе
+      l.m.position.set(l.x + Math.sin(t * 1.3 + l.ph) * 0.07, 3.2 - k * (3.2 - ty - 0.01), l.z + Math.cos(t * 0.9 + l.ph) * 0.1)
+      l.m.rotation.set(Math.sin(t * 3 + l.ph) * 1.2, t * 1.7 + l.ph, Math.cos(t * 2.3 + l.ph) * 0.8)
+    }
     // машина: к нам по ближней полосе, потом от нас по дальней
     const c = t % (2 * CAR_T)
     const going = c < CAR_T ? 1 : -1
