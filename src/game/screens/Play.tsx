@@ -1,191 +1,38 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import type { Case } from '../../App'
-import { BEHAVIOR_DICT } from '../../engine/behaviors'
-import { initialState, pickInterest } from '../../engine/turn'
-import { revealAt } from '../../engine/policy'
-import type { Decision, Offer, OpponentState, Scenario, TurnRecord } from '../../engine/types'
-import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer } from '../../engine/utility'
-import { ApiError, playTurn } from '../api'
-import { firstName, g, plural, portraitFor, sceneFor } from '../cast'
-import { markTutorialDone } from '../progress'
-import { loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, stopAudio, unlockAudio, voiceFor, type SpeechCaps } from '../speech'
-import {
-  Button,
-  cpsFor,
-  DialogBox,
-  IssueStepper,
-  MeetingClock,
-  Meter,
-  Notebook,
-  PixelIcon,
-  Scene,
-  SpeechField,
-  Stamp,
-  toPortraitEmotion,
-} from '../ui'
+import { useEffect, useRef, useState } from 'react'
+import { isComplete, sameOffer } from '../../engine/utility'
+import { g, plural, portraitFor, sceneFor } from '../cast'
+import { stopAudio } from '../speech'
+import { endText, useMeeting, type MeetingProps } from '../useMeeting'
+import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
 import { MicButton } from './Mic'
-import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from '../instant'
 import { Margin, MarginOff } from './Margin'
+import { Notes, Slip, XRay } from './meetingParts'
 
-interface Props {
-  game: Case
-  history: TurnRecord[]
-  setHistory: Dispatch<SetStateAction<TurnRecord[]>>
-  redo: string
-  /** что умеет сервер из голоса; нет — кнопок голоса нет */
-  speech?: SpeechCaps
-  tutorial: boolean
-  onTutorialOff: () => void
-  onFinish: () => void
-  onQuit: () => void
+type Props = MeetingProps & {
+  /** переключиться на 3D-вид (кнопки нет, если 3D недоступно) */
+  on3d?: () => void
 }
 
-export function Play({ game, history, setHistory, redo, speech, tutorial, onTutorialOff, onFinish }: Props) {
-  const sc = game.scenario
-  const P = sc.player.profile
-  const last = history[history.length - 1]
-  const state: OpponentState = last?.stateAfter ?? initialState(sc)
-  const done = state.status !== 'open'
-  const name = firstName(sc)
-
-  const [draft, setDraft] = useState(redo)
-  const [picks, setPicks] = useState<FullOffer>(() => startPicks(sc, state))
-  const [pending, setPending] = useState<null | string>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [talking, setTalking] = useState(false)
-  const [xray, setXray] = useState(false)
-  const [xrayUsed, setXrayUsed] = useState(false)
+export function Play(props: Props) {
+  const { history, setHistory, onFinish, on3d } = props
   const [notebook, setNotebook] = useState(false)
-  const [leaving, setLeaving] = useState(false)
-  // разбор хода на полях: включён у всех, кто не выключил сам; в первой партии к советам добавляются записки наставника
-  const [instantOn, setInstantOn] = useState(loadInstantOn)
   const [marginOpen, setMarginOpen] = useState(false)
-  const [source, setSource] = useState<string>('')
   const notebookRef = useRef<HTMLDivElement>(null)
   const sideRef = useRef<HTMLElement>(null)
   const maxScale = useSceneMax()
-  const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
-  const voiceRef = useRef(voiceOn)
-  // скорость печати под озвучку — только для той реплики, что сейчас звучит
-  const [voiced, setVoiced] = useState<{ text: string; cps: number; n: number } | null>(null)
-  const [micOff, setMicOff] = useState(false)
-
-  const line = pending ? '…' : last?.opponentLine || sc.opening
-  const emotion = pending ? 'thinking' : toPortraitEmotion(last?.emotion)
-  const theirsOnTable = sameOffer(state.tableOffer, state.lastOpponentOffer)
-  const canAccept = !done && theirsOnTable && isComplete(sc, state.lastOpponentOffer)
-  const myTotal = score(P, picks)
-  const revealedNow = last?.decision.kind === 'reveal' ? last.decision.interestId : undefined
-  const online = source !== 'local'
-  const canVoice = !!speech?.tts && online
-  const canMic = !!speech?.stt && online && !micOff
-
-  // реплика сменилась не озвучкой (перемотка, ожидание) — замолкаем; уход с экрана — тоже
-  useEffect(() => {
-    if (voiced && voiced.text !== line) stopAudio()
-  }, [line, voiced])
-  useEffect(() => stopAudio, [])
-  // голос включён с прошлого раза — собеседник здоровается вслух
-  const greeted = useRef(false)
-  useEffect(() => {
-    if (greeted.current || !canVoice || !voiceRef.current || history.length) return
-    greeted.current = true
-    speak(sc.opening, 'neutral')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canVoice])
-
-  /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
-  async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {
-    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion))
-    if (!p || !voiceRef.current) return
-    setVoiced((v) => ({ text, cps: cpsFor(text, p.duration), n: (v?.n ?? 0) + 1 }))
-    if (!(await playPrepared(p))) setVoiced(null)
-  }
-
-  const toggleVoice = () => {
-    const on = !voiceOn
-    setVoiceOn(on)
-    voiceRef.current = on
-    saveVoiceOn(on)
-    if (!on) {
-      stopAudio()
-      setVoiced(null)
-      return
-    }
-    // внутри клика: прогреваем звук (iOS) и сразу озвучиваем то, что на экране
-    unlockAudio()
-    if (!pending) speak(line, last?.emotion)
-  }
-
-  const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
-  const tip = useMemo(
-    () => (instantOn && !done && !pending ? nextTip(sc, history, { tutorial, xrayUsed }) : null),
-    [instantOn, done, pending, sc, history, tutorial, xrayUsed],
-  )
-  const switchInstant = (on: boolean) => {
-    setInstantOn(on)
-    saveInstantOn(on)
-    // выключили подсказки в первой партии — обучение пройдено, как раньше по «Без подсказок»
-    if (!on && tutorial) {
-      markTutorialDone()
-      onTutorialOff()
-    }
-  }
-
-  useEffect(() => {
-    if (!leaving) return
-    const t = setTimeout(() => setLeaving(false), 3000)
-    return () => clearTimeout(t)
-  }, [leaving])
-
-  async function send(text: string, opts: { offer?: Offer; accept?: boolean; walkAway?: boolean } = {}) {
-    if (pending || done) return
-    const t = text.trim()
-    if (!t) return
-    setPending(t)
-    setError(null)
-    // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
-    const withVoice = voiceOn && canVoice
-    if (withVoice) unlockAudio()
-    try {
-      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts })
-      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом
-      const ready = withVoice && r.source !== 'local' ? await prepareLine(r.record.opponentLine, voiceFor(sc), r.record.emotion) : null
-      setHistory((h) => [...h, r.record])
-      if (ready) speak(r.record.opponentLine, r.record.emotion, ready)
-      setSource(r.source)
-      setDraft('')
-      setAcceptSure(false)
-      if (opts.offer) setNotebook(false)
+  const m = useMeeting(props, {
+    afterSend: (o) => {
+      if (o.offer) setNotebook(false)
       // на ноутбуке после ответа показываем верх правой колонки: там новый листок и кнопка «Принять»
       sideRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
-    } finally {
-      setPending(null)
-    }
-  }
-
-  const [lowSure, setLowSure] = useState(false)
-  const putOnTable = () => {
-    // своё же предложение хуже запасного варианта — переспросим один раз
-    if (myTotal < P.batna && !lowSure) return setLowSure(true)
-    setLowSure(false)
-    send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
-  }
-  const theirsForMe = isComplete(sc, state.lastOpponentOffer) ? score(P, state.lastOpponentOffer) : null
-  const [acceptSure, setAcceptSure] = useState(false)
-  const accept = () => {
-    // принять то, что хуже запасного варианта, — переспросим один раз, как и в блокноте
-    if (theirsForMe !== null && theirsForMe < P.batna && !acceptSure) return setAcceptSure(true)
-    setAcceptSure(false)
-    send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
-  }
-  const walk = () => {
-    if (!leaving) return setLeaving(true)
-    setLeaving(false)
-    send('Спасибо за время, но так мы не договоримся. Я ухожу.', { walkAway: true })
-  }
+    },
+  })
+  const {
+    sc, P, last, state, done, name, draft, setDraft, picks, pending, error, setError, talking, setTalking,
+    xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, voiced, setMicOff,
+    lowSure, acceptSure, line, emotion, theirsOnTable, canAccept, myTotal, revealedNow, canVoice, canMic, theirsForMe,
+    stamp, feedback, tip, send, putOnTable, accept, walk,
+  } = m
 
   const openNotebook = () => {
     setNotebook((o) => !o)
@@ -227,8 +74,6 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
       <span className="g-voice-btn-label">Голос</span>
     </Button>
   )
-
-  const stamp = state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
 
   return (
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
@@ -290,7 +135,7 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
 
             {done ? (
               <div className="g-end">
-                <p className="g-end-text">{endText(state, sc)}</p>
+                <p className="g-end-text">{endText(state, sc, g)}</p>
                 <div className="g-say-row">
                   <Button variant="brass" icon="stamp" className="g-big" onClick={onFinish}>
                     Разбор встречи
@@ -403,16 +248,13 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
                       options={i.options}
                       points={P.points[i.id]}
                       value={picks[i.id]}
-                      onChange={(v) => {
-                        setLowSure(false)
-                        setPicks((p) => ({ ...p, [i.id]: v }))
-                      }}
+                      onChange={(v) => m.pick(i.id, v)}
                     />
                     <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
                   </div>
                 ))}
                 {isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
-                  <button type="button" className="g-link g-copy" onClick={() => setPicks({ ...(state.lastOpponentOffer as FullOffer) })}>
+                  <button type="button" className="g-link g-copy" onClick={() => m.setPicks({ ...(state.lastOpponentOffer as Record<string, number>) })}>
                     Переписать с листка на столе
                   </button>
                 )}
@@ -438,10 +280,7 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
                       <button
                         type="button"
                         className="g-link"
-                        onClick={() => {
-                          setHistory((all) => all.slice(0, h.turn - 1))
-                          setDraft(h.playerText)
-                        }}
+                        onClick={() => m.rewind(h.turn)}
                       >
                         <PixelIcon name="rewind" px={2} /> Переиграть с этого хода
                       </button>
@@ -449,6 +288,11 @@ export function Play({ game, history, setHistory, redo, speech, tutorial, onTuto
                   ))}
                 </ol>
               </details>
+            )}
+            {on3d && (
+              <button type="button" className="g-link g-link--quiet g-view-3d" onClick={on3d}>
+                Сесть за стол в 3D
+              </button>
             )}
           </aside>
         </div>
@@ -474,191 +318,3 @@ function useSceneMax() {
   return m
 }
 
-function startPicks(sc: Scenario, state: OpponentState): FullOffer {
-  const out: FullOffer = {}
-  for (const i of sc.issues) out[i.id] = state.playerStance?.[i.id] ?? state.lastOpponentOffer?.[i.id] ?? bestOption(sc.player.profile, i.id)
-  return out
-}
-
-function endText(state: OpponentState, sc: Scenario): string {
-  const n = firstName(sc)
-  if (state.status === 'deal') return `По рукам. Посмотрим, сколько вы взяли и что осталось на столе.`
-  if (state.status === 'timeout') return 'Время встречи вышло, сделки нет. В разборе — какие варианты были.'
-  if (state.endedBy === 'opponent') return `${n} ${g(sc, 'встал', 'встала')} из-за стола. В разборе — что ${g(sc, 'его', 'её')} накалило.`
-  return 'Вы ушли без сделки и остались при своём запасном варианте.'
-}
-
-/** Листок «на столе»: последнее предложение и сколько оно даёт вам. */
-function Slip({
-  sc,
-  state,
-  theirs,
-  name,
-  canAccept,
-  onAccept,
-  sure,
-  where,
-}: {
-  sc: Scenario
-  state: OpponentState
-  theirs: boolean
-  name: string
-  canAccept: boolean
-  onAccept: () => void
-  sure?: boolean
-  where: 'stage' | 'side'
-}) {
-  const offer = state.tableOffer
-  const P = sc.player.profile
-  const rows = sc.issues.filter((i) => typeof offer[i.id] === 'number')
-  const silent = sc.issues.filter((i) => typeof offer[i.id] !== 'number')
-  const full = isComplete(sc, offer)
-  const mine = full ? score(P, offer) : null
-  const from = state.status === 'deal' ? 'Подписано' : theirs ? (state.lastCall ? `${name}: последнее предложение, да или нет` : `${name} предлагает`) : 'Вы предлагаете'
-  return (
-    <aside className={`px-slip g-slip g-slip--${where}${state.lastCall ? ' is-last' : ''}`} aria-label="Предложение на столе">
-      <p className="px-slip-from">{from}</p>
-      <dl className="px-slip-rows">
-        {rows.map((i) => (
-          <div key={i.id} className="px-slip-row">
-            <dt>{i.title}</dt>
-            <dd>
-              {i.options[offer[i.id]!]} <span className="g-slip-pts">{P.points[i.id][offer[i.id]!]}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <div className="g-slip-foot">
-        <p>
-          {mine !== null ? (
-            <>
-              Вам это даёт <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, запасной вариант — {P.batna}.
-            </>
-          ) : (
-            <>Про {silent.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} пока никто ничего не сказал.</>
-          )}
-        </p>
-        {canAccept && sure && mine !== null && (
-          <p className="g-low" role="alert">
-            Это меньше вашего запасного варианта: {mine} против {P.batna}. Выгоднее встать и уйти.
-          </p>
-        )}
-        {canAccept && (
-          <Button variant={sure ? 'stamp' : 'paper'} icon="check" onClick={onAccept}>
-            {sure ? 'Всё равно принять' : 'Принять'}
-          </Button>
-        )}
-      </div>
-    </aside>
-  )
-}
-
-/** Раскрытые интересы оппонента — заметки ручкой в блокноте, у того пункта, к которому они относятся. */
-function Notes({ sc, state, issue, fresh, name }: { sc: Scenario; state: OpponentState; issue?: string; fresh?: string; name: string }) {
-  const notes = sc.opponent.profile.interests.filter((it) => state.revealed.includes(it.id) && (it.issue ?? undefined) === issue)
-  if (!notes.length) return null
-  return (
-    <ul className="g-notes">
-      {notes.map((it) => (
-        <li key={it.id} className={it.id === fresh ? 'is-fresh' : undefined}>
-          <b>{name}:</b> {it.text}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-const DECISION_RU = (sc: Scenario): Record<Decision['kind'], string> => ({
-  accept: 'соглашается',
-  counter: 'кладёт встречное предложение',
-  reveal: `рассказывает, что ${g(sc, 'ему', 'ей')} важно`,
-  hold: 'держит позицию',
-  warn_tone: 'одёргивает за тон',
-  walk_away: 'встаёт из-за стола',
-})
-const HOLD_RU = (sc: Scenario): Record<string, string> => ({
-  no_offer: 'ждёт от вас конкретики',
-  no_movement: 'не двигается: взамен пока мало',
-  not_ready_to_reveal: `не ${g(sc, 'готов', 'готова')} рассказывать — мало доверия`,
-  player_left: 'вы ушли',
-  timeout: 'время вышло',
-})
-
-/** «Рентген»: скрытое состояние собеседника и почему оно сдвинулось на последнем ходу. */
-function XRay({ sc, state, last, name, onClose }: { sc: Scenario; state: OpponentState; last?: TurnRecord; name: string; onClose: () => void }) {
-  const dTrust = last?.deltas.filter((d) => d.field === 'trust').reduce((s, d) => s + d.by, 0) ?? 0
-  const dTension = last?.deltas.filter((d) => d.field === 'tension').reduce((s, d) => s + d.by, 0) ?? 0
-  const hidden = sc.opponent.profile.interests.filter((i) => !state.revealed.includes(i.id))
-  const next = [...hidden].sort((a, b) => a.trustToReveal - b.trustToReveal)[0]
-  const d = last?.decision
-  const decision = d ? (d.kind === 'hold' ? HOLD_RU(sc)[d.reason ?? 'no_offer'] : DECISION_RU(sc)[d.kind]) : null
-  // «не расскажет»: о чём спросили — и сколько доверия для этого нужно
-  let closed = ''
-  if (d?.kind === 'hold' && d.reason === 'not_ready_to_reveal' && last) {
-    const about = pickInterest(sc, state, last.analysis).queue[0]
-    closed = about
-      ? `Об этом ${g(sc, 'он', 'она')} расскажет при доверии от ${revealAt(sc, about)}, сейчас ${state.trust}.`
-      : `Об этом ${g(sc, 'он', 'она')} уже всё ${g(sc, 'сказал', 'сказала')} — спросите о другом.`
-  }
-  const bad = last?.analysis.behaviors.filter((b) => BEHAVIOR_DICT[b.id]?.kind === 'bad') ?? []
-  return (
-    <section className="g-xray" aria-label="Рентген: что чувствует собеседник">
-      <h2 className="g-xray-title">
-        <PixelIcon name="eye" px={2} color="var(--c-grid)" color2="var(--c-coral)" />
-        Рентген: что под столом
-        {/* на телефоне рентген — шторка поверх встречи, её можно убрать */}
-        <button type="button" className="g-xray-close" aria-label="Закрыть рентген" onClick={onClose}>
-          <PixelIcon name="cross" px={2} color="var(--c-mist)" />
-        </button>
-      </h2>
-      <div className="g-xray-meter">
-        <Meter label="Доверие" value={state.trust} tone="trust" />
-        {dTrust !== 0 && <span className={dTrust > 0 ? 'is-up' : 'is-down'}>{signed(dTrust)}</span>}
-      </div>
-      <div className="g-xray-meter">
-        <Meter label="Напряжение" value={state.tension} tone="tension" />
-        {dTension !== 0 && <span className={dTension < 0 ? 'is-up' : 'is-down'}>{signed(dTension)}</span>}
-      </div>
-      {last ? (
-        <>
-          <p className="g-xray-sub">Ход {last.turn}: {name} {decision}.</p>
-          {last.deltas.length > 0 && (
-            <ul className="g-xray-deltas">
-              {groupDeltas(last.deltas).map((x) => (
-                <li key={x.because} title={x.because}>
-                  {x.trust !== 0 && <span className={x.trust > 0 ? 'is-up' : 'is-down'}>{signed(x.trust)} доверие </span>}
-                  {x.tension !== 0 && <span className={x.tension < 0 ? 'is-up' : 'is-down'}>{signed(x.tension)} напряжение </span>}
-                  {/* цитату игрок только что написал сам — в рентгене хватит названия приёма, так он влезает в экран ноутбука */}
-                  {x.because.replace(/: «[^»]*»/u, '')}
-                </li>
-              ))}
-            </ul>
-          )}
-          {closed && <p className="g-xray-sub">{closed}</p>}
-          {bad.length > 0 && <p className="g-xray-sub">Слабые приёмы: {bad.map((b) => BEHAVIOR_DICT[b.id]?.label).join(', ').toLowerCase()}.</p>}
-        </>
-      ) : (
-        <p className="g-xray-sub">Здесь будет видно, как каждая ваша реплика сдвигает доверие и напряжение — и почему.</p>
-      )}
-      <p className="g-xray-note">
-        {g(sc, 'Рассказал', 'Рассказала')} о себе {state.revealed.length} из {sc.opponent.profile.interests.length}.
-        {/* если только что отказал, порог уже назван выше — второй, про другое, только путает */}
-        {next && !closed ? ` Следующее расскажет при доверии от ${revealAt(sc, next)}, если спросить.` : ''} Уйдёт, если напряжение дойдёт до
-        90.
-      </p>
-    </section>
-  )
-}
-
-/** Сдвиги с одной причиной — в одну строку: «+4 доверие −1 напряжение Открытый приоритет». */
-function groupDeltas(ds: TurnRecord['deltas']) {
-  const out: { because: string; trust: number; tension: number }[] = []
-  for (const d of ds) {
-    let row = out.find((r) => r.because === d.because)
-    if (!row) out.push((row = { because: d.because, trust: 0, tension: 0 }))
-    row[d.field] += d.by
-  }
-  return out
-}
-
-const signed = (n: number) => (n > 0 ? `+${n}` : `−${Math.abs(n)}`)

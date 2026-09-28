@@ -1,0 +1,213 @@
+// Логика встречи без вёрстки: реплики, блокнот, «Принять», «Уйти», голос, подсказки на ходу.
+// Ей пользуются оба вида встречи — классический 2D (screens/Play.tsx) и 3D (screens/Play3D.tsx).
+
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import type { Case } from '../App'
+import { initialState } from '../engine/turn'
+import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types'
+import { bestOption, formatOffer, isComplete, sameOffer, score, type FullOffer } from '../engine/utility'
+import { ApiError, playTurn } from './api'
+import { firstName } from './cast'
+import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
+import { markTutorialDone } from './progress'
+import { loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, stopAudio, unlockAudio, voiceFor, type SpeechCaps } from './speech'
+import { cpsFor, toPortraitEmotion } from './ui'
+
+export interface MeetingProps {
+  game: Case
+  history: TurnRecord[]
+  setHistory: Dispatch<SetStateAction<TurnRecord[]>>
+  redo: string
+  /** что умеет сервер из голоса; нет — кнопок голоса нет */
+  speech?: SpeechCaps
+  tutorial: boolean
+  onTutorialOff: () => void
+  onFinish: () => void
+  onQuit: () => void
+}
+
+export interface SendOpts {
+  offer?: Offer
+  accept?: boolean
+  walkAway?: boolean
+}
+
+export function useMeeting({ game, history, setHistory, redo, speech, tutorial, onTutorialOff }: MeetingProps, hooks: { afterSend?: (o: SendOpts) => void } = {}) {
+  const sc = game.scenario
+  const P = sc.player.profile
+  const last = history[history.length - 1]
+  const state: OpponentState = last?.stateAfter ?? initialState(sc)
+  const done = state.status !== 'open'
+  const name = firstName(sc)
+
+  const [draft, setDraft] = useState(redo)
+  const [picks, setPicks] = useState<FullOffer>(() => startPicks(sc, state))
+  const [pending, setPending] = useState<null | string>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [talking, setTalking] = useState(false)
+  const [xray, setXray] = useState(false)
+  const [xrayUsed, setXrayUsed] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  // разбор хода на полях: включён у всех, кто не выключил сам; в первой партии к советам добавляются записки наставника
+  const [instantOn, setInstantOn] = useState(loadInstantOn)
+  const [source, setSource] = useState<string>('')
+  const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
+  const voiceRef = useRef(voiceOn)
+  // скорость печати под озвучку — только для той реплики, что сейчас звучит
+  const [voiced, setVoiced] = useState<{ text: string; cps: number; n: number } | null>(null)
+  const [micOff, setMicOff] = useState(false)
+  const [lowSure, setLowSure] = useState(false)
+  const [acceptSure, setAcceptSure] = useState(false)
+
+  const line = pending ? '…' : last?.opponentLine || sc.opening
+  const emotion = pending ? 'thinking' : toPortraitEmotion(last?.emotion)
+  const theirsOnTable = sameOffer(state.tableOffer, state.lastOpponentOffer)
+  const canAccept = !done && theirsOnTable && isComplete(sc, state.lastOpponentOffer)
+  const myTotal = score(P, picks)
+  const revealedNow = last?.decision.kind === 'reveal' ? last.decision.interestId : undefined
+  const online = source !== 'local'
+  const canVoice = !!speech?.tts && online
+  const canMic = !!speech?.stt && online && !micOff
+  const theirsForMe = isComplete(sc, state.lastOpponentOffer) ? score(P, state.lastOpponentOffer) : null
+  const stamp: 'deal' | 'timeout' | 'walked' | null =
+    state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
+
+  // реплика сменилась не озвучкой (перемотка, ожидание) — замолкаем; уход с экрана — тоже
+  useEffect(() => {
+    if (voiced && voiced.text !== line) stopAudio()
+  }, [line, voiced])
+  useEffect(() => stopAudio, [])
+  // голос включён с прошлого раза — собеседник здоровается вслух
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (greeted.current || !canVoice || !voiceRef.current || history.length) return
+    greeted.current = true
+    speak(sc.opening, 'neutral')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canVoice])
+
+  /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
+  async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {
+    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion))
+    if (!p || !voiceRef.current) return
+    setVoiced((v) => ({ text, cps: cpsFor(text, p.duration), n: (v?.n ?? 0) + 1 }))
+    if (!(await playPrepared(p))) setVoiced(null)
+  }
+
+  const toggleVoice = () => {
+    const on = !voiceOn
+    setVoiceOn(on)
+    voiceRef.current = on
+    saveVoiceOn(on)
+    if (!on) {
+      stopAudio()
+      setVoiced(null)
+      return
+    }
+    // внутри клика: прогреваем звук (iOS) и сразу озвучиваем то, что на экране
+    unlockAudio()
+    if (!pending) speak(line, last?.emotion)
+  }
+
+  const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
+  const tip = useMemo(
+    () => (instantOn && !done && !pending ? nextTip(sc, history, { tutorial, xrayUsed }) : null),
+    [instantOn, done, pending, sc, history, tutorial, xrayUsed],
+  )
+  const switchInstant = (on: boolean) => {
+    setInstantOn(on)
+    saveInstantOn(on)
+    // выключили подсказки в первой партии — обучение пройдено, как раньше по «Без подсказок»
+    if (!on && tutorial) {
+      markTutorialDone()
+      onTutorialOff()
+    }
+  }
+
+  useEffect(() => {
+    if (!leaving) return
+    const t = setTimeout(() => setLeaving(false), 3000)
+    return () => clearTimeout(t)
+  }, [leaving])
+
+  async function send(text: string, opts: SendOpts = {}) {
+    if (pending || done) return
+    const t = text.trim()
+    if (!t) return
+    setPending(t)
+    setError(null)
+    // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
+    const withVoice = voiceOn && canVoice
+    if (withVoice) unlockAudio()
+    try {
+      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts })
+      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом
+      const ready = withVoice && r.source !== 'local' ? await prepareLine(r.record.opponentLine, voiceFor(sc), r.record.emotion) : null
+      setHistory((h) => [...h, r.record])
+      if (ready) speak(r.record.opponentLine, r.record.emotion, ready)
+      setSource(r.source)
+      setDraft('')
+      setAcceptSure(false)
+      hooks.afterSend?.(opts)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const putOnTable = () => {
+    // своё же предложение хуже запасного варианта — переспросим один раз
+    if (myTotal < P.batna && !lowSure) return setLowSure(true)
+    setLowSure(false)
+    send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
+  }
+  const accept = () => {
+    // принять то, что хуже запасного варианта, — переспросим один раз, как и в блокноте
+    if (theirsForMe !== null && theirsForMe < P.batna && !acceptSure) return setAcceptSure(true)
+    setAcceptSure(false)
+    send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
+  }
+  const walk = () => {
+    if (!leaving) return setLeaving(true)
+    setLeaving(false)
+    send('Спасибо за время, но так мы не договоримся. Я ухожу.', { walkAway: true })
+  }
+  const pick = (issue: string, v: number) => {
+    setLowSure(false)
+    setPicks((p) => ({ ...p, [issue]: v }))
+  }
+  /** Переиграть с хода turn (с 1): всё, что было до него, остаётся, реплика — в поле ввода. */
+  const rewind = (turn: number) => {
+    setDraft(history[turn - 1]?.playerText ?? '')
+    setHistory((all) => all.slice(0, turn - 1))
+  }
+  const undo = () => setHistory((h) => h.slice(0, -1))
+
+  return {
+    sc, P, last, state, done, name,
+    draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
+    xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
+    voiceOn, toggleVoice, voiced, micOff, setMicOff, lowSure, acceptSure,
+    line, emotion, theirsOnTable, canAccept, myTotal, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
+    feedback, tip,
+    send, putOnTable, accept, walk, rewind, undo,
+  }
+}
+
+export type Meeting = ReturnType<typeof useMeeting>
+
+function startPicks(sc: Scenario, state: OpponentState): FullOffer {
+  const out: FullOffer = {}
+  for (const i of sc.issues) out[i.id] = state.playerStance?.[i.id] ?? state.lastOpponentOffer?.[i.id] ?? bestOption(sc.player.profile, i.id)
+  return out
+}
+
+/** Чем кончилась встреча — одна строка над кнопкой «Разбор встречи». */
+export function endText(state: OpponentState, sc: Scenario, g: (sc: Scenario, m: string, f: string) => string): string {
+  const n = firstName(sc)
+  if (state.status === 'deal') return `По рукам. Посмотрим, сколько вы взяли и что осталось на столе.`
+  if (state.status === 'timeout') return 'Время встречи вышло, сделки нет. В разборе — какие варианты были.'
+  if (state.endedBy === 'opponent') return `${n} ${g(sc, 'встал', 'встала')} из-за стола. В разборе — что ${g(sc, 'его', 'её')} накалило.`
+  return 'Вы ушли без сделки и остались при своём запасном варианте.'
+}
