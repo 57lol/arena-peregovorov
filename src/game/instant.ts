@@ -42,6 +42,13 @@ export interface Tip {
 
 const QUOTE_MAX = 48
 
+/** Тексты приёмов пишут методисты; игроку «размен» говорим как «обмен», «очки» — как «выгоду». */
+export const plainWords = (t: string) =>
+  t
+    .replace(/Размен/g, 'Обмен')
+    .replace(/размен/g, 'обмен')
+    .replace(/общих очков/g, 'общей выгоды')
+
 /** Фрагмент реплики для пометки на полях: до ~64 знаков, по границе слова. */
 export function fragment(q: string): string {
   const s = q.replace(/\s+/g, ' ').trim().replace(/[.,;:—-]+$/u, '')
@@ -98,7 +105,7 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
     const note = rec.deltas.find((d) => d.because.startsWith(b.title))?.because ?? ''
     const tail = note.includes('(повтор') ? ' Второй раз подряд — работает вдвое слабее.' : note.includes('(спираль') ? ' Уже второй промах подряд — бьёт сильнее.' : ''
     const raw = hit.quote?.trim() || rec.playerText
-    notes.push({ key: b.id, ink, title: b.title, why: b.moment + tail, quote: raw ? fragment(raw) : undefined })
+    notes.push({ key: b.id, ink, title: b.title, why: plainWords(b.moment) + tail, quote: raw ? fragment(raw) : undefined })
   }
   for (const d of rec.deltas) {
     const o = OTHER[d.because]

@@ -34,7 +34,7 @@ describe('карточка хода', () => {
     const fb = last(play(['Давайте просто поделим разницу пополам и разойдёмся довольными.']))
     const split = fb.notes.find((n) => n.key === 'split')!
     expect(split.ink).toBe('bad')
-    expect(split.why).toMatch(/размен/)
+    expect(split.why).toMatch(/обмен/)
     expect(fb.verdict.ink).toBe('bad')
   })
 

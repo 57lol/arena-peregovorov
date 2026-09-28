@@ -20,6 +20,7 @@ import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 import { summarize } from '../summary'
+import { plainWords } from '../instant'
 import '../onboarding.css'
 
 interface Props {
@@ -372,7 +373,7 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
                       <li key={b.id} className={`is-${def.polarity}`}>
                         <b>{def.title}</b>
                         {def.polarity === 'strong' ? ' — сильный приём' : def.polarity === 'weak' ? ' — слабый приём' : ''}.{' '}
-                        {def.polarity !== 'strong' ? def.advice : whyWorks(def)}{' '}
+                        {plainWords(def.polarity !== 'strong' ? def.advice : whyWorks(def))}{' '}
                         {src && (
                           <a href={src.url} target="_blank" rel="noreferrer" className="g-cite">
                             {shortCite(src.cite)}
@@ -580,7 +581,7 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
               </p>
               {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} />}
               {q && <blockquote className="g-quote g-quote--small">{censor(q)}</blockquote>}
-              {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{def.advice}</p>}
+              {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{plainWords(def.advice)}</p>}
             </li>
           )
         })}

@@ -6,7 +6,7 @@ import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { maxScore } from '../engine/utility'
 import { firstName, g } from './cast'
-import { fragment } from './instant'
+import { fragment, plainWords } from './instant'
 
 export interface Summary {
   result: string
@@ -63,5 +63,5 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     next = `Можно было получить больше обоим — ещё ${r.leftOnTable} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
   else if (!deal && r.zopa) next = `Предложите условия по всем пунктам сразу: так ${him} проще согласиться, а вам — обменять одно на другое.`
   else next = sc.lessons?.[0] ?? sc.goals?.[0] ?? 'Попробуйте сыграть это дело жёстче.'
-  return { result, good, quote, next }
+  return { result, good: plainWords(good), quote, next: plainWords(next) }
 }
