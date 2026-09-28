@@ -79,3 +79,12 @@ describe('цитаты в разборе', () => {
     expect(censor('Давайте обсудим график')).toBe('Давайте обсудим график')
   })
 })
+
+describe('частота с прилагательным', () => {
+  it('«два учебных дня в месяц» — это «2 дня в месяц», а не «нет»', async () => {
+    const { offer } = await import('../../content/scenarios/offer')
+    const { parseOffer } = await import('./parseOffer')
+    expect(parseOffer(offer, 'Оклад 210 тысяч и два учебных дня в месяц.').study).toBe(1)
+    expect(parseOffer(offer, 'Один учебный день в неделю.').study).toBe(2)
+  })
+})
