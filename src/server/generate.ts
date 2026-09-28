@@ -9,7 +9,7 @@ import { checkScenario } from '../engine/validate'
 import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
 import { mentionedIssues, parseOffer } from '../engine/offline'
 import { openingAnchor } from '../engine/policy'
-import { formatOffer, maxScore } from '../engine/utility'
+import { maxScore } from '../engine/utility'
 import { hashOf } from './cache'
 import type { LLM } from './llm'
 
@@ -202,7 +202,12 @@ export function fitOpening(sc: Scenario): string {
   const talk = (sc.opening.match(/[^.!?…]+[.!?…]*/gu) ?? [])
     .map((x) => x.trim())
     .filter((x) => x && !/\d/.test(x) && !mentionedIssues(sc, x).length && !Object.keys(parseOffer(sc, x)).length)
-  return [...talk, `Мои условия такие: ${formatOffer(sc, anchor)}.`].join(' ')
+  // «стоимость уборки (₽) — 4500»: скобки из названия пункта вслух не произносят
+  const terms = sc.issues
+    .filter((i) => typeof anchor[i.id] === 'number')
+    .map((i) => `${i.title.replace(/\s*\([^)]*\)/gu, '').toLowerCase()} — ${i.options[anchor[i.id]!]}`)
+    .join(', ')
+  return [...talk, `Мои условия такие: ${terms}.`].join(' ')
 }
 
 /** Последние штрихи к делу, которое прошло проверки. */
