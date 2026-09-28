@@ -15,7 +15,7 @@ const STORY_ROOM_CASE: Partial<Record<WorldKind, { caseId: string; face: string 
   dorm: { caseId: 'dorm', face: 'sosed' },
   street: { caseId: 'stop', face: 'gopnik' },
   shop: { caseId: 'shop', face: 'admin' },
-  bytovka: { caseId: 'night', face: 'foreman' },
+  bytovka: { caseId: 'launch', face: 'palych' },
 }
 
 export default function Preview() {
