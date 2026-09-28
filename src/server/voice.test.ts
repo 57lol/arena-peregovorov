@@ -100,3 +100,28 @@ describe('шаблон встречного', () => {
     expect(line).not.toMatch(/отсрочка|договор/i)
   })
 })
+
+describe('собеседник не путает стороны', async () => {
+  const { client } = await import('../content/scenarios/client')
+  const { SCENARIOS } = await import('../content/scenarios')
+  const walk = { kind: 'walk_away' } as const
+
+  it('закупщица не отправляет поставщика искать поставщика', () => {
+    const s = initialState(client)
+    expect(lineFits(client, walk, s, 'Всё, разговор окончен. Ищите другого поставщика.')).toBe(false)
+    expect(lineFits(client, walk, s, 'Хватит. Найду другого клиента.')).toBe(false)
+    expect(lineFits(client, walk, s, 'Всё. Ищите другого клиента, а я звоню в Нинбо.')).toBe(true)
+    expect(lineFits(client, walk, s, 'Разговор окончен, найду другого поставщика.')).toBe(true)
+  })
+
+  it('продавец — наоборот', () => {
+    const s = initialState(tara)
+    expect(lineFits(tara, walk, s, 'Всё, ищите другого поставщика.')).toBe(true)
+    expect(lineFits(tara, walk, s, 'Всё, ищите другого клиента.')).toBe(false)
+  })
+
+  it('шаблонные реплики всех дел проходят проверку сторон', async () => {
+    const { mixesSides } = await import('./voice')
+    for (const sc of SCENARIOS) for (const l of Object.values(sc.opponent.character.lines ?? {}).flat()) expect(mixesSides(sc, l), l).toBe(false)
+  })
+})

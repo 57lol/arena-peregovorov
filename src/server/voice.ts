@@ -32,6 +32,7 @@ function system(sc: Scenario): string {
   return `Ты играешь роль в тренажёре переговоров. Ты — ${c.name}, ${c.role}${c.company ? `, «${c.company}»` : ''}.
 ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.speech ? `Манера речи: ${c.speech}.` : ''}
 Твоя позиция: ${sc.opponent.brief}
+Напротив тебя (это и есть собеседник): ${sc.player.role}.
 
 Как говорить:
 - Живая устная речь делового человека. 1–3 коротких предложения, до 35 слов.
@@ -182,12 +183,28 @@ export function keepsGist(interest: string, line: string): boolean {
   return hits >= (want.length >= 4 ? 2 : 1)
 }
 
+// Кто есть кто. Собеседник-закупщик отправляет игрока искать другого клиента, а не поставщика, и сам уходит
+// к другому поставщику. У продавца наоборот. Сторону берём по должности; найм и прочее не проверяем.
+const SEND_AWAY = (who: string) => new RegExp(`(ищите|найдите|поищите)\\s+(себе\\s+)?(другого|другой|нового|других|новых)\\s+(${who})`, 'iu')
+const GO_TO = (who: string) => new RegExp(`(найду|поищу|возьму|пойду к|уйду к|пойдём к|уйдём к|найдём)\\s+(себе\\s+)?(другого|другому|нового|новому|других|другим)\\s+(${who})`, 'iu')
+const SELLERS = 'поставщик\\p{L}*|подрядчик\\p{L}*|продав\\p{L}*'
+const BUYERS = 'клиент\\p{L}*|покупател\\p{L}*|заказчик\\p{L}*'
+export function mixesSides(sc: Scenario, line: string): boolean {
+  const c = sc.opponent.character
+  const buys = /закуп|снабж/iu.test(c.role)
+  const sells = !buys && /коммерческ|продаж|поставк/iu.test(c.role)
+  if (buys) return SEND_AWAY(SELLERS).test(line) || GO_TO(BUYERS).test(line)
+  if (sells) return SEND_AWAY(BUYERS).test(line) || GO_TO(SELLERS).test(line)
+  return false
+}
+
 /** Проверяем, что реплика не противоречит решению движка. `prev` — прошлое предложение собеседника. */
 export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string, prev?: Offer): boolean {
   const low = line.toLowerCase()
   if (inventsReason(sc, d, state, line)) return false
   if (hidesChanges(sc, d, prev, line)) return false
   if (BANNED.some((b) => low.includes(b))) return false
+  if (mixesSides(sc, line)) return false
   if (d.kind !== 'accept' && saysYes(line)) return false
   const holding = d.kind === 'hold' && d.reason === 'no_movement'
   const expected =
