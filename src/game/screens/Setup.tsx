@@ -7,6 +7,7 @@ import { DIFFICULTY_RU, TONE_RU, plural, portraitFor } from '../cast'
 import type { Progress } from '../progress'
 import { ENDING_IDS } from '../../engine/endings'
 import { Button, PixelIcon, Portrait } from '../ui'
+import { CoachEntry } from './CoachEntry'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 
@@ -15,9 +16,14 @@ interface Props {
   server: Health | null | undefined
   onOpen: (c: Case) => void
   onBack: () => void
+  /** кабинет руководителя: папка та же, но дело не открываем, а отдаём команде */
+  coach?: boolean
+  onCoach?: () => void
+  /** что показать над папкой (в кабинете — открытые тренировки) */
+  intro?: React.ReactNode
 }
 
-export function Setup({ progress, server, onOpen, onBack }: Props) {
+export function Setup({ progress, server, onOpen, onBack, coach, onCoach, intro }: Props) {
   return (
     <div className="px-root g-page" data-desk="factory">
       <main className="px-desk g-desk g-setup">
@@ -26,23 +32,33 @@ export function Setup({ progress, server, onOpen, onBack }: Props) {
             Назад
           </Button>
         </header>
-        <h1 className="g-h1">Выберите дело</h1>
+        <h1 className="g-h1">{coach ? 'Какое дело дать команде' : 'Выберите дело'}</h1>
         <p className="g-sub">
-          <span>Готовое из папки или своё — под вашу сферу и задачу.</span>
+          <span>
+            {coach
+              ? 'Готовое из папки или своё. У всех по ссылке будут одинаковые условия, и результаты сойдутся на одной доске.'
+              : 'Готовое из папки или своё — под вашу сферу и задачу.'}
+          </span>
         </p>
+        {intro}
 
         <div className="g-folders">
           {SCENARIOS.map((sc) => (
-            <Folder key={sc.id} sc={sc} progress={progress} onOpen={() => onOpen({ scenario: sc, fromLibrary: true })} />
+            <Folder key={sc.id} sc={sc} progress={progress} coach={coach} onOpen={() => onOpen({ scenario: sc, fromLibrary: true })} />
           ))}
-          <CustomCase server={server} onOpen={onOpen} />
+          <CustomCase server={server} onOpen={onOpen} coach={coach} />
         </div>
+        {onCoach && !coach && (
+          <div className="g-coach-slot">
+            <CoachEntry onOpen={onCoach} />
+          </div>
+        )}
       </main>
     </div>
   )
 }
 
-function Folder({ sc, progress, onOpen }: { sc: Scenario; progress: Progress; onOpen: () => void }) {
+function Folder({ sc, progress, coach, onOpen }: { sc: Scenario; progress: Progress; coach?: boolean; onOpen: () => void }) {
   const rec = progress.cases[sc.id]
   const endings = progress.endings[sc.id]?.length ?? 0
   const c = sc.opponent.character
@@ -86,10 +102,10 @@ function Folder({ sc, progress, onOpen }: { sc: Scenario; progress: Progress; on
         </div>
       </div>
       <div className="g-folder-actions">
-        <Button variant="brass" icon="notebook" onClick={onOpen}>
-          Открыть дело
+        <Button variant="brass" icon={coach ? 'send' : 'notebook'} onClick={onOpen}>
+          {coach ? 'Дать команде' : 'Открыть дело'}
         </Button>
-        <ShareButton scenario={sc} fromLibrary />
+        {!coach && <ShareButton scenario={sc} fromLibrary />}
       </div>
     </article>
   )
@@ -106,7 +122,7 @@ const STEPS = [
   'Не сошлось — переписываем…',
 ]
 
-function CustomCase({ server, onOpen }: { server: Health | null | undefined; onOpen: (c: Case) => void }) {
+function CustomCase({ server, onOpen, coach }: { server: Health | null | undefined; onOpen: (c: Case) => void; coach?: boolean }) {
   const [openForm, setOpenForm] = useState(false)
   const [req, setReq] = useState<GenerateRequest>({
     sphere: 'Аренда',
@@ -263,7 +279,7 @@ function CustomCase({ server, onOpen }: { server: Health | null | undefined; onO
             <p>{fallback.message}</p>
             {fallback.scenario && (
               <Button onClick={() => onOpen({ scenario: fallback.scenario!, fromLibrary: false })}>
-                Сыграть «{fallback.scenario.title}»
+                {coach ? 'Дать команде' : 'Сыграть'} «{fallback.scenario.title}»
               </Button>
             )}
           </div>

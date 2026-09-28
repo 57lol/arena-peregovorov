@@ -4,17 +4,22 @@ import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { loadProgress, type Progress } from './game/progress'
 import { clearLink, readLink } from './game/share'
+import { loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
 import { loadVoiceOn, unlockAudio } from './game/speech'
 import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
 import { Play } from './game/screens/Play'
 import { Debrief } from './game/screens/Debrief'
+import { Coach } from './game/screens/Coach'
+import { Board } from './game/screens/Board'
+import { RoomReceipt } from './game/screens/RoomReceipt'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
+import './game/coach.css'
 
-export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report'
+export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board'
 
 export interface Case {
   scenario: Scenario
@@ -28,10 +33,14 @@ interface Saved {
   current: Case | null
   history: TurnRecord[]
   recorded?: string
+  /** тренировка команды, на которую пришли по ссылке */
+  room?: RoomRef | null
+  startedAt?: number
+  sent?: string
 }
 function loadSession(): Saved | null {
   try {
-    if (/[?#&]case=/.test(location.search + location.hash)) return null // ссылка на дело важнее
+    if (/[?#&](case|board)=/.test(location.search + location.hash)) return null // ссылка на дело или доску важнее
     // восстанавливаем только при перезагрузке или «назад/вперёд»; открыли адрес заново — начинаем с титула
     const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
     if (nav?.type === 'navigate') return null
@@ -42,14 +51,20 @@ function loadSession(): Saved | null {
   }
 }
 const saved = loadSession()
+// доска руководителя открывается по своей ссылке и живёт отдельно от игры
+const boardRef = readBoardParam()
 /** Подпись партии: разбор одной и той же партии записываем в прогресс один раз. */
 const runKey = (c: Case | null, h: TurnRecord[]) => (c ? `${c.scenario.id}:${h.map((x) => x.playerText).join('|')}` : '')
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(saved?.screen ?? 'title')
+  const [screen, setScreen] = useState<Screen>(boardRef ? 'board' : (saved?.screen ?? 'title'))
   const [current, setCurrent] = useState<Case | null>(saved?.current ?? null)
   const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
   const [recorded, setRecorded] = useState(saved?.recorded ?? '')
+  const [room, setRoom] = useState<RoomRef | null>(saved?.room ?? null)
+  const [player, setPlayer] = useState(loadPlayer)
+  const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
+  const [sent, setSent] = useState(saved?.sent ?? '')
   const [progress, setProgress] = useState<Progress>(loadProgress)
   const [invited, setInvited] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -62,11 +77,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded } satisfies Saved))
+      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, startedAt, sent } satisfies Saved))
     } catch {
       // нет хранилища — после перезагрузки начнём с титула
     }
-  }, [screen, current, history, recorded])
+  }, [screen, current, history, recorded, room, startedAt, sent])
 
   useEffect(() => {
     health().then(setServer)
@@ -85,6 +100,19 @@ export default function App() {
         setCurrent({ scenario: sc, fromLibrary: !!lib })
         setInvited(true)
         setScreen('title')
+        // ссылка тренировки: дело то же, плюс комната, куда уйдёт результат
+        const roomId = readRoomParam()
+        setRoom(null)
+        if (roomId)
+          roomInfo(roomId)
+            .then((r) => (r.caseId === sc.id ? setRoom(r) : setNotice('Ссылка тренировки не сходится с делом. Сыграть можно, но результат никуда не уйдёт.')))
+            .catch((e) =>
+              setNotice(
+                e instanceof RoomError && e.status === 404
+                  ? 'Тренировки по этой ссылке уже нет. Дело сыграть можно, но результат никуда не уйдёт.'
+                  : 'Сервер тренировки не отвечает, поэтому руководитель не увидит ваш результат. Сыграть можно.',
+              ),
+            )
       })
     fromLink()
     // ссылку вставили в адрес открытой вкладки — меняется только #
@@ -120,6 +148,7 @@ export default function App() {
     if (server?.speech?.tts && loadVoiceOn()) unlockAudio()
     setHistory([])
     setRedo('')
+    setStartedAt(Date.now())
     setPlayKey((k) => k + 1)
     go('play')
   }
@@ -129,9 +158,25 @@ export default function App() {
     const before = history.slice(0, Math.max(0, turn - 1))
     setRedo(history[turn - 1]?.playerText ?? '')
     setHistory(before)
+    setStartedAt(Date.now())
     setPlayKey((k) => k + 1)
     go('play')
   }
+
+  if (screen === 'board' && boardRef)
+    return (
+      <Board
+        server={server}
+        id={boardRef.id}
+        secret={boardRef.key}
+        onExit={() => {
+          clearLink()
+          go('title')
+        }}
+      />
+    )
+
+  if (screen === 'coach') return <Coach progress={progress} server={server} onBack={() => go('title')} />
 
   if (screen === 'title')
     return (
@@ -140,6 +185,13 @@ export default function App() {
         invited={invited ? current : null}
         notice={notice}
         server={server}
+        room={room}
+        playerName={player.name}
+        onPlayerName={(name) => {
+          setPlayer((p) => ({ ...p, name }))
+          savePlayerName(name.trim())
+        }}
+        onCoach={() => go('coach')}
         onStart={() => {
           setNotice(null)
           if (invited && current) {
@@ -151,13 +203,14 @@ export default function App() {
         onLibrary={() => {
           clearLink()
           setInvited(false)
+          setRoom(null)
           go('setup')
         }}
       />
     )
 
   if (screen === 'setup' || !current)
-    return <Setup progress={progress} server={server} onOpen={open} onBack={() => go('title')} />
+    return <Setup progress={progress} server={server} onOpen={open} onBack={() => go('title')} onCoach={() => go('coach')} />
 
   if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go('setup')} />
 
@@ -189,6 +242,20 @@ export default function App() {
       onReplayFrom={rewindTo}
       onAgain={start}
       onOther={() => go('setup')}
+      receipt={
+        room && room.caseId === current.scenario.id && history.length ? (
+          <RoomReceipt
+            key={runKey(current, history)}
+            room={room}
+            name={player.name.trim() || 'Без имени'}
+            clientId={player.clientId}
+            history={history}
+            seconds={(Date.now() - startedAt) / 1000}
+            sent={sent === runKey(current, history)}
+            onSent={() => setSent(runKey(current, history))}
+          />
+        ) : null
+      }
     />
   )
 }

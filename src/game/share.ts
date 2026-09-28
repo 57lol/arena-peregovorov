@@ -13,9 +13,9 @@ async function pipe(bytes: Uint8Array, stream: CompressionStream | Decompression
   return new Uint8Array(await new Response(out).arrayBuffer())
 }
 
-export async function shareLink(sc: Scenario, fromLibrary: boolean): Promise<string> {
-  const base = `${location.origin}${location.pathname}`
-  if (fromLibrary) return `${base}?case=${encodeURIComponent(sc.id)}`
+/** id дела, по которому его откроет сервер: библиотечное — как есть, своё — кладём на сервер. Нет сервера — null. */
+export async function saveCase(sc: Scenario, fromLibrary: boolean): Promise<string | null> {
+  if (fromLibrary) return sc.id
   try {
     const r = await fetch('/api/scenarios', {
       method: 'POST',
@@ -24,10 +24,17 @@ export async function shareLink(sc: Scenario, fromLibrary: boolean): Promise<str
       signal: AbortSignal.timeout(5000),
     })
     const { id } = r.ok ? ((await r.json()) as { id?: string }) : {}
-    if (id) return `${base}?case=${encodeURIComponent(id)}`
+    return id ?? null
   } catch {
-    // сервера нет — запасной вариант ниже
+    return null
   }
+}
+
+export async function shareLink(sc: Scenario, fromLibrary: boolean): Promise<string> {
+  const base = `${location.origin}${location.pathname}`
+  const id = await saveCase(sc, fromLibrary)
+  if (id) return `${base}?case=${encodeURIComponent(id)}`
+  // сервера нет — запасной вариант: дело целиком в адресе
   const packed = await pipe(new TextEncoder().encode(JSON.stringify(sc)), new CompressionStream('deflate-raw'))
   return `${base}#case=${b64url(packed)}`
 }

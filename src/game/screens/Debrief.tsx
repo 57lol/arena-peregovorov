@@ -25,10 +25,12 @@ interface Props {
   onReplayFrom: (turn: number) => void
   onAgain: () => void
   onOther: () => void
+  /** корешок тренировки команды: результат ушёл руководителю */
+  receipt?: React.ReactNode
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onOther }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onOther, receipt }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
@@ -60,6 +62,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
   return (
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
       <main className="px-desk g-desk g-report">
+        {receipt}
         <div className="g-report-top">
           <div className="g-report-left">
           <Ledger sc={sc} report={report} history={history} name={name} improved={improved} />
@@ -481,7 +484,7 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
 }
 
 /** Мини-шкала: ваша частота против сильных и средних. */
-function Bench({ row }: { row: ProfileRow }) {
+export function Bench({ row, who = 'вы' }: { row: ProfileRow; who?: string }) {
   const b = row.benchmark!
   const v = row.value ?? 0
   const max = Math.max(v, b.skilled, b.average) * 1.15 || 1
@@ -491,14 +494,14 @@ function Bench({ row }: { row: ProfileRow }) {
   const unit = b.unit === 'share' ? '%' : ` ${perTurns}`
   const short = b.unit === 'share' ? '%' : ''
   return (
-    <div className="g-bench" aria-label={`Вы: ${v}${unit}; сильные: ${b.skilled}${unit}; средние: ${b.average}${unit}`}>
+    <div className="g-bench" aria-label={`${who}: ${v}${unit}; сильные: ${b.skilled}${unit}; средние: ${b.average}${unit}`}>
       <div className="g-bench-bar">
         <span className="g-bench-you" style={{ width: pct(v) }} />
         <i className="g-bench-mark g-bench-mark--skilled" style={{ left: pct(b.skilled) }} />
         <i className="g-bench-mark g-bench-mark--average" style={{ left: pct(b.average) }} />
       </div>
       <p className="g-bench-legend">
-        <span className="g-bench-l-you">вы {fmt(v)}{unit}</span>
+        <span className="g-bench-l-you">{who} {fmt(v)}{unit}</span>
         <span className="g-bench-l-skilled">сильные {fmt(b.skilled)}{short}</span>
         <span className="g-bench-l-average">средние {fmt(b.average)}{short}</span>
       </p>

@@ -1,0 +1,456 @@
+/* Кабинет руководителя: записка на столе, ордер на тренировку, журнал с результатами команды. */
+
+/* ---------- записка «для руководителя» ---------- */
+
+.g-coach-note {
+  position: relative;
+  margin: calc(10 * var(--u)) 0 0;
+  padding: calc(7 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper-2);
+  color: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    0 calc(2 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.g-coach-note-tab {
+  position: absolute;
+  top: calc(-4 * var(--u));
+  left: calc(6 * var(--u));
+  margin: 0;
+  padding: 0 calc(3 * var(--u));
+  background: var(--c-denim);
+  color: var(--c-paper);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+}
+.g-coach-note-title {
+  margin: 0 0 calc(2 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.g-coach-note-text {
+  max-width: 60ch;
+  margin: 0 0 calc(4 * var(--u));
+  color: var(--c-steel-2);
+  text-wrap: pretty;
+}
+.g-coach-slot {
+  max-width: 1240px;
+  margin: calc(4 * var(--u)) auto 0;
+}
+.g-coach-slot .g-coach-note {
+  max-width: 560px;
+}
+
+/* ---------- вписаться в журнал на титуле ---------- */
+
+.g-signin {
+  display: block;
+  max-width: 420px;
+  margin: 0 0 calc(6 * var(--u));
+}
+.g-signin > span {
+  color: var(--on-desk);
+  font-weight: 700;
+}
+.g-signin input[aria-invalid='true'] {
+  outline: var(--u) solid var(--c-coral);
+}
+.g-signin-hint {
+  display: block;
+  margin-top: calc(2 * var(--u));
+  font-style: normal;
+  color: var(--c-brass-hi);
+}
+
+/* ---------- кабинет: ордер на тренировку ---------- */
+
+.g-coach .g-h1,
+.g-board .g-h1,
+.g-board .g-sub,
+.g-board-tools {
+  max-width: 1240px;
+}
+.g-order {
+  max-width: 820px;
+  margin: 0 auto;
+}
+.g-order p {
+  margin: 0 0 calc(4 * var(--u));
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.g-order-case {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: calc(4 * var(--u)) calc(6 * var(--u));
+  margin: 0 0 calc(8 * var(--u));
+}
+.g-order-case > div:nth-child(2) {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+.g-order-case .g-sheet-title {
+  margin-bottom: calc(1 * var(--u));
+}
+.g-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(3 * var(--u)) calc(4 * var(--u));
+}
+.g-order-links {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--u));
+}
+.g-myrooms {
+  margin-bottom: calc(10 * var(--u));
+  padding-block: calc(5 * var(--u));
+}
+.g-myrooms ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-myrooms li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(4 * var(--u));
+  padding: calc(1 * var(--u)) 0;
+}
+.g-myrooms a {
+  font-weight: 700;
+  color: var(--pen);
+}
+
+/* ссылка с кнопкой «Скопировать» */
+.g-linkfield-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: calc(3 * var(--u));
+  margin: 0 0 calc(2 * var(--u)) !important;
+  font-weight: 700;
+}
+.g-linkfield-tag {
+  padding: 0 calc(2 * var(--u));
+  background: var(--c-stamp);
+  color: var(--c-paper);
+  font-weight: 400;
+}
+.g-linkfield-row {
+  display: flex;
+  gap: calc(3 * var(--u));
+  align-items: stretch;
+}
+.g-linkfield-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 calc(3 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  box-shadow: inset 0 0 0 var(--u) var(--c-steel);
+}
+.g-linkfield.is-secret .g-linkfield-row input {
+  box-shadow: inset 0 0 0 var(--u) var(--c-stamp);
+}
+.g-linkfield-row input:focus-visible {
+  outline: var(--u) solid var(--c-denim);
+}
+.g-linkfield-note {
+  margin: calc(2 * var(--u)) 0 0 !important;
+  color: var(--c-steel-2);
+}
+.g-linkfield.is-secret .g-linkfield-note {
+  color: var(--c-stamp-2);
+}
+
+/* ---------- корешок над разбором ---------- */
+
+.g-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(5 * var(--u));
+  max-width: 1240px;
+  margin: 0 auto calc(6 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  background: var(--c-night);
+  color: var(--c-paper);
+  box-shadow: inset calc(2 * var(--u)) 0 0 var(--c-leaf-hi), 0 0 0 var(--u) var(--c-ink);
+}
+.g-receipt p {
+  margin: 0;
+  flex: 1 1 20em;
+}
+.g-receipt b {
+  color: var(--c-brass-hi);
+}
+.g-receipt.is-error {
+  box-shadow: inset calc(2 * var(--u)) 0 0 var(--c-coral), 0 0 0 var(--u) var(--c-ink);
+}
+
+/* ---------- журнал тренировки ---------- */
+
+.g-board > * {
+  margin-inline: auto;
+}
+.g-board-err {
+  max-width: 1240px;
+  margin: 0 auto calc(6 * var(--u));
+}
+.g-board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: calc(5 * var(--u)) calc(10 * var(--u));
+  margin: 0 auto calc(10 * var(--u));
+}
+.g-board-tools .g-linkfield {
+  flex: 1 1 360px;
+  max-width: 620px;
+}
+.g-board-tools .g-linkfield-label {
+  color: var(--on-desk);
+}
+.g-board-tools-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: calc(4 * var(--u)) calc(6 * var(--u));
+}
+.g-board-tools .g-chips legend {
+  color: var(--on-desk-muted);
+}
+.g-board-top,
+.g-board-bottom {
+  display: grid;
+  gap: calc(8 * var(--u));
+  max-width: 1240px;
+  margin: 0 auto calc(10 * var(--u));
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .g-board-top {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  }
+  .g-board-bottom {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  }
+}
+
+/* финалы команды: столбики */
+.g-endbars {
+  display: grid;
+  gap: calc(2 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-endbars li {
+  display: grid;
+  grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 2.5em;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  --bar: var(--c-coral);
+}
+.g-endbars li.is-good {
+  --bar: var(--c-leaf-hi);
+}
+.g-endbars li.is-mixed {
+  --bar: var(--c-sky);
+}
+.g-endbars-title {
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  overflow-wrap: break-word;
+}
+.g-endbars-bar {
+  height: calc(6 * var(--u));
+  background: var(--c-night-2);
+}
+.g-endbars-bar i {
+  display: block;
+  height: 100%;
+  background: var(--bar);
+}
+.g-endbars-n {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-brass-hi);
+}
+.g-endbars li.is-empty .g-endbars-title,
+.g-endbars li.is-empty .g-endbars-n {
+  color: var(--c-steel);
+}
+
+/* ведомость */
+.g-roll-sheet {
+  max-width: 1240px;
+  box-sizing: border-box;
+  margin: 0 auto calc(10 * var(--u));
+}
+.g-roll-sort {
+  margin-bottom: calc(5 * var(--u));
+}
+.g-roll-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.g-roll-table thead th {
+  padding: 0 calc(2 * var(--u)) calc(2 * var(--u));
+  text-align: left;
+  font-weight: 400;
+  color: var(--c-steel-2);
+  border-bottom: var(--u) solid var(--c-ink);
+  white-space: nowrap;
+}
+.g-roll-table thead th button {
+  appearance: none;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: calc(2 * var(--u));
+  cursor: pointer;
+}
+.g-roll-table thead th[aria-sort] {
+  color: var(--c-ink);
+  font-weight: 700;
+}
+.g-roll-table thead th[aria-sort] button::after {
+  content: ' ▼';
+}
+.g-roll-table thead th[aria-sort='ascending'] button::after {
+  content: ' ▲';
+}
+.g-roll-table td,
+.g-roll-table tbody th {
+  padding: calc(2 * var(--u));
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: var(--u) dotted var(--c-mist);
+}
+.g-roll-table .is-num {
+  text-align: right;
+}
+.g-roll-table thead .is-num {
+  text-align: right;
+}
+.g-roll-table small {
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  color: var(--c-steel-2);
+}
+.g-roll-table b.is-bad {
+  color: var(--c-stamp);
+}
+.g-roll-name {
+  font-weight: 700;
+  color: var(--pen);
+  overflow-wrap: anywhere;
+}
+.g-roll-ending {
+  font: 400 var(--fs-small) / 1.5 var(--f-read);
+  color: var(--c-stamp);
+}
+.g-roll-ending.is-good {
+  color: var(--c-leaf-2);
+}
+.g-roll-ending.is-mixed {
+  color: var(--c-denim);
+}
+@media (min-width: 900px) {
+  .g-roll-sort {
+    display: none;
+  }
+}
+/* на телефоне строка ведомости — карточка: имя сверху, дальше подписанные поля */
+@media (max-width: 899px) {
+  .g-roll-table thead {
+    display: none;
+  }
+  .g-roll-table,
+  .g-roll-table tbody {
+    display: block;
+  }
+  .g-roll-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: calc(1 * var(--u)) calc(4 * var(--u));
+    padding: calc(3 * var(--u)) 0;
+    border-bottom: var(--u) solid var(--c-mist);
+  }
+  .g-roll-table td,
+  .g-roll-table tbody th {
+    padding: 0;
+    border: 0;
+  }
+  .g-roll-table tbody th {
+    grid-column: 1 / -1;
+  }
+  .g-roll-table td.is-num {
+    text-align: left;
+  }
+  .g-roll-table td::before {
+    content: attr(data-label);
+    display: block;
+    font: 400 var(--fs-small) / 1.5 var(--f-read);
+    color: var(--c-steel-2);
+  }
+  .g-roll-table td[data-label='Очки'] {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ошибки и профиль */
+.g-mistakes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-mistakes li + li {
+  margin-top: calc(4 * var(--u));
+  padding-top: calc(4 * var(--u));
+  border-top: var(--u) dashed var(--c-mist);
+}
+.g-mistakes .g-beh-advice {
+  margin: calc(1 * var(--u)) 0 0;
+}
+.g-team-axes {
+  display: grid;
+  gap: calc(6 * var(--u)) calc(10 * var(--u));
+  margin-top: calc(5 * var(--u));
+}
+@media (min-width: 700px) {
+  .g-team-axes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.g-team-axis .g-h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(3 * var(--u));
+  padding-bottom: calc(1 * var(--u));
+  border-bottom: var(--u) solid var(--c-ink);
+}
+.g-team-axis .g-h3 .is-good {
+  color: var(--c-leaf-2);
+}
+.g-team-axis .g-h3 .is-bad {
+  color: var(--c-stamp);
+}
+.g-team-bench {
+  margin-top: calc(3 * var(--u));
+}
+.g-team-bench .g-beh-head {
+  margin: 0 0 calc(1 * var(--u));
+}

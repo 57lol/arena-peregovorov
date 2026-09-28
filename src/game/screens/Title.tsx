@@ -1,8 +1,11 @@
+import { useRef, useState } from 'react'
 import type { Case } from '../../App'
 import type { Health } from '../api'
 import { firstName, portraitFor, sceneFor } from '../cast'
 import { rankOf, type Progress } from '../progress'
+import type { RoomRef } from '../rooms'
 import { Button, Scene } from '../ui'
+import { CoachEntry } from './CoachEntry'
 import { Method } from './Method'
 
 interface Props {
@@ -10,11 +13,27 @@ interface Props {
   invited: Case | null
   notice: string | null
   server: Health | null | undefined
+  /** тренировка команды, если пришли по ссылке руководителя: перед игрой вписываемся в журнал */
+  room: RoomRef | null
+  playerName: string
+  onPlayerName: (name: string) => void
   onStart: () => void
   onLibrary: () => void
+  onCoach: () => void
 }
 
-export function Title({ progress, invited, notice, server, onStart, onLibrary }: Props) {
+export function Title({ progress, invited, notice, server, room, playerName, onPlayerName, onStart, onLibrary, onCoach }: Props) {
+  const nameRef = useRef<HTMLInputElement>(null)
+  const [needName, setNeedName] = useState(false)
+  const inRoom = !!(invited && room)
+  const start = () => {
+    if (inRoom && !playerName.trim()) {
+      setNeedName(true)
+      nameRef.current?.focus()
+      return
+    }
+    onStart()
+  }
   const rank = rankOf(progress)
   const played = Object.keys(progress.cases).length > 0
   // по ссылке-приглашению первым делом — к какому делу позвали и кнопка, описание тренажёра ниже
@@ -45,16 +64,38 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
         <div className="g-title-copy">
           {!invited && lead}
 
-          {invited ? (
+          {invited && room ? (
+            <p className="g-invite">
+              Вас позвали на тренировку{room.name ? ` «${room.name}»` : ''}: дело «{invited.scenario.title}», напротив{' '}
+              {invited.scenario.opponent.character.name}. Условия у всех одинаковые. Результат после разбора уйдёт
+              руководителю.
+            </p>
+          ) : invited ? (
             <p className="g-invite">
               Вас позвали на дело «{invited.scenario.title}». Условия у всех по этой ссылке одинаковые — результаты можно
               сравнить. Напротив: {invited.scenario.opponent.character.name}.
             </p>
           ) : null}
+          {inRoom && (
+            <label className="g-input g-signin">
+              <span>Впишитесь в журнал тренировки</span>
+              <input
+                ref={nameRef}
+                value={playerName}
+                maxLength={40}
+                autoComplete="nickname"
+                placeholder="Имя или ник"
+                aria-invalid={needName && !playerName.trim()}
+                onChange={(e) => onPlayerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && start()}
+              />
+              {needName && !playerName.trim() && <em className="g-signin-hint">Без имени руководитель не поймёт, чей это результат.</em>}
+            </label>
+          )}
           {notice && <p className="g-error" role="alert">{notice}</p>}
 
           <div className="g-title-actions">
-            <Button variant="brass" icon="send" className="g-big" onClick={onStart}>
+            <Button variant="brass" icon="send" className="g-big" onClick={start}>
               {invited ? `К делу «${invited.scenario.title}»` : 'Начать'}
             </Button>
             {invited && (
@@ -87,6 +128,8 @@ export function Title({ progress, invited, notice, server, onStart, onLibrary }:
           )}
 
           <Method compact />
+
+          {!invited && <CoachEntry onOpen={onCoach} />}
 
           <p className="g-fineprint">
             {server === undefined
