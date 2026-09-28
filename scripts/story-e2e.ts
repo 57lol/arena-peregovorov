@@ -123,7 +123,8 @@ async function play(kase: string, phone: boolean) {
   const OUT = join(homedir(), 'Arena-materials', 'shots', 'story', kase)
   mkdirSync(OUT, { recursive: true })
   const shot = async (page: Page, name: string, full = false) => {
-    await page.screenshot({ path: join(OUT, `${tag}-${name}.png`), fullPage: full })
+    // длинную страницу на телефоне с плотностью 2 браузер целиком не снимает — там только экран
+    await page.screenshot({ path: join(OUT, `${tag}-${name}.png`), fullPage: full && !phone })
     console.log('  снимок', `${tag}-${name}`)
   }
   console.log(`\n${tag}`)
@@ -149,7 +150,7 @@ async function play(kase: string, phone: boolean) {
     await page.locator('.mp-card').getByRole('button', { name: /Войти|Сыграть/ }).click()
     await page.waitForTimeout(600)
     await shot(page, '01-бриф', true)
-    await page.getByRole('button', { name: /^Войти/ }).last().click()
+    await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).last().click()
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
     await page.waitForTimeout(2800)
     await shot(page, '02-вход')
