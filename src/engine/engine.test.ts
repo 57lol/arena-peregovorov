@@ -179,3 +179,43 @@ describe('вежливый исследователь в «Таре»', () => {
     expect(h[h.length - 1].stateAfter.revealed.length).toBeGreaterThanOrEqual(3)
   })
 })
+
+describe('собеседник не откатывает уступки', () => {
+  // Игрок идёт к собеседнику по шагу во всех пунктах, на разном доверии. Каждое следующее встречное
+  // должно давать игроку не меньше прошлого: иначе «уступил я — стало хуже мне».
+  it('встречные предложения для игрока не ухудшаются', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { offer } = await import('../content/scenarios/offer')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const moods: string[][] = [[], ['attack'], ['ask_interest', 'check'], ['ultimatum', 'irritator']]
+    const bad: string[] = []
+    for (const base of [tara, offer, sc]) for (const d of [1, 2, 3] as Difficulty[]) for (const m of moods) {
+      const s: Scenario = { ...base, difficulty: d }
+      const dict = base === sc ? testDict : BEHAVIOR_DICT
+      const my = Object.fromEntries(s.issues.map((i) => [i.id, bestOptionOf(s.player.profile.points[i.id])]))
+      const their = Object.fromEntries(s.issues.map((i) => [i.id, bestOptionOf(s.opponent.profile.points[i.id])]))
+      const moves = Array.from({ length: s.turnLimit }, (_, t) => {
+        const o: Offer = {}
+        for (const i of s.issues) {
+          const a = my[i.id], b = their[i.id], k = Math.min(1, t / (s.turnLimit - 1))
+          o[i.id] = Math.round(a + (b - a) * k * 0.6)
+        }
+        return move(o, { behaviors: m.filter((id) => dict[id]).map((id) => ({ id, quote: id })) })
+      })
+      const h = playAnalyses(s, moves, dict)
+      let prev = -Infinity
+      for (const r of h) {
+        if (r.decision.kind !== 'counter' && !(r.decision.kind === 'reveal' && r.decision.offer)) continue
+        const o = (r.decision as { offer: Offer }).offer
+        const u = score(s.player.profile, o as never)
+        if (u < prev) bad.push(`${s.id}/${d}/${m.join('+') || '—'}: ход ${r.turn}, ${prev} → ${u}`)
+        prev = u
+      }
+    }
+    expect(bad).toEqual([])
+  })
+})
+
+function bestOptionOf(p: number[]) {
+  return p.indexOf(Math.max(...p))
+}

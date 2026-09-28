@@ -92,6 +92,8 @@ function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
  * Пока доверия мало, он осторожничает и уступает понемногу во всём сразу (штраф за неравномерность):
  * так делают люди, которые не хотят показывать, что им важно, — и сделки выходят хуже для обоих.
  * Назад не откатывается: хуже своего прошлого предложения для себя не делает, но и жаднее не становится.
+ * И уступки игроку не забирает: новое встречное даёт игроку не меньше прошлого. Иначе выходит «я уступил —
+ * а мне стало хуже»: собеседник подвинулся к новой позиции игрока по одному пункту и откатился по другим.
  */
 export function makeCounter(
   sc: Scenario,
@@ -102,6 +104,7 @@ export function makeCounter(
 ): FullOffer {
   const opp = sc.opponent.profile
   const prevU = previous ? score(opp, previous) : Infinity
+  const given = previous ? score(sc.player.profile, previous) : -Infinity
   const need = Math.min(target, prevU)
   const guard = 2 * (1 - openness(trust))
   let best: FullOffer | undefined
@@ -109,7 +112,7 @@ export function makeCounter(
   let bestU = -Infinity
   for (const p of allDeals(sc)) {
     const u = p.opponent
-    if (u < need || u > prevU) continue
+    if (u < need || u > prevU || p.player < given) continue
     const d = distance(sc, p.offer, stance) + (guard ? guard * unevenness(sc, p.offer, stance) : 0)
     if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && (u > bestU || (u === bestU && best && lexLess(sc, p.offer, best))))) {
       best = p.offer
