@@ -3,7 +3,7 @@
 import { axisScores, behaviorProfile, type Axis, type ProfileRow } from './behaviors'
 import type { BehaviorDict } from './dictionary'
 import type { Decision, IssueId, Outcome, Scenario, TurnRecord } from './types'
-import { allDeals, bestOption, formatOffer, isComplete, issueWeight, maxScore, paretoFrontier, type FullOffer, type Point } from './utility'
+import { allDeals, bestOption, formatOffer, isComplete, issueWeight, maxScore, paretoFrontier, score, type FullOffer, type Point } from './utility'
 
 export interface IssueLine {
   id: IssueId
@@ -266,7 +266,13 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
       .slice(0, 2)
     out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
   } else if (o.status === 'walked_away') {
-    out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
+    const last = state?.lastOpponentOffer
+    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) : null
+    const verdict =
+      onTable === null ? ''
+      : onTable < r.batna.player ? ` Собеседник предлагал ${pts(onTable)} при вашем запасном ${fmt(r.batna.player)} — уйти было правильно.`
+      : ` А на столе лежало ${pts(onTable)} — больше запасного: уход стоил вам ${pts(onTable - r.batna.player)}.`
+    out.push(`Вы ушли без сделки и остались при своей альтернативе (${fmt(r.batna.player)}).${verdict}${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
   } else if (o.status === 'timeout') {
     out.push(`Время встречи вышло без сделки. Было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.`)
   }

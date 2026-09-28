@@ -5,9 +5,9 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
-import type { Scenario, TurnRecord } from '../engine/types'
+import type { MoveAnalysis, Scenario, TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { withContext, withFormalOffer } from '../engine/offline'
+import { walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { dict, findScenario, scenarios } from './library'
@@ -122,10 +122,12 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
 
-    const a = await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
-    let analysis = withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
+    // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
+    const a: { analysis: MoveAnalysis; source: string; error?: string } = body.walkAway
+      ? { analysis: walkAwayMove(), source: 'button' }
+      : await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
+    let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
     if (body.accept) analysis = { ...analysis, accepts: true }
-    if (body.walkAway) analysis = { ...analysis, walksAway: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
     const v = await voice(llm, sc, history, body.playerText, r.decision, r.state)
     const record: TurnRecord = {

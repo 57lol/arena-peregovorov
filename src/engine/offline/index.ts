@@ -9,6 +9,11 @@ export { parseOffer, mentionedIssues } from './parseOffer'
 export { templateLine, emotionFor } from './lines'
 export { quantities } from './numbers'
 
+/** Уход по кнопке «Встать и уйти»: служебный ход без приёмов. */
+export function walkAwayMove(): MoveAnalysis {
+  return { behaviors: [], walksAway: true }
+}
+
 /** Предложение из «блокнота» важнее того, что разметчик вытащил из текста. */
 export function withFormalOffer(a: MoveAnalysis, offer?: Offer): MoveAnalysis {
   if (!offer || !Object.keys(offer).length) return a

@@ -2,7 +2,7 @@
 // офлайн-разметчиком и шаблонами: игра проходится и без сети.
 
 import { BEHAVIOR_DICT } from '../engine/behaviors'
-import { analyzeOffline, templateLine, withContext, withFormalOffer } from '../engine/offline'
+import { analyzeOffline, templateLine, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { stateAfter, step } from '../engine/turn'
 import type { Difficulty, Offer, Scenario, Tone, TurnRecord } from '../engine/types'
 
@@ -66,9 +66,10 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
 function localTurn(t: TurnInput): TurnRecord {
   const dict = BEHAVIOR_DICT
   const before = stateAfter(t.scenario, t.history, dict)
-  let analysis = withContext(withFormalOffer(analyzeOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
+  let analysis = t.walkAway
+    ? walkAwayMove()
+    : withContext(withFormalOffer(analyzeOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
   if (t.accept) analysis = { ...analysis, accepts: true }
-  if (t.walkAway) analysis = { ...analysis, walksAway: true }
   const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
   const { line, emotion } = templateLine(t.scenario, r.decision, r.state)
   return { turn: r.state.turn, playerText: t.text, analysis, deltas: r.deltas, decision: r.decision, opponentLine: line, emotion, stateAfter: r.state }

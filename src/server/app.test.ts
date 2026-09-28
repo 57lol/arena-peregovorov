@@ -48,4 +48,19 @@ describe('API в офлайне', () => {
     }
     expect(last!.report?.outcome.status).toBe('walked_away')
   })
+
+  it('уход по кнопке не размечается как ультиматум, а разбор говорит, правильно ли ушли', async () => {
+    const first = (await turn([], 'Здравствуйте')).record
+    const r = await app.request('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scenarioId: 'tara', history: [first], playerText: 'Спасибо за время, но так мы не договоримся. Я ухожу.', walkAway: true }),
+    })
+    const j = (await r.json()) as { record: TurnRecord; report: { outcome: { status: string }; explanation: string[]; profile: { counts: Record<string, number> } } }
+    expect(j.record.analysis.behaviors).toEqual([])
+    expect(j.record.analysis.walksAway).toBe(true)
+    expect(j.report.outcome.status).toBe('walked_away')
+    expect(j.report.profile.counts.ultimatum ?? 0).toBe(0)
+    expect(j.report.explanation[0]).toMatch(/уйти было правильно|уход стоил вам/)
+  })
 })
