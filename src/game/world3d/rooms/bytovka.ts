@@ -89,8 +89,11 @@ function buildBytovka(): RoomBuild {
 
   // роботы: пьедестал в супе, звенья — на осях (поворот, плечо, локоть)
   const maps = [0, 1, 2].map((k) => kit.mat(kit.tex(`bytovka_atlas${k}`), true))
+  /** движущаяся часть: свой суп, один вариант света (объём — текстурами граней), один меш */
   const part = (fill: (s: Soup) => void) => {
     const s = new Soup(ATLAS.w, ATLAS.h, rects)
+    const add = s.add.bind(s)
+    s.add = (geo, m, faces) => add(geo, m, faces, 0)
     fill(s)
     const o = new Object3D()
     for (const m of s.build(kit, maps)) o.add(m)
@@ -126,8 +129,12 @@ function buildBytovka(): RoomBuild {
     })
     elbow.position.set(0, 1.55, 0)
     shoulder.add(elbow)
+    // сварка: искры на кончике инструмента вспыхивают сериями
+    const spark = part((s) => s.add(new PlaneGeometry(0.34, 0.34), at(1.9, -0.1, 0.2), 'spark'))
+    spark.visible = false
+    elbow.add(spark)
     g.add(swivel)
-    return { swivel, shoulder, elbow, ry }
+    return { swivel, shoulder, elbow, spark, ry }
   })
 
   // подвесной конвейер: баки водонагревателей едут вправо
@@ -353,6 +360,8 @@ function buildBytovka(): RoomBuild {
       r.swivel.rotation.y = r.ry + 0.55 * Math.sin(t * 0.21 + k)
       r.shoulder.rotation.z = -0.35 + 0.22 * Math.sin(t * 0.33 + k)
       r.elbow.rotation.z = -0.55 + 0.32 * Math.sin(t * 0.27 + k + 1.3)
+      const w = (t + i * 3.7) % 7
+      r.spark.visible = w < 2.2 && Math.sin(t * 31 + i) > 0
     })
     tanks.position.x = (t * 0.14) % STEP
     // старая трубка раз в ~9 с коротко моргает, комната на миг тускнеет
