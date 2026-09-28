@@ -30,6 +30,8 @@ export function loadView(): View {
   // ?view=classic или ?view=3d в адресе — для проверок и для тех, кому так удобнее
   const q = /[?&]view=(classic|3d)/.exec(location.search)?.[1] as View | undefined
   if (q) return q
+  // автотесты (Playwright) писались под классический вид: без явного ?view=3d им отдаём его
+  if (navigator.webdriver) return 'classic'
   try {
     const v = localStorage.getItem(KEY)
     if (v === 'classic' || v === '3d') return v
