@@ -190,7 +190,8 @@ export default function Play3D(props: Props) {
         const w = box.offsetWidth
         const h = box.offsetHeight
         const off = p.behind || p.x < -w * 0.3 || p.x > cw + w * 0.3
-        let x = Math.min(Math.max(p.x - w / 2, 12), cw - w - 12)
+        // склонились к столу на ноутбуке — реплика уходит в левый верхний угол, над блокнотом: листок в центре открыт
+        let x = pose === 'desk' && !world.portrait ? 12 : Math.min(Math.max(p.x - w / 2, 12), cw - w - 12)
         // на телефоне реплика стоит прямо над полем ввода: так лицо собеседника остаётся открытым
         const y = world.portrait && pose === 'face' ? trayTop - h - 10 : Math.min(Math.max(p.behind ? 12 : p.y, 12), trayTop - h - 10)
         // наверху слева плашки разбора, справа «Меню» — реплика встаёт между ними, если хватает ширины

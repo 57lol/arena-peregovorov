@@ -115,6 +115,13 @@
   background: var(--plate);
   box-shadow: 0 0 0 var(--u) var(--c-ink);
 }
+/* на плашке тень у текста не нужна */
+.w3-tray .w3-clock-line,
+.w3-tray .w3-look,
+.w3-tray .w3-you,
+.w3-tray .w3-hint {
+  text-shadow: none;
+}
 .w3-tray-row {
   display: flex;
   align-items: center;
@@ -896,7 +903,6 @@
     inset 0 0 0 calc(2 * var(--u)) transparent,
     inset 0 0 0 calc(3 * var(--u)) var(--c-stamp);
   transform: rotate(-9deg);
-  mix-blend-mode: multiply;
   animation: w3-stamp 0.36s 0.9s steps(4) both;
   pointer-events: none;
 }

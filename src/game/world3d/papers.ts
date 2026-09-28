@@ -37,8 +37,8 @@ interface Spot {
 /** Раскладка: ноутбук — блокнот слева, дела справа, листок дальше по центру; телефон — листок далеко, блокнот у нас. */
 const WIDE: Record<PaperId, Spot> = {
   notebook: { x: -0.2, z: -0.02, w: 0.26, h: 0.32, rot: 2 },
-  card: { x: 0.33, z: 0.03, w: 0.15, h: 0.2, rot: -5 },
-  slip: { x: 0.1, z: -0.19, w: 0.2, h: 0.17, rot: 3 },
+  card: { x: 0.3, z: 0.04, w: 0.15, h: 0.2, rot: -5 },
+  slip: { x: 0.11, z: -0.2, w: 0.21, h: 0.22, rot: 3 },
 }
 const TALL: Record<PaperId, Spot> = {
   notebook: { x: -0.04, z: 0.06, w: 0.26, h: 0.36, rot: 3 },
@@ -175,7 +175,6 @@ interface Sheet {
 
 const TEX_SIZE: Record<PaperId, [number, number]> = { notebook: [60, 70], card: [34, 46], slip: [44, 36] }
 const UP = new Vector3(0, 1, 0)
-const MAX_TILT = 30 * MathUtils.DEG2RAD
 
 // рабочие переменные без выделения памяти в кадре
 const vA = new Vector3()
@@ -277,21 +276,18 @@ export class Desk {
         bz = MathUtils.lerp(s.slideFrom.z, sp.z, k)
         rot += (1 - k) * 25 * MathUtils.DEG2RAD
       }
-      // наклон к глазам: сколько не хватает, чтобы лист смотрел на нас под углом ≤ 18°, но не больше 30°
-      vA.set(bx, TABLE.y, bz)
-      vB.copy(cam.position).sub(vA).normalize()
-      const angle = Math.acos(MathUtils.clamp(vB.dot(UP), -1, 1))
-      const want = MathUtils.clamp(angle - 18 * MathUtils.DEG2RAD, 0, MAX_TILT) * MathUtils.smoothstep(lean, 0.25, 0.9)
+      // наклон к глазам: когда склоняемся, листы приподнимаются дальним краем — все на один и тот же угол
+      // вокруг общей оси X. Плоскости остаются параллельными: иначе браузер режет DOM-страницы друг об друга
+      // (BSP в композиторе) и рисует обрывки.
+      const want = 16 * MathUtils.DEG2RAD * MathUtils.smoothstep(lean, 0.25, 0.9)
       s.tilt += (want - s.tilt) * (1 - Math.exp(-dt * 10))
+      if (Math.abs(want - s.tilt) < 1e-4) s.tilt = want
 
-      // на столе: поворот вокруг вертикали и подъём дальнего края вокруг ближнего
-      qA.setFromAxisAngle(UP, rot)
+      // на столе: подъём вокруг мировой X (у ближнего края), потом поворот листа вокруг вертикали
       qB.setFromAxisAngle(vC.set(1, 0, 0), s.tilt)
-      qA.multiply(qB)
-      vA.set(0, (sp.h / 2) * Math.sin(s.tilt), sp.h / 2 - (sp.h / 2) * Math.cos(s.tilt)).applyAxisAngle(UP, rot)
-      vA.x += bx
-      vA.y += TABLE.y + 0.004
-      vA.z += bz
+      qA.setFromAxisAngle(UP, rot)
+      qA.premultiply(qB)
+      vA.set(bx, TABLE.y + 0.004 + (sp.h / 2) * Math.sin(s.tilt), bz + sp.h / 2 - (sp.h / 2) * Math.cos(s.tilt))
 
       // в руках: перед камерой, лицом к ней, верх листа — вверх экрана
       const target = this.holding === s.id ? 1 : 0
@@ -326,7 +322,7 @@ export class Desk {
       const forward = -camZ.dot(vB) // лист перед глазами, а не за спиной
       // когда один лист в руках, остальные страницы на столе прячем: DOM не знает глубины и лез бы поверх
       const other = this.holding !== null && this.holding !== s.id
-      const shown = live && !other && forward < -0.2 ? Math.max(MathUtils.smoothstep(facing, 0.8, 0.9), s.held > 0.6 ? 1 : 0) : 0
+      const shown = live && !other && forward < -0.2 ? Math.max(MathUtils.smoothstep(facing, 0.72, 0.84), s.held > 0.6 ? 1 : 0) : 0
       s.shown = shown
       s.host.style.opacity = String(shown)
       s.host.style.visibility = shown < 0.02 ? 'hidden' : 'visible'
