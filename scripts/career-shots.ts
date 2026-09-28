@@ -98,7 +98,7 @@ try {
     await page.locator('.g-career-card').screenshot({ path: join(OUT, `${name}-title-card.png`) })
 
     // папка: совет и «Сыграть жёстче»
-    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Все дела' }).click()
     await page.waitForSelector('.g-folders')
     await page.waitForTimeout(300)
     await page.screenshot({ path: join(OUT, `${name}-folder.png`), fullPage: true })

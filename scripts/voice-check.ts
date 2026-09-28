@@ -91,7 +91,7 @@ const spyPlay = (page: Page) =>
 async function enter(page: Page, title: string) {
   await page.goto(URL)
   await page.evaluate(() => localStorage.removeItem('peregovorka.voice.v1'))
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   await page.locator('.g-folder').filter({ hasText: title }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.waitForSelector('.g-dossier')

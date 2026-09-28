@@ -40,7 +40,7 @@ async function enter(page: Page, fresh = true) {
   await page.goto(URL)
   if (fresh) await page.evaluate(() => localStorage.clear())
   await page.goto(URL)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   await page.locator('.g-folder').filter({ hasText: 'Тара' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.waitForSelector('.g-dossier')

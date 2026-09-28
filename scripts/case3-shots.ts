@@ -22,7 +22,7 @@ async function toFolder(page: Page) {
     sessionStorage.clear()
   })
   await page.goto(URL)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   await page.waitForTimeout(400)
 }

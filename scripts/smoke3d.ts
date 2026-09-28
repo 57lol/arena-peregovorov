@@ -13,7 +13,7 @@ page.on('console', (m) => m.type() === 'error' && errs.push(m.text()))
 await page.goto('http://localhost:5173/?view=3d')
 await page.evaluate(() => localStorage.clear())
 await page.goto('http://localhost:5173/?view=3d')
-await page.getByRole('button', { name: 'Начать' }).click()
+await page.getByRole('button', { name: 'Все дела' }).click()
 await page.waitForSelector('.g-folders')
 const name = { tara: 'Тара', client: 'клиента', offer: 'Оффер' }[kase] ?? kase
 await page.locator('.g-folder').filter({ hasText: name }).getByRole('button', { name: 'Открыть дело' }).click()

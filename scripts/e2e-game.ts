@@ -133,7 +133,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   await page.waitForSelector('.g-title-sign')
   await page.waitForTimeout(400)
   await shot(page, `01-title-${size}`)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   await shot(page, `02-setup-${size}`, true)
 
@@ -148,7 +148,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   for (let n = 0; n < sc.turnLimit + 2; n++) {
     if (await ended(page)) break
     const lastCall = (await page.locator('.g-slip.is-last >> visible=true').count()) > 0
-    const accept = page.getByRole('button', { name: 'Принять' })
+    const accept = page.getByRole('button', { name: 'Согласиться' })
     const mineText = await page.locator('.g-slip-foot b >> visible=true').first().textContent({ timeout: 500 }).catch(() => null)
     const mine = mineText ? Number(mineText) : -1
     if ((lastCall || n >= s.acceptFrom) && (await accept.isVisible()) && mine >= sc.player.profile.batna) {
@@ -158,7 +158,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
       await setNotebook(page, sc, s.offer, mobile)
       if (mobile) await shot(page, `05-notebook-${tag}`, true)
       console.log(`  ход ${n + 1}: кладу на стол`)
-      await page.getByRole('button', { name: 'Положить на стол' }).click()
+      await page.getByRole('button', { name: 'Предложить' }).click()
     } else if (lastCall) {
       console.log(`  ход ${n + 1}: последнее предложение хуже запасного — ухожу`)
       await page.getByRole('button', { name: 'Встать и уйти' }).click()
@@ -171,7 +171,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
     }
     await waitReply(page)
     if (n === 2) {
-      await page.getByRole('button', { name: 'Рентген' }).click()
+      await page.getByRole('button', { name: 'Что чувствует' }).click()
       await page.waitForTimeout(200)
       await shot(page, `06-play-xray-${tag}`, mobile)
     }
@@ -180,6 +180,9 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   await page.waitForTimeout(500)
   await shot(page, `07-play-end-${tag}`)
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
+  // разбор: сначала три строки, цифры и карта — в «Подробном разборе»
+  await page.waitForSelector('.g-main')
+  await page.locator('.g-report-more > summary').click()
   await page.waitForSelector('.g-ledger')
   await page.waitForTimeout(700)
   // «щупаем» карту: подпись под ней должна рассказать, что за договор в точке
@@ -195,7 +198,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
 async function generateCase(page: Page, size: number) {
   console.log(`\nСвоё дело, ${size}px`)
   await page.goto(URL)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.getByRole('button', { name: 'Заполнить бриф' }).click()
   await page.getByRole('button', { name: 'Аренда' }).click()
   await page.getByLabel('О чём договариваемся').fill('аренда склада под интернет-магазин')
@@ -220,12 +223,12 @@ async function generateCase(page: Page, size: number) {
     await waitReply(page)
   }
   for (let n = 0; n < 14 && !(await ended(page)); n++) {
-    const accept = page.getByRole('button', { name: 'Принять' })
+    const accept = page.getByRole('button', { name: 'Согласиться' })
     if (n > 0 && (await accept.isVisible())) await accept.click()
     else if (n < 3) {
       if (size < 900 && !(await page.locator('.g-notebook-wrap[data-open="true"]').count())) await page.getByRole('button', { name: 'Блокнот' }).click()
-      await page.getByRole('button', { name: 'Положить на стол' }).click()
-      const sure = page.getByRole('button', { name: 'Всё равно положить' })
+      await page.getByRole('button', { name: 'Предложить' }).click()
+      const sure = page.getByRole('button', { name: 'Всё равно предложить' })
       if (await sure.isVisible()) await sure.click()
     } else {
       await page.getByRole('button', { name: 'Встать и уйти' }).click()
@@ -235,6 +238,9 @@ async function generateCase(page: Page, size: number) {
   }
   await shot(page, `10-generate-play-end-${size}`)
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
+  // разбор: сначала три строки, цифры и карта — в «Подробном разборе»
+  await page.waitForSelector('.g-main')
+  await page.locator('.g-report-more > summary').click()
   await page.waitForSelector('.g-ledger')
   await page.waitForTimeout(500)
   await shot(page, `10-generate-report-${size}`, true)

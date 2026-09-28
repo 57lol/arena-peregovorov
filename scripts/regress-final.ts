@@ -177,7 +177,7 @@ async function playOut(page: Page, sc: Scenario, s: Script, size: number, tag: s
   for (let n = 0; n < sc.turnLimit + 2; n++) {
     if (await ended(page)) break
     const lastCall = (await page.locator('.g-slip.is-last >> visible=true').count()) > 0
-    const accept = page.getByRole('button', { name: 'Принять', exact: true }).locator('visible=true').first()
+    const accept = page.getByRole('button', { name: 'Согласиться', exact: true }).locator('visible=true').first()
     const mineText = await page.locator('.g-slip-foot b >> visible=true').first().textContent({ timeout: 500 }).catch(() => null)
     const mine = mineText ? Number(mineText) : -1
     if ((lastCall || n >= s.acceptFrom) && (await accept.isVisible().catch(() => false)) && mine >= sc.player.profile.batna) {
@@ -186,8 +186,8 @@ async function playOut(page: Page, sc: Scenario, s: Script, size: number, tag: s
     } else if (n === s.offerAt) {
       await setNotebook(page, sc, s.offer, mobile)
       console.log(`    ход ${n + 1}: кладу на стол`)
-      await page.getByRole('button', { name: 'Положить на стол' }).locator('visible=true').first().click()
-      const sure = page.getByRole('button', { name: 'Всё равно положить' })
+      await page.getByRole('button', { name: 'Предложить' }).locator('visible=true').first().click()
+      const sure = page.getByRole('button', { name: 'Всё равно предложить' })
       if (await sure.isVisible().catch(() => false)) await sure.click()
     } else if (lastCall) {
       console.log(`    ход ${n + 1}: ухожу`)
@@ -206,12 +206,12 @@ async function playOut(page: Page, sc: Scenario, s: Script, size: number, tag: s
     if (!tag.startsWith('без-сервера') && !process.argv.includes('--offline-ok') && (await page.locator('.g-source').count()))
       fail(`${tag}: ход ${n + 1} посчитан в браузере — «${await page.locator('.g-source').innerText()}»`)
     if (n === 2) {
-      await page.getByRole('button', { name: 'Рентген' }).click()
+      await page.getByRole('button', { name: 'Что чувствует' }).click()
       await page.waitForSelector('.g-xray')
       await page.waitForTimeout(250)
       await noScroll(page, `${tag} рентген`)
       await shot(page, `04-встреча-рентген-${sc.id}-${size}`)
-      await page.getByRole('button', { name: 'Рентген' }).click().catch(() => {})
+      await page.getByRole('button', { name: 'Что чувствует' }).click().catch(() => {})
     }
   }
   if (!(await ended(page))) throw new Error(`${tag}: встреча не закончилась`)
@@ -229,7 +229,7 @@ async function playCase(browser: Browser, sc: Scenario, size: number) {
     await noScroll(page, `${tag} титул`)
     await shot(page, `01-титул-${size}`)
   }
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   const folders = await page.locator('.g-folder').count()
   if (folders < 4) fail(`${tag}: в папке ${folders} карточек (ждём 3 дела + своё)`)
@@ -251,6 +251,9 @@ async function playCase(browser: Browser, sc: Scenario, size: number) {
   await page.waitForTimeout(400)
   await shot(page, `05-конец-встречи-${sc.id}-${size}`)
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
+  // разбор: сначала три строки, цифры и карта — в «Подробном разборе»
+  await page.waitForSelector('.g-main')
+  await page.locator('.g-report-more > summary').click()
   await page.waitForSelector('.g-ledger')
   await page.waitForSelector('.g-finale')
   await page.waitForTimeout(900)
@@ -313,7 +316,7 @@ async function customCase(browser: Browser, size: number, sphere: string, theme:
   const page = await ctx.newPage()
   watch(page, tag)
   await toFolder(page)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.getByRole('button', { name: 'Заполнить бриф' }).click()
   await page.getByRole('button', { name: sphere, exact: true }).click()
   await page.getByLabel('О чём договариваемся').fill(theme)
@@ -364,7 +367,7 @@ async function reloadNav(browser: Browser, size: number) {
   const page = await ctx.newPage()
   watch(page, tag)
   await toFolder(page)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.locator('.g-folder').filter({ hasText: 'Удержать клиента' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')
@@ -463,7 +466,7 @@ async function noServer(browser: Browser, size: number) {
   page.on('pageerror', (e) => fail(`${tag}: ошибка на странице ${e.message.slice(0, 200)}`))
   await page.route('**/api/**', (r) => r.abort())
   await toFolder(page)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.locator('.g-folder').filter({ hasText: 'Удержать клиента' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')

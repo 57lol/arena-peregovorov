@@ -33,7 +33,7 @@ async function enter(page: Page, title: string) {
   await page.goto(URL)
   await page.evaluate(() => localStorage.clear())
   await page.goto(URL)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.waitForSelector('.g-folders')
   await page.locator('.g-folder').filter({ hasText: title }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.waitForSelector('.g-dossier')
@@ -66,7 +66,7 @@ try {
   if (ONLY.includes('cases')) {
     const page = await open(browser, 390, PH)
     await page.goto(URL)
-    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Все дела' }).click()
     await page.waitForSelector('.g-folders')
     await page.locator('.g-sub').screenshot({ path: join(OUT, `cases-subtitle-390-${TAG}.png`) })
     await shot(page, 'cases-390')
@@ -77,7 +77,7 @@ try {
     await enter(page, 'Тара')
     await say(page, 'Добрый день. Прежде чем обсуждать цифры — что для вас в этой сделке главное и почему?')
     await page.evaluate(() => scrollTo(0, 0))
-    await page.getByRole('button', { name: 'Рентген', exact: true }).click()
+    await page.getByRole('button', { name: 'Что чувствует', exact: true }).click()
     await page.waitForTimeout(400)
     console.log('рентген на телефоне:', await where(page, '.g-xray'))
     await shot(page, `xray-390x${PH}`)
@@ -90,7 +90,7 @@ try {
     await page.evaluate(() => scrollTo(0, 0))
     await page.waitForTimeout(200)
     const accept = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('button')].filter((x) => /Принять/.test(x.textContent ?? '') && x.offsetParent !== null)
+      const b = [...document.querySelectorAll('button')].filter((x) => /Согласиться/.test(x.textContent ?? '') && x.offsetParent !== null)
       return b.map((x) => ({ top: Math.round(x.getBoundingClientRect().top + scrollY), vh: innerHeight }))
     })
     console.log('«Принять» на телефоне:', accept, 'листок:', await where(page, '.g-slip--stage'))
@@ -105,7 +105,7 @@ try {
   if (ONLY.includes('thresholds')) {
     const page = await open(browser, 1440, 900)
     await enter(page, 'Оффер')
-    await page.getByRole('button', { name: 'Рентген', exact: true }).click()
+    await page.getByRole('button', { name: 'Что чувствует', exact: true }).click()
     await say(page, 'Понимаю. А учебные дни — это для чего? Учитесь где-то?')
     await shot(page, 'thresholds-1440')
     console.log('рентген:', await page.locator('.g-xray').innerText())
@@ -119,6 +119,9 @@ try {
     await page.getByRole('button', { name: 'Встать и уйти' }).click()
     await page.waitForSelector('.g-end', { timeout: 120_000 })
     await page.getByRole('button', { name: 'Разбор встречи' }).click()
+    // разбор: сначала три строки, цифры и карта — в «Подробном разборе»
+    await page.waitForSelector('.g-main')
+    await page.locator('.g-report-more > summary').click()
     await page.waitForSelector('.g-behavior')
     await page.waitForTimeout(400)
     await shot(page, 'walk-debrief-1440')
@@ -131,7 +134,7 @@ try {
   if (ONLY.includes('brief')) {
     const page = await open(browser, 390, PH)
     await page.goto(URL)
-    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Все дела' }).click()
     await page.locator('.g-folder').filter({ hasText: 'Оффер' }).getByRole('button', { name: 'Открыть дело' }).click()
     await page.waitForSelector('.g-goals')
     await page.locator('.g-goals').screenshot({ path: join(OUT, `brief-goals-offer-390-${TAG}.png`) })
@@ -141,7 +144,7 @@ try {
   if (ONLY.includes('custom')) {
     const page = await open(browser, 1440, 900)
     await page.goto(URL)
-    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Все дела' }).click()
     await page.getByRole('button', { name: 'Заполнить бриф' }).click()
     await page.getByRole('button', { name: 'Подряд' }).click()
     await page.getByLabel('О чём договариваемся').fill('уборка офиса в бизнес-центре')
@@ -165,7 +168,7 @@ try {
     // жёсткая партия из критики: раньше на 4-м ходу Дарина откатывала уступки, на 3-м выдумывала причину
     const page = await open(browser, 1440, 900)
     await enter(page, 'Оффер')
-    await page.getByRole('button', { name: 'Рентген', exact: true }).click()
+    await page.getByRole('button', { name: 'Что чувствует', exact: true }).click()
     const moves = [
       'Добрый день. Мы готовы предложить 150 тысяч, выход через две недели, без жилья и без учебных дней.',
       'Это наше предложение, другого не будет. Либо соглашаетесь, либо ищем дальше.',

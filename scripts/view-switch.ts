@@ -20,7 +20,7 @@ async function enter(page: Page, url: string, view?: string) {
     if (v) localStorage.setItem('peregovorka.view.v1', v)
   }, view)
   await page.goto(url)
-  await page.getByRole('button', { name: 'Начать' }).click()
+  await page.getByRole('button', { name: 'Все дела' }).click()
   await page.locator('.g-folder').filter({ hasText: 'Тара' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
 }

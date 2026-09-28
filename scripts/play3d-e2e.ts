@@ -136,7 +136,7 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     await page.goto(`${URL}/?view=3d`)
     await page.evaluate(() => localStorage.clear())
     await page.goto(`${URL}/?view=3d`)
-    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Все дела' }).click()
     await page.waitForSelector('.g-folders')
     await page.locator('.g-folder').filter({ hasText: CASES[kase].folder }).getByRole('button', { name: 'Открыть дело' }).click()
     await page.getByRole('button', { name: 'Войти в переговорку' }).click()
@@ -184,7 +184,7 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
 
     // рентген с карточки
     if (phone) await hold(page, 'card', true)
-    await page.locator('.w3-paper--card').getByRole('button', { name: /Рентген/ }).click()
+    await page.locator('.w3-paper--card').getByRole('button', { name: /Что чувствует/ }).click()
     await page.waitForTimeout(900)
     if (phone) await page.locator('.w3-look').click() // положить карточку
     await lookFace(page)
@@ -195,7 +195,7 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     else {
       await lookDesk(page)
       if (phone) await hold(page, 'card', true)
-      await page.locator('.w3-paper--card').getByRole('button', { name: /Рентген/ }).click()
+      await page.locator('.w3-paper--card').getByRole('button', { name: /Что чувствует/ }).click()
       if (phone) await page.locator('.w3-look').click()
     }
 
@@ -204,8 +204,8 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     await hold(page, 'notebook', phone)
     await bestPicks(page)
     await shot(page, `${pre}-07-блокнот`)
-    await page.locator('.w3-paper--notebook').getByRole('button', { name: /Положить на стол/ }).click()
-    const sure = page.locator('.w3-paper--notebook').getByRole('button', { name: /Всё равно положить/ })
+    await page.locator('.w3-paper--notebook').getByRole('button', { name: /Предложить/ }).click()
+    const sure = page.locator('.w3-paper--notebook').getByRole('button', { name: /Всё равно предложить/ })
     if (await sure.isVisible().catch(() => false)) await sure.click()
     await waitReply(page)
     await shot(page, `${pre}-08-ответ-на-предложение`)
@@ -220,12 +220,12 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     for (let k = 0; k < 6; k++) {
       if (await page.locator('.w3-end').isVisible()) break
       await lookDesk(page)
-      const acceptBtn = page.locator('.w3-paper--slip').getByRole('button', { name: /Принять/ })
+      const acceptBtn = page.locator('.w3-paper--slip').getByRole('button', { name: /Согласиться/ })
       if ((await page.locator('.w3-paper--slip button').count()) > 0) {
         await hold(page, 'slip', phone)
         await shot(page, `${pre}-09-листок`)
         await acceptBtn.click()
-        const again = page.locator('.w3-paper--slip').getByRole('button', { name: /Всё равно принять/ })
+        const again = page.locator('.w3-paper--slip').getByRole('button', { name: /Всё равно согласиться/ })
         await page.waitForTimeout(200)
         if (await again.isVisible().catch(() => false)) await again.click()
         await waitReply(page)

@@ -120,7 +120,7 @@ async function meeting(page: Page, s: Style, mobile: boolean, fromBrief = true) 
   for (let n = 0; n < sc.turnLimit + 2; n++) {
     if (await ended(page)) break
     const lastCall = (await page.locator('.g-slip.is-last >> visible=true').count()) > 0
-    const accept = page.getByRole('button', { name: 'Принять' }).locator('visible=true').first()
+    const accept = page.getByRole('button', { name: 'Согласиться' }).locator('visible=true').first()
     const mineText = await page.locator('.g-slip-foot b >> visible=true').first().textContent({ timeout: 500 }).catch(() => null)
     const mine = mineText ? Number(mineText) : -1
     if ((lastCall || n >= s.acceptFrom) && (await accept.isVisible()) && mine >= sc.player.profile.batna) {
@@ -129,8 +129,8 @@ async function meeting(page: Page, s: Style, mobile: boolean, fromBrief = true) 
     } else if (n === s.offerAt) {
       await setNotebook(page, s.offer, mobile)
       console.log(`    ход ${n + 1}: кладу на стол`)
-      await page.getByRole('button', { name: 'Положить на стол' }).click()
-      const sure = page.getByRole('button', { name: 'Всё равно положить' })
+      await page.getByRole('button', { name: 'Предложить' }).click()
+      const sure = page.getByRole('button', { name: 'Всё равно предложить' })
       if (await sure.isVisible().catch(() => false)) await sure.click()
     } else if (lastCall) {
       console.log(`    ход ${n + 1}: ухожу`)
@@ -146,6 +146,9 @@ async function meeting(page: Page, s: Style, mobile: boolean, fromBrief = true) 
   }
   if (!(await ended(page))) throw new Error('Встреча не закончилась')
   await page.getByRole('button', { name: 'Разбор встречи' }).click()
+  // разбор: сначала три строки, цифры и карта — в «Подробном разборе»
+  await page.waitForSelector('.g-main')
+  await page.locator('.g-report-more > summary').click()
   await page.waitForSelector('.g-ledger')
   await page.waitForSelector('.g-receipt:not(:has-text("Записываем"))', { timeout: 20_000 })
   const receipt = (await page.locator('.g-receipt').innerText()).replace(/\s+/g, ' ')
