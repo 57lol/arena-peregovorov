@@ -7,6 +7,7 @@ import { buildReport } from '../engine/report'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../engine/types'
 import { allDeals } from '../engine/utility'
 import { endingCatalog, endingOf } from './endings'
+import { client } from './scenarios/client'
 import { offer } from './scenarios/offer'
 import { tara } from './scenarios/tara'
 
@@ -62,7 +63,7 @@ function explore(sc: Scenario): Map<EndingId, string> {
 
 const best = (p: number[]) => p.indexOf(Math.max(...p))
 
-const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['своё дело', testScenario]]
+const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['своё дело', testScenario]]
 
 describe('финалы', () => {
   for (const [label, sc] of CASES) {
