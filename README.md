@@ -6,7 +6,7 @@
 
 ## Как попробовать
 
-Демо: ссылка появится до 29.09.
+Демо: **https://arena-peregovorov.ru** (работает с живой YandexGPT и голосом SpeechKit).
 
 Локально нужен Node.js 22:
 
@@ -27,7 +27,7 @@ YANDEX_FOLDER_ID=...
 
 С тем же `YANDEX_API_KEY` включается голос (Yandex SpeechKit): кнопка «Голос» в шапке встречи озвучивает собеседника, кнопка с микрофоном рядом со «Сказать» переводит речь в текст. Распознанное попадает в поле ввода, его можно поправить перед отправкой. Без ключа, без сервера или при сбое SpeechKit кнопок голоса нет или звук просто не играет.
 
-Прод: `npm run build && npm start` поднимает один процесс, который отдаёт и фронт, и `/api`. То же самое собрано в `Dockerfile`.
+Прод локально: `npm run build && npm start` поднимает один процесс, который отдаёт и фронт, и `/api`. То же самое собрано в `Dockerfile`. Как устроено демо — в разделе «Прод».
 
 ## Как устроена игра
 
@@ -128,6 +128,34 @@ YANDEX_FOLDER_ID=...
 
 Проверки: `npm test` (движок, сервер, сценарии), `npx tsx scripts/check-scenarios.ts` (проверяет, что в каждом деле есть что разменять), `npx tsx scripts/voice-check.ts` при запущенном `npm run dev` (голос вживую: фраза проходит TTS → STT по кругу, запись с микрофона в браузере, снимки кнопок), `npx tsx scripts/board-e2e.ts` (руководитель открывает тренировку, трое играют по ссылке, доска показывает всех).
 
+## Прод
+
+Демо живёт на виртуальном хостинге рег.ру: https://arena-peregovorov.ru, второй домен arena-peregovorov.online уводит туда же (301). Node там запускает Phusion Passenger, HTTPS — Let's Encrypt из панели.
+
+Передеплой одной командой (собирает закоммиченный `HEAD`, незакоммиченное в рабочей папке не попадёт):
+
+```sh
+scripts/deploy-regru.sh          # или scripts/deploy-regru.sh <коммит>
+```
+
+Скрипт собирает фронт и сервер (`npm run build:server` — esbuild в один `server.mjs`, `node_modules` на сервере не нужны), раскладывает всё по rsync, перезапускает Passenger (`~/www/tmp/restart.txt`) и ждёт `/api/health`. Нужен ssh-хост `arena-regru` в `~/.ssh/config` с ключом.
+
+Что лежит на сервере:
+
+| Путь | Что |
+|---|---|
+| `~/node` | Node 22 (официальный linux-x64 tarball) |
+| `~/arena-app` | `server.mjs`, `start.cjs`, `dist/`, `.env` (ключи, права 600, в репозитории его нет) |
+| `~/arena-data` | `CACHE_DIR`: кэш разбора, озвучка, сохранённые дела, комнаты тренировок; `server.log` — вывод сервера |
+| `~/www/app.js` | вход Passenger, из `deploy/regru/app.js` |
+| `~/www/arena-peregovorov.ru` | копия `dist/` (её отдаёт nginx) и `.htaccess` с `PassengerEnabled On` |
+
+Почему так: на хостинге Passenger берёт системный node 10, а `PassengerNodejs`, `PassengerAppRoot` и `PassengerAppType` в `.htaccess` запрещены. Поэтому `app.js` под node 10 только перезапускает загрузчик Passenger под Node 22, и сервер поднимается уже там. Флаг `--disable-wasm-trap-handler` обязателен: без него `fetch` падает на лимите виртуальной памяти. Cron раз в 4 минуты дёргает `/api/health`, чтобы Passenger не усыплял процесс.
+
+С нуля на новом хостинге: распаковать Node 22 в `~/node`, положить `~/arena-app/.env` (как локальный, плюс `CACHE_DIR=/var/www/<логин>/data/arena-data`), выпустить сертификаты в панели и запустить скрипт.
+
+Логи: `ssh arena-regru 'tail ~/arena-data/server.log ~/logs/arena-peregovorov.ru.error.log'`.
+
 ## Структура
 
 ```
@@ -138,7 +166,8 @@ src/game/world3d/      3D-встреча: комната, люди, бумаги
 src/content/scenarios/ готовые дела и их проверка
 docs/                  методика и описание графики
 tools/art/             скрипты, которые рисуют портреты, сцены и рамки
-scripts/               проверка сценариев, прогоны и e2e
+scripts/               проверка сценариев, прогоны и e2e, деплой (deploy-regru.sh)
+deploy/regru/          вход Passenger и .htaccess для хостинга
 ```
 
 ## Команда
