@@ -2,14 +2,14 @@
 // Всё, что противоречит решению (согласие, которого не было, другие цифры), — в корзину, берём шаблон.
 
 import { z } from 'zod'
-import { parseOffer, templateLine } from '../engine/offline'
+import { mentionedIssues, parseOffer, templateLine } from '../engine/offline'
 import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const VOICE_VERSION = 'v5'
+export const VOICE_VERSION = 'v6'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({ line: z.string().min(2).max(600), emotion: z.string() })
@@ -72,7 +72,11 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
       const yes = agreed.length
         ? ` По пунктам ${agreed.map((i) => `«${i.title.toLowerCase()}» (${i.options[d.offer[i.id]!]})`).join(', ')} ты принимаешь то, что назвал собеседник, — скажи это как согласие, не спорь с этим.`
         : ''
-      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Полностью оно такое: ${offer(d.offer)}.${moved}${yes}${feigned}${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ' Не называй его последним или окончательным — торг продолжается.'} Можно коротко обосновать, не раскрывая внутренних причин.`
+      const back = backSteps(sc, d.offer, prev, stance)
+      const trade = back.length
+        ? ` По пункту ${back.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} ты отходишь от того, что просил собеседник, — подай это как размен за свои уступки («раз …, то …»), а не как «остальное как было».`
+        : ''
+      return `Решение: ВСТРЕЧНОЕ ПРЕДЛОЖЕНИЕ. Полностью оно такое: ${offer(d.offer)}.${moved}${yes}${trade}${feigned}${d.final ? ' Скажи, что это последнее предложение: время встречи кончается.' : ' Не называй его последним, окончательным или финальным — торг продолжается.'} ${NO_REASONS}${state.revealed.length ? ' Сослаться можно только на то, что уже рассказал.' : ''}`
     }
     case 'reveal': {
       const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
@@ -80,7 +84,7 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     }
     case 'hold':
       switch (d.reason) {
-        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Без упрёка за сам вопрос. Условия заново не перечисляй.'
+        case 'not_ready_to_reveal': return 'Решение: НЕ РАСКРЫВАТЬ причины. Уйди от ответа: пока не доверяешь собеседнику. Не называй никакой причины — ни настоящей, ни выдуманной: никаких «потому что», «это для», «просто чтобы». Скажи, что пока оставишь это при себе. Без упрёка за сам вопрос. Условия заново не перечисляй.'
         case 'no_movement': {
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
@@ -98,6 +102,16 @@ function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offe
     case 'walk_away':
       return 'Решение: УЙТИ. Ты заканчиваешь переговоры, сделки не будет. Одна-две фразы.'
   }
+}
+
+const NO_REASONS = 'Зачем тебе это — не объясняй и причин не придумывай: свои настоящие причины ты пока не раскрыл.'
+
+/** Пункты, где новое встречное дальше от позиции игрока, чем прошлое: это размен, его надо назвать. */
+function backSteps(sc: Scenario, next: Offer, prev: Offer, stance: Offer) {
+  return sc.issues.filter((i) => {
+    const s = stance[i.id], a = prev[i.id], b = next[i.id]
+    return typeof s === 'number' && typeof a === 'number' && typeof b === 'number' && Math.abs(b - s) > Math.abs(a - s)
+  })
 }
 
 // В промпт озвучки — только решение движка, раскрытые интересы и настроение словами.
@@ -120,7 +134,29 @@ function saysYes(line: string): boolean {
   return !!m && !/(не|нет)\s+$/iu.test(line.slice(0, m.index))
 }
 
-const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*)|окончательн\p{L}*|тв[её]рдое слово|максимум,? что (я )?могу|больше не уступлю|это мой предел)/iu
+const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*|цифр\p{L}*)|окончательн\p{L}*|финальн\p{L}*|крайн\p{L}* (предложени|цен|цифр)\p{L}*|тв[её]рдое слово|максимум,? что (я )?могу|больше не (уступлю|двинусь|подвинусь|могу уступить)|дальше (не двинусь|не подвинусь|двигаться не)|(это|вот) мой предел|торга не будет|без торга|не обсуждается)/iu
+
+// Объяснение «зачем мне это». Нераскрытые причины собеседник не называет и не выдумывает.
+const REASON = /(потому что|так как|поскольку|дело в том|причин\p{L}* (в том|простая)|это (просто |всё |нужно )?для\s|просто для|мне (это )?(важно|нужно|надо)(?!\p{L})|для меня (это )?важн)/iu
+const EXCUSE = /(чтобы|ради\s|из-за)/iu
+/** Реплика объясняет причину, а движок ничего не раскрывал (или раскрыл другое). */
+export function inventsReason(sc: Scenario, d: Decision, state: OpponentState, line: string): boolean {
+  if (d.kind === 'reveal' || d.kind === 'warn_tone' || d.kind === 'walk_away' || d.kind === 'accept') return false
+  const dodge = d.kind === 'hold' && d.reason === 'not_ready_to_reveal'
+  if (dodge) return REASON.test(line) || EXCUSE.test(line)
+  if (!REASON.test(line)) return false
+  // ссылаться на уже рассказанное можно
+  return !sc.opponent.profile.interests.some((i) => state.revealed.includes(i.id) && keepsGist(i.text, line))
+}
+
+/** «Остальное как было», хотя изменилось что-то, о чём реплика молчит. */
+const AS_BEFORE = /(остальн\p{L}*|всё прочее|прочее)[^.!?]{0,20}(как было|как и было|без изменений|прежн\p{L}*|так же|то же)/iu
+function hidesChanges(sc: Scenario, d: Decision, prev: Offer | undefined, line: string): boolean {
+  if (d.kind !== 'counter' || !prev || !AS_BEFORE.test(line)) return false
+  const said = parseOffer(sc, line)
+  const named = new Set([...mentionedIssues(sc, line), ...Object.keys(said)])
+  return sc.issues.some((i) => typeof prev[i.id] === 'number' && d.offer[i.id] !== prev[i.id] && !named.has(i.id))
+}
 
 const COMMON = new Set(['больш', 'всего', 'очень', 'сразу', 'чтобы', 'когда', 'потом', 'тольк', 'этого', 'такой', 'может', 'через', 'нужно', 'будет', 'просто', 'честн'])
 const stems = (t: string) =>
@@ -134,9 +170,11 @@ export function keepsGist(interest: string, line: string): boolean {
   return hits >= (want.length >= 4 ? 2 : 1)
 }
 
-/** Проверяем, что реплика не противоречит решению движка. */
-export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string): boolean {
+/** Проверяем, что реплика не противоречит решению движка. `prev` — прошлое предложение собеседника. */
+export function lineFits(sc: Scenario, d: Decision, state: OpponentState, line: string, prev?: Offer): boolean {
   const low = line.toLowerCase()
+  if (inventsReason(sc, d, state, line)) return false
+  if (hidesChanges(sc, d, prev, line)) return false
   if (BANNED.some((b) => low.includes(b))) return false
   if (d.kind !== 'accept' && saysYes(line)) return false
   const holding = d.kind === 'hold' && d.reason === 'no_movement'
@@ -174,6 +212,8 @@ function pickEmotion(e: string, d: Decision, s: OpponentState, engine: Emotion):
   return EMOTIONS.includes(e as Emotion) && ok[e as Emotion] ? (e as Emotion) : engine
 }
 
+const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
 export interface VoiceResult {
   line: string
   emotion: Emotion
@@ -189,15 +229,18 @@ export async function voice(
   d: Decision,
   state: OpponentState,
 ): Promise<VoiceResult> {
-  const fallback = templateLine(sc, d, state)
+  const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
+  const fallback = templateLine(sc, d, state, prev)
   if (llm.name === 'offline') return { ...fallback, source: 'template' }
+  // одна и та же фраза два хода подряд звучит как заевшая пластинка
+  const said = new Set(history.slice(-2).map((h) => norm(h.opponentLine)))
   const recent = history
     .slice(-3)
     .map((h) => `Игрок: ${h.playerText}\nТы: ${h.opponentLine}`)
     .join('\n')
   const user = `${recent ? `Разговор до этого:\n${recent}\n\n` : `Ты начал встречу словами: «${sc.opening}»\n\n`}Игрок сейчас сказал: «${playerText}»
 
-${instruction(sc, d, state, history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {})}
+${instruction(sc, d, state, prev)}
 ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
   const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys: system(sc), user }
   try {
@@ -217,7 +260,7 @@ ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
           },
         }))
         const line = r.line.trim().replace(/^[«"]|[»"]$/g, '')
-        if (!lineFits(sc, d, state, line)) console.warn(`[voice] ${d.kind}: отклонено «${line}»`)
+        if (!lineFits(sc, d, state, line, prev) || said.has(norm(line))) console.warn(`[voice] ${d.kind}: отклонено «${line}»`)
         else {
           // Эмоцию для ключевых решений задаёт движок, чтобы спрайт не улыбался при уходе.
           return { line, emotion: pickEmotion(r.emotion, d, state, fallback.emotion) }
