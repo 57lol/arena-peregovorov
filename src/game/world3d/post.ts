@@ -36,6 +36,7 @@ uniform float spread;
 uniform float vignette;
 uniform float xray;
 uniform float fade;
+uniform float dim;
 varying vec2 vUv;
 
 float bayer4(vec2 p) {
@@ -77,6 +78,8 @@ void main() {
     c = mix(c, cold, xray * world);
   }
   c *= 1.0 - fade;
+  // лист в руках: мир за ним притухает, сам лист и люди — нет
+  c *= 1.0 - dim * world;
   float b = bayer4(gl_FragCoord.xy) - 0.5;
   c += b * spread * mix(0.25, 1.0, world);
   gl_FragColor = vec4(nearest(clamp(c, 0.0, 1.0)), 1.0);
@@ -96,6 +99,8 @@ export interface PostOptions {
   xray?: number
   /** 0..1 — затемнение в чёрное */
   fade?: number
+  /** 0..1 — притушить только мир (не людей и не бумаги) */
+  dim?: number
 }
 
 export class PixelPipeline {
@@ -121,9 +126,10 @@ export class PixelPipeline {
         pal: { value: RGB_OF.map(([r, g, b]) => new Vector3(r / 255, g / 255, b / 255)) },
         res: { value: [4, 4] },
         spread: { value: 0.11 },
-        vignette: { value: 0.55 },
+        vignette: { value: 0.0 },
         xray: { value: 0 },
         fade: { value: 0 },
+        dim: { value: 0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -145,6 +151,7 @@ export class PixelPipeline {
   render(scene: Scene, camera: Camera, o: PostOptions = {}) {
     this.mat.uniforms.xray.value = o.xray ?? 0
     this.mat.uniforms.fade.value = o.fade ?? 0
+    this.mat.uniforms.dim.value = o.dim ?? 0
     const r = this.renderer
     r.setRenderTarget(this.target)
     r.setClearColor(0x10141f, 1)

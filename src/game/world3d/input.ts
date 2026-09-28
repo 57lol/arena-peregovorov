@@ -18,6 +18,8 @@ export interface InputHooks {
   onPose?: (p: 'face' | 'desk') => void
   /** пользователь сам повернул голову (для подсказок «можно осмотреться») */
   onLook?: () => void
+  /** короткое касание мира без перетаскивания; x, y — относительно корня */
+  onTap?: (x: number, y: number) => void
 }
 
 export function attachInput(world: World, root: HTMLElement, hooks: InputHooks = {}) {
@@ -26,7 +28,11 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
   const fine = window.matchMedia?.('(pointer: fine)').matches ?? true
 
   const down = (e: PointerEvent) => {
-    if (drag || (e.target as HTMLElement).closest?.(NO_DRAG)) return
+    const t = e.target as HTMLElement
+    if (drag || t.closest?.(NO_DRAG)) return
+    // лист, который прокручивается (длинный блокнот), листаем, а не крутим голову
+    const sc = t.closest?.('[data-scroll]') as HTMLElement | null
+    if (sc && sc.scrollHeight > sc.clientHeight + 2) return
     if (e.button !== 0 && e.pointerType === 'mouse') return
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 }
     root.setPointerCapture?.(e.pointerId)
@@ -57,6 +63,10 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
   }
   const up = (e: PointerEvent) => {
     if (!drag || e.pointerId !== drag.id) return
+    if (drag.moved < 8 && e.type === 'pointerup') {
+      const r = root.getBoundingClientRect()
+      hooks.onTap?.(e.clientX - r.left, e.clientY - r.top)
+    }
     drag = null
     root.classList.remove('is-dragging')
   }

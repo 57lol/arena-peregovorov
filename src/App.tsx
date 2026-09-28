@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
@@ -10,6 +10,7 @@ import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
 import { Play } from './game/screens/Play'
+import { can3d, loadView, saveView, type View } from './game/view'
 import { Debrief } from './game/screens/Debrief'
 import { Coach } from './game/screens/Coach'
 import { Board } from './game/screens/Board'
@@ -20,6 +21,9 @@ import './game/ui/ui.css'
 import './game/game.css'
 import './game/coach.css'
 import './game/career.css'
+
+// 3D-встреча тянет three.js — грузим её, только когда садимся за стол
+const Play3D = lazy(() => import('./game/screens/Play3D'))
 
 export type Screen = 'title' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career'
 
@@ -78,6 +82,9 @@ export default function App() {
   const [playKey, setPlayKey] = useState(0)
   // «Личное дело» открывают с титула и из папки — туда же и возвращаемся
   const [careerFrom, setCareerFrom] = useState<Screen>('title')
+  // вид встречи: 3D за столом или классический; «не тянет» — переключаемся сами и говорим об этом
+  const [view, setView] = useState<View>(loadView)
+  const [viewNote, setViewNote] = useState('')
   const currentRef = useRef<Case | null>(null)
   currentRef.current = current
 
@@ -239,21 +246,55 @@ export default function App() {
 
   if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go('setup')} />
 
-  if (screen === 'play')
+  if (screen === 'play') {
+    const meeting = {
+      game: current,
+      history,
+      setHistory,
+      redo,
+      speech: server?.speech,
+      tutorial: !progress.tutorialDone,
+      onTutorialOff: () => setProgress(loadProgress()),
+      onFinish: () => go('report'),
+      onQuit: () => go('setup'),
+    }
+    if (view === '3d')
+      return (
+        <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
+          <Play3D
+            key={playKey}
+            {...meeting}
+            onClassic={(why) => {
+              setView('classic')
+              if (why === 'choice') saveView('classic')
+              else setViewNote('Устройство не тянет 3D, поэтому встреча продолжается в классическом виде.')
+            }}
+          />
+        </Suspense>
+      )
     return (
-      <Play
-        key={playKey}
-        game={current}
-        history={history}
-        setHistory={setHistory}
-        redo={redo}
-        speech={server?.speech}
-        tutorial={!progress.tutorialDone}
-        onTutorialOff={() => setProgress(loadProgress())}
-        onFinish={() => go('report')}
-        onQuit={() => go('setup')}
-      />
+      <>
+        {viewNote && (
+          <p className="g-view-note" role="status">
+            {viewNote}
+          </p>
+        )}
+        <Play
+          key={playKey}
+          {...meeting}
+          on3d={
+            can3d()
+              ? () => {
+                  setViewNote('')
+                  saveView('3d')
+                  setView('3d')
+                }
+              : undefined
+          }
+        />
+      </>
     )
+  }
 
   return (
     <Debrief

@@ -1,0 +1,868 @@
+/* 3D-встреча: мир во весь экран, поверх — реплики, поле ввода, плашки разбора, меню.
+   Всё кратно --u и в палитре Apollo, как остальной кит. Слои: мир 0, бумаги (CSS3D) 1, оверлеи 2, меню 4. */
+
+.w3-play {
+  --on-desk: var(--c-paper);
+  --on-desk-muted: var(--c-mist);
+  --desk-lo: var(--c-ink);
+  --edge: var(--c-ink);
+  --plate: rgb(16 20 31 / 0.84);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--c-ink);
+  color: var(--c-paper);
+}
+.w3-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.w3-ui {
+  position: absolute;
+  z-index: 2;
+}
+/* пиксельная тень у текста поверх мира: читается на любом фоне и не размывается */
+.w3-play {
+  --px-shadow: 0 var(--u) 0 var(--c-ink), var(--u) 0 0 var(--c-ink), 0 calc(-1 * var(--u)) 0 var(--c-ink), calc(-1 * var(--u)) 0 0 var(--c-ink);
+}
+
+.w3-loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--c-ink);
+  color: var(--c-mist);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+
+/* ---------- реплика собеседника: висит под ним ---------- */
+
+.w3-them {
+  left: 0;
+  top: 0;
+  width: min(640px, calc(100% - 24px));
+  will-change: transform;
+}
+.w3-them .px-dialog-text {
+  min-height: calc(2 * var(--lh-read));
+  max-height: calc(4 * var(--lh-read));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.w3-them .px-dialog-text::-webkit-scrollbar {
+  display: none;
+}
+/* собеседник за краем экрана: окно тише, табличка подсказывает, куда повернуться */
+.w3-them[data-off='left'] .px-plate::before,
+.w3-them[data-off='right'] .px-plate::after,
+.w3-them[data-off='behind'] .px-plate::after {
+  content: '';
+  align-self: center;
+  width: calc(4 * var(--u));
+  height: calc(6 * var(--u));
+  background: currentColor;
+}
+.w3-them[data-off='left'] .px-plate::before {
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+.w3-them[data-off='right'] .px-plate::after,
+.w3-them[data-off='behind'] .px-plate::after {
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.w3-them[data-off]:not([data-off='']) {
+  opacity: 0.92;
+}
+
+/* ---------- рентген: рядом с головой собеседника ---------- */
+
+.w3-xray {
+  left: 0;
+  top: 0;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 220px);
+  overflow-y: auto;
+  animation: w3-in 0.24s steps(4) both;
+}
+.w3-xray .g-xray {
+  background: rgb(21 29 40 / 0.9);
+  box-shadow: 0 0 0 var(--u) var(--c-sky);
+}
+
+/* ---------- верх: меню ---------- */
+
+.w3-top {
+  top: 12px;
+  right: 12px;
+}
+.w3-menu-btn {
+  margin: 0;
+}
+
+/* ---------- низ: поле ввода парит над миром ---------- */
+
+.w3-tray {
+  left: 50%;
+  bottom: calc(12px + var(--kb, 0px));
+  width: min(780px, calc(100% - 24px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--u));
+}
+.w3-tray-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+  min-height: 44px;
+}
+.w3-clock-line {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--u));
+  margin: 0;
+  color: var(--c-paper);
+  text-shadow: var(--px-shadow);
+}
+.w3-clock-line svg {
+  filter: drop-shadow(0 var(--u) 0 var(--c-ink));
+}
+.w3-clock-line .is-late {
+  color: var(--c-brass-hi);
+}
+.w3-look {
+  margin: 0;
+  text-shadow: var(--px-shadow);
+}
+.w3-look.px-btn--brass {
+  text-shadow: none;
+}
+.w3-look.is-new {
+  animation: w3-nudge 1.6s steps(2) 2;
+}
+@keyframes w3-nudge {
+  50% {
+    transform: translateY(calc(-2 * var(--u)));
+  }
+}
+.w3-you {
+  margin: 0;
+  padding: 0 calc(2 * var(--u));
+  overflow: hidden;
+  color: var(--c-mist);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  text-shadow: var(--px-shadow);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.w3-you b {
+  color: var(--c-sky);
+  font-weight: 400;
+}
+.w3-say {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 calc(3 * var(--u));
+}
+.w3-say .px-field {
+  margin: var(--u) 0 calc(3 * var(--u));
+}
+.w3-say .px-field-input {
+  min-height: 56px;
+  max-height: 136px;
+  field-sizing: content;
+}
+.w3-say .px-field-hint {
+  display: none;
+}
+.w3-say-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u));
+}
+.w3-say-row .px-btn {
+  margin-block: var(--u) calc(3 * var(--u));
+}
+.w3-error,
+.w3-source {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: calc(2 * var(--u)) calc(4 * var(--u));
+  background: var(--plate);
+  color: var(--c-paper);
+}
+.w3-error {
+  color: var(--c-brass-hi);
+}
+.w3-source {
+  color: var(--c-mist);
+}
+.w3-end {
+  padding: calc(5 * var(--u)) calc(6 * var(--u));
+  background: var(--plate);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+}
+.w3-end-text {
+  margin: 0 0 calc(3 * var(--u));
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.w3-hint {
+  margin: 0;
+  color: var(--c-mist);
+  text-align: center;
+  text-shadow: var(--px-shadow);
+  animation: w3-in 0.6s 1.2s steps(3) both;
+}
+.w3-play[data-pose='desk'] .w3-hint {
+  display: none;
+}
+
+/* ---------- разбор хода: плашки гаснут сами ---------- */
+
+.w3-toasts {
+  top: 12px;
+  left: 12px;
+  width: min(400px, calc(100% - 96px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(2 * var(--u));
+}
+.w3-toasts.is-dim {
+  opacity: 0.45;
+}
+.w3-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(4 * var(--u));
+  max-width: 100%;
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  background: var(--plate);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  color: var(--c-paper);
+  animation: w3-toast-in 0.28s steps(4) both;
+}
+.w3-toast svg {
+  flex: none;
+  margin-top: calc(3 * var(--u));
+}
+.w3-toast.is-good svg {
+  color: var(--c-leaf-hi);
+}
+.w3-toast.is-bad svg {
+  color: var(--c-coral);
+}
+.w3-toast b {
+  font-weight: 700;
+}
+.w3-toast q {
+  display: block;
+  color: var(--c-mist);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  quotes: '«' '»';
+}
+.w3-toast--verdict {
+  align-items: center;
+}
+.w3-toast-turn {
+  color: var(--c-mist);
+}
+.w3-toast-effect {
+  color: var(--c-paper);
+}
+.w3-toast--tip {
+  flex-direction: column;
+  gap: var(--u);
+}
+.w3-toast--tip b {
+  color: var(--c-brass-hi);
+}
+.w3-toast--tip .g-link,
+.w3-toast-more {
+  color: var(--c-grid);
+}
+.w3-toast-more {
+  margin: 0;
+  padding: calc(1 * var(--u)) calc(2 * var(--u));
+  text-shadow: var(--px-shadow);
+}
+/* штампик вердикта — тот же, что на полях в классическом виде */
+.w3-stamp-mini {
+  padding: 0 calc(3 * var(--u));
+  box-shadow: inset 0 0 0 var(--u) currentColor;
+  font-weight: 700;
+  transform: rotate(-3deg);
+}
+.w3-stamp-mini.is-good {
+  color: var(--c-leaf-hi);
+}
+.w3-stamp-mini.is-bad {
+  color: var(--c-coral);
+}
+.w3-stamp-mini.is-plain {
+  color: var(--c-brass-hi);
+}
+/* вся стопка живёт отведённое время и гаснет; наведение — пауза */
+.w3-toasts {
+  animation: w3-life var(--life, 9s) linear both;
+}
+.w3-toasts:hover,
+.w3-toasts:focus-within {
+  animation-play-state: paused;
+}
+@keyframes w3-life {
+  0%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes w3-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-8 * var(--u)));
+  }
+}
+@keyframes w3-in {
+  from {
+    opacity: 0;
+  }
+}
+.w3-toast-chip {
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  min-height: 44px;
+  padding: 0 calc(5 * var(--u));
+  border: 0;
+  background: var(--plate);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  color: var(--c-mist);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  cursor: pointer;
+  animation: w3-in 0.3s steps(3) both;
+}
+.w3-toast-chip:hover {
+  color: var(--c-paper);
+}
+
+/* разбор хода целиком — лист «на полях» слева */
+.w3-sheet {
+  top: 12px;
+  left: 12px;
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - 240px);
+  overflow-y: auto;
+  animation: w3-in 0.2s steps(3) both;
+}
+.w3-sheet .g-margin--side {
+  padding-top: calc(2 * var(--u));
+}
+.w3-sheet-close {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--c-steel-2);
+  cursor: pointer;
+}
+
+/* штамп в конце встречи — по центру экрана */
+.w3-play > .px-stamp {
+  position: absolute;
+  z-index: 3;
+  inset: 22% 0 auto;
+}
+
+/* ---------- бумаги на столе (CSS3D) ---------- */
+
+.w3-paper {
+  box-sizing: border-box;
+  color: var(--c-ink);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  -webkit-font-smoothing: none;
+  transition: opacity 0.12s linear;
+}
+.w3-paper:not(.is-live),
+.w3-paper:not(.is-live) * {
+  pointer-events: none !important;
+}
+.w3-paper > * {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+}
+
+/* блокнот: тетрадь в клетку с полями справа и пружиной, как в классическом виде */
+.w3-note {
+  --nb-line: #cfe3e0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12 * var(--u)) calc(18 * var(--u)) calc(6 * var(--u)) calc(8 * var(--u));
+  background-color: var(--c-paper);
+  background-image:
+    url('/assets/ui/frame-ring.png'),
+    linear-gradient(
+      90deg,
+      transparent calc(100% - 12 * var(--u)),
+      var(--c-coral) calc(100% - 12 * var(--u)) calc(100% - 11 * var(--u)),
+      transparent calc(100% - 11 * var(--u))
+    ),
+    repeating-linear-gradient(90deg, var(--nb-line) 0 var(--u), transparent var(--u) calc(8 * var(--u))),
+    repeating-linear-gradient(180deg, var(--nb-line) 0 var(--u), transparent var(--u) calc(8 * var(--u)));
+  background-repeat: repeat-x, no-repeat, repeat, repeat;
+  background-size: calc(12 * var(--u)) calc(12 * var(--u)), auto, auto, auto;
+  background-position: calc(6 * var(--u)) 0, 0 0, 0 0, 0 0;
+  image-rendering: pixelated;
+}
+.w3-note-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+}
+.w3-note-title {
+  margin: 0;
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--pen);
+}
+.w3-note-batna {
+  margin: 0;
+  color: var(--c-steel-2);
+}
+.w3-note-batna b {
+  color: var(--pen);
+}
+.w3-note-body {
+  flex: 1;
+  min-height: 0;
+  margin: calc(2 * var(--u)) calc(-2 * var(--u)) 0 0;
+  padding-right: calc(2 * var(--u));
+  overflow-y: auto;
+  scrollbar-color: var(--pen) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+.w3-note .px-issue {
+  padding: var(--u) 0 calc(2 * var(--u));
+}
+.w3-note .px-issue + .px-issue,
+.w3-note .w3-issue + .w3-issue .px-issue {
+  border-top: var(--u) dashed var(--c-mist);
+  padding-top: calc(2 * var(--u));
+}
+.w3-note .px-issue-title {
+  margin-bottom: 0;
+}
+.w3-note .px-step {
+  width: 36px;
+  height: 36px;
+}
+.w3-note .g-notes {
+  margin: 0 0 calc(2 * var(--u));
+}
+.w3-copy {
+  margin-top: calc(2 * var(--u));
+  color: var(--pen);
+}
+.w3-note-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  margin-top: calc(3 * var(--u));
+}
+.w3-note-foot .px-btn {
+  margin: var(--u) var(--u) calc(3 * var(--u));
+  --desk-lo: var(--c-paper-2);
+}
+.w3-total {
+  color: var(--pen);
+}
+.w3-total b {
+  font-size: var(--fs-ui-big);
+}
+.w3-total.is-low b {
+  color: var(--c-stamp);
+}
+.w3-low {
+  margin: calc(2 * var(--u)) 0 0;
+  padding: calc(2 * var(--u)) calc(3 * var(--u));
+  background: var(--c-brass-hi);
+  color: var(--c-ink);
+}
+
+/* листок собеседника: чистая бумага с загнутым углом */
+.w3-slip {
+  display: flex;
+  flex-direction: column;
+  padding: calc(4 * var(--u)) calc(6 * var(--u)) calc(3 * var(--u));
+  border: calc(4 * var(--u)) solid transparent;
+  border-image: url('/assets/ui/frame-paper.png') 4 fill stretch;
+  image-rendering: pixelated;
+}
+.w3-slip.is-last {
+  box-shadow: inset 0 0 0 var(--u) var(--c-stamp);
+}
+.w3-slip-from {
+  margin: 0 0 calc(2 * var(--u));
+  color: var(--c-steel-2);
+}
+.w3-slip.is-last .w3-slip-from {
+  color: var(--c-stamp);
+  font-weight: 700;
+}
+.w3-slip-rows {
+  flex: 1;
+  margin: 0;
+}
+.w3-slip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(4 * var(--u));
+  border-bottom: var(--u) dotted var(--c-mist);
+}
+.w3-slip-row dt {
+  color: var(--c-steel-2);
+}
+.w3-slip-row dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+.w3-slip-pts {
+  display: inline-block;
+  min-width: 2.2ch;
+  padding: 0 var(--u);
+  color: var(--pen);
+  box-shadow: inset 0 0 0 var(--u) var(--pen);
+  text-align: center;
+}
+.w3-slip-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 calc(4 * var(--u));
+  margin-top: calc(2 * var(--u));
+}
+.w3-slip-foot p {
+  margin: 0;
+}
+.w3-slip-foot .is-low {
+  color: var(--c-stamp);
+}
+.w3-slip-foot .px-btn {
+  --desk-lo: var(--c-paper-2);
+  margin: var(--u) var(--u) calc(3 * var(--u));
+}
+
+/* карточка «Под рукой»: библиотечная карточка в линейку */
+.w3-card {
+  display: flex;
+  flex-direction: column;
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  background-color: var(--c-skin-cream, #e7d5b3);
+  background-image:
+    linear-gradient(180deg, transparent calc(14 * var(--u)), var(--c-coral) calc(14 * var(--u)) calc(15 * var(--u)), transparent calc(15 * var(--u))),
+    repeating-linear-gradient(180deg, transparent 0 calc(21 * var(--u)), #c09473 calc(21 * var(--u)) calc(22 * var(--u)));
+  background-position: 0 0, 0 calc(15 * var(--u));
+  box-shadow: inset 0 0 0 var(--u) #c09473;
+}
+.w3-card-title {
+  margin: 0 0 calc(3 * var(--u));
+  color: var(--c-stamp-2);
+  font-weight: 700;
+}
+.w3-card-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.w3-card-btn {
+  display: flex;
+  align-items: center;
+  gap: calc(4 * var(--u));
+  width: 100%;
+  min-height: 42px;
+  padding: 0 calc(2 * var(--u));
+  border: 0;
+  background: transparent;
+  color: var(--c-ink);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.w3-card-btn > span {
+  flex: 1;
+}
+.w3-card-btn:hover:not(:disabled) > span {
+  text-decoration: underline;
+  text-decoration-thickness: var(--u);
+  text-underline-offset: calc(2 * var(--u));
+}
+.w3-card-btn:active:not(:disabled) {
+  background: rgb(192 148 115 / 0.4);
+}
+.w3-card-btn svg {
+  color: var(--pen);
+}
+.w3-card-mark {
+  font-style: normal;
+  color: var(--c-steel);
+}
+.w3-card-btn.is-on .w3-card-mark {
+  padding: 0 calc(2 * var(--u));
+  background: var(--c-brass);
+  color: var(--c-ink);
+}
+.w3-card-btn.is-stamp,
+.w3-card-btn.is-stamp svg {
+  color: var(--c-stamp);
+}
+.w3-card-btn.is-sure {
+  background: var(--c-stamp);
+  color: var(--c-paper);
+}
+.w3-card-btn.is-sure svg {
+  color: var(--c-paper);
+}
+
+/* ---------- меню ---------- */
+
+.w3-menu {
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(16 20 31 / 0.72);
+  animation: w3-in 0.16s steps(2) both;
+}
+.w3-menu-card {
+  box-sizing: border-box;
+  width: min(540px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: calc(8 * var(--u)) calc(10 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    0 calc(3 * var(--u)) 0 var(--u) var(--c-ink-2);
+}
+.w3-menu-title {
+  margin: 0;
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
+}
+.w3-menu-sub {
+  margin: calc(2 * var(--u)) 0 calc(5 * var(--u));
+  color: var(--c-steel-2);
+}
+.w3-menu-card > .px-btn {
+  --desk-lo: var(--c-paper-2);
+  margin: 0 var(--u) calc(4 * var(--u));
+}
+.w3-menu-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.w3-menu-list li + li {
+  border-top: var(--u) dashed var(--c-mist);
+}
+.w3-menu-item {
+  display: flex;
+  align-items: center;
+  gap: calc(5 * var(--u));
+  width: 100%;
+  min-height: 48px;
+  padding: 0 calc(2 * var(--u));
+  border: 0;
+  background: transparent;
+  color: var(--c-ink);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.w3-menu-item svg {
+  color: var(--pen);
+}
+.w3-menu-item:hover {
+  background: var(--c-paper-2);
+}
+.w3-menu-item.is-stamp,
+.w3-menu-item.is-stamp svg {
+  color: var(--c-stamp);
+}
+.w3-menu-item.is-sure {
+  background: var(--c-stamp);
+  color: var(--c-paper);
+}
+.w3-menu-item.is-sure svg {
+  color: var(--c-paper);
+}
+.w3-protocol {
+  margin-top: calc(4 * var(--u));
+  border-top: var(--u) solid var(--c-ink);
+  padding-top: calc(3 * var(--u));
+}
+.w3-protocol summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+}
+.w3-protocol ol {
+  margin: 0;
+  padding: 0 0 0 calc(10 * var(--u));
+}
+.w3-protocol li {
+  padding: calc(2 * var(--u)) 0 calc(3 * var(--u));
+}
+.w3-protocol li + li {
+  border-top: var(--u) dotted var(--c-mist);
+}
+.w3-protocol p {
+  margin: 0 0 var(--u);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+}
+.w3-protocol-them {
+  color: var(--c-steel-2);
+}
+.w3-protocol .g-link {
+  color: var(--pen);
+}
+.w3-menu-keys {
+  margin: calc(5 * var(--u)) 0 0;
+  color: var(--c-steel-2);
+}
+
+/* ---------- телефон ---------- */
+
+@media (max-width: 699px) {
+  .w3-menu-label {
+    display: none;
+  }
+  .w3-them {
+    width: calc(100% - 24px);
+  }
+  .w3-them .px-dialog-text {
+    max-height: calc(3 * var(--lh-read));
+  }
+  .w3-say {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .w3-say .px-field-input {
+    min-height: 48px;
+    max-height: 96px;
+  }
+  .w3-say-row {
+    margin-top: calc(-2 * var(--u));
+  }
+  .g-mic-label {
+    display: none;
+  }
+  .w3-toast q {
+    display: none;
+  }
+  .w3-xray {
+    width: calc(100% - 24px);
+    max-height: 46%;
+  }
+  .w3-sheet {
+    max-height: calc(100% - 260px);
+  }
+  /* на телефоне у стола больше бумаги: карточка «Под рукой» — строка кнопок */
+  .w3-card {
+    padding: calc(2 * var(--u)) calc(3 * var(--u));
+    background-image: linear-gradient(180deg, transparent calc(2 * var(--u)), var(--c-coral) calc(2 * var(--u)) calc(3 * var(--u)), transparent calc(3 * var(--u)));
+  }
+  .w3-card-title {
+    display: none;
+  }
+  .w3-card-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+  }
+  .w3-card-list li {
+    flex: 1 1 33%;
+  }
+  .w3-card-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--u);
+    min-height: 0;
+    padding: calc(1 * var(--u));
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+  }
+  .w3-card-btn > span {
+    flex: none;
+  }
+  .w3-card-mark {
+    display: none;
+  }
+  .w3-card-btn.is-on {
+    box-shadow: inset 0 calc(-1 * var(--u)) 0 var(--c-brass);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .w3-toasts {
+    animation-duration: var(--life, 9s) !important;
+  }
+}
+
+/* лист в руках: реплика собеседника ждёт, пока его положат */
+.w3-them {
+  transition: opacity 0.15s steps(3);
+}
+.w3-them.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 699px) {
+  .w3-play[data-pose='desk'] .w3-toasts,
+  .w3-play[data-pose='desk'] .w3-toast-chip {
+    display: none;
+  }
+}
+.w3-hint-touch {
+  display: none;
+}
+@media (hover: none) and (pointer: coarse) {
+  .w3-hint-mouse {
+    display: none;
+  }
+  .w3-hint-touch {
+    display: inline;
+  }
+}
+.w3-slip-row {
+  flex-wrap: wrap;
+}
+.w3-slip-row dd {
+  margin-left: auto;
+}

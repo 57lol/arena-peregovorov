@@ -1,10 +1,11 @@
 // Витрина 3D-комнаты для разработки: /?world=factory или /?world=office.
-// Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1.
+// Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1, &face=rinat, &case=tara.
 // Управление: перетаскивание, стрелки ←→, ↓ стол, ↑ собеседник.
 
 import { useEffect, useRef } from 'react'
 import { MathUtils } from 'three'
 import { attachInput } from './input'
+import type { PortraitId } from '../ui/assets'
 import type { RoomKind } from './room'
 import { World } from './stage'
 import './world3d.css'
@@ -14,7 +15,8 @@ export default function Preview() {
   useEffect(() => {
     const q = new URLSearchParams(location.search)
     const kind = (q.get('world') === 'office' ? 'office' : 'factory') as RoomKind
-    const w = new World(ref.current!, kind)
+    const face = (q.get('face') ?? (kind === 'office' ? 'buyer' : 'rinat')) as PortraitId
+    const w = new World(ref.current!, { kind, caseId: q.get('case') ?? (kind === 'office' ? 'client' : 'tara'), opponent: face })
     const yaw = q.get('yaw')
     const pitch = q.get('pitch')
     if (yaw || pitch) {

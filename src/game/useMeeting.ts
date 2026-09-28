@@ -185,7 +185,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const undo = () => setHistory((h) => h.slice(0, -1))
 
   return {
-    sc, P, last, state, done, name,
+    sc, P, last, state, done, name, history,
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
     voiceOn, toggleVoice, voiced, micOff, setMicOff, lowSure, acceptSure,
