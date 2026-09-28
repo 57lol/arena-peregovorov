@@ -41,7 +41,7 @@ export const SCENE_H = 108
 export const SCENES = {
   factory: { bg: '/assets/scenes/factory.png', desk: '/assets/scenes/factory-desk.png', title: 'Кабинет на гофрокомбинате' },
   office: { bg: '/assets/scenes/office.png', desk: '/assets/scenes/office-desk.png', title: 'Переговорная в бизнес-центре' },
-  // места кампании «Новенький» (src/content/story.ts); пока своей 2D-сцены нет — ближайшая по духу
+  // места кампании «Новенький» (src/content/story.ts), картинки — tools/art/scenes_story.py
   dorm: { bg: '/assets/scenes/dorm.png', desk: '/assets/scenes/dorm-desk.png', title: 'Комната в общежитии' },
   street: { bg: '/assets/scenes/street.png', desk: '/assets/scenes/street-desk.png', title: 'Остановка у ларька' },
   shop: { bg: '/assets/scenes/shop.png', desk: '/assets/scenes/shop-desk.png', title: 'Магазин у общежития' },
