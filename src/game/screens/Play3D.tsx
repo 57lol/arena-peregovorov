@@ -291,7 +291,15 @@ export default function Play3D(props: Props) {
   const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
 
   return (
-    <div className="px-root w3-play" data-desk={sceneFor(sc)} data-pose={pose} data-xray={xray} data-done={done} data-held={held ?? ''}>
+    <div
+      className="px-root w3-play"
+      data-desk={sceneFor(sc)}
+      data-pose={pose}
+      data-xray={xray}
+      data-done={done}
+      data-held={held ?? ''}
+      data-tutor={tut.on ? tut.step : undefined}
+    >
       <div ref={rootRef} className="w3-root w3-stage" aria-label={`Переговорная: напротив ${sc.opponent.character.name}`} />
 
       {/* бумаги на столе — DOM в плоскости листов */}

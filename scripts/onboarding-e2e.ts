@@ -59,7 +59,8 @@ async function run(phone: boolean) {
   n = 0
   for (const f of readdirSync(OUT)) if (f.startsWith(`${tag}-`)) rmSync(join(OUT, f))
   console.log(`\n${tag}`)
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  // настоящая видеокарта (Metal): на программном рендере кадров мало, и встреча честно уходит в классический вид
+  const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu'] })
   const ctx = await b.newContext({
     viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     deviceScaleFactor: phone ? 2 : 1,

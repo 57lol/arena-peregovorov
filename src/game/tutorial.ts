@@ -149,10 +149,18 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
 
 const PAPER_RU = { notebook: 'блокнот', slip: 'листок посередине', card: 'карточку «Под рукой»' }
 
+// что отмечено в этой встрече: переживает переход из 3D в классический вид (слабое устройство) посреди обучения
+const memo: { acked: TutorStep[]; picked: boolean } = { acked: [], picked: false }
+
 /** Шаг обучения во встрече: что показывать, что подсвечивать, «Понятно» и «Я уже умею». */
 export function useTutorial(on: boolean, onOff: () => void, m: { history: TurnRecord[]; done: boolean; xrayUsed: boolean }) {
-  const [acked, setAcked] = useState<TutorStep[]>([])
-  const [picked, setPicked] = useState(false)
+  // новая встреча начинается с чистого листа, продолжение той же — с того, что уже прошли
+  const [acked, setAcked] = useState<TutorStep[]>(() => (m.history.length ? memo.acked : []))
+  const [picked, setPicked] = useState(() => (m.history.length ? memo.picked : false))
+  useEffect(() => {
+    memo.acked = acked
+    memo.picked = picked
+  }, [acked, picked])
   const step: TutorStep = on
     ? tutorStep({ turns: m.history.length, offered: offered(m.history), picked, felt: m.xrayUsed, ended: m.done, acked })
     : 'done'
