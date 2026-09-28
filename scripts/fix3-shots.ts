@@ -13,7 +13,7 @@ const arg = (name: string, def: string) => {
 }
 const URL = arg('url', 'http://localhost:5173')
 const TAG = arg('tag', 'after')
-const ONLY = arg('only', 'cases,xray,slip,thresholds,walk').split(',')
+const ONLY = arg('only', 'cases,xray,slip,thresholds,walk,brief,custom').split(',')
 const PH = Number(arg('h', '844')) // высота телефона: 844 или 667
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'fix3')
 mkdirSync(OUT, { recursive: true })
@@ -125,6 +125,39 @@ try {
     await page.locator('.g-behavior').screenshot({ path: join(OUT, `walk-behavior-1440-${TAG}.png`) })
     console.log('почему такой итог:', (await page.locator('body').innerText()).match(/Вы ушли[^\n]*/)?.[0])
     console.log('приёмы:', (await page.locator('.g-behavior').innerText()).replace(/\n+/g, ' | ').slice(0, 900))
+  }
+  if (ONLY.includes('brief')) {
+    const page = await open(browser, 390, PH)
+    await page.goto(URL)
+    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.locator('.g-folder').filter({ hasText: 'Оффер' }).getByRole('button', { name: 'Открыть дело' }).click()
+    await page.waitForSelector('.g-goals')
+    await page.locator('.g-goals').screenshot({ path: join(OUT, `brief-goals-offer-390-${TAG}.png`) })
+    console.log('что потренируете:', (await page.locator('.g-goals').innerText()).replace(/\n+/g, ' | '))
+  }
+
+  if (ONLY.includes('custom')) {
+    const page = await open(browser, 1440, 900)
+    await page.goto(URL)
+    await page.getByRole('button', { name: 'Начать' }).click()
+    await page.getByRole('button', { name: 'Заполнить бриф' }).click()
+    await page.getByRole('button', { name: 'Подряд' }).click()
+    await page.getByLabel('О чём договариваемся').fill('уборка офиса в бизнес-центре')
+    await page.getByLabel('Кто вы').fill('управляющий бизнес-центром')
+    await page.getByRole('button', { name: 'напористый' }).click().catch(() => {})
+    await page.getByLabel('Что хотите потренировать').fill('не уступать в цене сразу; выяснить, что важно подрядчику')
+    await page.getByRole('button', { name: 'Собрать дело' }).click()
+    await page.waitForSelector('.g-dossier', { timeout: 150_000 })
+    await shot(page, 'custom-brief-1440', true)
+    console.log('запасной:', await page.locator('.g-batna-points').innerText())
+    console.log('цели:', await page.locator('.g-goals').innerText().catch(() => 'нет'))
+    await page.getByRole('button', { name: 'Войти в переговорку' }).click()
+    await page.waitForSelector('.px-dialog')
+    await page.locator('.px-dialog-box').click()
+    await page.waitForTimeout(300)
+    await shot(page, 'custom-play-1440')
+    console.log('вступление:', await page.locator('.px-dialog-text').innerText())
+    console.log('листок:', (await page.locator('.g-slip--side').innerText()).replace(/\n+/g, ' | '))
   }
 } finally {
   await browser.close()

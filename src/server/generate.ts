@@ -207,7 +207,7 @@ export function fitOpening(sc: Scenario): string {
     .filter((i) => typeof anchor[i.id] === 'number')
     .map((i) => `${i.title.replace(/\s*\([^)]*\)/gu, '').toLowerCase()} — ${i.options[anchor[i.id]!]}`)
     .join(', ')
-  return [...talk, `Мои условия такие: ${terms}.`].join(' ')
+  return [...(talk.length ? talk : ['Добрый день.']), `Мои условия такие: ${terms}.`].join(' ')
 }
 
 /** Последние штрихи к делу, которое прошло проверки. */
