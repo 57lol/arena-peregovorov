@@ -566,3 +566,12 @@
     transform: scale(1);
   }
 }
+/* 360 px (частые Android): «ещё 9 реплик» в две строки, иначе «Уйти» уезжает за край */
+@media (max-width: 374px) {
+  .px-clock-left {
+    white-space: normal;
+  }
+  .px-clock-text {
+    min-width: 0;
+  }
+}

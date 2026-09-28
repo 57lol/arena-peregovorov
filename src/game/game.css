@@ -972,6 +972,16 @@ body {
   }
 }
 @media (max-width: 420px) {
+  /* длинная должность своего дела («владелец коммерческой недвижимости») переносится, а не уезжает под кнопку голоса */
+  .px-plate {
+    max-width: calc(100% - 5 * var(--u));
+  }
+  .px-dialog:has(.px-dialog-extra) .px-plate {
+    max-width: calc(100% - 5 * var(--u) - 88px);
+  }
+  .px-plate-role {
+    white-space: normal;
+  }
   /* «Сказать», микрофон и «Блокнот» — в одну строку на 358 px */
   .g-say-row .g-mic:not(.is-rec) {
     gap: 0;
