@@ -351,9 +351,14 @@ export function Play({ game, history, setHistory, redo, tutorial, onTutorialOff,
   )
 }
 
-/** На ноутбуке с невысоким экраном сцена ×3, иначе поле ввода уезжает за край. */
+/** На ноутбуке с невысоким экраном сцена ×3, на невысоком телефоне ×2 — иначе поле ввода уезжает за край. */
 function useSceneMax() {
-  const pick = () => (typeof window === 'undefined' || window.innerHeight >= 1000 || window.innerWidth < 900 ? 4 : 3)
+  const pick = () => {
+    if (typeof window === 'undefined') return 4
+    const { innerWidth: w, innerHeight: h } = window
+    if (w < 900) return h < 760 ? 2 : 4
+    return h >= 1000 ? 4 : 3
+  }
   const [m, setM] = useState(pick)
   useEffect(() => {
     const on = () => setM(pick())

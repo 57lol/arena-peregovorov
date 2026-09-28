@@ -1730,6 +1730,30 @@ body {
   .g-slip--side {
     display: none;
   }
+  /* телефон: реплика, поле ввода и кнопка — на первом экране; записка наставника и листок ниже */
+  .g-stage > .g-mentor--stage {
+    order: 1;
+  }
+  .g-stage > .g-slip--stage {
+    order: 2;
+  }
+  .g-stage .px-dialog-text {
+    max-height: calc(6 * var(--lh-read));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* над окном ещё и ваша реплика — окно на строку короче */
+  .g-stage .g-you + .px-dialog .px-dialog-text {
+    max-height: calc(5 * var(--lh-read));
+  }
+}
+@media (max-width: 899px) and (max-height: 760px) {
+  .g-stage .px-dialog-text {
+    max-height: calc(4 * var(--lh-read));
+  }
+  .g-stage .g-you + .px-dialog .px-dialog-text {
+    max-height: calc(3 * var(--lh-read));
+  }
 }
 @media (min-width: 900px) {
   .g-slip--stage {
