@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { Vector3 } from 'three'
 import { isComplete, sameOffer, score } from '../../engine/utility'
-import { g, plural, portraitFor, sceneFor } from '../cast'
+import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { effectText, type Tip, type TurnFeedback } from '../instant'
 import { endText, useMeeting, type Meeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, PixelIcon, SpeechField, Stamp, type IconName } from '../ui'
@@ -103,8 +103,9 @@ export default function Play3D(props: Props) {
     if (world) world.xrayTarget = xray ? 1 : 0
   }, [world, xray])
   useEffect(() => {
-    if (world) world.clockTarget = 10 * 60 + (60 * Math.min(state.turn, sc.turnLimit)) / sc.turnLimit
-  }, [world, state.turn, sc.turnLimit])
+    const c = meetingClock(sc)
+    if (world) world.clockTarget = c.start + (c.minutes * Math.min(state.turn, sc.turnLimit)) / sc.turnLimit
+  }, [world, state.turn, sc])
   // игрок сказал — все смотрят на него; собеседник отвечает — на собеседника
   useEffect(() => {
     if (pending) world?.company?.stir('you', 3)
@@ -348,7 +349,7 @@ export default function Play3D(props: Props) {
         <div className="w3-tray-row">
           <p className="w3-clock-line">
             <PixelIcon name="clock" px={2} />
-            <MeetingTime turn={state.turn} limit={sc.turnLimit} />
+            <MeetingTime turn={state.turn} limit={sc.turnLimit} clock={meetingClock(sc)} />
           </p>
           {held ? (
             <Button variant="ghost" icon="down" className="w3-look" onClick={() => setHeld(null)}>
@@ -411,9 +412,9 @@ export default function Play3D(props: Props) {
 }
 
 /** «10:15, ещё 9 реплик» — то же время, что показывают часы на стене. */
-function MeetingTime({ turn, limit }: { turn: number; limit: number }) {
+function MeetingTime({ turn, limit, clock }: { turn: number; limit: number; clock: { start: number; minutes: number } }) {
   const left = Math.max(0, limit - turn)
-  const now = 10 * 60 + (60 * Math.min(turn, limit)) / limit
+  const now = clock.start + (clock.minutes * Math.min(turn, limit)) / limit
   const t = `${Math.floor(now / 60)}:${String(Math.floor(now % 60)).padStart(2, '0')}`
   return (
     <span className={left <= 2 ? 'is-late' : undefined}>
