@@ -1395,11 +1395,16 @@ body {
 }
 .g-endings {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: calc(3 * var(--u));
   margin: 0;
   padding: 0;
   list-style: none;
+}
+@media (min-width: 600px) and (max-width: 1099px) {
+  .g-endings {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 .g-ending {
   display: flex;

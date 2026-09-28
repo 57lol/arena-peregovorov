@@ -232,7 +232,8 @@ function fill(text: string, sc: Scenario, report?: Report): string {
     both: trap?.bothWant ?? (compatible ? compatible.options[bestOption(P, compatible.id)] : ''),
     got: trap?.got ?? '',
   }
-  return text.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m)
+  // тире не уезжает в начало строки
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m).replace(/ — /g, '\u00a0— ')
 }
 
 function textsFor(sc: Scenario, female: boolean) {
