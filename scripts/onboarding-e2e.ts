@@ -29,7 +29,8 @@ let n = 0
 async function shot(page: Page, tag: string, name: string) {
   n++
   await page.screenshot({ path: join(OUT, `${tag}-${String(n).padStart(2, '0')}-${name}.png`) })
-  const mentor = await page.locator('.g-mentor-text').first().innerText().catch(() => '')
+  const box = page.locator('.g-mentor-text').first()
+  const mentor = (await box.count()) ? await box.innerText().catch(() => '') : ''
   console.log(`  ${String(n).padStart(2, '0')} ${name}${mentor ? ` — наставник: ${mentor}` : ''}`)
 }
 
