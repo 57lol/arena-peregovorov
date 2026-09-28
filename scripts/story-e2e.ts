@@ -166,7 +166,7 @@ async function play(kase: string, phone: boolean) {
     await page.goto(`${URL}/?view=3d`)
     await page.evaluate(() => localStorage.clear())
     await page.goto(`${URL}/?view=3d`)
-    await page.getByRole('button', { name: /^(Играть|Начать)$/ }).click()
+    await page.getByRole('button', { name: /^(Сюжет.*|Играть|Начать)$/ }).click()
     await page.waitForSelector('.mp-map')
     await page.locator('.mp-list button').filter({ hasText: CASES[kase].title }).click()
     await page.waitForTimeout(500)

@@ -79,7 +79,7 @@ async function run(phone: boolean) {
     await shot(page, tag, 'титул')
 
     // самая большая кнопка
-    await page.locator('.g-play-btn').click()
+    await page.locator('.tt-btn.is-story').click()
     await page.waitForTimeout(700)
     // карта кампании: у первой главы большая кнопка «Войти»
     if (await visible(page, '.mp-card-actions')) {

@@ -130,7 +130,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   console.log(`\n${sc.title}, ${size}px`)
 
   await page.goto(URL)
-  await page.waitForSelector('.g-title-sign')
+  await page.waitForSelector('.tt-sign')
   await page.waitForTimeout(400)
   await shot(page, `01-title-${size}`)
   await page.getByRole('button', { name: 'Все дела' }).click()

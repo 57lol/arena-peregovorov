@@ -168,7 +168,7 @@ async function toFolder(page: Page) {
     sessionStorage.clear()
   })
   await page.goto(URL)
-  await page.waitForSelector('.g-title-sign')
+  await page.waitForSelector('.tt-sign')
 }
 
 /** Одна партия с экрана встречи до кнопки «Разбор встречи». */
@@ -390,7 +390,7 @@ async function reloadNav(browser: Browser, size: number) {
   ok(`${tag}: ход после перезагрузки прошёл`)
   await page.goBack()
   await page.waitForTimeout(300)
-  const backAt = (await page.locator('.g-dossier').count()) ? 'бриф' : (await page.locator('.g-folders').count()) ? 'папка' : (await page.locator('.g-title-sign').count()) ? 'титул' : '?'
+  const backAt = (await page.locator('.g-dossier').count()) ? 'бриф' : (await page.locator('.g-folders').count()) ? 'папка' : (await page.locator('.tt-sign').count()) ? 'титул' : '?'
   console.log(`    «назад» → ${backAt}`)
   if (backAt === '?') fail(`${tag}: «назад» увёл непонятно куда`)
   await page.goForward()

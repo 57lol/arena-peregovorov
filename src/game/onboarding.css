@@ -1,32 +1,4 @@
-/* Титул, короткий бриф и главное в разборе: то, что новичок видит первым. */
-
-/* ---------- титул: одна большая кнопка ---------- */
-
-.g-title-play {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(2 * var(--u));
-  margin-bottom: calc(10 * var(--u));
-  text-align: center;
-}
-.g-title-play .g-play-btn {
-  min-width: min(320px, 100%);
-  font-size: var(--fs-ui-big);
-  line-height: 1;
-}
-.g-title-next {
-  max-width: 560px;
-  margin: calc(2 * var(--u)) 0 0;
-  color: var(--on-desk);
-  text-wrap: pretty;
-}
-.g-title-more {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0 calc(6 * var(--u));
-}
+/* Короткий бриф и главное в разборе: то, что новичок видит первым (титул — title.css). */
 
 /* ---------- бриф: пять строк главного, подробности свёрнуты ---------- */
 

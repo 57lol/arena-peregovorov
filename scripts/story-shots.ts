@@ -46,7 +46,7 @@ for (const [w, h] of [
       if (pr) localStorage.setItem('peregovorka.progress.v2', JSON.stringify(pr))
     }, prog)
     await p.goto(BASE)
-    await p.getByRole('button', { name: /^Играть$/ }).click()
+    await p.getByRole('button', { name: /Сюжет/ }).click()
     await p.waitForSelector('.mp-map')
     await p.waitForFunction(() => (document.querySelector('.mp-img') as HTMLImageElement | null)?.complete)
     await shot(p, `map-${state}-${w}`)

@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TITLE } from '../title.gen'
-import { APOLLO, ap, bake, loadImage, pick, rand, sprite, useTicker } from './MapPixels'
+import { APOLLO, ap, bake, loadImage, pick, rand, reducedMotion, sprite, useTicker } from './MapPixels'
 
 const T = TITLE
 const SKY_TOP = ap(30)
@@ -110,7 +110,7 @@ interface World {
 
 const FOCUS = 224 // середина между вывеской «АЛАБУГА» и остановкой
 const STOP_X = T.stopSign - 32 // где встаёт автобус: дверь у знака «А»
-const V_BUS = 34
+const V_BUS = 46
 const BRAKE = 1.6
 
 interface Props {
@@ -262,7 +262,9 @@ function newWorld(left: number, story: boolean): World {
   return {
     cars: [],
     nextCar: 1.5,
-    bus: { x: left - 44, phase: story ? 'in' : 'gone', since: 0, wheel: 0 },
+    // первый автобус уже на подходе: сценка начинается через пару секунд, а не через десять
+    // при «меньше движения» — один кадр: автобус стоит у остановки
+    bus: reducedMotion() ? { x: STOP_X, phase: story ? 'stop' : 'gone', since: 0, wheel: 0 } : { x: Math.max(left - 44, STOP_X - 110), phase: story ? 'in' : 'gone', since: 0, wheel: 0 },
     newbie: { x: STOP_X + 26, on: false, walk: false, since: 0 },
     puffs: [],
     nextPuff: T.chimneys.map(() => Math.random()),
@@ -443,7 +445,7 @@ function draw(g: CanvasRenderingContext2D, w: World, t: number, sp: Sprites, sti
   // пар: круглые клубы, подсвеченные закатом, к концу редеют
   for (const p of w.puffs) {
     const k = p.age / p.life
-    const c = k < 0.25 ? ap(44) : k < 0.55 ? ap(42) : ap(33)
+    const c = k < 0.25 ? ap(44) : k < 0.55 ? ap(42) : ap(31)
     const r = k < 0.15 ? 1 : k < 0.5 ? 2 : 3
     const x = Math.round(p.x)
     const y = Math.round(p.y)

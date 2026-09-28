@@ -190,6 +190,12 @@
 .tt-name {
   margin: 0;
 }
+.tt-name em {
+  display: block;
+  margin-top: var(--u);
+  font-style: normal;
+  color: var(--c-stamp);
+}
 .tt-invite-actions {
   display: flex;
   flex-wrap: wrap;
