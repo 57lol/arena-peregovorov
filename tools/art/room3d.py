@@ -1106,7 +1106,7 @@ def m2t(x, y, x0, y0, s=S, flip_y=True, hgt=HGT):
 def wall_factory(width_m, side=0):
     w, h = round(width_m / S), round(HGT / S)
     t = Tex(w, h, 44)
-    t.blotch(0, 0, w - 1, h - 1, 45, 2, 0.012)
+    t.blotch(0, 0, w - 1, h - 1, 45, 3, 0.0035)  # редкие светлые пятна побелки — чаще выглядели как снег
     t.noise(0, 0, w - 1, h - 1, 43, 0.004)
     t.rect(0, 0, w - 1, 1, 43)  # у потолка
     panel = h - round(1.0 / S)  # верх панели на метре
