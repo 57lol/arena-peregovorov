@@ -36,9 +36,9 @@ interface Spot {
 
 /** Раскладка: ноутбук — блокнот слева, дела справа, листок дальше по центру; телефон — листок далеко, блокнот у нас. */
 const WIDE: Record<PaperId, Spot> = {
-  notebook: { x: -0.14, z: -0.05, w: 0.26, h: 0.32, rot: 2 },
-  card: { x: 0.22, z: -0.01, w: 0.15, h: 0.2, rot: -4 },
-  slip: { x: 0.12, z: -0.36, w: 0.2, h: 0.17, rot: 3 },
+  notebook: { x: -0.2, z: -0.02, w: 0.26, h: 0.32, rot: 2 },
+  card: { x: 0.33, z: 0.03, w: 0.15, h: 0.2, rot: -5 },
+  slip: { x: 0.1, z: -0.19, w: 0.2, h: 0.17, rot: 3 },
 }
 const TALL: Record<PaperId, Spot> = {
   notebook: { x: -0.04, z: 0.06, w: 0.26, h: 0.36, rot: 3 },

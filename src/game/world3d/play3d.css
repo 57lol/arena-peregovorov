@@ -105,11 +105,15 @@
 .w3-tray {
   left: 50%;
   bottom: calc(12px + var(--kb, 0px));
+  box-sizing: border-box;
   width: min(780px, calc(100% - 24px));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: calc(2 * var(--u));
+  gap: var(--u);
+  padding: calc(1 * var(--u)) calc(5 * var(--u)) calc(2 * var(--u));
+  background: var(--plate);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
 }
 .w3-tray-row {
   display: flex;
@@ -873,4 +877,95 @@
 /* рентген привязан к лицу собеседника: пока смотрим на стол, панель ждёт, мир остаётся синим */
 .w3-play[data-pose='desk'] .w3-xray {
   display: none;
+}
+
+/* оттиск «По рукам» прямо на листке */
+.w3-slip {
+  position: relative;
+}
+.w3-slip-stamp {
+  position: absolute;
+  right: calc(8 * var(--u));
+  bottom: calc(16 * var(--u));
+  padding: calc(1 * var(--u)) calc(5 * var(--u));
+  color: var(--c-stamp);
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 0 0 var(--u) var(--c-stamp),
+    inset 0 0 0 calc(2 * var(--u)) transparent,
+    inset 0 0 0 calc(3 * var(--u)) var(--c-stamp);
+  transform: rotate(-9deg);
+  mix-blend-mode: multiply;
+  animation: w3-stamp 0.36s 0.9s steps(4) both;
+  pointer-events: none;
+}
+@keyframes w3-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.8);
+  }
+  70% {
+    opacity: 1;
+    transform: rotate(-9deg) scale(0.94);
+  }
+  100% {
+    transform: rotate(-9deg) scale(1);
+  }
+}
+/* концовки без сделки: оттиск над головой собеседника, а не на лице */
+.w3-play > .px-stamp {
+  inset: 13% 0 auto;
+}
+
+/* телефон: разбор хода — одна короткая плашка над головой собеседника, остальное по тапу «Подробнее» */
+@media (max-width: 699px) {
+  .w3-toasts {
+    right: 72px;
+    width: auto;
+    gap: 0;
+  }
+  .w3-toast {
+    padding: calc(2 * var(--u)) calc(4 * var(--u));
+  }
+  .w3-toasts .w3-toast:nth-child(n + 3),
+  .w3-toast--tip {
+    display: none;
+  }
+  .w3-toast.is-good,
+  .w3-toast.is-bad {
+    box-shadow: 0 0 0 var(--u) var(--c-ink);
+  }
+  .w3-toast .w3-toast-effect {
+    display: none;
+  }
+  .w3-toasts:not(:has(.w3-toast--verdict)) .w3-toast--tip {
+    display: flex;
+  }
+  .w3-toast--tip .g-link {
+    display: none;
+  }
+  .w3-toast-more {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+  }
+  .w3-play[data-xray='true'] .w3-toasts,
+  .w3-play[data-xray='true'] .w3-toast-chip {
+    display: none;
+  }
+}
+@media (max-width: 699px) {
+  /* рентген не лезет под «Меню» справа */
+  .w3-xray {
+    width: calc(100% - 96px);
+    max-height: 40%;
+  }
+  .w3-xray .g-xray-title {
+    font-size: 12px;
+    line-height: 16px;
+  }
+  .w3-toast--verdict > span:not(.w3-stamp-mini) {
+    display: none;
+  }
 }

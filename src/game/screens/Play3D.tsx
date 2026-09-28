@@ -115,6 +115,17 @@ export default function Play3D(props: Props) {
     if (turns > prevTurns.current) world.company?.stir('table', 3.5)
     prevTurns.current = turns
   }, [world, turns])
+  // по рукам: смотрим на стол, где на листок ложится штамп (на телефоне листок сам поднимается к глазам)
+  const dealt = state.status === 'deal'
+  useEffect(() => {
+    if (!world || !dealt || !history.length) return
+    const t = setTimeout(() => {
+      world.look('desk')
+      if (world.portrait) setHeld('slip')
+    }, 1600)
+    return () => clearTimeout(t)
+  }, [world, dealt, history.length])
+
   // собеседник встал из-за стола
   useEffect(() => {
     const lead = world?.company?.lead
@@ -275,7 +286,8 @@ export default function Play3D(props: Props) {
         </div>
       )}
 
-      {stamp && <Stamp kind={stamp} />}
+      {/* сделка — штамп ложится на листок на столе; остальные концовки — оттиск поверх комнаты */}
+      {stamp && stamp !== 'deal' && <Stamp kind={stamp} />}
 
       {/* разбор хода — плашки, гаснут сами */}
       {m.instantOn && !detail && (
@@ -332,7 +344,7 @@ export default function Play3D(props: Props) {
             </Button>
           ) : pose === 'face' ? (
             <Button variant={newOffer ? 'brass' : 'ghost'} icon="down" className={`w3-look${newOffer ? ' is-new' : ''}`} onClick={() => lookAt('desk')}>
-              {newOffer ? 'На столе предложение' : 'Стол'}
+              {newOffer ? 'Стол: предложение' : 'Стол'}
             </Button>
           ) : (
             <Button variant="ghost" icon="up" className="w3-look" onClick={() => lookAt('face')}>
@@ -508,6 +520,11 @@ function SlipPage({ m }: { m: Meeting }) {
           </div>
         ))}
       </dl>
+      {state.status === 'deal' && (
+        <span className="w3-slip-stamp" role="status">
+          По рукам
+        </span>
+      )}
       <div className="w3-slip-foot">
         <p>
           {mine !== null ? (
