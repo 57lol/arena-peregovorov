@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
@@ -10,6 +11,7 @@ import { withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { dict, findScenario, scenarios } from './library'
+import { hashOf } from './cache'
 import { makeLLM, type LLM } from './llm'
 import { voice } from './voice'
 
@@ -88,6 +90,28 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string) {
     } catch {
       return c.json({ error: 'Не найден сценарий' }, 404)
     }
+  })
+
+  // «Ссылка для команды» на своё дело: кладём дело на диск и отдаём короткий id — таблица собеседника
+  // не попадает в адрес. Дело с тем же содержимым получает тот же id.
+  app.post('/api/scenarios', bodyLimit({ maxSize: 200 * 1024 }), async (c) => {
+    const { scenario } = z.object({ scenario: z.record(z.string(), z.any()) }).parse(await c.req.json())
+    const sc = scenario as unknown as Scenario
+    let broken = true
+    try {
+      broken = checkScenario(sc).problems.some((p) => p.includes('вариант') || p.includes('пунктов'))
+    } catch {
+      // не дело вовсе
+    }
+    if (broken || typeof sc.id !== 'string') return c.json({ error: 'Дело сломано' }, 400)
+    const same = (a: unknown) => JSON.stringify(a) === JSON.stringify(sc)
+    if (same(findScenario(sc.id))) return c.json({ id: sc.id })
+    const saved = await resolveScenario({ scenarioId: sc.id }).catch(() => null)
+    if (same(saved)) return c.json({ id: sc.id })
+    const id = `gen-${hashOf(sc).slice(0, 12)}`
+    await mkdir(SAVED, { recursive: true })
+    await writeFile(join(SAVED, `${id}.json`), JSON.stringify({ ...sc, id }, null, 1))
+    return c.json({ id })
   })
 
   app.post('/api/turn', async (c) => {

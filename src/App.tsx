@@ -73,9 +73,15 @@ export default function App() {
       readLink().then((l) => {
         if (!l) return
         if ('error' in l) return setNotice(l.error)
-        const sc = 'id' in l ? SCENARIOS.find((s) => s.id === l.id) : l.scenario
-        if (!sc) return setNotice('Дела по этой ссылке нет в библиотеке. Выберите другое.')
-        setCurrent({ scenario: sc, fromLibrary: 'id' in l })
+        const lib = 'id' in l ? SCENARIOS.find((s) => s.id === l.id) : undefined
+        const sc = lib ?? l.scenario
+        if (!sc)
+          return setNotice(
+            'id' in l && l.id.startsWith('gen-')
+              ? 'Не получилось открыть дело по ссылке: сервер не отвечает или дело удалено. Выберите другое.'
+              : 'Дела по этой ссылке нет в библиотеке. Выберите другое.',
+          )
+        setCurrent({ scenario: sc, fromLibrary: !!lib })
         setInvited(true)
         setScreen('title')
       })

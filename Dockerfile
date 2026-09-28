@@ -15,6 +15,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src ./src
 RUN mkdir -p /data/cache && chown -R node:node /data
+# кэш ответов LLM и сохранённые свои дела (ссылки ?case=gen-…) — переживают пересоздание контейнера
+VOLUME /data
 USER node
 EXPOSE 8080
 CMD ["node_modules/.bin/tsx", "src/server/prod.ts"]

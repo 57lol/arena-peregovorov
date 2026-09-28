@@ -186,7 +186,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     seen.set(i.role, k + 1)
     return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16))
   })
-  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: i.title, options: orient(i), kind: ROLES[i.role].kind }))
+  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: cap(i.title), options: orient(i), kind: ROLES[i.role].kind }))
   const pp = Object.fromEntries(ids.map((id, n) => [id, tables[n].player]))
   const op = Object.fromEntries(ids.map((id, n) => [id, tables[n].opponent]))
   const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
@@ -196,7 +196,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
 
   const sc: Scenario = {
     id: `gen-${hashOf({ raw, req }).slice(0, 10)}`,
-    title: raw.title,
+    title: cap(raw.title),
     sphere: req.sphere,
     difficulty: d,
     turnLimit: 10 + d,
