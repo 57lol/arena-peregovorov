@@ -260,7 +260,7 @@ def shirt_collar(c, nw, nb, light=45, dark=44, edge=43):
 def foreman():
     """Прораб, ~50: квадратная челюсть, короткая седеющая борода, ёжик, сигнальный жилет поверх клетки."""
     f = Face(top=17, cy=37, rx=19, jaw_y=55, jaw_w=17, chin_y=64, chin_w=8, jaw_p=2.6, cheek=2.4)
-    HAIR = [38, 39, 40, 41]
+    HAIR = [18, 19, 19, 20]
 
     def body(c, P, m):
         xs, ys = grid()
@@ -271,13 +271,15 @@ def foreman():
             paint(c, m & (np.abs(ys - y - 0.5) < 0.6), 1)
         vest = m & ~poly_mask([(36, 70), (60, 70), (54, 96), (42, 96)])
         paint_cloth(c, vest, [27, 28, 28, 29], cuts=(0.25, 0.55, 0.92))
-        for y in (86, 87):
+        # светоотражающая полоса: выше края стола, чтобы жилет читался в сцене
+        for y in (81, 82):
             paint(c, vest & (np.abs(ys - y - 0.5) < 0.6), 44)
-        paint(c, vest & (np.abs(ys - 86.5) < 0.6) & (xs > 62), 43)
+        paint(c, vest & (np.abs(ys - 82.5) < 0.6), 43)
+        paint(c, vest & (np.abs(ys - 81.5) < 0.6) & (xs > 62), 43)
         line(c, [(37, 71), (43, 96)], 26)
         line(c, [(59, 71), (53, 96)], 26)
         # ручка в кармане жилета
-        put(c, 64, 78, ['b', 'b', 'B'], {'b': 2, 'B': 1})
+        put(c, 64, 76, ['b', 'b', 'B'], {'b': 2, 'B': 1})
 
     def collar(c, P):
         put(c, 37, 71, ['aa....', 'aaaa..', '.aaaa.', '..aa..'], {'a': 3})
@@ -295,7 +297,7 @@ def foreman():
         for y in range(18, 24, 2):
             for x in range(34 + (y % 4), 62, 4):
                 if h[y, x]:
-                    c[y, x] = 39
+                    c[y, x] = 18
 
     def beard(c, P, emotion):
         xs, ys = grid()
@@ -303,23 +305,23 @@ def foreman():
         ey = P['ey']
         b = face & (ys > ey + 13) & ((np.abs(xs - CX) > f.hw(ys) - 3) | (ys > ey + 19))
         b &= ~((ys < ey + 20) & (np.abs(xs - CX) < 6))
-        paint(c, b, band(shade_ellipsoid(CX - 3, 56, 20, 12), [0.3, 0.6], [39, 40, 41]))
-        paint(c, b & (ys > f.chin_y - 1.5), 39)
+        paint(c, b, band(shade_ellipsoid(CX - 3, 56, 20, 12), [0.3, 0.6], [18, 19, 20]))
+        paint(c, b & (ys > f.chin_y - 1.5), 18)
         # щетина на скулах
         for x, y in ((31, ey + 11), (33, ey + 12), (63, ey + 11), (61, ey + 12), (32, ey + 13), (62, ey + 13)):
             if face[y, x]:
-                c[y, x] = 40
+                c[y, x] = 19
         # седина пятнами
         for x, y in ((40, 58), (52, 60), (45, 62), (57, 56), (38, 55)):
             if b[y, x]:
-                c[y, x] = 42
+                c[y, x] = 20
 
     def moustache(c, P, emotion):
         ey = P['ey']
-        put(c, CX - 6, ey + 12, ['..GGGGGGGG..', '.GgggggggggG', 'Gg........gG'], {'G': 39, 'g': 41})
+        put(c, CX - 6, ey + 12, ['..GGGGGGGG..', '.GgggggggggG', 'Gg........gG'], {'G': 18, 'g': 20})
 
     return dict(face=f, skin=SKIN_MID, ey=37, age=50, female=False, neck=10, nose='broad', shoulders=42,
-                brow=(38, 2), body=body, collar=collar, hair=hair, beard=beard, moustache=moustache, blush=28,
+                brow=(18, 2), body=body, collar=collar, hair=hair, beard=beard, moustache=moustache, blush=28,
                 mouth_y=37 + 16, forehead=True)
 
 
