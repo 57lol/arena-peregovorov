@@ -434,8 +434,8 @@ function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[
         {neutral.length > 0 && <BehGroup title="Другие ходы" rows={neutral} quotes={quotes} n={n} kind="neutral" />}
       </div>
       </Fold>
-      {sc.goals?.length ? (
-        <p className="g-muted">Это дело учит: {sc.goals.map((x) => x.charAt(0).toLowerCase() + x.slice(1)).join('; ')}.</p>
+      {(sc.lessons ?? sc.goals)?.length ? (
+        <p className="g-muted">Это дело учит: {(sc.lessons ?? sc.goals)!.map((x) => x.charAt(0).toLowerCase() + x.slice(1)).join('; ')}.</p>
       ) : null}
     </section>
   )

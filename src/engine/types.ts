@@ -57,7 +57,8 @@ export interface Scenario {
   opponent: { character: Character; brief: string; profile: SideProfile }
   opening: string          // первая реплика оппонента
   blurb?: string           // одна строка для карточки выбора сценария
-  goals?: string[]         // чему учит сценарий (для экрана настройки и разбора)
+  goals?: string[]         // чему учит сценарий — навыки без ответов (бриф)
+  lessons?: string[]       // то же с ответами — для разбора после встречи; нет — берём goals
 }
 
 export type Offer = Partial<Record<IssueId, number>>  // issueId -> индекс варианта

@@ -35,3 +35,18 @@ describe('библиотека сценариев', () => {
     })
   }
 })
+
+describe('бриф не подсказывает ответ', () => {
+  it('в «Что потренируете» нет скрытых интересов собеседника', async () => {
+    const { tara } = await import('./tara')
+    const { offer } = await import('./offer')
+    const spoilers: [typeof tara, RegExp][] = [
+      [tara, /крупн|быстр\p{L}* деньг|срочн/iu],
+      [offer, /сесси|магистр|собак|жиль|два раза в год/iu],
+    ]
+    for (const [sc, re] of spoilers) {
+      for (const g of sc.goals ?? []) expect(g, sc.id).not.toMatch(re)
+      expect(sc.lessons?.length, sc.id).toBeGreaterThan(0)
+    }
+  })
+})
