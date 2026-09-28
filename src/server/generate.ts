@@ -148,6 +148,13 @@ export function orderProblems(raw: z.infer<typeof Raw>): string[] {
     .map((i) => `«${i.title}»: bestForPlayer должен дословно совпадать с первым вариантом, а варианты идти от лучшего для игрока к худшему`)
 }
 
+/** Компания повторяет должность: «руководитель строительной фирмы» + «строительная фирма» (сравниваем по основам слов). */
+function echoes(role: string, company: string): boolean {
+  const r = role.toLowerCase()
+  const words = company.toLowerCase().split(/[^\p{L}]+/u).filter((w) => w.length >= 4)
+  return words.every((w) => r.includes(w.slice(0, Math.min(5, w.length - 1))))
+}
+
 const cap = (t: string) => t.trim().replace(/^\p{Ll}/u, (c) => c.toUpperCase())
 
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
@@ -198,7 +205,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
       character: {
         name, role: raw.opponentRole,
         // «руководитель строительной компании, строительная компания» — второй раз компанию не пишем
-        company: raw.opponentRole.toLowerCase().includes(raw.opponentCompany.trim().toLowerCase()) ? '' : raw.opponentCompany,
+        company: echoes(raw.opponentRole, raw.opponentCompany) ? '' : raw.opponentCompany,
         tone: req.opponentTone as Tone,
         portrait: raw.opponentGender === 'f' ? 'olga' : raw.opponentGender === 'm' ? 'rinat' : `tone-${req.opponentTone}`,
         speech: raw.opponentSpeech, bio: raw.opponentBio,

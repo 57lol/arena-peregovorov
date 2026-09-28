@@ -44,4 +44,10 @@ describe('генерация сценария', () => {
     const middle = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, bestForPlayer: '800 ₽/м²' } : i)) }
     expect(orderProblems(middle)).toHaveLength(1)
   })
+
+  it('компания, которая повторяет должность, не дублируется', () => {
+    const dup = toScenario({ ...raw, opponentRole: 'руководитель строительной фирмы', opponentCompany: 'строительная фирма' }, GenerateRequest.parse({}))
+    expect(dup.opponent.character.company).toBe('')
+    expect(toScenario(raw, GenerateRequest.parse({})).opponent.character.company).toBe('Логопарк')
+  })
 })
