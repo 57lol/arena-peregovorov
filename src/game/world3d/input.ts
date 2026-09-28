@@ -53,7 +53,7 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
       if (drag.moved > 6) hooks.onLook?.()
       return
     }
-    if (fine && e.pointerType === 'mouse' && !drag) {
+    if (fine && e.pointerType === 'mouse' && !drag && h.pose === 'face') {
       // голова чуть следует за курсором — комната «дышит», но кликать по кнопкам не мешает
       const nx = e.clientX / window.innerWidth - 0.5
       const ny = e.clientY / window.innerHeight - 0.5
@@ -74,6 +74,10 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
     h.py = 0
     h.pp = 0
   }
+  // посмотрели на стол — сдвиг за курсором убираем, иначе листы уезжали бы из-под мыши
+  const settle = setInterval(() => {
+    if (h.pose === 'desk' && (h.py || h.pp)) leave()
+  }, 200)
   const held = new Set<string>()
   const key = (e: KeyboardEvent) => {
     if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
@@ -105,6 +109,7 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
   window.addEventListener('keyup', key)
   window.addEventListener('blur', blur)
   return () => {
+    clearInterval(settle)
     root.removeEventListener('pointerdown', down)
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', up)

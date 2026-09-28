@@ -2,7 +2,7 @@
 
 .w3-root {
   position: relative;
-  overflow: hidden;
+  overflow: clip;
   background: #10141f;
   touch-action: none;
   user-select: none;
@@ -20,8 +20,13 @@
 }
 .w3-css {
   position: absolute !important;
+}
+/* слой CSS3D и его «камера» — во весь экран, клики сквозь них идут в мир; ловят только страницы на столе */
+.w3-css,
+.w3-css > div {
   pointer-events: none;
 }
-.w3-css * {
+.w3-css .w3-paper.is-live,
+.w3-css .w3-paper.is-live * {
   pointer-events: auto;
 }

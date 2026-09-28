@@ -57,8 +57,13 @@ export class Head {
   update(dt: number) {
     if (this.spin) this.ty = MathUtils.clamp(this.ty + this.spin * dt, -YAW_MAX, YAW_MAX)
     const k = 1 - Math.exp(-dt * this.stiffness)
-    this.yaw += (MathUtils.clamp(this.ty + this.py, -YAW_MAX, YAW_MAX) - this.yaw) * k
-    this.pitch += (MathUtils.clamp(this.tp + this.pp, PITCH_MIN, PITCH_MAX) - this.pitch) * k
+    const y = MathUtils.clamp(this.ty + this.py, -YAW_MAX, YAW_MAX)
+    const p = MathUtils.clamp(this.tp + this.pp, PITCH_MIN, PITCH_MAX)
+    this.yaw += (y - this.yaw) * k
+    this.pitch += (p - this.pitch) * k
+    // доехали — встаём точно, иначе бумаги на столе вечно сдвигались бы на доли пикселя
+    if (Math.abs(y - this.yaw) < 1e-4) this.yaw = y
+    if (Math.abs(p - this.pitch) < 1e-4) this.pitch = p
   }
 
   /** Голова почти остановилась — можно не пересчитывать то, что зависит от взгляда. */

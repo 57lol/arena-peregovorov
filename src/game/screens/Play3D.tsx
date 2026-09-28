@@ -595,8 +595,10 @@ function TurnToasts({ fb, tip, dim, onMore, onExample }: { fb: TurnFeedback | nu
       {fb && (
         <div className="w3-toast w3-toast--verdict" style={{ animationDelay: '0ms' }}>
           <span className={`w3-stamp-mini is-${fb.verdict.ink}`}>{fb.verdict.word}</span>
-          <span className="w3-toast-turn">Ход {fb.turn}</span>
-          <span className="w3-toast-effect">{effectText(fb)}</span>
+          <span>
+            <span className="w3-toast-turn">Ход {fb.turn}: </span>
+            <span className="w3-toast-effect">{effectText(fb)}</span>
+          </span>
         </div>
       )}
       {marks.map((n, k) => (

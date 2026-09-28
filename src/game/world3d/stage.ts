@@ -75,6 +75,9 @@ export class World {
     this.css = new CSS3DRenderer()
     this.cssLayer = this.css.domElement
     this.cssLayer.classList.add('w3-css')
+    // overflow: clip, а не hidden: иначе фокус на кнопке листа прокручивает слой и страницы съезжают с бумаги
+    this.cssLayer.style.overflow = 'clip'
+    this.cssLayer.addEventListener('scroll', () => this.cssLayer.scrollTo(0, 0))
     el.appendChild(this.cssLayer)
     this.room = buildRoom(o.kind)
     this.scene.add(this.room.group)
@@ -125,7 +128,7 @@ export class World {
     this.camera.updateProjectionMatrix()
     // стол на телефоне виден уже в обычном взгляде: голова чуть ниже, на стол — круче
     const tall = this.portrait
-    this.head.poses = { face: { yaw: 0, pitch: (tall ? -15 : -6) * D }, desk: { yaw: 0, pitch: (tall ? -52 : -60) * D } }
+    this.head.poses = { face: { yaw: 0, pitch: (tall ? -15 : -6) * D }, desk: { yaw: 0, pitch: (tall ? -52 : -55) * D } }
     // бумаги: страница в CSS-пикселях примерно того размера, каким лист виден, когда склонились к столу
     const deskEye = new Vector3(EYE.x, EYE.y + 0.1, EYE.z - 0.3)
     const nb = this.desk.sheets.notebook.spot
@@ -166,7 +169,8 @@ export class World {
     if (this.fade > 0) this.fade = Math.max(0, this.fade - dt * 1.4)
     const lean = h.lean
     // склоняемся над бумагами: вперёд и чуть вверх; и еле заметно дышим
-    const breathe = Math.sin(this.t * 1.3) * 0.003
+    // над бумагами не дышим: кнопки на листах должны стоять на месте
+    const breathe = Math.sin(this.t * 1.3) * 0.003 * (1 - Math.min(1, lean * 4))
     const cam = this.camera
     cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe, EYE.z - lean * 0.3)
     cam.rotation.set(h.pitch, h.yaw, 0)

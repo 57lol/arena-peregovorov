@@ -9,7 +9,7 @@
   --plate: rgb(16 20 31 / 0.84);
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  overflow: clip;
   background: var(--c-ink);
   color: var(--c-paper);
 }
@@ -396,10 +396,6 @@
   font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   -webkit-font-smoothing: none;
   transition: opacity 0.12s linear;
-}
-.w3-paper:not(.is-live),
-.w3-paper:not(.is-live) * {
-  pointer-events: none !important;
 }
 .w3-paper > * {
   box-sizing: border-box;
@@ -865,4 +861,16 @@
 }
 .w3-slip-row dd {
   margin-left: auto;
+}
+.w3-stamp-mini {
+  flex: none;
+  white-space: nowrap;
+}
+/* склонились к бумагам: плашки разбора сворачиваются в ярлык, чтобы не лечь на блокнот */
+.w3-play[data-pose='desk'] .w3-toasts {
+  display: none;
+}
+/* рентген привязан к лицу собеседника: пока смотрим на стол, панель ждёт, мир остаётся синим */
+.w3-play[data-pose='desk'] .w3-xray {
+  display: none;
 }
