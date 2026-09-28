@@ -5,7 +5,6 @@
 Выход: public/assets/portraits/<id>.png — лист 3 кадра x 4 эмоции (idle, talk, blink),
 плюс превью в tools/art/out/.
 """
-import math
 import os
 import sys
 
@@ -14,141 +13,11 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(__file__))
 from apollo import RGB  # noqa: E402
-
-W = H = 96
-T = -1  # прозрачный
-EMOTIONS = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
-FRAMES = ['idle', 'talk', 'blink']
-LIGHT = np.array([-0.5, -0.22, 0.84])
-LIGHT = LIGHT / np.linalg.norm(LIGHT)
+from pixel import (EMOTIONS, FRAMES, H, T, W, band, draw_eyes, ellipse_mask, erode, grid, line,  # noqa: E402
+                   outline, paint, poly_mask, put, shade_ellipsoid, shift, to_image)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-
-# ---------- примитивы ----------
-
-def grid():
-    ys, xs = np.mgrid[0:H, 0:W]
-    return xs + 0.5, ys + 0.5
-
-
-def ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=None):
-    xs, ys = grid()
-    dx = np.abs(xs - cx) / rx
-    dy = np.abs(ys - cy) / ry
-    pp = np.where(ys > cy, p_low or p, p)
-    return dx ** pp + dy ** pp <= 1.0
-
-
-def shade_ellipsoid(cx, cy, rx, ry):
-    """Ламберт по псевдо-нормали эллипсоида, 0..1."""
-    xs, ys = grid()
-    nx = (xs - cx) / rx
-    ny = (ys - cy) / ry
-    nz = np.sqrt(np.clip(1 - nx ** 2 - ny ** 2, 0.02, 1))
-    n = np.stack([nx, ny, nz], -1)
-    n /= np.linalg.norm(n, axis=-1, keepdims=True)
-    return np.clip(n @ LIGHT, 0, 1)
-
-
-def band(val, cuts, ramp):
-    """Кусочно-постоянная заливка: cuts по возрастанию, ramp на 1 длиннее."""
-    idx = np.digitize(val, cuts)
-    return np.array(ramp)[idx]
-
-
-def poly_mask(pts):
-    from PIL import ImageDraw
-    im = Image.new('L', (W, H), 0)
-    ImageDraw.Draw(im).polygon(pts, fill=1)
-    return np.array(im).astype(bool)
-
-
-def paint(canvas, mask, color):
-    canvas[mask] = color if np.isscalar(color) else color[mask]
-
-
-def put(canvas, x0, y0, rows, legend, flip=False):
-    """ASCII-спрайт: '.' — не трогать."""
-    for dy, row in enumerate(rows):
-        if flip:
-            row = row[::-1]
-        for dx, ch in enumerate(row):
-            if ch == '.':
-                continue
-            x, y = x0 + dx, y0 + dy
-            if 0 <= x < W and 0 <= y < H:
-                canvas[y, x] = legend[ch]
-
-
-def line(canvas, pts, color, thick=1):
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
-        n = max(abs(x1 - x0), abs(y1 - y0), 1)
-        for i in range(n + 1):
-            x = round(x0 + (x1 - x0) * i / n)
-            y = round(y0 + (y1 - y0) * i / n)
-            for t in range(thick):
-                canvas[y + t, x] = color
-
-
-def outline(canvas, dark_of):
-    """Внешний контур: пиксель фигуры рядом с прозрачным -> тёмный тон своего материала."""
-    solid = canvas != T
-    edge = np.zeros_like(solid)
-    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-        sh = np.roll(np.roll(solid, sy, 0), sx, 1)
-        if sy == 1:
-            sh[0, :] = False
-        if sy == -1:
-            sh[-1, :] = False
-        if sx == 1:
-            sh[:, 0] = False
-        if sx == -1:
-            sh[:, -1] = False
-        edge |= solid & ~sh
-    edge[H - 1, :] = False  # низ кадра обрезан, не обводим
-    out = canvas.copy()
-    for y, x in zip(*np.nonzero(edge)):
-        out[y, x] = dark_of.get(int(canvas[y, x]), 37)
-    return out
-
-
-def to_image(canvas):
-    rgba = np.zeros((H, W, 4), np.uint8)
-    for y in range(H):
-        for x in range(W):
-            c = canvas[y, x]
-            if c != T:
-                rgba[y, x] = (*RGB[c], 255)
-    return Image.fromarray(rgba, 'RGBA')
-
-
-# ---------- персонажи ----------
-
-EYE_ROWS = 4
-
-
-def eyes_for(state):
-    """Глаз 8x4 (левый; правый зеркалим, кроме взгляда в сторону)."""
-    return {
-        'open':   ['.LLLLLL.', 'LwwppwwL', '.wwppww.', '..ssss..'],
-        'smile':  ['........', '.LLLLLL.', 'LwwppwwL', '.hhhhhh.'],
-        'narrow': ['........', 'LLLLLLLL', '.wwppww.', '..ssss..'],
-        'side':   ['.LLLLLL.', 'LwwwwppL', '.wwwwpp.', '..ssss..'],
-        'closed': ['........', '........', '.LLLLLL.', '..ssss..'],
-        'arc':    ['........', '..LLLL..', '.L....L.', '........'],
-        'glare':  ['L.......', 'LLLLLLLL', '.wwwpww.', '.ssssss.'],
-    }[state]
-
-
-EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'happy': 'arc', 'thinking': 'side', 'annoyed': 'narrow', 'angry': 'glare'}
-
-
-def draw_eyes(c, E, eyL, eyR, ey, emotion, frame):
-    st = 'closed' if frame == 'blink' else EYE_STATE[emotion]
-    rows = eyes_for(st)
-    put(c, eyL, ey, rows, E)
-    put(c, eyR, ey, rows, E, flip=(st != 'side'))
 
 
 def build_rinat(emotion, frame):
@@ -181,8 +50,13 @@ def build_rinat(emotion, frame):
 
     # шея
     neck = poly_mask([(40, 58), (56, 58), (57, 73), (48, 76), (39, 73)])
+    head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=2.7)
     paint(c, neck, 14)
-    paint(c, neck & (ys < 66), 13)
+    paint(c, neck & (xs < 43), 15)
+    paint(c, neck & shift(head, 1, 3) & ~head, 13)
+    line(c, [(54, 66), (50, 73)], 13)  # грудино-ключичная мышца
+    c[68, 47] = 15
+    c[69, 47] = 15
 
     # уши
     for ex in (cx - rx - 0.5, cx + rx + 0.5):
@@ -191,12 +65,15 @@ def build_rinat(emotion, frame):
         line(c, [(int(ex), 39), (int(ex), 45)], 13)
 
     # голова
-    head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=2.7)
     lam = shade_ellipsoid(cx - 3, cy - 4, rx + 3, ry + 2)
     paint(c, head, band(lam, [0.08, 0.3, 0.9], [13, 14, 15, 16]))
+    # челюсть уходит в тень снизу и справа, а не обрывается ровным яйцом
+    paint(c, head & ~erode(head, 2) & (ys > cy + 4) & (xs > cx + 2), 14)
+    paint(c, head & ~erode(head, 1) & (ys > cy + 10) & (xs > cx - 6), 13)
     # подбородок и скулы
     paint(c, head & ellipse_mask(cx - 1, cy + 21, 5, 2.2), 15)
     paint(c, head & ellipse_mask(cx - 11, cy + 4, 2, 1.2), 16)
+    line(c, [(cx + 14, cy + 6), (cx + 13, cy + 11)], 14)
 
     # волосы: зачёсаны назад, соль с перцем, залысины
     u = (xs - cx) / rx
@@ -295,8 +172,10 @@ def build_olga(emotion, frame):
             if body[y, x] and c[y, x] != 6:
                 c[y, x] = 6
     neck = poly_mask([(41, 58), (55, 58), (55, 75), (48, 78), (41, 75)])
+    head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=1.8)
     paint(c, neck, 14)
-    paint(c, neck & (ys < 66), 13)
+    paint(c, neck & (xs < 44), 15)
+    paint(c, neck & shift(head, 1, 2) & ~head, 13)
     # горло водолазки
     collar = poly_mask([(39, 64), (57, 64), (58, 76), (48, 78), (38, 76)])
     paint(c, collar, 7)
@@ -308,10 +187,12 @@ def build_olga(emotion, frame):
     line(c, [(55, 76), (52, 82), (50, 86)], 27)
     put(c, 44, 86, ['111111', '144441', '133331', '144441', '111111'], {'1': 43, '4': 45, '3': 2})
 
-    head = ellipse_mask(cx, cy, rx, ry, p=2.0, p_low=1.8)
     lam = shade_ellipsoid(cx - 3, cy - 4, rx + 3, ry + 2)
     paint(c, head, band(lam, [0.08, 0.3, 0.9], [13, 14, 15, 16]))
+    paint(c, head & ~erode(head, 2) & (ys > cy + 4) & (xs > cx + 2), 14)
+    paint(c, head & ~erode(head, 1) & (ys > cy + 10) & (xs > cx - 4), 13)
     paint(c, head & ellipse_mask(cx - 9, cy + 4, 2, 1.2), 16)
+    paint(c, head & ellipse_mask(cx - 1, cy + 19, 3, 1.3), 15)
 
     # чёлка с пробором и боковые пряди
     part = cx + 6
@@ -393,7 +274,9 @@ def build_olga(emotion, frame):
     return c
 
 
-CHARACTERS = {'rinat': build_rinat, 'olga': build_olga}
+from people import PEOPLE  # noqa: E402
+
+CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, **PEOPLE}
 
 
 def main():
@@ -411,6 +294,31 @@ def main():
         bg.alpha_composite(sheet)
         bg.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(os.path.join(prev_dir, f'{cid}_x4.png'))
         print('ok', cid)
+    contact_sheet(prev_dir)
+
+
+def contact_sheet(prev_dir, scale=2):
+    """Все персонажи во всех эмоциях: строка — персонаж, 6 эмоций x (обычный, рот, моргание) мелко."""
+    ids = list(CHARACTERS)
+    pad = 4
+    cw = W * len(EMOTIONS) + pad * (len(EMOTIONS) - 1)
+    rh = H + 48 + pad * 2
+    sheet = Image.new('RGBA', (cw, rh * len(ids)), RGB[40] + (255,))
+    for r, cid in enumerate(ids):
+        fn = CHARACTERS[cid]
+        for k, emo in enumerate(EMOTIONS):
+            x = k * (W + pad)
+            y = r * rh
+            tile = Image.new('RGBA', (W, H), RGB[41] + (255,))
+            tile.alpha_composite(to_image(fn(emo, 'idle')))
+            sheet.alpha_composite(tile, (x, y))
+            for j, fr in enumerate(('talk', 'blink')):
+                small = Image.new('RGBA', (W, H), RGB[41] + (255,))
+                small.alpha_composite(to_image(fn(emo, fr)))
+                small = small.crop((24, 18, 72, 66))
+                sheet.alpha_composite(small, (x + j * 48, y + H + pad // 2))
+    sheet = sheet.resize((sheet.width * scale, sheet.height * scale), Image.NEAREST)
+    sheet.save(os.path.join(prev_dir, 'all.png'))
 
 
 if __name__ == '__main__':
