@@ -15,7 +15,7 @@ const START: Record<Tone, { trust: number; tension: number }> = {
 }
 
 export const WALK_TENSION = 90
-export const MAX_TONE_STRIKES = 3
+export const MAX_TONE_STRIKES = 2
 
 export function initialState(sc: Scenario): OpponentState {
   const s = START[sc.opponent.character.tone] ?? START.neutral

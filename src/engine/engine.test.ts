@@ -78,10 +78,12 @@ describe('движок', () => {
     expect(buildReport(sc, pt, testDict).outcome.paretoEfficiency).toBeGreaterThan(buildReport(sc, pm, testDict).outcome.paretoEfficiency)
   })
 
-  it('грубость ведёт к уходу', () => {
+  it('грубость: первый раз одёргивает, на второй уходит', () => {
     const rude = move(undefined, { toneViolation: true })
-    const h = playAnalyses(sc, [rude, rude, rude, rude], testDict)
+    const calm = move({ price: 2, delivery: 1, payment: 1, warranty: 1 })
+    const h = playAnalyses(sc, [rude, calm, calm, rude, rude], testDict)
     expect(h[0].decision.kind).toBe('warn_tone')
+    expect(h).toHaveLength(4)
     const last = h[h.length - 1]
     expect(last.decision.kind).toBe('walk_away')
     expect(last.stateAfter.status).toBe('walked_away')
