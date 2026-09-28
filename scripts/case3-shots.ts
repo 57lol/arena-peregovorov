@@ -49,7 +49,7 @@ try {
       await page.locator('textarea').fill('Роза Ильдаровна, прежде чем говорить о процентах: что для вас в новом договоре главное и почему?')
       await page.getByRole('button', { name: 'Сказать', exact: true }).click()
       await page.waitForFunction(() => !document.querySelector('textarea')?.disabled, undefined, { timeout: 120_000 })
-      await page.waitForTimeout(3000)
+      await page.waitForTimeout(9000)
       await page.screenshot({ path: join(OUT, `${name}-play-reveal.png`) })
     }
     console.log('ok', name)
