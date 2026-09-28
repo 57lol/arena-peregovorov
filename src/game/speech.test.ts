@@ -26,3 +26,24 @@ describe('splitPcm — длинная запись кусками для SpeechK
     expect(first.length).toBeLessThanOrEqual(R * 25.4)
   })
 })
+
+describe('voiceOf — у каждого лица свой голос', () => {
+  it('восемь портретов — восемь разных голосов, пол совпадает', async () => {
+    const { voiceOf } = await import('./speech')
+    const { PORTRAITS } = await import('./ui/assets')
+    const female = new Set(['alena', 'jane', 'marina', 'omazh'])
+    const got = Object.entries(PORTRAITS).map(([id, p]) => {
+      const v = voiceOf(id, p.female)
+      expect(female.has(v)).toBe(p.female)
+      return v
+    })
+    expect(new Set(got).size).toBe(Math.min(got.length, 8))
+  })
+
+  it('новое лицо получает голос своего пола, всегда один и тот же', async () => {
+    const { voiceOf } = await import('./speech')
+    expect(['alena', 'jane', 'marina', 'omazh']).toContain(voiceOf('cashier', true))
+    expect(voiceOf('gopnik', false)).toBe(voiceOf('gopnik', false))
+    expect(['filipp', 'ermil', 'madirus', 'zahar']).toContain(voiceOf('gopnik', false))
+  })
+})

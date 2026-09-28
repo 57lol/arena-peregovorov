@@ -14,15 +14,28 @@ import { CACHE_DIR, hashOf } from './cache'
 const TTS_URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
-/** Голоса SpeechKit v1 и роли, которые они умеют. Filipp ролей не знает — у него эмоцию передаёт только темп. */
-const ROLES: Record<string, string[]> = { filipp: [], ermil: ['good'], zahar: ['good'], alena: ['good'], jane: ['good', 'evil'] }
+/**
+ * Все русские голоса SpeechKit v1 и роли, которые они умеют (каждый проверен запросом, справка — ~/Arena-materials/VOICES.md).
+ * Filipp и Madirus ролей не знают — у них эмоцию передаёт только темп.
+ */
+const ROLES: Record<string, string[]> = {
+  filipp: [],
+  ermil: ['good'],
+  zahar: ['good'],
+  madirus: [],
+  alena: ['good'],
+  jane: ['good', 'evil'],
+  omazh: ['evil'],
+  marina: ['friendly', 'whisper'],
+}
 export const VOICES = Object.keys(ROLES) as [string, ...string[]]
 
 /** Эмоция движка → роль и темп: довольный теплее, раздражённый быстрее, задумчивый медленнее. */
 export function styleFor(voice: string, emotion: Emotion | undefined): { role?: string; speed: number } {
   const roles = ROLES[voice] ?? []
   const warm = emotion === 'pleased' || emotion === 'happy'
-  const role = warm && roles.includes('good') ? 'good' : emotion === 'angry' && roles.includes('evil') ? 'evil' : undefined
+  const kind = roles.includes('good') ? 'good' : roles.includes('friendly') ? 'friendly' : undefined
+  const role = warm && kind ? kind : emotion === 'angry' && roles.includes('evil') ? 'evil' : undefined
   const speed = emotion === 'angry' ? 1.1 : emotion === 'annoyed' ? 1.05 : emotion === 'thinking' ? 0.92 : 1
   return { ...(role ? { role } : {}), speed }
 }

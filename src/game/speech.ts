@@ -2,7 +2,7 @@
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
 import type { Emotion, Scenario } from '../engine/types'
-import { isFemale } from './cast'
+import { isFemale, portraitFor } from './cast'
 
 export interface SpeechCaps {
   tts: boolean
@@ -69,8 +69,33 @@ function player(): HTMLAudioElement {
 
 // ---------- озвучка ----------
 
-/** Filipp и Alena — самые живые по интонации голоса SpeechKit v1 (мерили разброс высоты тона на деловой реплике). */
-export const voiceFor = (sc: Scenario) => (isFemale(sc) ? 'alena' : 'filipp')
+/**
+ * У каждого лица свой голос SpeechKit: восемь портретов — восемь голосов v1, по высоте тона под возраст.
+ * Марат и Дарина (дела из папки) звучат как раньше — Filipp и Alena, самые живые по интонации.
+ * Новое лицо без строчки здесь получает голос своего пола по хэшу id — всегда один и тот же.
+ */
+const VOICE_OF: Record<string, string> = {
+  rinat: 'filipp', // поставщик, энергичный — средний мужской
+  official: 'ermil', // госзаказчик, 60 — самый низкий, неторопливый
+  foreman: 'madirus', // прораб, 50 — низкий, с хрипотцой
+  dev: 'zahar', // айтишник, 28 — самый высокий мужской
+  olga: 'alena', // инженер, молодая — живой женский
+  buyer: 'jane', // закупщица, 52, жёсткая — умеет «злую» интонацию
+  hr: 'marina', // кадровик — мягкий, дружелюбный
+  realtor: 'omazh', // арендодатель — хлёсткий, с «злой» ролью
+}
+const POOL = { male: ['filipp', 'ermil', 'madirus', 'zahar'], female: ['alena', 'jane', 'marina', 'omazh'] }
+
+export function voiceOf(portrait: string, female: boolean): string {
+  const known = VOICE_OF[portrait]
+  if (known) return known
+  const pool = female ? POOL.female : POOL.male
+  let h = 0
+  for (const ch of portrait) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return pool[h % pool.length]
+}
+
+export const voiceFor = (sc: Scenario) => voiceOf(portraitFor(sc), isFemale(sc))
 
 // Один <audio> на всю игру: iOS разрешает ему звучать и позже, если первый play() был внутри клика.
 let audio: HTMLAudioElement | null = null
