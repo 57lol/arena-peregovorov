@@ -690,8 +690,86 @@ def vahter():
                 forehead=True)
 
 
+def palych():
+    """Палыч, 56, бригадир: седой ёжик с залысинами, густые седые усы, добрый прищур, клетчатая рубашка
+    под оранжевым сигнальным жилетом, карандаш за ухом, очки на шнурке."""
+    f = Face(top=17, cy=38, rx=19, jaw_y=56, jaw_w=16, chin_y=65, chin_w=8, jaw_p=2.4, cheek=2.8)
+    HAIR = [41, 42, 43, 44]
+
+    def body(c, P, m):
+        xs, ys = grid()
+        # рубашка в зелёно-коричневую клетку
+        paint_cloth(c, m, [6, 7, 7, 8])
+        for x in range(1, 96, 6):
+            paint(c, m & (np.abs(xs - x - 0.5) < 1.0), 19)
+        for y in range(76, 96, 6):
+            paint(c, m & (np.abs(ys - y - 0.5) < 1.0), 19)
+        paint(c, m & (np.abs(xs % 6 - 1.5) < 1.0) & (np.abs(ys % 6 - 4.5) < 1.0), 18)
+        # жилет: две вертикальные светоотражающие полосы по груди и одна поперёк
+        vest = m & ~poly_mask([(37, 70), (59, 70), (53, 96), (43, 96)])
+        paint_cloth(c, vest, [27, 28, 28, 29], cuts=(0.25, 0.55, 0.92))
+        for x0 in (32, 64):
+            band_v = vest & (np.abs(xs - x0) < 1.6) & (ys > 74)
+            paint(c, band_v, 44)
+            paint(c, band_v & (xs > x0), 43)
+        belt = vest & (np.abs(ys - 90.5) < 1.1)
+        paint(c, belt, 44)
+        paint(c, belt & (xs > 62), 43)
+        line(c, [(38, 71), (44, 96)], 26)
+        line(c, [(58, 71), (52, 96)], 26)
+        # очки на шнурке висят на груди
+        line(c, [(40, 72), (41, 80)], 37)
+        line(c, [(56, 72), (55, 80)], 37)
+        put(c, 39, 80, ['.ffff..ffff.', 'f....ff....f', 'f.h..ff.h..f', '.ffff..ffff.'], {'f': 37, 'h': 44})
+
+    def collar(c, P):
+        put(c, 37, 71, ['aa....', 'aaaa..', '.aaaa.', '..aa..'], {'a': 8})
+        put(c, 53, 71, ['....aa', '..aaaa', '.aaaa.', '..aa..'], {'a': 7})
+
+    def hair(c, P, emotion):
+        xs, ys = grid()
+        u = (xs - CX) / f.rx
+        vol = ellipse_mask(CX, f.cy - 1, f.rx + 1.2, 21.5)
+        # ёжик с залысинами: мысок посередине, виски открыты
+        hl = 21 + 5 * np.clip(np.abs(u) - 0.25, 0, 1) ** 0.7 + 2 * u ** 2
+        top = vol & (ys < hl) & (ys > 15)
+        sides = vol & (np.abs(xs - CX) > f.rx - 2.5) & (ys > 27) & (ys < 42)
+        h = top | sides
+        hair_paint(c, h, HAIR, f)
+        for y in range(17, 25, 2):
+            for x in range(34 + (y % 4), 62, 3):
+                if h[y, x]:
+                    c[y, x] = 41
+        # карандаш за правым ухом
+        ey = P['ey']
+        line(c, [(CX + f.rx - 4, ey - 6), (CX + f.rx + 4, ey)], 22)
+        line(c, [(CX + f.rx - 4, ey - 5), (CX + f.rx + 3, ey)], 21)
+        c[ey + 1, CX + f.rx + 5] = 16
+        c[ey + 1, CX + f.rx + 4] = 16
+        c[ey - 7, CX + f.rx - 5] = 27
+
+    def moustache(c, P, emotion):
+        ey = P['ey']
+        put(c, CX - 8, ey + 11, ['...GGGGGGGGGG...', '.GGggggggggggGG.', 'GgggGGGGGGGGgggG', 'Ggg..........ggG',
+                                 'Gg............gG'], {'G': 42, 'g': 44})
+
+    def extra(c, P, emotion):
+        ey, S = P['ey'], P['skin']
+        eyL, eyR = CX - 12, CX + 4
+        # гусиные лапки у глаз и мешки
+        for dx, side in ((-3, eyL), (10, eyR)):
+            for k in range(3):
+                c[ey - 1 + k * 2, side + dx] = S[0]
+        eye_bags(c, P)
+
+    return dict(face=f, skin=SKIN_MID, ey=38, age=56, female=False, neck=11, nose='broad', shoulders=42,
+                brow=(42, 2), pupil=2, body=body, collar=collar, hair=hair, moustache=moustache, extra=extra,
+                blush=28, mouth_y=38 + 17, squint=True)
+
+
 SPECS = {'sosed': sosed, 'gopnik': gopnik, 'admin': admin, 'pacan': pacan, 'babka': babka, 'cashier': cashier,
-         'guard': guard, 'worker': worker, 'workerf': workerf, 'student': student, 'vahter': vahter}
+         'guard': guard, 'worker': worker, 'workerf': workerf, 'student': student, 'vahter': vahter,
+         'palych': palych}
 
 
 def builder(spec_fn):
@@ -699,7 +777,13 @@ def builder(spec_fn):
     if not P.pop('squint', False):
         return lambda emotion, frame: person(P, emotion, frame)
     # прищур зависит от кадра (в моргании глаза закрыты), а extra получает только эмоцию
-    return lambda emotion, frame: person({**P, 'extra': lambda c, P_, e: squint(c, P_, e, frame)}, emotion, frame)
+    own = P.get('extra')
+
+    def extra(c, P_, e, frame):
+        squint(c, P_, e, frame)
+        if own:
+            own(c, P_, e)
+    return lambda emotion, frame: person({**P, 'extra': lambda c, P_, e: extra(c, P_, e, frame)}, emotion, frame)
 
 
 PEOPLE_STORY = {cid: builder(fn) for cid, fn in SPECS.items()}

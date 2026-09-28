@@ -32,6 +32,7 @@ export const PORTRAITS = {
   workerf: { sheet: '/assets/portraits/workerf.png', label: 'Оксана, рабочая цеха', female: true },
   student: { sheet: '/assets/portraits/student.png', label: 'Аня, соседка из 215-й', female: true },
   vahter: { sheet: '/assets/portraits/vahter.png', label: 'Галина Ивановна, комендант', female: true },
+  palych: { sheet: '/assets/portraits/palych.png', label: 'Палыч, бригадир', female: false },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
 
