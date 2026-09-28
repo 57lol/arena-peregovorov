@@ -69,7 +69,8 @@ void main() {
   vec3 c = s.rgb;
   float world = step(0.75, s.a);
   vec2 p = vUv - 0.5;
-  float v = 1.0 - vignette * dot(p, p) * 2.2;
+  // виньетка с плато: середина кадра остаётся в чистых цветах палитры, темнеют только края
+  float v = 1.0 - vignette * max(0.0, dot(p, p) * 2.2 - 0.3);
   c *= mix(1.0, v, world * 0.85 + 0.15);
   if (xray > 0.0) {
     // рентген: мир уходит в холодную синеву, люди остаются живыми
@@ -126,7 +127,7 @@ export class PixelPipeline {
         pal: { value: RGB_OF.map(([r, g, b]) => new Vector3(r / 255, g / 255, b / 255)) },
         res: { value: [4, 4] },
         spread: { value: 0.11 },
-        vignette: { value: 0.0 },
+        vignette: { value: 0.55 },
         xray: { value: 0 },
         fade: { value: 0 },
         dim: { value: 0 },
