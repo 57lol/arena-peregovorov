@@ -86,14 +86,18 @@ export const PROLOGUE: Cutscene = {
     {
       set: 'street',
       mood: 'dusk',
-      dur: 6,
-      actors: [{ who: 'case', x: [[0, S.stop], [6, S.stop + 230]] }],
+      dur: 6.5,
+      actors: [
+        // новенький стоит на остановке, автобус отъезжает и открывает его — потом пошёл
+        { who: 'case', x: [[0, S.stop + 6], [1.5, S.stop + 6], [6.5, S.stop + 196]] },
+        { who: 'bus', x: [[0, S.stop + 50], [0.5, S.stop + 58], [2.6, S.stop + 470]], y: 179 },
+      ],
       lines: [{ at: 0.3, text: 'Елабуга. До общаги — пять минут пешком.' }],
     },
     {
       set: 'street',
       mood: 'dusk',
-      dur: 5.5,
+      dur: 5.1,
       actors: [{ who: 'case', x: [[0, S.dorm - 180], [4.6, S.dorm - 4]] }],
       lines: [{ at: 0.3, text: 'Общага, комната 214. Там уже кто-то живёт.' }],
     },
