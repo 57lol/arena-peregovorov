@@ -21,6 +21,7 @@ import { Margin } from './Margin'
 import { Mentor } from './Mentor'
 import { MicButton } from './Mic'
 import { VolumeSlider } from './Volume'
+import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
 import '../world3d/world3d.css'
 import '../world3d/play3d.css'
@@ -55,6 +56,10 @@ export default function Play3D(props: Props) {
   // первая встреча — обучающая: бумаги и кнопки появляются по одной, когда впервые нужны
   const tut = useTutorial(props.tutorial, props.onTutorialOff, m)
   const notebookOn = tut.shows('notebook')
+  // взгляд на стол — шорох бумаг
+  useEffect(() => {
+    if (pose === 'desk') sfx('page', { gain: 0.5 })
+  }, [pose])
   const slipOn = tut.shows('slip')
   const cardOn = tut.shows('card')
   useEffect(() => {

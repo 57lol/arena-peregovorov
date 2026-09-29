@@ -5,6 +5,7 @@ import type { Health } from '../api'
 import type { Progress } from '../progress'
 import type { RoomRef } from '../rooms'
 import { Button } from '../ui'
+import { SoundToggle } from '../audio/SoundControls'
 import { TitleScene } from './TitleScene'
 import '../title.css'
 
@@ -55,6 +56,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
     <div className="px-root tt-root">
       <TitleScene story={!invited} />
       <main className="tt-ui">
+        <SoundToggle />
         {!invited && (played || onFilms) && (
           <nav className="tt-corner">
             {onFilms && (

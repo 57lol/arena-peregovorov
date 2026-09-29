@@ -11,6 +11,7 @@ import { firstName } from './cast'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
 import { loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, stopAudio, unlockAudio, voiceFor, type SpeechCaps } from './speech'
+import { useMeetingSounds } from './audio/scene'
 import { cpsFor, toPortraitEmotion } from './ui'
 
 export interface MeetingProps {
@@ -79,6 +80,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     if (voiced && voiced.text !== line) stopAudio()
   }, [line, voiced])
   useEffect(() => stopAudio, [])
+  // штамп концовки и новое предложение собеседника на столе — звуком
+  useMeetingSounds(stamp, JSON.stringify(state.lastOpponentOffer ?? null))
   // голос включён с прошлого раза — собеседник здоровается вслух
   const greeted = useRef(false)
   useEffect(() => {

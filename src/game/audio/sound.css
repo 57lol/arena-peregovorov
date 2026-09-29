@@ -1,0 +1,48 @@
+/* Звук на титуле: кнопка «вкл/выкл» и громкость по каналам — в левом верхнем углу, напротив «Личного дела». */
+
+.snd-corner {
+  position: absolute;
+  z-index: 2;
+  top: max(8px, env(safe-area-inset-top));
+  left: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100vw - 16px);
+}
+
+.snd-panel {
+  flex-basis: 100%;
+  display: grid;
+  gap: 8px;
+  width: min(280px, calc(100vw - 32px));
+  padding: 12px;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow: 0 0 0 calc(2 * var(--u, 1px)) var(--c-ink);
+}
+
+.snd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snd-row span {
+  width: 5.5em;
+}
+
+.snd-row input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--c-stamp);
+  cursor: pointer;
+}
+
+/* телефон: рядом справа «Катсцены» и «Личное дело» — у звука остаются только значки */
+@media (max-width: 600px) {
+  .snd-corner > .px-btn > span {
+    display: none;
+  }
+}

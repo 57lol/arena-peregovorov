@@ -8,6 +8,7 @@ import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
 import { loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
 import { loadVoiceOn, unlockAudio } from './game/speech'
+import { useSoundScene } from './game/audio/scene'
 import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
@@ -120,6 +121,8 @@ export default function App() {
   }, [view, screen])
   const currentRef = useRef<Case | null>(null)
   currentRef.current = current
+  // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
+  useSoundScene(screen, current?.scenario, film?.id)
 
   useEffect(() => {
     try {
