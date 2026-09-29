@@ -3,7 +3,7 @@
 // ?cutscene=<id>&t=<секунды> в адресе останавливает кадр — для снимков и проверки глазами.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { PORTRAITS, PORTRAIT_SIZE } from '../ui/assets'
+import { PORTRAITS } from '../ui/assets'
 import { H } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
 import { pinLabel } from './scripts'
@@ -207,7 +207,7 @@ function PhoneScreen({ card, rect, s }: { card: PhoneCard; rect: [number, number
       <p className="cs-phone-head cs-chat-head">
         <span
           className="cs-face"
-          style={{ backgroundImage: `url(${face.sheet})`, backgroundSize: `${PORTRAIT_SIZE * 3}px ${PORTRAIT_SIZE * 6}px` }}
+          style={{ backgroundImage: `url(${face.sheet})` }}
           aria-hidden="true"
         />
         {card.from}

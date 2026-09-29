@@ -154,12 +154,12 @@
 
 .cs-face {
   flex: none;
-  width: calc(var(--s) * 12px);
-  height: calc(var(--s) * 12px);
+  width: calc(var(--s) * 16px);
+  height: calc(var(--s) * 16px);
   background-repeat: no-repeat;
   background-color: var(--c-sky);
   background-size: calc(var(--s) * 144px) calc(var(--s) * 288px);
-  background-position: calc(var(--s) * -18px) calc(var(--s) * -8px);
+  background-position: calc(var(--s) * -16px) calc(var(--s) * -12px);
   image-rendering: pixelated;
 }
 
