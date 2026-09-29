@@ -119,7 +119,36 @@ export function voiceOf(portrait: string, female: boolean): string {
   return pool[h % pool.length]
 }
 
-export const voiceFor = (sc: Scenario) => voiceOf(portraitFor(sc), isFemale(sc))
+// ?voice=classic — озвучка самой первой версии: SpeechKit v1, прежние голоса по лицам, без разметки и фраз-пауз.
+// Запоминается во вкладке (sessionStorage), чтобы переходы по игре её не теряли.
+const CLASSIC_KEY = 'peregovorka.voice-classic'
+export function classicVoice(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const q = /[?&]voice=([a-z]+)/.exec(location.search)?.[1]
+    if (q) sessionStorage.setItem(CLASSIC_KEY, q === 'classic' ? '1' : '0')
+    return sessionStorage.getItem(CLASSIC_KEY) === '1'
+  } catch {
+    return /[?&]voice=classic/.test(location.search)
+  }
+}
+// читаем сразу при загрузке модуля — до любых переходов, которые чистят адрес
+classicVoice()
+const CLASSIC_VOICE_OF: Record<string, string> = {
+  rinat: 'filipp', official: 'ermil', foreman: 'madirus', dev: 'zahar', olga: 'alena', buyer: 'jane', hr: 'marina', realtor: 'omazh',
+  sosed: 'zahar', gopnik: 'filipp', admin: 'omazh', palych: 'madirus',
+}
+const CLASSIC_POOL = { male: ['filipp', 'ermil', 'madirus', 'zahar'], female: ['alena', 'jane', 'marina', 'omazh'] }
+function classicVoiceOf(portrait: string, female: boolean): string {
+  const known = CLASSIC_VOICE_OF[portrait]
+  if (known) return known
+  const pool = female ? CLASSIC_POOL.female : CLASSIC_POOL.male
+  let h = 0
+  for (const ch of portrait) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return pool[h % pool.length]
+}
+
+export const voiceFor = (sc: Scenario) => (classicVoice() ? classicVoiceOf : voiceOf)(portraitFor(sc), isFemale(sc))
 
 // Один <audio> на всю игру: iOS разрешает ему звучать и позже, если первый play() был внутри клика.
 let audio: HTMLAudioElement | null = null
@@ -176,6 +205,7 @@ export interface LineOptions {
 
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
+  if (classicVoice() && !o.provider) return { voice, natural: false, live: false, api: 'v1' as const }
   const lab = typeof window === 'undefined' ? {} : loadLab()
   const provider = o.provider ?? lab.tts ?? 'yandex'
   const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
@@ -251,7 +281,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
   let started = false
   let finish!: () => void
   const done = new Promise<void>((r) => (finish = r))
-  if (typeof Audio === 'undefined' || !(FILLER_VOICES as readonly string[]).includes(voice)) {
+  if (typeof Audio === 'undefined' || classicVoice() || !(FILLER_VOICES as readonly string[]).includes(voice)) {
     finish()
     return { cancel: () => {}, done }
   }

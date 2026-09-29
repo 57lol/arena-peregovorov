@@ -16,7 +16,7 @@ type Props = MeetingProps & {
 }
 
 export function Play(props: Props) {
-  const { history, setHistory, onFinish, on3d } = props
+  const { history, onFinish, on3d } = props
   const [notebook, setNotebook] = useState(false)
   const [marginOpen, setMarginOpen] = useState(false)
   const notebookRef = useRef<HTMLDivElement>(null)
@@ -177,7 +177,7 @@ export function Play(props: Props) {
                   <Button variant="brass" icon="stamp" className={`g-big${props.tutorial ? ' is-tutor' : ''}`} onClick={onFinish}>
                     Разбор встречи
                   </Button>
-                  <Button variant="ghost" icon="rewind" onClick={() => setHistory((h) => h.slice(0, -1))}>
+                  <Button variant="ghost" icon="rewind" onClick={m.undo}>
                     Отменить последний ход
                   </Button>
                 </div>

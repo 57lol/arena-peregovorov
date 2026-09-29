@@ -1,3 +1,5 @@
+// ?voice=classic — самым первым, пока адрес не почистили переходы (?case=… → бриф)
+import './game/speech'
 // ?reset — первым делом, до App.tsx: он при загрузке читает сохранённую партию
 import { resetting } from './game/reset'
 import { StrictMode, Suspense, lazy } from 'react'
