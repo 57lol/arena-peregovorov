@@ -16,6 +16,7 @@ import { loadProgress, markTutorialDone, resetTutorial, type Progress } from '..
 import { loadVoiceOn, saveVoiceOn } from '../speech'
 import { PORTRAITS, Button, PixelIcon } from '../ui'
 import { can3d, type View } from '../view'
+import { Method } from '../screens/Method'
 import { demoHistory } from './demo'
 import './jury.css'
 
@@ -166,6 +167,10 @@ export function Jury(p: Props) {
             </p>
           </section>
         </div>
+
+        <section className="g-sheet jr-sheet jr-method">
+          <Method />
+        </section>
       </main>
     </div>
   )

@@ -159,6 +159,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
           )}
         </p>
       </div>
+      {ui.i === 0 && at === undefined && (
+        <p className="cs-hint" aria-hidden="true">
+          {TOUCH ? 'тап — дальше' : 'клик — дальше, Esc — пропустить'}
+        </p>
+      )}
       <button
         type="button"
         className="cs-skip"
@@ -178,6 +183,8 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
 function keepWords(text: string) {
   return text.split(/(\S*[\p{L}\d]-[\p{L}\d]\S*)/u).map((part, k) => (k % 2 ? <span key={k} className="cs-nowrap">{part}</span> : part))
 }
+
+const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 const sameRect = (a?: number[], b?: number[]) => (!a && !b) || (!!a && !!b && a.every((v, k) => v === b[k]))
 

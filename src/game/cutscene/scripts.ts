@@ -251,8 +251,8 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'oez',
         dur: 4,
         cam: O.parking,
-        actors: [{ who: 'newbie', x: O.parking, face: 'right', pose: 'ear' }],
-        lines: [{ at: 0.3, text: 'Парковка. Звонит начальница.' }],
+        actors: [{ who: 'newbie', x: O.parking, face: 'right', pose: 'look' }],
+        lines: [{ at: 0.3, text: 'Парковка «Штамп-К». Телефон пищит.' }],
       },
       {
         set: 'phone',
@@ -265,7 +265,7 @@ export const BRIDGES: Record<string, Cutscene> = {
           { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Угроза — это вопрос', text: 'Проверьте её, прежде чем уступать.' },
         ],
         lines: [
-          { at: 0.3, text: 'Завод «Иней» — сорок процентов загрузки.' },
+          { at: 0.3, text: 'Опять начальница.' },
           { at: 4.6, text: 'На давление не отвечайте скидкой.' },
         ],
       },

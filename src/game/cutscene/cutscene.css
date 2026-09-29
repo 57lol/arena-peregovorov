@@ -305,3 +305,26 @@
 .cs-nowrap {
   white-space: nowrap;
 }
+
+/* подсказка управления: первые секунды катсцены, потом гаснет */
+.cs-hint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  margin: 0;
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-steel);
+  text-align: center;
+  pointer-events: none;
+  animation: cs-hint 4.5s steps(6) both;
+}
+@keyframes cs-hint {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

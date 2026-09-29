@@ -194,6 +194,7 @@ export class Painter {
       if (l.sky) {
         const sky = this.img(`${DIR}sky_${mood}.png`, mood, true)
         if (sky) ctx.drawImage(sky, Math.round((vw - sky.width) / 2), dy)
+        if (mood !== 'night' && set !== 'bus') this.birds(t, mood === 'dusk' ? 30 : 37)
         return
       }
       const im = this.img(DIR + l.src, mood, l.lights)
@@ -212,6 +213,22 @@ export class Painter {
     for (const a of actors) this.drawActor(a, shot, t, left, mood)
     for (const l of def.front ?? []) layer(l)
     return { vw, left }
+  }
+
+  /** Птицы над городом: несколько «галочек» машут крыльями и медленно летят через кадр. */
+  private birds(t: number, color: number) {
+    const { ctx, vw } = this
+    ctx.fillStyle = rgb(color)
+    for (const [x0, y0, v, ph] of FLOCK) {
+      const span = vw + 40
+      const x = Math.round((((x0 + t * v) % span) + span) % span) - 20
+      const y = Math.round(y0 + Math.sin(t * 0.9 + ph) * 2)
+      if (Math.floor(t * 5 + ph) % 2) {
+        ctx.fillRect(x, y, 1, 1)
+        ctx.fillRect(x + 2, y, 1, 1)
+        ctx.fillRect(x + 1, y + 1, 1, 1)
+      } else ctx.fillRect(x, y + 1, 3, 1)
+    }
   }
 
   /** Туман полосами дизеринга, гуще к горизонту, еле-еле плывёт. */
@@ -310,6 +327,15 @@ export class Painter {
     return { vw, left, pin: end ? [end[0] - left + 1, end[1] - top] : undefined }
   }
 }
+
+/** Стая: x, y, скорость, фаза взмаха. */
+const FLOCK = [
+  [30, 34, 11, 0],
+  [44, 40, 11, 1.3],
+  [58, 31, 11, 2.1],
+  [190, 52, 8, 0.7],
+  [201, 57, 8, 2.6],
+] as const
 
 function ring(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, c: number) {
   ctx.fillStyle = rgb(c)

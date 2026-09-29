@@ -400,3 +400,7 @@
     padding-inline: calc(4 * var(--u));
   }
 }
+
+.jr-method {
+  margin-top: calc(8 * var(--u));
+}
