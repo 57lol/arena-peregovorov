@@ -10,6 +10,8 @@ export interface SynthReq {
   api?: 'v1' | 'v3'
   emotion?: string
   instructions?: string
+  natural?: boolean
+  live?: boolean
 }
 
 export interface SynthResult {
@@ -59,7 +61,8 @@ export async function say(q: SynthReq, onEnd?: () => void): Promise<SynthResult>
   const ms = Number(r.headers.get('x-audio-ms'))
   const sec = ms > 0 ? ms / 1000 : audio.duration
   const api = r.headers.get('x-tts-api')
-  const bits = [Number.isFinite(sec) && sec > 0 ? `${sec.toFixed(1).replace('.', ',')} с` : '', api ? `API ${api}` : '', r.headers.get('x-cache') === 'hit' ? 'из кэша' : 'синтез']
+  const voice = r.headers.get('x-tts-voice')
+  const bits = [Number.isFinite(sec) && sec > 0 ? `${sec.toFixed(1).replace('.', ',')} с` : '', voice && voice !== q.voice ? `голос ${voice}` : '', api ? `API ${api}` : '', r.headers.get('x-cache') === 'hit' ? 'из кэша' : 'синтез']
   return { ok: true, note: bits.filter(Boolean).join(' · ') }
 }
 

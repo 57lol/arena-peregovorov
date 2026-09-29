@@ -11,11 +11,12 @@ import type { TurnRecord } from '../../engine/types'
 import { portraitFor } from '../cast'
 import { FEMALE_VOICES, voiceOf } from '../speech'
 import { Button, PixelIcon, PORTRAITS } from '../ui'
-import { LAB_VOICE, loadLab, saveLab, type LabConfig, type LabLlm, type LabTts } from './config'
+import { LAB_VOICE, LIVE_FEMALE, LIVE_MALE, loadLab, saveLab, type LabConfig, type LabLlm, type LabTts } from './config'
 import { say, stop, type ProviderStatus } from './synth'
 
 interface LabInfo {
   enabled: boolean
+  natural?: 'off' | 'on' | 'live'
   main: { provider: string; model: string; mode: string }
   llm: Record<LabLlm, ProviderStatus>
   tts: Record<LabTts, ProviderStatus>
@@ -39,6 +40,16 @@ const TTS_CHOICES: { id: TtsChoice; provider: LabTts; label: string; api?: 'v1' 
   { id: 'salute', provider: 'salute', label: 'SaluteSpeech' },
 ]
 const choiceOf = (c: LabConfig): TtsChoice => (!c.tts || c.tts === 'yandex' ? (c.ttsApi === 'v1' ? 'yandex-v1' : 'yandex-v3') : c.tts)
+
+const LIVE_RU: Record<string, string> = { denis: 'Денис', sergey: 'Сергей', vasily: 'Василий', sofia: 'София', vera: 'Вера', irina: 'Ирина' }
+const NATURAL_RU = { off: 'выключена', on: 'включена', live: 'включена, голоса livetts' }
+
+/** Тестовые уровни естественной речи: мужской разговорный, молодой парень и строгая женщина. */
+const NATURAL_LEVELS = [
+  { id: 'tara', note: 'Марат, поставщик: торг цифрами' },
+  { id: 'dorm', note: 'Тимур, сосед по комнате: разговорная речь' },
+  { id: 'client', note: 'Роза, закупщица: строгий женский голос' },
+]
 
 const SOURCE_RU: Record<string, string> = { llm: 'нейросеть', cache: 'кэш', offline: 'правила', template: 'шаблон', button: 'кнопка' }
 
@@ -84,7 +95,7 @@ export default function Lab() {
     try {
       const r = await fetch('/api/turn', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-lab-llm': llm },
+        headers: { 'content-type': 'application/json', 'x-lab-llm': llm, ...(cfg.natural !== undefined ? { 'x-lab-natural': cfg.natural ? '1' : '0' } : {}) },
         body: JSON.stringify({ scenarioId: caseId, history: [], playerText: text }),
         signal: AbortSignal.timeout(90_000),
       })
@@ -101,8 +112,11 @@ export default function Lab() {
       const sc = ALL_SCENARIOS.find((s) => s.id === caseId)!
       const face = portraitFor(sc)
       const yv = voiceOf(face, PORTRAITS[face].female)
-      const voice = tts.provider === 'yandex' ? yv : LAB_VOICE[tts.provider][FEMALE_VOICES.includes(yv) ? 'female' : 'male']
-      const s = await say({ text: p.line, voice, provider: tts.provider, api: tts.api, emotion: p.emotion })
+      const female = FEMALE_VOICES.includes(yv)
+      const own = tts.provider === 'yandex' && cfg.live ? (female ? cfg.liveFemale : cfg.liveMale) : undefined
+      const voice = own ?? (tts.provider === 'yandex' ? yv : LAB_VOICE[tts.provider][female ? 'female' : 'male'])
+      const nat = tts.provider === 'yandex' ? { natural: cfg.natural, live: cfg.live && !own ? true : undefined } : {}
+      const s = await say({ text: p.line, voice, provider: tts.provider, api: tts.api, emotion: p.emotion, ...nat })
       setProbe({ ...p, voice: `${TTS_RU[tts.provider]}${tts.api ? ' ' + tts.api : ''}, ${voice}: ${s.note}` })
     } catch (e) {
       setErr((e as Error).message)
@@ -188,6 +202,104 @@ export default function Lab() {
       </section>
 
       <section className="vx-block">
+        <h2>Естественная речь</h2>
+        <p className="vx-lead">
+          Режиссёр речи размечает реплику для SpeechKit: паузы после «ну», «смотрите», перед «но» и «а», чуть дольше на точках, раздумье на
+          многоточии, рубли и проценты словами. Собеседнику в промпт добавляется «пиши для голоса»: короткие фразы и живые связки. Раздражённый
+          говорит суше и короче, задумчивый — медленнее, с паузами. На сервере сейчас: {info ? NATURAL_RU[info.natural ?? 'off'] : '…'}.
+        </p>
+        <div className="lab-cards" role="radiogroup" aria-label="Естественная речь">
+          {([
+            [undefined, 'Как на сервере', info ? NATURAL_RU[info.natural ?? 'off'] : '…'],
+            [true, 'Включить', 'разметка и промпт «для голоса»'],
+            [false, 'Выключить', 'как было, для сравнения'],
+          ] as const).map(([v, label, hint]) => (
+            <button
+              key={String(v)}
+              type="button"
+              role="radio"
+              aria-checked={cfg.natural === v}
+              className={`lab-card${cfg.natural === v ? ' is-on' : ''}`}
+              onClick={() => update({ ...cfg, natural: v })}
+            >
+              <b>{label}</b>
+              <span className="vx-small">{hint}</span>
+            </button>
+          ))}
+        </div>
+        <div className="lab-cards" role="radiogroup" aria-label="Голоса livetts">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!cfg.live}
+            className={`lab-card${!cfg.live ? ' is-on' : ''}`}
+            onClick={() => update({ ...cfg, live: undefined })}
+          >
+            <b>Голоса как в игре</b>
+            <span className="vx-small">SpeechKit general: у каждого лица свой</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!!cfg.live}
+            disabled={tts.provider !== 'yandex'}
+            className={`lab-card${cfg.live ? ' is-on' : ''}${tts.provider !== 'yandex' ? ' is-off' : ''}`}
+            onClick={() => update({ ...cfg, live: true })}
+          >
+            <b>Голоса livetts</b>
+            <span className="vx-small">новая «живая» модель SpeechKit v3, шесть голосов</span>
+          </button>
+        </div>
+        {cfg.live && (
+          <div className="lab-probe">
+            <label className="vx-own">
+              <span>Мужской голос</span>
+              <select value={cfg.liveMale ?? ''} onChange={(e) => update({ ...cfg, liveMale: e.target.value || undefined })}>
+                <option value="">пара к голосу лица</option>
+                {LIVE_MALE.map((v) => (
+                  <option key={v} value={v}>
+                    {LIVE_RU[v]} ({v})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="vx-own">
+              <span>Женский голос</span>
+              <select value={cfg.liveFemale ?? ''} onChange={(e) => update({ ...cfg, liveFemale: e.target.value || undefined })}>
+                <option value="">пара к голосу лица</option>
+                {LIVE_FEMALE.map((v) => (
+                  <option key={v} value={v}>
+                    {LIVE_RU[v]} ({v})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <div className="lab-levels">
+          {NATURAL_LEVELS.map((l) => {
+            const sc = ALL_SCENARIOS.find((s) => s.id === l.id)
+            if (!sc) return null
+            return (
+              <a
+                key={l.id}
+                className="lab-level"
+                href={`/?case=${l.id}`}
+                onClick={() => saveLab({ ...cfg, natural: true, tts: undefined, ttsApi: undefined })}
+              >
+                <span className="vx-small">естественная речь{cfg.live ? ' · livetts' : ' · голос как в игре'}</span>
+                <b>{sc.title}</b>
+                <span className="vx-small">{l.note}</span>
+              </a>
+            )
+          })}
+        </div>
+        <p className="vx-small">
+          Уровень включает в этой вкладке естественную речь с выбранными выше голосами и основным SpeechKit v3. Послушать до и после без игры — ~/Arena-materials/voice-lab/.
+        </p>
+      </section>
+
+      <section className="vx-block">
         <h2>Проверка одним ходом</h2>
         <div className="lab-probe">
           <label className="vx-own">
@@ -252,7 +364,7 @@ export default function Lab() {
             </a>
           ))}
         </div>
-        {(cfg.llm || cfg.tts || cfg.ttsApi) && (
+        {Object.values(cfg).some((v) => v !== undefined) && (
           <Button variant="ghost" icon="cross" onClick={() => update({})}>
             Вернуть основные YandexGPT и SpeechKit
           </Button>

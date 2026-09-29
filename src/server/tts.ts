@@ -94,6 +94,8 @@ export interface TtsRequest {
   api?: 'v1' | 'v3'
   /** openai: как говорить (акцент, манера) */
   instructions?: string
+  /** yandex livetts: амплуа (casual, formal…) — у livetts свои, styleFor их не знает */
+  liveRole?: string
 }
 
 export interface Audio {
@@ -129,6 +131,7 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
   const live = YANDEX_VOICES.find((v) => v.id === q.voice)?.model === 'livetts'
   const hints: object[] = live ? [{ voice: q.voice }] : [{ voice: q.voice }, { speed: style.speed }]
   if (style.role && !live) hints.push({ role: style.role })
+  if (live && q.liveRole) hints.push({ role: q.liveRole })
   const r = await ok(
     await f(V3_URL, {
       method: 'POST',

@@ -9,7 +9,7 @@ import { loadLab } from './lab/config'
 
 const labHeaders = (): Record<string, string> => {
   const l = typeof window === 'undefined' ? {} : loadLab()
-  return l.llm ? { 'x-lab-llm': l.llm } : {}
+  return { ...(l.llm ? { 'x-lab-llm': l.llm } : {}), ...(l.natural !== undefined ? { 'x-lab-natural': l.natural ? '1' : '0' } : {}) }
 }
 
 export interface TurnInput {

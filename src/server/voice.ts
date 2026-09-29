@@ -27,7 +27,19 @@ const BANNED = [
   'в целях', 'в связи с чем', 'надлежащ', 'уважаемый', 'благодарю за ваше', 'как ии', 'языковая модель', ' очк',
 ]
 
-export function system(sc: Scenario): string {
+/**
+ * «Для голоса» (естественная речь, флаг NATURAL_SPEECH или лаборатория): реплику озвучит синтезатор, а паузы
+ * и значки потом доделает режиссёр речи (direct.ts). Здесь — то, что зависит от самих слов.
+ */
+export const FOR_VOICE = `
+Реплику произнесут вслух синтезатором, поэтому пиши для голоса:
+- Короткие фразы, 4–12 слов. Одна мысль — одна фраза. Длинное — разбей точкой.
+- Связки живой речи к месту: «смотрите», «ну», «так», «а вот», «зато», «слушайте» — одна-две на реплику, не в каждой фразе.
+- Где человек прикидывает или сомневается — многоточие: «Так… ну, допустим.» «Хм… 204 — это уже разговор.» Когда отвечаешь сразу и твёрдо — без многоточий.
+- Условия — как в разговоре, а не перечнем «пункт — значение, пункт — значение». Больше двух условий подряд не называй.
+- Без скобок, кавычек, списков и сокращений («млн», «тыс.», «т. е.»). Суммы и сроки — цифрами, как в условиях: «212 рублей», «за 5 дней».`
+
+export function system(sc: Scenario, natural = false): string {
   const c = sc.opponent.character
   return `Ты играешь роль в тренажёре переговоров. Ты — ${c.name}, ${c.role}${c.company ? `, «${c.company}»` : ''}.
 ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.speech ? `Манера речи: ${c.speech}.` : ''}
@@ -42,7 +54,9 @@ ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.
 Так звучит живая речь: «Миллион четыреста — и это я уже подвинулся.» «Смотрите: срок могу сократить, а вот по деньгам — нет.»
 
 Главное правило: ты произносишь ТОЛЬКО решение, которое тебе дали. Не соглашайся, если решение не «согласиться». Не называй других цифр, кроме данных.
-Ответ — JSON {"line": "...", "emotion": "${EMOTIONS.join('|')}"}.`
+${natural ? `${FOR_VOICE}
+
+` : ''}Ответ — JSON {"line": "...", "emotion": "${EMOTIONS.join('|')}"}.`
 }
 
 export function instruction(sc: Scenario, d: Decision, state: OpponentState, prev: Offer, stepped = false): string {
@@ -250,6 +264,8 @@ export async function voice(
   playerText: string,
   d: Decision,
   state: OpponentState,
+  /** естественная речь: промпт «для голоса» (FOR_VOICE) */
+  natural = false,
 ): Promise<VoiceResult> {
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const fallback = templateLine(sc, d, state, prev)
@@ -264,12 +280,13 @@ export async function voice(
 
 ${instruction(sc, d, state, prev, steppedToward(sc, history[history.length - 1]?.stateAfter.playerStance ?? {}, state.playerStance ?? {}))}
 ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
-  const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys: system(sc), user }
+  const sys = system(sc, natural)
+  const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys, user }
   try {
     const { value, hit } = await cached('voice', key, async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         const r = Raw.parse(await llm.json({
-          system: system(sc),
+          system: sys,
           user: attempt ? `${user}\n\nПрошлый вариант не подошёл: он противоречил решению или звучал канцелярски. Строго по решению, живым языком.` : user,
           temperature: attempt ? 0.3 : 0.6,
           maxTokens: 300,

@@ -108,3 +108,23 @@ describe('голос', () => {
     expect(tidyTranscript('разговор')).toBe('разговор')
   })
 })
+
+describe('естественная речь', () => {
+  it('разметка уходит в SpeechKit, livetts получает пару и амплуа; без флага всё как было', async () => {
+    const f = fakeYandex()
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+    const text = `Ну, смотрите: 204 ₽ ${Math.random()}`
+    const last = () => JSON.parse(String((f.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body))
+    await tts(app, { text, voice: 'alexander' })
+    expect(last().text).toBe(text)
+    const r = await tts(app, { text, voice: 'alexander', emotion: 'neutral', natural: true, live: true })
+    expect(r.headers.get('x-tts-voice')).toBe('denis')
+    expect(last().text).toContain('sil<[')
+    expect(last().text).toContain('204 рубля')
+    expect(last().model).toBe('livetts')
+    expect(last().hints).toEqual([{ voice: 'denis' }, { role: 'casual' }])
+    // та же реплика без флага — другой файл кэша, SpeechKit зовём снова
+    await tts(app, { text, voice: 'alexander', natural: true })
+    expect(f).toHaveBeenCalledTimes(3)
+  })
+})

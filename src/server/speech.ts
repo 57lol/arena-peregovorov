@@ -9,6 +9,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
+import { direct, DIRECT_VERSION, isLive, liveRole, liveVoiceFor, naturalMode } from './direct'
 import { styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -29,6 +30,10 @@ const TtsBody = z.object({
   provider: z.enum(['yandex', 'openai', 'elevenlabs', 'salute']).default('yandex'),
   api: z.enum(['v1', 'v3']).optional(),
   instructions: z.string().trim().max(400).optional(),
+  /** «естественная речь» (режиссёр речи, direct.ts): по умолчанию — как велит NATURAL_SPEECH, лаборатория задаёт явно */
+  natural: z.boolean().optional(),
+  /** заменить голос на парный голос livetts */
+  live: z.boolean().optional(),
 })
 
 export interface SpeechOptions {
@@ -110,20 +115,26 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const ready = yandexOnly ? status().tts : ttsStatus(env)[b.provider].ready
     if (!ready) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
-    const text = b.text.replace(/[«»"]/g, '')
-    const style = styleFor(b.voice, b.emotion)
-    const v3only = YANDEX_VOICES.find((v) => v.id === b.voice)?.v3only
+    const mode = naturalMode(env)
+    const natural = yandexOnly && (b.natural ?? mode !== 'off')
+    const voice = yandexOnly && (b.live ?? mode === 'live') ? liveVoiceFor(b.voice) : b.voice
+    // на экране реплика остаётся как есть, размечаем только текст для синтеза
+    const text = natural ? direct(b.text.replace(/[«»"]/g, ''), b.emotion) : b.text.replace(/[«»"]/g, '')
+    const style = styleFor(voice, b.emotion)
+    const role = natural && isLive(voice) ? liveRole(voice, b.emotion) : undefined
+    const nat = natural ? { n: DIRECT_VERSION, ...(role ? { r: role } : {}) } : {}
+    const v3only = YANDEX_VOICES.find((v) => v.id === voice)?.v3only
     // SpeechKit по умолчанию — v3; TTS_YANDEX_API=v1 возвращает старую озвучку для голосов, которые её знают
     const api = yandexOnly ? (b.api ?? (env.TTS_YANDEX_API === 'v1' && !v3only ? 'v1' : 'v3')) : undefined
     const id = yandexOnly
       ? api === 'v1'
-        ? { v: 1, text, voice: b.voice, ...style } // тот же ключ, что у озвучки до v3: старый кэш живёт
-        : { v: 3, text, voice: b.voice, ...style }
-      : { p: b.provider, m: ttsStatus(env)[b.provider].model, text, voice: b.voice, emotion: b.emotion, i: b.instructions }
+        ? { v: 1, text, voice, ...style, ...nat } // тот же ключ, что у озвучки до v3: старый кэш живёт
+        : { v: 3, text, voice, ...style, ...nat }
+      : { p: b.provider, m: ttsStatus(env)[b.provider].model, text, voice, emotion: b.emotion, i: b.instructions }
     const ext = b.provider === 'salute' ? 'wav' : 'mp3'
     const type = ext === 'wav' ? 'audio/wav' : 'audio/mpeg'
     const file = join(CACHE_DIR, 'tts', `${hashOf(id)}.${ext}`)
-    const headers = { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api' }
+    const headers = { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice }
     // длительность для печати в такт: у SpeechKit mp3 64 кбит/с, у ElevenLabs 128, у wav — из заголовка; у OpenAI браузер узнает сам
     const msOf = (n: number) => (yandexOnly ? (n * 8) / 64 : b.provider === 'elevenlabs' ? (n * 8) / 128 : 0)
     try {
@@ -137,11 +148,11 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     if (!(await quota.ttsAllowed(text.length))) return c.json({ error: 'Озвучка на сегодня закончилась' }, 429)
     if (!yandexOnly && !altAllowed(text.length)) return c.json({ error: 'Лимит на пробные голоса на сегодня' }, 429)
     try {
-      const r = await synthesize(b.provider, { text, voice: b.voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), instructions: b.instructions }, f, { ...env, YANDEX_API_KEY: key })
+      const r = await synthesize(b.provider, { text, voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), instructions: b.instructions, liveRole: role }, f, { ...env, YANDEX_API_KEY: key })
       await quota.addTts(text.length)
       if (!yandexOnly) alt.chars += text.length
       // v3 упал и ответил v1 — кладём под ключ v1, чтобы v3 попробовать снова в следующий раз
-      const out = r.api && r.api !== api ? join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice: b.voice, ...style })}.mp3`) : file
+      const out = r.api && r.api !== api ? join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice, ...style, ...nat })}.mp3`) : file
       await mkdir(join(CACHE_DIR, 'tts'), { recursive: true })
       await writeFile(out, r.audio)
       const ms = r.ms || Math.round(msOf(r.audio.length))

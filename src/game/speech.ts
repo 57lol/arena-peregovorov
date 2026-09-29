@@ -173,12 +173,16 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
   const lab = typeof window === 'undefined' ? {} : loadLab()
   const provider = o.provider ?? lab.tts ?? 'yandex'
   const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
-  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[provider][FEMALE_VOICES.includes(voice) ? 'female' : 'male']
+  const female = FEMALE_VOICES.includes(voice)
+  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[provider][female ? 'female' : 'male']
+  // лаборатория: естественная речь и голоса livetts (свой на пол или пара, которую подберёт сервер)
+  const own = provider === 'yandex' && lab.live ? (female ? lab.liveFemale : lab.liveMale) : undefined
+  const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, voice: v, emotion: toEmotion(emotion), ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }),
+      body: JSON.stringify({ text, voice: own ?? v, emotion: toEmotion(emotion), ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }),
       // чужие провайдеры отвечают дольше SpeechKit
       signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 20_000)),
     })

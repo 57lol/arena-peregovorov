@@ -15,6 +15,7 @@ import { allScenarios, dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
 import { llmMode, llmStatus, makeLLM, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
+import { naturalMode } from './direct'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
 import { roomsApi } from './rooms'
@@ -117,6 +118,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   app.get('/api/lab', async (c) =>
     c.json({
       enabled: process.env.LAB !== 'off',
+      /** общий флаг естественной речи (NATURAL_SPEECH): off | on | live */
+      natural: naturalMode(),
       main: { provider: llm.name, model: llm.model.split('/').pop(), mode: await llmMode(llm) },
       llm: llmStatus(),
       tts: { ...ttsStatus(), yandex: { ...ttsStatus().yandex, ready: speech.status().tts } },
@@ -171,7 +174,10 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
     if (body.accept) analysis = { ...analysis, accepts: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
-    const v = await voice(llm, sc, history, body.playerText, r.decision, r.state)
+    // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
+    const nh = process.env.LAB === 'off' ? undefined : c.req.header('x-lab-natural')
+    const natural = nh ? nh === '1' : naturalMode() !== 'off'
+    const v = await voice(llm, sc, history, body.playerText, r.decision, r.state, natural)
     const record: TurnRecord = {
       turn: r.state.turn,
       playerText: body.playerText,

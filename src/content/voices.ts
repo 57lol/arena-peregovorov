@@ -9,7 +9,7 @@ export interface VoiceInfo {
   /** только API v3 */
   v3only?: boolean
   note?: string
-  /** модель SpeechKit v3: без поля — general; livetts не знает ни ролей, ни темпа */
+  /** модель SpeechKit v3: без поля — general; livetts не знает темпа, амплуа у него свои (casual, formal…) */
   model?: 'livetts'
 }
 
@@ -37,12 +37,12 @@ export const YANDEX_VOICES: VoiceInfo[] = [
   { id: 'zhanar_ru', name: 'Жанар', female: true, roles: ['strict', 'friendly'], v3only: true, note: 'русский с казахским акцентом' },
   { id: 'zamira_ru', name: 'Замира', female: true, roles: ['strict', 'friendly'], v3only: true, note: 'русский с узбекским акцентом' },
   { id: 'yulduz_ru', name: 'Юлдуз', female: true, roles: ['strict', 'friendly', 'whisper'], v3only: true, note: 'русский с узбекским акцентом' },
-  // модель livetts (v3): самая «живая» и на треть дороже general; темп и роли не принимает
-  { id: 'denis', name: 'Денис', female: false, v3only: true, model: 'livetts', note: 'livetts' },
-  { id: 'sergey', name: 'Сергей', female: false, v3only: true, model: 'livetts', note: 'livetts' },
-  { id: 'vasily', name: 'Василий', female: false, v3only: true, model: 'livetts', note: 'livetts' },
-  { id: 'sofia', name: 'София', female: true, v3only: true, model: 'livetts', note: 'livetts' },
-  { id: 'vera', name: 'Вера', female: true, v3only: true, model: 'livetts', note: 'livetts' },
-  { id: 'irina', name: 'Ирина', female: true, v3only: true, model: 'livetts', note: 'livetts' },
+  // модель livetts (v3): самая «живая» и на треть дороже general; темп не принимает (400), амплуа — свои (проверено 29.09)
+  { id: 'denis', name: 'Денис', female: false, v3only: true, model: 'livetts', roles: ['casual', 'formal', 'neutral', 'sales'], note: 'livetts' },
+  { id: 'sergey', name: 'Сергей', female: false, v3only: true, model: 'livetts', roles: ['support', 'sales'], note: 'livetts' },
+  { id: 'vasily', name: 'Василий', female: false, v3only: true, model: 'livetts', roles: ['support', 'sales'], note: 'livetts' },
+  { id: 'sofia', name: 'София', female: true, v3only: true, model: 'livetts', roles: ['casual', 'support'], note: 'livetts' },
+  { id: 'vera', name: 'Вера', female: true, v3only: true, model: 'livetts', roles: ['casual', 'support'], note: 'livetts' },
+  { id: 'irina', name: 'Ирина', female: true, v3only: true, model: 'livetts', roles: ['formal', 'support', 'narrator', 'sales', 'neutral'], note: 'livetts' },
 ]
 
