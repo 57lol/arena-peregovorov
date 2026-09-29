@@ -65,7 +65,8 @@ function loadSession(): Saved | null {
     const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
     if (nav?.type === 'navigate') return null
     const s = JSON.parse(sessionStorage.getItem(SESSION) ?? 'null') as Saved | null
-    return s?.current ? s : null
+    // хаб жюри живёт без дела — его тоже возвращаем после перезагрузки
+    return s?.current || s?.screen === 'jury' ? s : null
   } catch {
     return null
   }
@@ -80,8 +81,9 @@ const filmLink = cutsceneLink()
 const firstScreen = (): Screen => {
   if (boardRef) return 'board'
   if (filmLink && cutsceneById(filmLink.id)) return 'cutscene'
-  if (juryLink()) return 'jury'
-  return saved?.screen === 'cutscene' ? 'map' : (saved?.screen ?? 'title')
+  // перезагрузка возвращает на тот же экран (и во встречу), даже если в адресе ?jury
+  if (saved) return saved.screen === 'cutscene' ? 'map' : saved.screen
+  return juryLink() ? 'jury' : 'title'
 }
 
 export default function App() {
