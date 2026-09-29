@@ -59,6 +59,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   } else if (told) good = `${n} ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно: ${told} из ${sc.opponent.profile.interests.length}.`
   else if (o.relationship >= 60) good = `Расстались по-хорошему: доверие ${o.relationship} из 100.`
   else if (deal && !loss) good = 'Довели дело до сделки, и она лучше, чем без неё.'
+  else if (!history.some((h) => !h.analysis.walksAway)) good = 'Разговор не начался: вы ушли до первой реплики.'
   else good = 'Встреча дошла до конца — для начала уже неплохо.'
 
   // 3. Что попробовать: сначала то, что стоило больше всего
