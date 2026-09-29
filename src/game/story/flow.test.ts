@@ -5,6 +5,7 @@ import { buildReport } from '../../engine/report'
 import { countStars, starsOf, type Progress } from '../progress'
 import { demoHistory } from './demo'
 import { nextChapter, storyAfter, storyStart } from './flow'
+import { chapterCard } from '../cutscene/scripts'
 
 const rec = { title: '', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }
 const prog = (...ids: string[]): Progress => ({ cases: Object.fromEntries(ids.map((id) => [id, rec])), tutorialDone: true, endings: {}, runs: [] })
@@ -18,9 +19,16 @@ describe('«Сюжет»: что показать дальше', () => {
   it('пролог видели — карта недели', () => {
     expect(storyStart(prog(), ['prologue'])).toEqual({ then: { to: 'map' } })
   })
-  it('пролог не видели, но главы сыграны — пролог и ближайшая несыгранная', () => {
-    expect(storyStart(prog('dorm', 'stop'), []).then).toEqual({ to: 'brief', caseId: 'tara' })
+  it('пролог не видели, но главы сыграны — пролог и всё равно глава 1: титр пролога обещает общагу', () => {
+    // баг 29.09: общагу сыграли из хаба жюри, пролог не видели — после автобуса открывалась «Остановка у ларька»
+    expect(storyStart(prog('dorm'), []).then).toEqual({ to: 'brief', caseId: 'dorm' })
+    expect(storyStart(prog('dorm', 'stop'), []).then).toEqual({ to: 'brief', caseId: 'dorm' })
     expect(nextChapter(prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch'))).toBeUndefined()
+  })
+  it('последний план пролога — титр той же главы, куда ведёт «Сюжет»', () => {
+    const s = storyStart(prog(), [])
+    const last = s.cutscene!.shots.at(-1)!
+    expect(last.card?.title).toBe(chapterCard((s.then as { caseId: string }).caseId).title)
   })
   it('после главы — переход и бриф следующей', () => {
     const s = storyAfter('dorm', prog('dorm'), ['prologue'])

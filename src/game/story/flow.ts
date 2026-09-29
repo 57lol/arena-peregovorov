@@ -20,11 +20,14 @@ const played = (p: Progress, id: string) => !!(p.cases[id] || p.cases[`${id}-har
 /** Первая несыгранная глава по порядку недели. */
 export const nextChapter = (p: Progress) => CHAPTERS.find((c) => !played(p, c.id))?.id
 
-/** «Сюжет» с титула: в первый раз — пролог и сразу бриф ближайшей главы, потом — карта недели. */
-export function storyStart(p: Progress, seen: string[]): Step {
+/**
+ * «Сюжет» с титула: в первый раз — пролог и сразу бриф первой главы, потом — карта недели.
+ * Пролог кончается титром «Глава 1 · Общага», поэтому после него всегда общага, даже если её уже играли
+ * (например, из хаба жюри): иначе титр обещает соседа, а открывается остановка с гопником.
+ */
+export function storyStart(_p: Progress, seen: string[]): Step {
   if (seen.includes(PROLOGUE.id)) return { then: { to: 'map' } }
-  const id = nextChapter(p)
-  return { cutscene: PROLOGUE, then: id ? { to: 'brief', caseId: id } : { to: 'map' } }
+  return { cutscene: PROLOGUE, then: { to: 'brief', caseId: CHAPTERS[0].id } }
 }
 
 /**
