@@ -11,16 +11,31 @@ import { bestOption, formatOffer, isComplete, score, type FullOffer } from '../.
 function explorer(sc: Scenario, h: TurnRecord[]): string {
   const P = sc.player.profile
   const O = sc.opponent.profile
-  const asks = sc.issues
-    .filter((i) => i.kind !== 'distributive')
-    .map((i) => `А почему для вас так важен пункт «${i.title.toLowerCase()}»? Что за этим стоит?`)
+  // спрашивает про пункты, о которых собеседник ещё не рассказал, начиная с того, что ему проще открыть:
+  // так вопрос и ответ идут об одном пункте, а не «спросил про срок — услышал про лизинг»
+  const easiest = (id: string) => Math.min(...O.interests.filter((x) => x.issue === id).map((x) => x.trustToReveal), 999)
+  const topics = sc.issues.filter((i) => i.kind !== 'distributive').sort((a, b) => easiest(a.id) - easiest(b.id))
+  const told = new Set(h.flatMap((r) => (r.decision.kind === 'reveal' ? [O.interests.find((x) => x.id === (r.decision as { interestId: string }).interestId)?.issue] : [])))
+  const times = (i: (typeof topics)[number]) => h.filter((r) => r.playerText.includes(`«${i.title.toLowerCase()}»? Что за этим стоит`)).length
+  // не рассказал с первого раза — спрашивает ещё раз, доверие к тому времени подрастёт
+  const nextTopic = topics.find((i) => !told.has(i.id) && times(i) < 2)
+  const again = !!nextTopic && times(nextTopic) > 0
+  const asks = topics.map(() =>
+    nextTopic
+      ? `${again ? 'И всё же: почему' : 'А почему'} для вас так важен пункт «${nextTopic.title.toLowerCase()}»? Что за этим стоит?`
+      : 'А что ещё для вас важно, о чём я не спросил?',
+  )
   const n = h.length
   if (n === 0) return 'Добрый день! Прежде чем торговаться, хочу понять вашу ситуацию. Что для вас в этой сделке главное и почему?'
   const last = h[n - 1]
-  const heard =
-    last.decision.kind === 'reveal'
-      ? `Правильно понимаю: ${O.interests.find((i) => i.id === (last.decision as { interestId: string }).interestId)?.text.split(/[.,:]/)[0]}? Это важно, спасибо. `
-      : 'Понимаю. '
+  // пересказ своими словами: интерес собеседника записан от его лица («у нас склад…»), дословно его не повторяем
+  const now = last.decision.kind === 'reveal' ? O.interests.find((i) => i.id === (last.decision as { interestId: string }).interestId) : undefined
+  const topic = now?.issue ? sc.issues.find((i) => i.id === now.issue)?.title.toLowerCase() : undefined
+  const heard = now
+    ? topic
+      ? `Правильно понимаю, что «${topic}» для вас — вопрос не мелкий? Спасибо, это важно. `
+      : 'Правильно понимаю, что без нас у вас тоже не всё гладко? Спасибо, что сказали. '
+    : 'Понимаю. '
   if (n <= asks.length) return heard + asks[n - 1]
 
   const revealed = new Set(last.stateAfter.revealed)
