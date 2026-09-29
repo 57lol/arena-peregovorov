@@ -2,6 +2,15 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
+// ?reset — стереть весь прогресс игры в этом браузере и начать как в первый раз
+if (new URLSearchParams(location.search).has('reset')) {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('peregovorka.')) localStorage.removeItem(k)
+    sessionStorage.clear()
+  } catch { /* хранилище недоступно — нечего стирать */ }
+  location.replace(location.pathname)
+}
+
 // ?showcase — витрина пиксельного UI-кита (временно, для команды)
 const Showcase = lazy(() => import('./game/ui/Showcase.tsx'))
 const showcase = new URLSearchParams(location.search).has('showcase')
