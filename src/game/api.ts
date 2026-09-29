@@ -105,6 +105,9 @@ export interface GenerateRequest {
   theme: string
   playerRole: string
   opponentTone: Tone
+  /** кто напротив и чего он добивается — ТЗ: «его роль и цели»; пусто — на выбор методиста */
+  opponentRole?: string
+  opponentGoals?: string
   difficulty: Difficulty
   goals: string
 }
@@ -118,5 +121,7 @@ export interface GenerateResult {
 
 export function generate(req: GenerateRequest): Promise<GenerateResult> {
   // три попытки LLM по 25 секунд плюс проверки
-  return post<GenerateResult>('/api/scenario/generate', req, 150_000)
+  // пустые роль и цели собеседника не шлём: запрос без них тот же, что и раньше (и кэш тот же)
+  const body = { ...req, opponentRole: req.opponentRole?.trim() || undefined, opponentGoals: req.opponentGoals?.trim() || undefined }
+  return post<GenerateResult>('/api/scenario/generate', body, 150_000)
 }

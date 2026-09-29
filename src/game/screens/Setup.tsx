@@ -150,6 +150,14 @@ function Folder({ sc, progress, coach, advice, onOpen }: FolderProps) {
 }
 
 const SPHERES = ['Закупки', 'Найм', 'Аренда', 'Продажи', 'Подряд']
+// подсказки в полях формы — под выбранную сферу: о чём договор, кто вы, кто напротив, чего он добивается
+const HINT: Record<string, [string, string, string, string]> = {
+  Закупки: ['гофротара под новую линию', 'менеджер по закупкам завода', 'коммерческий директор поставщика', 'продать дороже и получить деньги быстрее'],
+  Найм: ['оффер ведущему инженеру', 'руководитель отдела', 'инженер, которого зовут конкуренты', 'оклад выше и переезд за счёт компании'],
+  Аренда: ['аренда склада под интернет-магазин', 'владелец небольшого магазина', 'владелец склада', 'сдать надолго и без простоя'],
+  Продажи: ['годовой контракт на поставку', 'менеджер по продажам', 'директор по закупкам клиента', 'скидку и отсрочку платежа'],
+  Подряд: ['ремонт цеха к запуску линии', 'инженер заказчика', 'прораб подрядчика', 'аванс побольше и сроки посвободнее'],
+}
 const TONES: Tone[] = ['friendly', 'neutral', 'cold', 'aggressive', 'evasive']
 const STEPS = [
   'Методист придумывает людей и ситуацию…',
@@ -167,6 +175,8 @@ function CustomCase({ server, onOpen, coach }: { server: Health | null | undefin
     theme: '',
     playerRole: '',
     opponentTone: 'neutral',
+    opponentRole: '',
+    opponentGoals: '',
     difficulty: 2,
     goals: '',
   })
@@ -252,7 +262,7 @@ function CustomCase({ server, onOpen, coach }: { server: Health | null | undefin
           <input
             value={req.theme}
             maxLength={300}
-            placeholder="аренда склада под интернет-магазин"
+            placeholder={HINT[req.sphere]?.[0] ?? 'о чём договор'}
             onChange={(e) => set('theme', e.target.value)}
           />
         </label>
@@ -261,7 +271,7 @@ function CustomCase({ server, onOpen, coach }: { server: Health | null | undefin
           <input
             value={req.playerRole}
             maxLength={120}
-            placeholder="владелец небольшого магазина"
+            placeholder={HINT[req.sphere]?.[1] ?? 'ваша роль'}
             onChange={(e) => set('playerRole', e.target.value)}
           />
         </label>
@@ -273,6 +283,24 @@ function CustomCase({ server, onOpen, coach }: { server: Health | null | undefin
             </Chip>
           ))}
         </fieldset>
+        <label className="g-input">
+          <span>Кто напротив</span>
+          <input
+            value={req.opponentRole}
+            maxLength={120}
+            placeholder={HINT[req.sphere]?.[2] ?? 'кто сидит напротив'}
+            onChange={(e) => set('opponentRole', e.target.value)}
+          />
+        </label>
+        <label className="g-input">
+          <span>Чего он добивается</span>
+          <input
+            value={req.opponentGoals}
+            maxLength={300}
+            placeholder={HINT[req.sphere]?.[3] ?? 'чего он хочет от встречи'}
+            onChange={(e) => set('opponentGoals', e.target.value)}
+          />
+        </label>
         <fieldset className="g-chips">
           <legend>Сложность</legend>
           {([1, 2, 3] as Difficulty[]).map((d) => (

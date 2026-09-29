@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GenerateRequest, orderProblems, scenarioProblems, storyProblems, toScenario } from './generate'
+import { GenerateRequest, orderProblems, scenarioProblems, storyProblems, toScenario, userPrompt } from './generate'
 
 const raw = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -88,6 +88,17 @@ describe('своё дело: то, что видит игрок', async () => {
         expect(maxScore(sc.opponent.profile, sc.issues)).toBe(100)
       }
     expect(to100([[30, 0], [8, 0], [50, 0]]).reduce((s, p) => s + p[0], 0)).toBe(100)
+  })
+
+  it('роль и цели собеседника из формы доходят до промпта, а без них промпт прежний', () => {
+    const req = GenerateRequest.parse({ sphere: 'Продажи', opponentRole: 'директор по закупкам завода', opponentGoals: 'скидку 10% и гарантию 3 года' })
+    const p = userPrompt(req, [])
+    expect(p).toContain('Кто оппонент: директор по закупкам завода')
+    expect(p).toContain('Чего добивается оппонент: скидку 10% и гарантию 3 года')
+    const plain = userPrompt(GenerateRequest.parse({ sphere: 'Продажи' }), [])
+    expect(plain).not.toContain('Кто оппонент')
+    expect(plain).not.toContain('Чего добивается')
+    expect(GenerateRequest.parse({ sphere: 'Продажи' })).not.toHaveProperty('opponentRole')
   })
 
   it('«Что хотите потренировать» попадает в дело', () => {
