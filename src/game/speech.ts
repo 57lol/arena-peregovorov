@@ -16,9 +16,12 @@ const KEY = 'peregovorka.voice.v1'
 
 export function loadVoiceOn(): boolean {
   try {
-    return localStorage.getItem(KEY) === '1'
+    // по умолчанию голос включён (кроме автопрогонов), выключенный — только если игрок сам выключил
+    const v = localStorage.getItem(KEY)
+    if (v !== null) return v === '1'
+    return !navigator.webdriver
   } catch {
-    return false
+    return !navigator.webdriver
   }
 }
 
