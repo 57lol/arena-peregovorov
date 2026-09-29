@@ -21,6 +21,8 @@ export interface TurnInput {
   offer?: Offer
   accept?: boolean
   walkAway?: boolean
+  /** голос включён: тело /api/tts без текста — сервер начнёт синтез реплики сразу, как её получит */
+  tts?: { voice: string }
 }
 
 export interface TurnResult {
@@ -58,6 +60,7 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
     ...(t.offer ? { offer: t.offer } : {}),
     ...(t.accept ? { accept: true } : {}),
     ...(t.walkAway ? { walkAway: true } : {}),
+    ...(t.tts ? { tts: t.tts } : {}),
   }
   try {
     const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string } }>('/api/turn', body)

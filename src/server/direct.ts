@@ -121,6 +121,9 @@ export function liveRole(voice: string, emotion: Emotion | undefined): string | 
   return want.find((r) => roles.includes(r))
 }
 
-export type NaturalMode = 'off' | 'on' | 'live'
-/** Общий флаг сервера: off — как было; on — разметка и промпт «для голоса»; live — ещё и голоса livetts. */
-export const naturalMode = (env = process.env): NaturalMode => (env.NATURAL_SPEECH === 'live' ? 'live' : env.NATURAL_SPEECH === 'on' ? 'on' : 'off')
+export type NaturalMode = 'off' | 'on' | 'live' | 'voices'
+/**
+ * Общий флаг сервера: off — как было; on — разметка и промпт «для голоса»; live — ещё и голоса livetts;
+ * voices — только голоса livetts, без режиссёра речи и промпта «для голоса» (так понравилось капитану).
+ */
+export const naturalMode = (env = process.env): NaturalMode => (env.NATURAL_SPEECH === 'live' ? 'live' : env.NATURAL_SPEECH === 'voices' ? 'voices' : env.NATURAL_SPEECH === 'on' ? 'on' : 'off')

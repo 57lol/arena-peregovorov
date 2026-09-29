@@ -4,6 +4,7 @@
 import type { Emotion, Scenario } from '../engine/types'
 import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
+import { FILLER_VOICES, fillerIds } from '../content/fillers'
 
 export interface SpeechCaps {
   tts: boolean
@@ -12,7 +13,8 @@ export interface SpeechCaps {
 
 // ---------- настройка «Голос» ----------
 
-const KEY = 'peregovorka.voice.v1'
+// v2: в v1 «выкл» мог остаться с тех пор, когда голос был выключен по умолчанию, — его не читаем
+const KEY = 'peregovorka.voice.v2'
 
 export function loadVoiceOn(): boolean {
   try {
@@ -74,38 +76,39 @@ function player(): HTMLAudioElement {
 // ---------- озвучка ----------
 
 /**
- * У каждого лица свой голос SpeechKit. С 29.09 озвучка идёт через API v3: там семь новых голосов (anton, kirill,
- * alexander, dasha, lera, masha, julia) звучат заметно живее старых, а громкость выровнена по LUFS.
- * Голоса дел и глав кампании не повторяются; новое лицо без строчки получает голос своего пола по хэшу id.
- * Роли под эмоцию (good, strict, evil…) подбирает сервер — styleFor в src/server/tts.ts.
+ * У каждого лица свой голос. С 29.09 все говорят живыми голосами SpeechKit livetts: их всего шесть, три мужских
+ * и три женских. Тон мерили по фразам-паузам (медиана F0): sergey 108 Гц — самый низкий, солидный; denis 116 Гц —
+ * средний, разговорный; vasily 134 Гц — самый высокий, молодой; vera 205 Гц — ниже и мягче; sofia 216 Гц — молодой;
+ * irina 232 Гц — деловой, умеет «formal». Женщин в главах трое — голоса не повторяются; мужчин четверо, поэтому
+ * один голос делят Серый (вторая глава) и Палыч (последняя), они дальше всех друг от друга.
+ * Амплуа под эмоцию (casual, formal, support) подбирает сервер — liveRole в src/server/direct.ts.
  */
 const VOICE_OF: Record<string, string> = {
-  // дела из папки
-  rinat: 'alexander', // Марат, поставщик — тёплый разговорный, «добреет» ролью good
-  olga: 'dasha', // Дарина, молодой инженер — живой молодой
-  buyer: 'julia', // Роза Сафина, 52, стоит до последнего — деловой, раздражаясь, говорит «строго»
-  // кампания «Новенький»
-  sosed: 'zahar', // Тимур, 19 — самый высокий мужской
-  gopnik: 'filipp', // Серый, 21 — энергичный
-  admin: 'omazh', // Лариса Петровна — сухая, усталая
-  palych: 'madirus', // Палыч, 56 — низкий, с хрипотцой
+  // кампания «Новенький» и дела из папки, по порядку глав
+  sosed: 'vasily', // Тимур, 19 — самый молодой мужской
+  gopnik: 'sergey', // Серый, 21 — низкий, басит «слышь, братан»
+  rinat: 'denis', // Марат, поставщик — разговорный, этот голос капитан уже слышал и одобрил
+  admin: 'vera', // Лариса Петровна — усталая, пониже
+  olga: 'sofia', // Дарина, молодой инженер
+  buyer: 'irina', // Роза Сафина, 52 — деловая, раздражаясь, говорит «formal»
+  palych: 'sergey', // Палыч, 56 — самый низкий
   // остальные лица: свои дела и массовка
-  official: 'ermil', // госзаказчик, 60 — самый низкий, неторопливый
-  foreman: 'kirill', // прораб, 50 — умеет «строго»
-  dev: 'anton', // айтишник, 28 — ровный
-  hr: 'masha', // кадровик — по умолчанию доброжелательный
-  realtor: 'lera', // арендодатель, 34 — лёгкий
-  pacan: 'zahar',
-  guard: 'anton',
-  worker: 'alexander',
-  workerf: 'dasha',
-  student: 'lera',
-  cashier: 'masha',
-  babka: 'marina',
-  vahter: 'jane',
+  official: 'sergey', // госзаказчик, 60
+  foreman: 'denis', // прораб, 50 — умеет «formal»
+  dev: 'vasily', // айтишник, 28
+  hr: 'vera', // кадровик, 42
+  realtor: 'sofia', // арендодатель, 34
+  pacan: 'vasily',
+  guard: 'sergey',
+  worker: 'denis',
+  workerf: 'vera',
+  student: 'sofia',
+  cashier: 'sofia',
+  babka: 'vera',
+  vahter: 'irina',
 }
-export const MALE_VOICES = ['alexander', 'kirill', 'anton', 'filipp', 'ermil', 'zahar', 'madirus']
-export const FEMALE_VOICES = ['dasha', 'lera', 'masha', 'julia', 'alena', 'jane', 'marina', 'omazh']
+export const MALE_VOICES = ['denis', 'sergey', 'vasily']
+export const FEMALE_VOICES = ['sofia', 'vera', 'irina']
 
 export function voiceOf(portrait: string, female: boolean): string {
   const known = VOICE_OF[portrait]
@@ -171,8 +174,8 @@ export interface LineOptions {
   instructions?: string
 }
 
-/** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
-export async function prepareLine(text: string, voice: string, emotion?: string, ms = 5000, o: LineOptions = {}): Promise<Prepared | null> {
+/** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
+export function ttsVoice(voice: string, o: LineOptions = {}) {
   const lab = typeof window === 'undefined' ? {} : loadLab()
   const provider = o.provider ?? lab.tts ?? 'yandex'
   const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
@@ -181,11 +184,19 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
   // лаборатория: естественная речь и голоса livetts (свой на пол или пара, которую подберёт сервер)
   const own = provider === 'yandex' && lab.live ? (female ? lab.liveFemale : lab.liveMale) : undefined
   const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
+  return { voice: own ?? v, ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
+}
+
+/** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
+export async function prepareLine(text: string, voice: string, emotion?: string, ms = 5000, o: LineOptions = {}): Promise<Prepared | null> {
+  const body = ttsVoice(voice, o)
+  const provider = 'provider' in body ? body.provider : 'yandex'
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, voice: own ?? v, emotion: toEmotion(emotion), ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }),
+      // порядок полей как в прогреве сервера (/api/turn), хотя ключ кэша от него и не зависит
+      body: JSON.stringify({ ...body, text, emotion: toEmotion(emotion) }),
       // чужие провайдеры отвечают дольше SpeechKit
       signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 20_000)),
     })
@@ -213,6 +224,63 @@ export async function playPrepared(p: Prepared): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+// ---------- фразы-паузы ----------
+
+/** Собеседник на «ты» — бытовые главы («Давай сразу договоримся», «Слышь, братан»). */
+export const informal = (sc: Scenario) => /(^|[^\p{L}])(ты|тебя|тебе|тобой|давай|слышь|братан)(?!\p{L})/iu.test(sc.opening)
+
+/** Через сколько мс без ответа собеседник говорит фразу-паузу. */
+export const FILLER_DELAY = 700
+let lastFiller = ''
+
+export interface Filler {
+  /** ответ готов: если фраза ещё не началась — её не будет */
+  cancel: () => void
+  /** фраза договорена, оборвана или не начиналась — можно звучать реплике */
+  done: Promise<void>
+}
+
+/**
+ * Пока нейросеть думает, собеседник говорит заранее записанное «Хм, секунду» (src/content/fillers.ts) — если ответ
+ * не пришёл за delay мс. Тот же <audio>, что и у реплик, поэтому громкость и выключатель голоса общие.
+ */
+export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY): Filler {
+  let started = false
+  let finish!: () => void
+  const done = new Promise<void>((r) => (finish = r))
+  if (typeof Audio === 'undefined' || !(FILLER_VOICES as readonly string[]).includes(voice)) {
+    finish()
+    return { cancel: () => {}, done }
+  }
+  const timer = setTimeout(() => {
+    if (!allowed()) return finish()
+    started = true
+    // не повторяем прошлую фразу
+    const ids = fillerIds(casual).filter((id) => id !== lastFiller)
+    const id = ids[Math.floor(Math.random() * ids.length)]
+    lastFiller = id
+    const a = player()
+    stopAudio()
+    const end = () => {
+      clearTimeout(guard)
+      for (const e of ['ended', 'pause', 'error']) a.removeEventListener(e, end)
+      finish()
+    }
+    // «ended» бывает не приходит (вкладка в фоне) — реплику больше двух с половиной секунд не держим
+    const guard = setTimeout(end, 2500)
+    for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
+    a.src = `/assets/voice-fillers/${voice}/${id}.mp3`
+    a.play().catch(end)
+  }, delay)
+  return {
+    cancel: () => {
+      clearTimeout(timer)
+      if (!started) finish()
+    },
+    done,
   }
 }
 

@@ -10,7 +10,7 @@ import { ApiError, playTurn } from './api'
 import { firstName } from './cast'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, stopAudio, unlockAudio, voiceFor, type SpeechCaps } from './speech'
+import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { cpsFor, toPortraitEmotion } from './ui'
 
@@ -144,10 +144,15 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
+    // ответа нет дольше 0,7 с — собеседник говорит «Хм, секунду», пока думает
+    const filler = withVoice ? startFiller(voiceFor(sc), informal(sc), () => voiceRef.current) : null
     try {
-      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts })
-      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом
+      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
+      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом; синтез сервер начал ещё до ответа
       const ready = withVoice && r.source !== 'local' ? await prepareLine(r.record.opponentLine, voiceFor(sc), r.record.emotion) : null
+      // фраза-пауза уже звучит — реплика начнётся сразу после неё, без наложения
+      filler?.cancel()
+      await filler?.done
       setHistory((h) => [...h, r.record])
       if (ready) speak(r.record.opponentLine, r.record.emotion, ready)
       setSource(r.source)
@@ -155,6 +160,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       setAcceptSure(false)
       hooks.afterSend?.(opts)
     } catch (e) {
+      filler?.cancel()
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
       setPending(null)

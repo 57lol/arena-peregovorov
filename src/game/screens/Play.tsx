@@ -78,7 +78,7 @@ export function Play(props: Props) {
       where === 'side' && <MarginOff onOn={() => switchInstant(true)} />
     )
 
-  const voiceBtn = canVoice && tut.shows('extras') && (
+  const voiceBtn = canVoice && (
     <Button
       className="g-voice-btn"
       aria-label="Голос собеседника"

@@ -136,7 +136,7 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
     await f(V3_URL, {
       method: 'POST',
       headers: { Authorization: `Api-Key ${key}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ text: q.text, ...(live ? { model: 'livetts' } : {}), hints, outputAudioSpec: { containerAudio: { containerAudioType: 'MP3' } }, loudnessNormalizationType: 'LUFS' }),
+      body: JSON.stringify({ text: q.text, ...(live ? { model: 'livetts' } : {}), hints, unsafeMode: true, outputAudioSpec: { containerAudio: { containerAudioType: 'MP3' } }, loudnessNormalizationType: 'LUFS' }),
       signal: AbortSignal.timeout(10_000),
     }),
     'SpeechKit v3',

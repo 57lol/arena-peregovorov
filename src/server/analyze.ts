@@ -175,6 +175,7 @@ export async function analyzeMove(
         user: userPrompt(sc, history, text, lastOpponentOffer),
         temperature: 0,
         maxTokens: 700,
+        timeoutMs: 12_000,
         schema: schemaFor(sc, dict),
       })),
     )

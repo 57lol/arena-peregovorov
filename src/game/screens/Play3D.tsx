@@ -717,7 +717,7 @@ function ActionCard({
   const extras = tut.shows('extras')
   const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean; lit?: string }[] = [
     { icon: 'eye', label: 'Что чувствует', on: m.xray, click: onXray, lit: lit('feel') },
-    { icon: m.voiceOn ? 'sound' : 'mute', label: 'Голос', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice && extras },
+    { icon: m.voiceOn ? 'sound' : 'mute', label: 'Голос', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
     { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn), show: extras },
     { icon: 'rewind', label: 'Запись разговора', click: onProtocol, show: m.history.length > 0 && extras },
     { icon: 'menu', label: 'Меню', click: onMenu, show: extras },

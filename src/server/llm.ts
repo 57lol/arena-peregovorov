@@ -14,12 +14,16 @@ export interface JsonRequest {
   schema?: { name: string; schema: object } // JSON Schema: строгий формат там, где провайдер умеет
   /** основная модель даже после 80% бюджета: сборку своего дела Lite не тянет (путает порядок вариантов) */
   pro?: boolean
+  /** свой таймаут, мс; без него — LLM_TIMEOUT_MS */
+  timeoutMs?: number
 }
 
 export interface LLM {
   name: 'anthropic' | 'openai' | 'yandex' | 'gigachat' | 'claude-cli' | 'offline'
   model: string
   json(req: JsonRequest): Promise<unknown>
+  /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL): Lite быстрее, а разметку держит не хуже Pro */
+  analyzer?: LLM
 }
 
 const timeout = () => Number(process.env.LLM_TIMEOUT_MS ?? 25000)
@@ -34,12 +38,12 @@ export function extractJson(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1))
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown): Promise<any> {
+async function post(url: string, headers: Record<string, string>, body: unknown, ms = timeout()): Promise<any> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeout()),
+    signal: AbortSignal.timeout(ms),
   })
   const text = await res.text()
   if (!res.ok) throw new Error(`${url} → ${res.status}: ${text.slice(0, 300)}`)
@@ -83,7 +87,7 @@ function openaiCompatible(
   return {
     name,
     model,
-    async json({ system, user, temperature, maxTokens, schema }) {
+    async json({ system, user, temperature, maxTokens, schema, timeoutMs }) {
       const r = await post(url, headers, {
         model,
         temperature,
@@ -95,7 +99,7 @@ function openaiCompatible(
         response_format: schema
           ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
           : { type: 'json_object' },
-      })
+      }, timeoutMs ? Math.min(timeoutMs, timeout()) : undefined)
       const text = r.choices?.[0]?.message?.content
       // usage есть в каждом ответе Яндекса; нет — считаем грубо, ~3 символа на токен
       if (onUsage) {
@@ -119,11 +123,12 @@ function openai(): LLM {
 }
 
 /**
- * YandexGPT под суточным бюджетом (budget.ts): Pro, с 80% лимита — YANDEX_FALLBACK_MODEL (Lite),
+ * YandexGPT под суточным бюджетом (budget.ts): YANDEX_MODEL (Pro 5.1 — реплика собеседника и сборка дела),
+ * с 80% лимита — YANDEX_FALLBACK_MODEL (Lite),
  * со 100% — исключение, и вызывающий код доигрывает ход офлайн. `model` меняется вместе с режимом,
  * поэтому ответы Lite и Pro лежат в кэше под разными ключами.
  */
-export function yandex(b: Budget = sharedBudget(), transport?: (model: string) => LLM, only?: string): LLM {
+export function yandex(b: Budget = sharedBudget(), transport?: (model: string) => LLM, only?: string, main?: string): LLM {
   const key = process.env.YANDEX_API_KEY
   const folder = process.env.YANDEX_FOLDER_ID
   if (!transport && (!key || !folder)) throw new Error('Нет YANDEX_API_KEY или YANDEX_FOLDER_ID')
@@ -137,7 +142,7 @@ export function yandex(b: Budget = sharedBudget(), transport?: (model: string) =
       (i, o) => b.addLlm(model.split('/').pop()!, i, o),
     ))
   // only — одна модель без переключения (лаборатория сравнивает Pro и Lite)
-  const primaryName = only ?? process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
+  const primaryName = only ?? main ?? process.env.YANDEX_MODEL ?? 'yandexgpt-5.1'
   const fallbackName = only ?? process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite'
   const primary = make(primaryName)
   const fallback = fallbackName === primaryName ? primary : make(fallbackName)
@@ -249,7 +254,7 @@ function gigachat(): LLM {
 export function llmStatus(env = process.env) {
   const yc = !!env.YANDEX_API_KEY && !!env.YANDEX_FOLDER_ID
   return {
-    yandex: { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_MODEL ?? 'yandexgpt-5.1' },
+    yandex: { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_MODEL ?? 'yandexgpt-5.1', ...(env.YANDEX_ANALYZE_MODEL ? { analyze: env.YANDEX_ANALYZE_MODEL } : {}) },
     'yandex-lite': { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite' },
     openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_MODEL ?? 'gpt-4.1-mini' },
     anthropic: { ready: !!env.ANTHROPIC_API_KEY, need: 'ANTHROPIC_API_KEY', model: env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5' },
@@ -270,7 +275,13 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline'): { llm: LL
     switch (kind) {
       case 'anthropic': return { llm: anthropic() }
       case 'openai': return { llm: openai() }
-      case 'yandex': return { llm: yandex() }
+      case 'yandex': {
+        // реплика — YANDEX_MODEL (Pro), разбор хода — YANDEX_ANALYZE_MODEL (Lite); бюджет у них общий
+        const llm = yandex()
+        const am = process.env.YANDEX_ANALYZE_MODEL
+        if (am && am !== (process.env.YANDEX_MODEL ?? 'yandexgpt-5.1')) llm.analyzer = yandex(undefined, undefined, undefined, am)
+        return { llm }
+      }
       case 'yandex-lite': return { llm: yandex(undefined, undefined, process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite') }
       case 'gigachat': return { llm: gigachat() }
       case 'claude-cli': return { llm: claudeCli() }

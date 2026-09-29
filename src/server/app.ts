@@ -34,6 +34,8 @@ const TurnBody = z.object({
   // Кнопки интерфейса: «принять то, что на столе» и «встать и уйти» — без угадывания по тексту.
   accept: z.boolean().optional(),
   walkAway: z.boolean().optional(),
+  /** голос включён: тело /api/tts без текста — сервер начнёт синтез реплики сразу, как её напишет модель */
+  tts: z.object({ voice: z.string().max(60) }).passthrough().optional(),
 })
 const ReportBody = z.object({ scenario: z.any().optional(), scenarioId: z.string().optional(), history: z.array(z.any()) })
 
@@ -86,7 +88,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
 
   // Лаборатория (/?lab): ход можно сыграть другой моделью — заголовок x-lab-llm. Модель создаётся один раз,
@@ -161,7 +163,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   app.post('/api/turn', async (c) => {
     const body = TurnBody.parse(await c.req.json())
-    const { llm, lab } = labLLM(c.req.header('x-lab-llm'), c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local')
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local'
+    const { llm, lab } = labLLM(c.req.header('x-lab-llm'), ip)
     const sc = await resolveScenario(body)
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
@@ -170,14 +173,15 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
     const a: { analysis: MoveAnalysis; source: string; error?: string } = body.walkAway
       ? { analysis: walkAwayMove(), source: 'button' }
-      : await analyzeMove(llm, sc, dict, history, body.playerText, before.lastOpponentOffer)
+      : await analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
     let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
     if (body.accept) analysis = { ...analysis, accepts: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
     // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
     const nh = process.env.LAB === 'off' ? undefined : c.req.header('x-lab-natural')
-    const natural = nh ? nh === '1' : naturalMode() !== 'off'
+    const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
     const v = await voice(llm, sc, history, body.playerText, r.decision, r.state, natural)
+    if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, ip)
     const record: TurnRecord = {
       turn: r.state.turn,
       playerText: body.playerText,

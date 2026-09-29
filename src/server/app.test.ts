@@ -26,6 +26,23 @@ describe('API в офлайне', () => {
     expect(r.model).toBe('yandexgpt-5.1')
   })
 
+  it('разбор хода — своей моделью (analyzer), реплика — основной', async () => {
+    const seen: string[] = []
+    const fake = (model: string, answer: unknown) => ({ name: 'yandex' as const, model, json: async () => (seen.push(model), answer) })
+    const main = fake('yandexgpt-5.1', { line: 'Смотрите, по цене пока стоим, давайте про объёмы.', emotion: 'neutral' })
+    const yc = createApp({ ...main, analyzer: fake('yandexgpt-lite', { behaviors: [], offer: {}, accepts: false, walksAway: false }) })
+    const r = await yc.request('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scenarioId: 'tara', history: [], playerText: 'Расскажите, как у вас с объёмами? q7' }),
+    })
+    expect(r.status).toBe(200)
+    expect(seen[0]).toBe('yandexgpt-lite')
+    expect(seen.slice(1).every((m) => m === 'yandexgpt-5.1')).toBe(true)
+    const h = (await (await yc.request('/api/health')).json()) as { model: string; analyzeModel: string }
+    expect(h).toMatchObject({ model: 'yandexgpt-5.1', analyzeModel: 'yandexgpt-lite' })
+  })
+
   it('ход, перемотка и повтор дают то же самое', async () => {
     const lines = ['Почему для вас важен график отгрузок?', 'Цена 196 рублей, отсрочка 30 дней, срочные за 48 часов, договор на год, раз в неделю']
     const h: TurnRecord[] = []

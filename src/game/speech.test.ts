@@ -28,15 +28,22 @@ describe('splitPcm — длинная запись кусками для SpeechK
 })
 
 describe('voiceOf — у каждого лица свой голос', () => {
-  it('пол совпадает, у собеседников семи дел голоса не повторяются, новые голоса v3 в деле', async () => {
+  it('пол совпадает, все лица говорят livetts, в главах подряд голоса не повторяются', async () => {
     const { voiceOf, FEMALE_VOICES, MALE_VOICES } = await import('./speech')
     const { PORTRAITS } = await import('./ui/assets')
     const { ALL_SCENARIOS } = await import('../content/scenarios')
     const { portraitFor } = await import('./cast')
-    for (const [id, p] of Object.entries(PORTRAITS)) expect(p.female ? FEMALE_VOICES : MALE_VOICES).toContain(voiceOf(id, p.female))
-    const cast = ALL_SCENARIOS.map((sc) => voiceOf(portraitFor(sc), PORTRAITS[portraitFor(sc)].female))
-    expect(new Set(cast).size).toBe(ALL_SCENARIOS.length)
-    expect(cast).toEqual(expect.arrayContaining(['alexander', 'dasha', 'julia']))
+    const { YANDEX_VOICES } = await import('../content/voices')
+    const live = new Set(YANDEX_VOICES.filter((v) => v.model === 'livetts').map((v) => v.id))
+    for (const [id, p] of Object.entries(PORTRAITS)) {
+      expect(p.female ? FEMALE_VOICES : MALE_VOICES).toContain(voiceOf(id, p.female))
+      expect(live.has(voiceOf(id, p.female))).toBe(true)
+    }
+    for (const sc of ALL_SCENARIOS) expect(live.has(voiceOf(portraitFor(sc), PORTRAITS[portraitFor(sc)].female))).toBe(true)
+    // главы по порядку: Тимур, Серый, Марат, Лариса Петровна, Дарина, Роза, Палыч
+    const chain = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych'].map((id) => voiceOf(id, PORTRAITS[id as keyof typeof PORTRAITS].female))
+    expect(chain).toEqual(['vasily', 'sergey', 'denis', 'vera', 'sofia', 'irina', 'sergey'])
+    for (let i = 1; i < chain.length; i++) expect(chain[i]).not.toBe(chain[i - 1])
   })
 
   it('новое лицо получает голос своего пола, всегда один и тот же', async () => {
@@ -54,3 +61,14 @@ describe('voiceOf — у каждого лица свой голос', () => {
     for (const v of FEMALE_VOICES) expect(known.get(v)).toBe(true)
   })
 })
+
+describe('фразы-паузы', () => {
+  it('на «ты» — бытовые главы, на «вы» — деловые', async () => {
+    const { informal } = await import('./speech')
+    const { ALL_SCENARIOS } = await import('../content/scenarios')
+    const ty = ALL_SCENARIOS.filter(informal).map((sc) => sc.id).sort()
+    expect(ty).toEqual(expect.arrayContaining(['dorm', 'stop']))
+    for (const id of ['tara', 'offer', 'client', 'shop']) expect(ty).not.toContain(id)
+  })
+})
+

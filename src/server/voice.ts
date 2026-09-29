@@ -290,6 +290,8 @@ ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
           user: attempt ? `${user}\n\nПрошлый вариант не подошёл: он противоречил решению или звучал канцелярски. Строго по решению, живым языком.` : user,
           temperature: attempt ? 0.3 : 0.6,
           maxTokens: 300,
+          // игрок ждёт с «…»: зависшую модель не ждём 25 секунд — лучше шаблон
+          timeoutMs: 12_000,
           schema: {
             name: 'opponent_line',
             schema: {

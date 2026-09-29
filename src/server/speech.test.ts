@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -58,10 +58,45 @@ describe('голос', () => {
     expect((await tts(app, { text, voice: 'kirill', emotion: 'annoyed' })).status).toBe(502)
     const body = JSON.parse(String((down.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body))
     expect(body.hints).toEqual([{ voice: 'kirill' }, { speed: 1.05 }, { role: 'strict' }])
+    // реплики длиннее 250 символов (вступления, размеченная речь) v3 без unsafeMode отвергает: «Too long text»
+    expect(body.unsafeMode).toBe(true)
     expect(body.loudnessNormalizationType).toBe('LUFS')
     // явный v1 — старый ключ кэша
     const v1 = await tts(app, { text: text + '.', voice: 'jane', api: 'v1' })
     expect(v1.headers.get('x-tts-api')).toBe('v1')
+  })
+
+  it('ход с голосом: синтез реплики начинается на сервере, клиент подхватывает его без второго запроса в SpeechKit', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const f = vi.fn(async () => {
+      await gate
+      return new Response(v3Line(), { status: 200 })
+    })
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+    const turn = await app.request('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '2.2.2.2' },
+      body: JSON.stringify({ scenarioId: 'tara', history: [], playerText: 'Что для вас главное в сделке?', tts: { voice: 'denis' } }),
+    })
+    const j = (await turn.json()) as { record: { opponentLine: string; emotion: string } }
+    await vi.waitFor(() => expect(f).toHaveBeenCalledTimes(1))
+    const sent = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+    expect(sent.model).toBe('livetts')
+    const mine = tts(app, { voice: 'denis', text: j.record.opponentLine, emotion: j.record.emotion }, '2.2.2.2')
+    release()
+    const r = await mine
+    expect(r.status).toBe(200)
+    expect(['warm', 'hit']).toContain(r.headers.get('x-cache'))
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('livetts без режиссёра речи: амплуа по эмоции всё равно уходит', async () => {
+    const f = fakeYandex()
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+    expect((await tts(app, { text: 'Нет, так не пойдёт, это слишком.', voice: 'irina', emotion: 'annoyed' })).status).toBe(200)
+    const body = JSON.parse(String((f.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body))
+    expect(body.hints).toEqual([{ voice: 'irina' }, { role: 'formal' }])
   })
 
   it('чужие провайдеры без ключа — «нужен ключ», каталог ключей не светит', async () => {
@@ -126,5 +161,13 @@ describe('естественная речь', () => {
     // та же реплика без флага — другой файл кэша, SpeechKit зовём снова
     await tts(app, { text, voice: 'alexander', natural: true })
     expect(f).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('фразы-паузы', () => {
+  it('каждый голос livetts записал все фразы', async () => {
+    const { FILLERS, FILLER_VOICES } = await import('../content/fillers')
+    const ids = Object.values(FILLERS).flatMap((g) => Object.keys(g))
+    for (const v of FILLER_VOICES) for (const id of ids) expect(existsSync(`public/assets/voice-fillers/${v}/${id}.mp3`), `${v}/${id}`).toBe(true)
   })
 })
