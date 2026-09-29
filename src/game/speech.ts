@@ -233,7 +233,7 @@ export async function playPrepared(p: Prepared): Promise<boolean> {
 export const informal = (sc: Scenario) => /(^|[^\p{L}])(ты|тебя|тебе|тобой|давай|слышь|братан)(?!\p{L})/iu.test(sc.opening)
 
 /** Через сколько мс без ответа собеседник говорит фразу-паузу. */
-export const FILLER_DELAY = 700
+export const FILLER_DELAY = 1000
 let lastFiller = ''
 
 export interface Filler {
