@@ -125,8 +125,8 @@ YANDEX_FOLDER_ID=...
 
 - React 19, Vite, TypeScript. Графика нарисована кодом по сетке в палитре Apollo, шрифты Ark Pixel и Pixeloid под OFL. 3D-встреча — three.js: кадр в низком разрешении сводится к той же палитре с дизерингом (подробнее в [docs/art.md](docs/art.md)).
 - Hono на Node 22, zod для проверки ответов модели. Тесты на vitest, линтер oxlint.
-- **YandexGPT 5.1** через OpenAI-совместимый эндпоинт Yandex Cloud. Взяли её, потому что она доступна из России и оплачивается в рублях. Ключ получают так: в консоли Yandex Cloud создать сервисный аккаунт с ролью `ai.languageModels.user`, выпустить ему API-ключ и взять ID каталога.
-- **Yandex SpeechKit** для голоса, тот же ключ. Сервисному аккаунту нужны роли `ai.speechkit-tts.user` и `ai.speechkit-stt.user` (или общая `ai.editor`). Если распознаванию роли не хватает, сервер сам выключает микрофон до перезапуска.
+- **YandexGPT 5.1** ([документация](https://yandex.cloud/ru/docs/foundation-models/), [цены](https://yandex.cloud/ru/docs/foundation-models/pricing)) через OpenAI-совместимый эндпоинт Yandex Cloud. Взяли её, потому что она доступна из России и оплачивается в рублях; OpenAI, Anthropic и ElevenLabs с российского сервера отвечают 403. Ключ получают так: в [консоли Yandex Cloud](https://console.yandex.cloud/) создать сервисный аккаунт с ролью `ai.languageModels.user`, выпустить ему API-ключ и взять ID каталога. Доступ платный, по факту использования; без ключа игра работает офлайн.
+- **Yandex SpeechKit** ([документация](https://yandex.cloud/ru/docs/speechkit/)) для голоса, тот же ключ. Сервисному аккаунту нужны роли `ai.speechkit-tts.user` и `ai.speechkit-stt.user` (или общая `ai.editor`). Если распознаванию роли не хватает, сервер сам выключает микрофон до перезапуска.
 
 Переменные окружения (полный список в `.env.example`):
 
