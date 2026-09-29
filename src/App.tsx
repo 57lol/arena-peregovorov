@@ -22,7 +22,7 @@ import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
 import { nextStory } from './game/story'
-import { cutsceneLink, juryLink, markCutsceneSeen, seenForStory, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
+import { cutsceneLink, juryLink, markCutsceneSeen, seenForStory, storyAfter, storyEnter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
 import { chapterOf } from './content/story'
@@ -331,7 +331,19 @@ export default function App() {
       <MapScreen
         progress={progress}
         onProgress={setProgress}
-        onOpen={(c) => open(c, 'map')}
+        onOpen={(c) => {
+          // глава с карты: сначала переход к ней, если его ещё не видели
+          const cs = storyEnter(c.scenario.id, seenForStory())
+          if (!cs) return open(c, 'map')
+          setFilm({
+            id: cs.id,
+            then: () => {
+              markCutsceneSeen(cs.id)
+              open(c, 'map')
+            },
+          })
+          go('cutscene')
+        }}
         onBack={() => go('title')}
         onFree={() => go('setup')}
         onCareer={() => toCareer('map')}

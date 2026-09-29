@@ -43,6 +43,18 @@ export function storyAfter(caseId: string, p: Progress, seen: string[]): Step {
   return { cutscene: cs, then: nx && !played(p, nx.id) ? { to: 'brief', caseId: nx.id } : { to: 'map' } }
 }
 
+/**
+ * Вход в главу с карты «Сюжета»: если переход к ней (для первой главы — пролог) ещё не видели, сначала он, потом бриф.
+ * Не глава кампании или переход уже смотрели — null, бриф открывается сразу.
+ */
+export function storyEnter(caseId: string, seen: string[]): Cutscene | null {
+  const ch = chapterOf(caseId)
+  const i = ch ? CHAPTERS.findIndex((c) => c.id === ch.id) : -1
+  if (i < 0) return null
+  const cs = i === 0 ? PROLOGUE : BRIDGES[CHAPTERS[i - 1].id]
+  return cs && !seen.includes(cs.id) ? cs : null
+}
+
 // ——— какие катсцены уже видели: пролог и переходы показываем по одному разу ———
 
 const KEY = 'peregovorka.cutscenes.v1'

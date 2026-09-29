@@ -2,7 +2,7 @@
 // Кадр — функция (план, секунда): React сюда не заходит, экран катсцены только зовёт draw() каждый кадр.
 
 import { MAP } from '../map.gen'
-import { BUS, BUS_IN, DIR, H, PHONE, SHEETS, SPOTS, type Sheet } from './art'
+import { BUS, BUS_IN, BUS_POV, DIR, H, PHONE, SHEETS, SPOTS, type Sheet } from './art'
 import { dither, recolor, rgb } from './mood'
 import { sample, swiping, travelled, walkFrame } from './timeline'
 import type { Actor, Mood, SetId, Shot } from './types'
@@ -48,17 +48,22 @@ const town = (name: 'street' | 'oez'): Layer[] => [
   { src: `${name}_lights.png`, par: 1, lights: true },
 ]
 
-export const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'>, SetDef> = {
+export const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'> | 'pov', SetDef> = {
   road: { w: Infinity, back: outside() },
+  /** салон от первого лица: за телефоном в автобусе */
+  pov: { w: BUS_POV.w, back: [...outside(BUS_POV.view), { src: BUS_POV.src, par: 1 }] },
   bus: { w: 320, back: [...outside(BUS_IN.view), { src: BUS_IN.bg, par: 1 }], front: [{ src: BUS_IN.fg, par: 1 }] },
   street: { w: SPOTS.street.w, back: town('street') },
   oez: { w: SPOTS.oez.w, back: town('oez') },
 }
 
+/** Что за телефоном: в автобусе — салон глазами пассажира, на улице — сама улица. */
+const behindOf = (shot: Shot) => (!shot.behind || shot.behind === 'bus' ? 'pov' : shot.behind)
+
 /** Все картинки, которые нужны плану: грузим заранее, чтобы кадр не мигал. */
 export function imagesOf(shot: Shot): string[] {
   const mood = shot.mood ?? 'day'
-  const set = shot.set === 'phone' ? (shot.behind ?? 'bus') : shot.set
+  const set = shot.set === 'phone' ? behindOf(shot) : shot.set
   const out: string[] = []
   if (set === 'map') out.push('/assets/map/elabuga.png')
   else if (set !== 'black') {
@@ -142,7 +147,8 @@ export class Painter {
     return c
   }
 
-  draw(shot: Shot, t: number): FrameInfo {
+  /** anim — время для движения мира; у телефона-памятки план стоит, а пейзаж за окном и салон живут дальше */
+  draw(shot: Shot, t: number, anim = t): FrameInfo {
     const { ctx, vw } = this
     ctx.imageSmoothingEnabled = false
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -151,14 +157,19 @@ export class Painter {
     if (shot.set === 'black') return { vw, left: 0 }
     if (shot.set === 'map') return this.drawMap(shot, t)
     if (shot.set === 'phone') {
-      // телефон в руках: мир за ним ночной и тихий, камера по центру
-      const behind = shot.behind ?? 'bus'
+      // телефон в руках: мир за ним притухает, но едет дальше; в автобусе салон покачивается на кочках
+      const behind = behindOf(shot)
       const w = SETS[behind].w
-      const want = behind === 'bus' ? BUS_IN.focus : sample(shot.cam, t, w / 2)
+      const want = behind === 'pov' ? w / 2 : sample(shot.cam, t, w / 2)
       const cam = Math.max(vw / 2, Math.min(w - vw / 2, want))
-      // мир за телефоном притухает — ближайшими тёмными цветами палитры
+      const sway = behind === 'pov' ? [Math.round(Math.sin(anim * 1.1)), Math.sin(anim * 7.3) > 0.8 ? 1 : 0] : [0, 0]
+      const world: Shot = { ...shot, set: behind === 'pov' ? 'bus' : behind, actors: shot.actors ?? [] }
       this.dim = true
-      this.drawSet(behind, { ...shot, set: behind, actors: shot.actors ?? [] }, t, cam)
+      // сдвинутый кадр оголил бы край — под ним тот же кадр без сдвига
+      if (sway[0] || sway[1]) this.drawSet(behind, world, anim, cam)
+      ctx.setTransform(1, 0, 0, 1, sway[0], sway[1])
+      this.drawSet(behind, world, anim, cam)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       this.dim = false
       const px = Math.round(vw / 2 - PHONE.fw / 2)
       const py = H - PHONE.fh
@@ -194,7 +205,7 @@ export class Painter {
       if (l.sky) {
         const sky = this.img(`${DIR}sky_${mood}.png`, mood, true)
         if (sky) ctx.drawImage(sky, Math.round((vw - sky.width) / 2), dy)
-        if (mood !== 'night' && set !== 'bus') this.birds(t, mood === 'dusk' ? 30 : 37)
+        if (mood !== 'night' && set !== 'bus' && set !== 'pov') this.birds(t, mood === 'dusk' ? 30 : 37)
         return
       }
       const im = this.img(DIR + l.src, mood, l.lights)

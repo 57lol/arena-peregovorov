@@ -4,7 +4,7 @@ import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { buildReport } from '../../engine/report'
 import { countStars, starsOf, type Progress } from '../progress'
 import { demoHistory } from './demo'
-import { nextChapter, storyAfter, storyStart } from './flow'
+import { nextChapter, storyAfter, storyEnter, storyStart } from './flow'
 import { chapterCard } from '../cutscene/scripts'
 
 const rec = { title: '', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }
@@ -34,6 +34,14 @@ describe('«Сюжет»: что показать дальше', () => {
     const s = storyAfter('dorm', prog('dorm'), ['prologue'])
     expect(s.cutscene?.id).toBe('to-stop')
     expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
+  })
+  it('глава с карты: сначала непросмотренный переход к ней, для первой — пролог', () => {
+    // баг 29.09: «Остановку» открывали с карты, а переход «на остановку» так и не показывался
+    expect(storyEnter('stop', ['prologue'])?.id).toBe('to-stop')
+    expect(storyEnter('stop-hard', ['prologue'])?.id).toBe('to-stop')
+    expect(storyEnter('dorm', [])?.id).toBe('prologue')
+    expect(storyEnter('stop', ['prologue', 'to-stop'])).toBeNull()
+    expect(storyEnter('not-a-chapter', [])).toBeNull()
   })
   it('жёсткая версия главы — тот же переход', () => {
     expect(storyAfter('stop-hard', prog('dorm', 'stop-hard'), []).cutscene?.id).toBe('to-tara')

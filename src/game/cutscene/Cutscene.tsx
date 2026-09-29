@@ -49,6 +49,9 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   // телефон, который листает игрок: страница (0 — приветствие) и дочитал ли он; пока нет — время стоит
   const [page, setPage] = useState(0)
   const guideDone = useRef(false)
+  // сколько секунд план с памяткой стоял на месте: на столько дальше уехал мир за телефоном
+  const held = useRef(0)
+  const heldShot = useRef(-1)
   const holding = useCallback(() => {
     const { i, t } = locate(script, T.current)
     return !!script.shots[i].guide && !guideDone.current && t >= GUIDE_AT - 0.001
@@ -139,11 +142,14 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
       last = now
       if (at === undefined) T.current += dt
-      // телефон-памятка: стоим, пока игрок не долистает
+      // телефон-памятка: план стоит, пока игрок не долистает, а мир за телефоном живёт своим временем
       {
         const { i: gi } = locate(script, T.current)
         const gs = starts_[gi] + GUIDE_AT
-        if (script.shots[gi].guide && !guideDone.current && T.current > gs) T.current = gs
+        if (script.shots[gi].guide && !guideDone.current && T.current > gs) {
+          held.current += T.current - gs
+          T.current = gs
+        }
       }
       if (T.current >= total_ && at === undefined) {
         finish()
@@ -151,7 +157,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       }
       const { i, t } = locate(script, T.current)
       const shot = script.shots[i]
-      const info = p.draw(shot, t)
+      if (i !== heldShot.current) {
+        heldShot.current = i
+        held.current = 0
+      }
+      const info = p.draw(shot, t, t + held.current)
       // вход в план из чёрного — ступенями, как в старых играх
       const fin = shot.fadeIn ?? (i === 0 ? 0.6 : 0.35)
       const tail = i === script.shots.length - 1 ? Math.max(0, (t - (shot.dur - 0.4)) / 0.4) : 0
