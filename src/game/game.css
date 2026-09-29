@@ -2308,3 +2308,44 @@ body {
   background: var(--c-night);
   color: var(--c-paper);
 }
+
+/* плашка про демо-бюджет нейросети (BudgetNote) */
+.g-budget-note {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: calc(3 * var(--u));
+  align-items: flex-start;
+  width: min(560px, calc(100vw - 32px));
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  background: var(--c-night);
+  color: var(--c-paper);
+  border: 2px solid var(--c-brass);
+  box-shadow: 0 4px 0 var(--c-ink);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  -webkit-font-smoothing: none;
+}
+.g-budget-note[data-mode='offline'] {
+  border-color: var(--c-coral);
+}
+.g-budget-note p {
+  margin: 0;
+  flex: 1;
+}
+.g-budget-note button {
+  flex: none;
+  background: none;
+  border: 0;
+  color: var(--c-paper);
+  font: inherit;
+  font-size: 1.4em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.g-budget-note button:hover {
+  color: var(--c-brass-hi);
+}

@@ -88,6 +88,8 @@ function localTurn(t: TurnInput): TurnRecord {
 export interface Health {
   ok: boolean
   provider: string
+  /** режим нейросети под общим бюджетом: pro, lite (с 80%) или offline (100%) */
+  mode?: 'pro' | 'lite' | 'offline'
   model?: string
   providerError?: string
   /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ */

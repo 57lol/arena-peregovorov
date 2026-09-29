@@ -123,7 +123,7 @@ function openai(): LLM {
 }
 
 /**
- * YandexGPT под суточным бюджетом (budget.ts): YANDEX_MODEL (Pro 5.1 — реплика собеседника и сборка дела),
+ * YandexGPT под общим бюджетом LLM_TOTAL_RUB (budget.ts): YANDEX_MODEL (Pro 5.1 — реплика собеседника и сборка дела),
  * с 80% лимита — YANDEX_FALLBACK_MODEL (Lite),
  * со 100% — исключение, и вызывающий код доигрывает ход офлайн. `model` меняется вместе с режимом,
  * поэтому ответы Lite и Pro лежат в кэше под разными ключами.
@@ -154,7 +154,7 @@ export function yandex(b: Budget = sharedBudget(), transport?: (model: string) =
       return pick().model
     },
     async json(req) {
-      if ((await b.mode()) === 'offline') throw new Error('Суточный лимит на нейросеть исчерпан — ход разобран правилами')
+      if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан — ход разобран правилами')
       return (req.pro ? primary : pick()).json(req)
     },
   }

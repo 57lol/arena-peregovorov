@@ -96,7 +96,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   const labLlms = new Map<string, LLM>()
   const labCount = new Map<string, number>()
   let labDay = ''
-  const labLimit = Number(process.env.LAB_IP_DAY_LIMIT ?? 60)
+  const labLimit = Number(process.env.LAB_IP_DAY_LIMIT || Infinity)
   function labLLM(want: string | undefined, ip: string): { llm: LLM; lab?: string } {
     if (!want || process.env.LAB === 'off' || !(want in llmStatus())) return { llm }
     const today = new Date().toISOString().slice(0, 10)

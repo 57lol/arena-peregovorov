@@ -39,12 +39,12 @@ const TtsBody = z.object({
 export interface SpeechOptions {
   key?: string
   fetch?: typeof fetch
-  /** фраз озвучки и распознаваний на один IP в сутки */
+  /** фраз озвучки и распознаваний на один IP в сутки (по умолчанию без лимита: жюри может сидеть за одним IP) */
   ttsPerIp?: number
   sttPerIp?: number
   /** на весь сервер в сутки — чтобы один бот не выел грант */
   perDay?: number
-  /** суточный счёт символов озвучки и секунд распознавания (TTS_DAILY_CHARS, STT_DAILY_SEC) */
+  /** общий бюджет в рублях (LLM_TOTAL_RUB): на 100% голос молчит */
   budget?: Budget
 }
 
@@ -54,9 +54,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   const f = opts.fetch ?? fetch
   const quota = opts.budget ?? sharedBudget()
   const limits = {
-    tts: opts.ttsPerIp ?? Number(env.TTS_IP_DAY_LIMIT ?? 400),
-    stt: opts.sttPerIp ?? Number(env.STT_IP_DAY_LIMIT ?? 150),
-    all: opts.perDay ?? Number(env.SPEECH_DAY_LIMIT ?? 5000),
+    tts: opts.ttsPerIp ?? Number(env.TTS_IP_DAY_LIMIT || Infinity),
+    stt: opts.sttPerIp ?? Number(env.STT_IP_DAY_LIMIT || Infinity),
+    all: opts.perDay ?? Number(env.SPEECH_DAY_LIMIT || Infinity),
   }
   // ключ без роли SpeechKit (401/403) — выключаем эту половину до перезапуска, а не долбим API
   const denied = { tts: false, stt: false }
@@ -162,7 +162,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     inflight.set(file, shared)
     try {
       const r = await job
-      await quota.addTts(text.length)
+      await quota.addTts(text.length, isLive(voice))
       if (!yandexOnly) alt.chars += text.length
       // v3 упал и ответил v1 — кладём под ключ v1, чтобы v3 попробовать снова в следующий раз
       const out = r.api && r.api !== api ? join(CACHE_DIR, 'tts', `${hashOf({ v: 1, text, voice, ...style, ...nat })}.mp3`) : file

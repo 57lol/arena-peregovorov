@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
+import { BudgetNote } from './game/BudgetNote'
 import { loadProgress, type Progress } from './game/progress'
 import { nextCase } from './game/career'
 import { tutorialAllowed } from './game/tutorial'
@@ -272,6 +273,7 @@ export default function App() {
   if (screen === 'jury')
     return (
       <Suspense fallback={null}>
+        <BudgetNote />
         <Jury
           progress={progress}
           server={server}
@@ -413,6 +415,7 @@ export default function App() {
     if (view === '3d')
       return (
         <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
+          <BudgetNote />
           <Play3D
             key={playKey}
             {...meeting}
@@ -431,6 +434,7 @@ export default function App() {
             {viewNote}
           </p>
         )}
+        <BudgetNote />
         <Play
           key={playKey}
           {...meeting}
