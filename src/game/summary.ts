@@ -4,7 +4,7 @@
 import { behaviorById } from '../engine/behaviors'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
-import { maxScore } from '../engine/utility'
+import { isComplete, maxScore, score } from '../engine/utility'
 import { firstName, g } from './cast'
 import { fragment, plainWords } from './instant'
 
@@ -33,7 +33,16 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   else if (deal) result = `Сделка! Ваша выгода — ${o.playerPoints} из ${max}, на ${o.playerPoints - batna} больше, чем без неё.`
   else if (o.status === 'walked_away' && state?.endedBy === 'opponent')
     result = `${n} ${g(sc, 'встал', 'встала')} из-за стола. Сделки нет, у вас остаётся то, что было и без неё.`
-  else if (o.status === 'walked_away') result = `Вы ушли без сделки.${r.zopa ? ' А договориться было можно — и выгоднее.' : ' И правильно: выгодной сделки тут не было.'}`
+  else if (o.status === 'walked_away') {
+    // ушли, когда на столе было меньше, чем без сделки, — это финал «Ушли вовремя»; не спорим с ним в первой же строке
+    const last = state?.lastOpponentOffer
+    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) : undefined
+    result = !r.zopa
+      ? 'Вы ушли без сделки. И правильно: выгодной сделки тут не было.'
+      : onTable !== undefined && onTable <= batna
+        ? `Вы ушли без сделки, и в тот момент верно: на столе было ${onTable}, ${onTable < batna ? 'меньше' : 'не больше'}, чем без сделки (${batna}). Но договориться выгоднее было можно.`
+        : 'Вы ушли без сделки. А договориться было можно — и выгоднее.'
+  }
   else result = `Время вышло, сделки нет.${r.zopa ? ' А договориться было можно.' : ''}`
 
   // 2. Что получилось: самый частый сильный приём с цитатой, иначе — доверие или то, что узнали
