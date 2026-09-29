@@ -72,7 +72,7 @@
 
 ## Поведение оппонента (движок)
 
-- **Faratin, P., Sierra, C., & Jennings, N. R. (1998).** Negotiation decision functions for autonomous agents. *Robotics and Autonomous Systems*, 24(3–4), 159–182. https://eprints.soton.ac.uk/252117/2/paper02.pdf
+- **Faratin, P., Sierra, C., & Jennings, N. R. (1998).** Negotiation decision functions for autonomous agents. *Robotics and Autonomous Systems*, 24(3–4), 159–182. https://doi.org/10.1016/S0921-8890(98)00029-3
   Кривая уступок во времени (Boulware / Conceder) и встречное предложение по схеме trade-off.
 - **Baarslag, T., Hindriks, K., & Jonker, C. (2014).** Effective acceptance conditions in real-time automated negotiation. *Decision Support Systems*, 60, 68–77. https://doi.org/10.1016/j.dss.2013.05.021
   Когда оппонент принимает предложение: AC_next и комбинированное AC_combi.
