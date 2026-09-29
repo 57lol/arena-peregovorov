@@ -412,6 +412,11 @@ function clerical(raw: z.infer<typeof Raw>): string[] {
   return hit.length ? [`канцелярит: ${[...new Set(hit)].map((w) => `«${w!.trim()}»`).join(', ')} — скажи проще, как в жизни`] : []
 }
 
+/** Запас из папки — хотя бы с той же стороной сделки: подрядчику или продавцу не отдаём дело, где он закупщик. */
+export function libraryRequest(req: GenerateRequest): GenerateRequest {
+  return sideOf(req) === 'payee' && !/найм/i.test(req.sphere) ? { ...req, sphere: 'Продажи' } : req
+}
+
 export interface GenerateResult {
   scenario: Scenario
   source: 'llm' | 'library'
@@ -444,5 +449,5 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
     }
   }
   if (passable) return { scenario: finish(passable), source: 'llm', attempts, problems: [] }
-  return { scenario: pickFromLibrary(req, library), source: 'library', attempts, problems }
+  return { scenario: pickFromLibrary(libraryRequest(req), library), source: 'library', attempts, problems }
 }

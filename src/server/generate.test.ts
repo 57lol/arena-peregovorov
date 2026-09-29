@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { GenerateRequest, orderProblems, scenarioProblems, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
+import { GenerateRequest, libraryRequest, orderProblems, scenarioProblems, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
+import { pickFromLibrary, SCENARIOS } from '../content/scenarios'
 
 const raw = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -137,6 +138,14 @@ describe('своё дело: то, что видит игрок', async () => {
     // «предоплата или отсрочка» в одном пункте — не судим
     const mixed = { ...raw, issues: [{ id: 'm', title: 'Оплата', role: 'split' as const, options: ['отсрочка 30 дней', '50 на 50', 'предоплата 100%'], bestForPlayer: 'отсрочка 30 дней' }] }
     expect(sideProblems(mixed, 'payee')).toEqual([])
+  })
+
+  it('не собралось — из папки дело с той же стороной сделки', () => {
+    const contractor = GenerateRequest.parse({ sphere: 'Подряд', playerRole: 'прораб подрядчика', opponentTone: 'cold', difficulty: 2 })
+    expect(pickFromLibrary(libraryRequest(contractor), SCENARIOS).id).toBe('client')
+    const customer = GenerateRequest.parse({ sphere: 'Подряд', playerRole: 'инженер заказчика', difficulty: 2 })
+    expect(pickFromLibrary(libraryRequest(customer), SCENARIOS).id).not.toBe('client')
+    expect(libraryRequest(GenerateRequest.parse({ sphere: 'Найм', playerRole: 'кандидат' })).sphere).toBe('Найм')
   })
 
   it('«Что хотите потренировать» попадает в дело', () => {
