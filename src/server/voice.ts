@@ -8,6 +8,7 @@ import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone, TurnRecor
 import { bestOption, formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
+import { unstress } from './stress'
 
 export const VOICE_VERSION = 'v7'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
@@ -39,7 +40,17 @@ export const FOR_VOICE = `
 - Условия — как в разговоре, а не перечнем «пункт — значение, пункт — значение». Больше двух условий подряд не называй.
 - Без скобок, кавычек, списков и сокращений («млн», «тыс.», «т. е.»). Суммы и сроки — цифрами, как в условиях: «212 рублей», «за 5 дней».`
 
-export function system(sc: Scenario, natural = false): string {
+/**
+ * Ударения в омографах (NATURAL_SPEECH=voices+): смысл знает только модель. Плюсы на экран не попадут —
+ * их снимает сервер, а словарь частых ошибок (stress.ts) доделает остальное.
+ */
+export const STRESS_HINT = `
+Реплику озвучит синтезатор. Если в ней есть омограф — слово, которое пишется одинаково, а ударение по смыслу
+разное (ст+оит / сто+ит, з+амок / зам+ок, д+орогой / дорог+ой, узн+аю / узна+ю, п+ерепись / перепис+ать), поставь «+»
+прямо перед ударной гласной этого слова: «Это ст+оит двести рублей». Букву «ё» пиши всегда: «всё», «ещё», «берём».
+В остальных словах «+» не ставь.`
+
+export function system(sc: Scenario, natural = false, marks = false): string {
   const c = sc.opponent.character
   return `Ты играешь роль в тренажёре переговоров. Ты — ${c.name}, ${c.role}${c.company ? `, «${c.company}»` : ''}.
 ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.speech ? `Манера речи: ${c.speech}.` : ''}
@@ -55,6 +66,8 @@ ${c.bio ? `Кто ты: ${c.bio}\n` : ''}Характер: ${TONE[c.tone]}. ${c.
 
 Главное правило: ты произносишь ТОЛЬКО решение, которое тебе дали. Не соглашайся, если решение не «согласиться». Не называй других цифр, кроме данных.
 ${natural ? `${FOR_VOICE}
+
+` : ''}${marks ? `${STRESS_HINT}
 
 ` : ''}Ответ — JSON {"line": "...", "emotion": "${EMOTIONS.join('|')}"}.`
 }
@@ -266,6 +279,8 @@ export async function voice(
   state: OpponentState,
   /** естественная речь: промпт «для голоса» (FOR_VOICE) */
   natural = false,
+  /** ударения «+» в омографах (voices+); line тогда приходит с плюсами — снимает их app.ts */
+  marks = false,
 ): Promise<VoiceResult> {
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const fallback = templateLine(sc, d, state, prev)
@@ -280,7 +295,7 @@ export async function voice(
 
 ${instruction(sc, d, state, prev, steppedToward(sc, history[history.length - 1]?.stateAfter.playerStance ?? {}, state.playerStance ?? {}))}
 ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
-  const sys = system(sc, natural)
+  const sys = system(sc, natural, marks)
   const key = { v: VOICE_VERSION, llm: `${llm.name}:${llm.model}`, sc: sc.id, sys, user }
   try {
     const { value, hit } = await cached('voice', key, async () => {
@@ -301,7 +316,8 @@ ${revealedLine(sc, state)}Настроение: ${mood(state)}.`
           },
         }))
         const line = r.line.trim().replace(/^[«"]|[»"]$/g, '')
-        if (!lineFits(sc, d, state, line, prev) || said.has(norm(line))) console.warn(`[voice] ${d.kind}: отклонено «${line}»`)
+        const clean = unstress(line)
+        if (!lineFits(sc, d, state, clean, prev) || said.has(norm(clean))) console.warn(`[voice] ${d.kind}: отклонено «${line}»`)
         else {
           // Эмоцию для ключевых решений задаёт движок, чтобы спрайт не улыбался при уходе.
           return { line, emotion: pickEmotion(r.emotion, d, state, fallback.emotion) }

@@ -7,6 +7,7 @@
 
 import type { Emotion } from '../engine/types'
 import { YANDEX_VOICES } from '../content/voices'
+import { stress } from './stress'
 
 export const DIRECT_VERSION = 1
 
@@ -121,9 +122,56 @@ export function liveRole(voice: string, emotion: Emotion | undefined): string | 
   return want.find((r) => roles.includes(r))
 }
 
-export type NaturalMode = 'off' | 'on' | 'live' | 'voices'
+/**
+ * «Живые голоса + аккуратная разметка» (NATURAL_SPEECH=voices+): ударения по словарю (stress.ts) и от модели,
+ * паузы только там, где livetts их сам не делает. Замеры 29.09 (denis, sofia): на точке livetts молчит ~250 мс,
+ * на многоточии ~340, на запятой — почти ноль; <[tiny]> добавляет ~250 мс, <[small]> ~400, а sil<[N]> у livetts
+ * рвёт фразу и даёт 0,7–1 с при любом N — его здесь нет совсем.
+ */
+export const POLISH_VERSION = 1
+
+export function polish(text: string, emotion: Emotion = 'neutral'): string {
+  const hurry = emotion === 'annoyed' || emotion === 'angry'
+  let t = stress(
+    spellOut(
+      text
+        .replace(/…/g, '...')
+        .replace(/sil<\[\d*\]>|<\[\w*\]>|\[\[[^\]]*\]\]|\[\[|\]\]|\*/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    ),
+  )
+  // противопоставление и условие после запятой — короткий вдох (livetts запятую почти не слышит)
+  t = t.replace(/,\s+(но|а|зато|однако|хотя|если|потому что)(?=\s)/giu, ', <[tiny]> $1')
+  // раздумье: многоточие посреди реплики
+  t = t.replace(/\.\.\.\s+(?=[\p{L}\d])/gu, '... <[tiny]> ')
+  // между предложениями — чуть дольше, чем livetts делает сам; раздражённый говорит без передышек
+  if (!hurry) t = t.replace(/(?<!(?:^|\s)\p{Ll}{1,2}|\.\.)\.\s+(?=[\p{Lu}\d])/gu, '. <[tiny]> ')
+  return t.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Ударения от модели (омографы по смыслу): на экран реплика идёт без «+», а синтезу нужна с «+».
+ * /api/turn запоминает пару «чистая → с ударениями», /api/tts её находит — клиент ничего не знает о разметке.
+ */
+const spoken = new Map<string, string>()
+export function rememberSpoken(clean: string, marked: string) {
+  if (clean === marked) return
+  spoken.delete(clean)
+  spoken.set(clean, marked)
+  if (spoken.size > 2000) spoken.delete(spoken.keys().next().value!)
+}
+export const spokenOf = (clean: string) => spoken.get(clean) ?? clean
+
+export type NaturalMode = 'off' | 'on' | 'live' | 'voices' | 'voices+'
 /**
  * Общий флаг сервера: off — как было; on — разметка и промпт «для голоса»; live — ещё и голоса livetts;
- * voices — только голоса livetts, без режиссёра речи и промпта «для голоса» (так понравилось капитану).
+ * voices — только голоса livetts, без режиссёра речи и промпта «для голоса» (так понравилось капитану);
+ * voices+ — голоса livetts и аккуратная разметка polish(): ударения и редкие паузы по смыслу.
  */
-export const naturalMode = (env = process.env): NaturalMode => (env.NATURAL_SPEECH === 'live' ? 'live' : env.NATURAL_SPEECH === 'voices' ? 'voices' : env.NATURAL_SPEECH === 'on' ? 'on' : 'off')
+export const naturalMode = (env = process.env): NaturalMode => {
+  const m = env.NATURAL_SPEECH
+  return m === 'live' || m === 'voices' || m === 'voices+' || m === 'on' ? m : 'off'
+}
+/** Голоса livetts вместо голосов лиц. */
+export const liveMode = (m: NaturalMode) => m === 'live' || m === 'voices' || m === 'voices+'

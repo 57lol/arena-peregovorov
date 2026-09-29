@@ -16,7 +16,7 @@ import { say, stop, type ProviderStatus } from './synth'
 
 interface LabInfo {
   enabled: boolean
-  natural?: 'off' | 'on' | 'live'
+  natural?: 'off' | 'on' | 'live' | 'voices' | 'voices+'
   main: { provider: string; model: string; mode: string }
   llm: Record<LabLlm, ProviderStatus>
   tts: Record<LabTts, ProviderStatus>
@@ -42,7 +42,7 @@ const TTS_CHOICES: { id: TtsChoice; provider: LabTts; label: string; api?: 'v1' 
 const choiceOf = (c: LabConfig): TtsChoice => (!c.tts || c.tts === 'yandex' ? (c.ttsApi === 'v1' ? 'yandex-v1' : 'yandex-v3') : c.tts)
 
 const LIVE_RU: Record<string, string> = { denis: 'Денис', sergey: 'Сергей', vasily: 'Василий', sofia: 'София', vera: 'Вера', irina: 'Ирина' }
-const NATURAL_RU = { off: 'выключена', on: 'включена', live: 'включена, голоса livetts' }
+const NATURAL_RU = { off: 'выключена', on: 'включена', live: 'включена, голоса livetts', voices: 'голоса livetts без разметки', 'voices+': 'голоса livetts, ударения и паузы' }
 
 /** Тестовые уровни естественной речи: мужской разговорный, молодой парень и строгая женщина. */
 const NATURAL_LEVELS = [
