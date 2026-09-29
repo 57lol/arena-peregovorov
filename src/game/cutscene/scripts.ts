@@ -315,7 +315,6 @@ export const BRIDGES: Record<string, Cutscene> = {
     shots: [
       {
         set: 'oez',
-        mood: 'morning',
         dur: 5,
         actors: [{ who: 'newbie', x: [[0, O.vodogrey], [4.8, O.vodogrey + 180]] }],
         lines: [{ at: 0.3, text: 'Понедельник. Новая линия запущена.' }],
