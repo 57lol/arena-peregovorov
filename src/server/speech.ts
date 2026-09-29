@@ -9,7 +9,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { direct, DIRECT_VERSION, isLive, liveRole, liveVoiceFor, naturalMode } from './direct'
+import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spokenOf } from './direct'
 import { styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -119,13 +119,16 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
     const mode = naturalMode(env)
     const natural = yandexOnly && (b.natural ?? (mode === 'on' || mode === 'live'))
-    const voice = yandexOnly && (b.live ?? (mode === 'live' || mode === 'voices')) ? liveVoiceFor(b.voice) : b.voice
+    const voice = yandexOnly && (b.live ?? liveMode(mode)) ? liveVoiceFor(b.voice) : b.voice
+    // аккуратная разметка (voices+): ударения и редкие паузы; лаборатория с явным natural её не получает
+    const neat = yandexOnly && !natural && b.natural === undefined && mode === 'voices+'
     // на экране реплика остаётся как есть, размечаем только текст для синтеза
-    const text = natural ? direct(b.text.replace(/[«»"]/g, ''), b.emotion) : b.text.replace(/[«»"]/g, '')
+    const plain = b.text.replace(/[«»"]/g, '')
+    const text = natural ? direct(plain, b.emotion) : neat ? polish(spokenOf(b.text).replace(/[«»"]/g, ''), b.emotion) : plain
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
     const role = isLive(voice) ? liveRole(voice, b.emotion) : undefined
-    const nat = natural ? { n: DIRECT_VERSION, ...(role ? { r: role } : {}) } : role ? { r: role } : {}
+    const nat = natural ? { n: DIRECT_VERSION, ...(role ? { r: role } : {}) } : neat ? { p: POLISH_VERSION, ...(role ? { r: role } : {}) } : role ? { r: role } : {}
     const v3only = YANDEX_VOICES.find((v) => v.id === voice)?.v3only
     // SpeechKit по умолчанию — v3; TTS_YANDEX_API=v1 возвращает старую озвучку для голосов, которые её знают
     const api = yandexOnly ? (b.api ?? (env.TTS_YANDEX_API === 'v1' && !v3only ? 'v1' : 'v3')) : undefined

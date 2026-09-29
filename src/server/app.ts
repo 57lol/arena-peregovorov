@@ -15,7 +15,8 @@ import { allScenarios, dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
 import { llmMode, llmStatus, makeLLM, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
-import { naturalMode } from './direct'
+import { naturalMode, rememberSpoken } from './direct'
+import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
 import { roomsApi } from './rooms'
@@ -120,7 +121,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   app.get('/api/lab', async (c) =>
     c.json({
       enabled: process.env.LAB !== 'off',
-      /** общий флаг естественной речи (NATURAL_SPEECH): off | on | live */
+      /** общий флаг естественной речи (NATURAL_SPEECH): off | on | live | voices | voices+ */
       natural: naturalMode(),
       main: { provider: llm.name, model: llm.model.split('/').pop(), mode: await llmMode(llm) },
       llm: llmStatus(),
@@ -180,7 +181,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
     const nh = process.env.LAB === 'off' ? undefined : c.req.header('x-lab-natural')
     const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
-    const v = await voice(llm, sc, history, body.playerText, r.decision, r.state, natural)
+    // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
+    const marks = !nh && naturalMode() === 'voices+'
+    const said = await voice(llm, sc, history, body.playerText, r.decision, r.state, natural, marks)
+    const v = { ...said, line: unstress(said.line) }
+    if (marks) rememberSpoken(v.line, said.line)
     if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, ip)
     const record: TurnRecord = {
       turn: r.state.turn,
