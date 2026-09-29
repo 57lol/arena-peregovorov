@@ -4,6 +4,7 @@
 #   scripts/deploy-regru.sh <ref>    # любой коммит/ветка
 # Нужен ssh-хост arena-regru в ~/.ssh/config (ключ ~/.ssh/arena_regru).
 # На сервере: ~/node (Node 22), ~/arena-app (сервер + dist + .env), ~/arena-data (CACHE_DIR), ~/www/app.js (вход Passenger).
+# Статику и /api отдаёт Node; в ~/www/<домен> только .htaccess.
 # .env живёт только на сервере (~/arena-app/.env, права 600), скрипт его не трогает.
 set -euo pipefail
 
@@ -34,20 +35,25 @@ echo "$SHA" > "$OUT/VERSION"
 echo "== выкладка на $HOST"
 ssh "$HOST" 'mkdir -p ~/arena-app ~/arena-data ~/www/tmp && test -x ~/node/bin/node && test -f ~/arena-app/.env' ||
   { echo "на сервере нет ~/node или ~/arena-app/.env — см. README, раздел «Прод»"; exit 1; }
+# без секрета ворот сайт откроется всем — не выкладываем
+ssh "$HOST" 'grep -q "^GATE_SECRET=." ~/arena-app/.env' || { echo "в ~/arena-app/.env нет GATE_SECRET — см. README, раздел «Прод»"; exit 1; }
 rsync -az --delete --exclude .env "$OUT/" "$HOST:arena-app/"
 rsync -az "$TMP/deploy/regru/app.js" "$HOST:www/app.js"
-# статика прямо в корне сайта: её отдают nginx/Apache, в Node идут только /api и прочее
-rsync -az --delete --exclude .htaccess --exclude .well-known "$OUT/dist/" "$HOST:www/$DOMAIN/"
-rsync -az "$TMP/deploy/regru/htaccess" "$HOST:www/$DOMAIN/.htaccess"
-rsync -az "$TMP/deploy/regru/htaccess-mirror" "$HOST:www/$MIRROR/.htaccess"
-ssh "$HOST" "find ~/www/$MIRROR -mindepth 1 -maxdepth 1 ! -name .htaccess ! -name .well-known -exec rm -rf {} +"
 ssh "$HOST" 'chmod 600 ~/arena-app/.env && touch ~/www/tmp/restart.txt'
 
 echo "== проверка (Passenger замечает restart.txt не сразу)"
 sleep 12
+ok=
 for i in 1 2 3 4 5 6; do
-  if curl -fsS -m 30 "https://$DOMAIN/api/health"; then echo; echo "готово: $SHA"; exit 0; fi
+  if curl -fsS -m 30 "https://$DOMAIN/api/health"; then ok=1; echo; break; fi
   sleep 5
 done
-echo "health не ответил — логи: ssh $HOST 'tail -50 ~/logs/$DOMAIN.error.log'"
-exit 1
+[ -n "$ok" ] || { echo "health не ответил — логи: ssh $HOST 'tail -50 ~/arena-data/server.log ~/logs/$DOMAIN.error.log'"; exit 1; }
+
+# статику тоже отдаёт Node (за воротами), поэтому в корне сайта только .htaccess
+rsync -az "$TMP/deploy/regru/htaccess" "$HOST:www/$DOMAIN/.htaccess"
+rsync -az "$TMP/deploy/regru/htaccess-mirror" "$HOST:www/$MIRROR/.htaccess"
+for d in "$DOMAIN" "$MIRROR"; do
+  ssh "$HOST" "find ~/www/$d -mindepth 1 -maxdepth 1 ! -name .htaccess ! -name .well-known -exec rm -rf {} +"
+done
+echo "готово: $SHA"

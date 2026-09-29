@@ -8,7 +8,7 @@
 
 ## Как попробовать
 
-Демо: **https://arena-peregovorov.ru** (работает с живой YandexGPT и голосом SpeechKit). Проверено в Chrome и Safari последних версий, на ноутбуке и на телефоне. Микрофон нужен только для голосового ввода.
+Демо: **https://arena-peregovorov.ru** (работает с живой YandexGPT и голосом SpeechKit). Прототип закрыт от посторонних: эксперты входят по ссылке с ключом из формы сдачи или по логину и паролю оттуда же. Проверено в Chrome и Safari последних версий, на ноутбуке и на телефоне. Микрофон нужен только для голосового ввода.
 
 Жюри удобнее начать с кнопки «Для жюри» на титуле (или сразу https://arena-peregovorov.ru/?jury). Там четыре шага:
 
@@ -173,9 +173,11 @@ scripts/deploy-regru.sh          # или scripts/deploy-regru.sh <коммит>
 | `~/arena-app` | `server.mjs`, `start.cjs`, `dist/`, `.env` (ключи, права 600, в репозитории его нет) |
 | `~/arena-data` | `CACHE_DIR`: кэш разбора, озвучка, сохранённые дела, комнаты тренировок; `server.log` — вывод сервера |
 | `~/www/app.js` | вход Passenger, из `deploy/regru/app.js` |
-| `~/www/arena-peregovorov.ru` | копия `dist/` (её отдаёт nginx) и `.htaccess` с `PassengerEnabled On` |
+| `~/www/arena-peregovorov.ru` | только `.htaccess` с `PassengerEnabled On`: статику тоже отдаёт Node |
 
 Почему так: на хостинге Passenger берёт системный node 10, а `PassengerNodejs`, `PassengerAppRoot` и `PassengerAppType` в `.htaccess` запрещены. Поэтому `app.js` под node 10 только перезапускает загрузчик Passenger под Node 22, и сервер поднимается уже там. Флаг `--disable-wasm-trap-handler` обязателен: без него `fetch` падает на лимите виртуальной памяти. Cron раз в 4 минуты дёргает `/api/health`, чтобы Passenger не усыплял процесс.
+
+Ворота (`src/server/gate.ts`): без подписанной cookie Node отвечает страницей входа, а `/api` — 401; открыт только `/api/health`. Cookie ставят вход по логину и паролю (с лимитом попыток по IP) и ссылка `/?key=…`, ключ из адреса сразу убирается. Секреты лежат только в `.env` на сервере: `GATE_SECRET` (подпись cookie), `JURY_KEY`, `SITE_LOGIN`, `SITE_PASSWORD_HASH` (строка из `hashPassword()` в `gate.ts`). Без `GATE_SECRET` сайт открыт всем, поэтому деплой-скрипт без него останавливается.
 
 С нуля на новом хостинге: распаковать Node 22 в `~/node`, положить `~/arena-app/.env` (как локальный, плюс `CACHE_DIR=/var/www/<логин>/data/arena-data`), выпустить сертификаты в панели и запустить скрипт.
 

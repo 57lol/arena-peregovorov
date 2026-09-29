@@ -1,19 +1,4 @@
-# Кладётся в корень основного домена (~/www/arena-peregovorov.ru/.htaccess).
-# Файлы из dist/ лежат тут же и отдаются веб-сервером, остальное (в том числе /api) — Node через Passenger.
+# Кладётся в корень основного домена (~/www/arena-peregovorov.ru/.htaccess). Кроме него и .well-known тут ничего нет:
+# всё, включая статику, отдаёт Node через Passenger — он же пускает на сайт только после входа (src/server/gate.ts).
 # Приложение Passenger — ~/www/app.js (корень приложения = родитель корня сайта).
-# Закрыто паролем до конца экспертизы: пускаем только по логину.
-SetEnvIf Request_URI "^/api/health$" health_ok
-AuthType Basic
-AuthName "Arena"
-AuthUserFile /var/www/u3662640/data/.arena_htpasswd
-<RequireAny>
-  Require env health_ok
-  Require valid-user
-</RequireAny>
-
 PassengerEnabled On
-
-# index.html без долгого кэша, чтобы после передеплоя сразу подтягивались новые ассеты
-<Files "index.html">
-  Header set Cache-Control "no-cache"
-</Files>
