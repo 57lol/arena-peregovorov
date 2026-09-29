@@ -39,6 +39,16 @@ describe('ворота', () => {
     expect((await app.request('/?key=nope')).status).toBe(401)
   })
 
+  it('ссылка на доску: key — ключ доски, с cookie пускает, без — вход с сохранением ссылки', async () => {
+    const pass = cookieOf(await app.request('/?key=jk123'))
+    const board = await app.request('/?board=r1&key=bk9', { headers: { cookie: pass } })
+    expect(board.status).toBe(200)
+    expect(await board.text()).toBe('game')
+    const anon = await app.request('/?board=r1&key=bk9')
+    expect(anon.status).toBe(200)
+    expect(await anon.text()).toMatch(/board=r1&(#38;|amp;)?key=bk9/)
+  })
+
   it('логин и пароль, ограничение попыток', async () => {
     const bad = await form({ login: 'arena', password: 'x', next: '/' })
     expect(bad.status).toBe(401)

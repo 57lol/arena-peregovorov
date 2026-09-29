@@ -89,8 +89,9 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
       return page(c, to, 'Не тот пропуск — проверьте логин и пароль.', 401, login)
     }
 
-    // волшебная ссылка: ставим cookie и убираем key из адреса, остальные параметры не трогаем
-    if (c.req.method === 'GET' && url.searchParams.has('key')) {
+    // волшебная ссылка: ставим cookie и убираем key из адреса, остальные параметры не трогаем.
+    // В ссылке на доску (?board=…&key=…) key — ключ доски, а не жюри: её не трогаем
+    if (c.req.method === 'GET' && url.searchParams.has('key') && !url.searchParams.has('board')) {
       const rest = url.search.slice(1).split('&').filter((p) => p && p !== 'key' && !p.startsWith('key='))
       const clean = path + (rest.length ? `?${rest.join('&')}` : '')
       const key = url.searchParams.get('key') ?? ''
