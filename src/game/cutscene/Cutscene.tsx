@@ -2,7 +2,7 @@
 // Клик, пробел или → — следующий план; Esc или «Пропустить» — сразу дальше по игре.
 // ?cutscene=<id>&t=<секунды> в адресе останавливает кадр — для снимков и проверки глазами.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PORTRAITS } from '../ui/assets'
 import { H } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
@@ -44,8 +44,8 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   const [ready, setReady] = useState(false)
   // что показывает DOM поверх кадра: меняется несколько раз за план, а не каждый кадр
   const [ui, setUi] = useState<{ i: number; line: number; card: number; phone?: FrameInfo['phone'] }>({ i: 0, line: -1, card: -1 })
-  const total_ = total(script)
-  const starts_ = starts(script)
+  const total_ = useMemo(() => total(script), [script])
+  const starts_ = useMemo(() => starts(script), [script])
 
   const finish = useCallback(() => {
     if (done.current) return
