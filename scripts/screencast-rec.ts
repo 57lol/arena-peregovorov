@@ -172,7 +172,7 @@ try {
     for (let i = 0; i < 200; i++) {
       await wait(500)
       if (await page.locator('.mp-map').isVisible().catch(() => false)) break
-      if (i % 10 === 0) await page.screenshot({ path: join(OUT, `probe-${i}.png`) })
+      if (i % 10 === 0) await page.screenshot({ path: join(OUT, `probe-${i}.png`), timeout: 5000 }).catch(() => {})
       if (Date.now() - last > 75_000) {
         await page.getByRole('button', { name: 'Пропустить' }).click().catch(() => {})
         mark('skip')
@@ -248,7 +248,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('.g-writing'), undefined, { timeout: 120_000 })
     mark('built')
     await wait(1500)
-    await page.screenshot({ path: join(OUT, 'probe-built.png') })
+    await page.screenshot({ path: join(OUT, 'probe-built.png'), timeout: 5000 }).catch(() => {})
     await page.mouse.wheel(0, 300)
     await wait(3000)
     mark('end')
@@ -351,7 +351,7 @@ try {
     await page.getByRole('button', { name: 'Разбор встречи' }).click()
     mark('report')
     await wait(6000)
-    await page.screenshot({ path: join(OUT, 'probe-report.png') })
+    await page.screenshot({ path: join(OUT, 'probe-report.png'), timeout: 5000 }).catch(() => {})
     const smooth = async (dy: number, steps: number) => {
       for (let k = 0; k < steps; k++) {
         await page.mouse.wheel(0, dy)
@@ -367,13 +367,13 @@ try {
       await more.click()
       await wait(2500)
     }
-    await page.screenshot({ path: join(OUT, 'probe-more.png') })
+    await page.screenshot({ path: join(OUT, 'probe-more.png'), timeout: 5000 }).catch(() => {})
     const dm = page.locator('.g-dealmap, [class*="dealmap"], [class*="pareto"]').first()
     if (await dm.isVisible().catch(() => false)) {
       await dm.scrollIntoViewIfNeeded()
       mark('pareto')
       await wait(5000)
-      await page.screenshot({ path: join(OUT, 'probe-pareto.png') })
+      await page.screenshot({ path: join(OUT, 'probe-pareto.png'), timeout: 5000 }).catch(() => {})
     } else {
       await smooth(260, 4)
       mark('pareto?')
@@ -388,7 +388,7 @@ try {
       await wait(1000)
       await page.locator('.g-under').scrollIntoViewIfNeeded().catch(() => {})
       await wait(5000)
-      await page.screenshot({ path: join(OUT, 'probe-under.png') })
+      await page.screenshot({ path: join(OUT, 'probe-under.png'), timeout: 5000 }).catch(() => {})
     }
     const replay = page.getByRole('button', { name: 'Переиграть с этого хода' }).first()
     if (await replay.count()) {
@@ -397,11 +397,11 @@ try {
       mark('replay')
       await replay.click()
       await wait(5000)
-      await page.screenshot({ path: join(OUT, 'probe-replay.png') })
+      await page.screenshot({ path: join(OUT, 'probe-replay.png'), timeout: 5000 }).catch(() => {})
     }
     await wait(3000)
     mark('end')
-    await page.screenshot({ path: join(OUT, 'probe-end.png'), fullPage: true })
+    await page.screenshot({ path: join(OUT, 'probe-end.png'), timeout: 5000 }).catch(() => {})
   }
 
   if (PART === 'map') {
@@ -424,7 +424,7 @@ try {
     await items.first().click()
     mark('map-card')
     await wait(4000)
-    await page.screenshot({ path: join(OUT, 'probe-card.png') })
+    await page.screenshot({ path: join(OUT, 'probe-card.png'), timeout: 5000 }).catch(() => {})
     mark('end')
   }
 
