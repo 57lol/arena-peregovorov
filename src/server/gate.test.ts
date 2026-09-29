@@ -49,6 +49,7 @@ describe('ворота', () => {
     expect((await form({ login: 'a', password: 'b', next: '//evil.com' }, '2.2.2.2')).status).toBe(401)
     for (let i = 0; i < 8; i++) await form({ login: 'arena', password: 'x' }, '3.3.3.3')
     expect((await form({ login: 'arena', password: 'pw' }, '3.3.3.3')).status).toBe(429)
+    expect((await form({ login: 'arena', password: 'pw' }, '4.4.4.4, 3.3.3.3')).status).toBe(429)
   })
 
   it('подпись и срок cookie', () => {

@@ -45,13 +45,14 @@ export function passValid(secret: string, value: string | undefined, now = Date.
 
 export function gate(cfg: GateConfig): MiddlewareHandler {
   const fails = new Map<string, { n: number; until: number }>()
-  const ipOf = (c: Context) =>
-    (c.req.header('x-forwarded-for') ?? '').split(',')[0].trim() || c.req.header('x-real-ip') || 'local'
+  // nginx хостинга дописывает адрес клиента в конец X-Forwarded-For; начало и X-Real-IP клиент может подделать
+  const ipOf = (c: Context) => (c.req.header('x-forwarded-for') ?? '').split(',').pop()?.trim() || 'local'
   const blocked = (ip: string) => {
     const f = fails.get(ip)
     return !!f && f.until > Date.now() && f.n >= MAX_FAILS
   }
-  const fail = (ip: string) => {
+  const fail = (ip: string, c: Context) => {
+    console.warn(`вход: неудача ip=${ip} xff=${c.req.header('x-forwarded-for') ?? '-'}`)
     const f = fails.get(ip)
     if (!f || f.until < Date.now()) fails.set(ip, { n: 1, until: Date.now() + FAIL_WINDOW })
     else f.n++
@@ -82,7 +83,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
         same(String(form.login ?? '').trim().toLowerCase(), cfg.login.toLowerCase()) &&
         checkPassword(String(form.password ?? ''), cfg.passwordHash)
       if (ok) return letIn(c, to)
-      fail(ip)
+      fail(ip, c)
       return page(c, to, 'Неверный логин или пароль. Проверьте раскладку и попробуйте ещё раз.', 401)
     }
 
@@ -93,7 +94,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
       const key = url.searchParams.get('key') ?? ''
       if (blocked(ip)) return page(c, clean, 'Слишком много попыток. Подождите 15 минут.', 429)
       if (cfg.juryKey && same(key, cfg.juryKey)) return letIn(c, clean)
-      fail(ip)
+      fail(ip, c)
       return page(c, clean, 'Ключ в ссылке не подошёл. Войдите по логину и паролю.', 401)
     }
 
