@@ -21,7 +21,7 @@ describe('ворота', () => {
   it('без cookie: страница входа, 401 на api, health открыт', async () => {
     const page = await app.request('/')
     expect(page.status).toBe(200)
-    expect(await page.text()).toContain('Войти')
+    expect(await page.text()).toContain('Пройти')
     expect((await app.request('/api/turn', { method: 'POST' })).status).toBe(401)
     expect((await app.request('/api/health')).status).toBe(200)
   })
@@ -42,7 +42,7 @@ describe('ворота', () => {
   it('логин и пароль, ограничение попыток', async () => {
     const bad = await form({ login: 'arena', password: 'x', next: '/' })
     expect(bad.status).toBe(401)
-    expect(await bad.text()).toContain('Неверный логин')
+    expect(await bad.text()).toContain('Не тот пропуск')
     const ok = await form({ login: 'Arena', password: 'pw', next: '/?jury' })
     expect(ok.status).toBe(303)
     expect(ok.headers.get('location')).toBe('/?jury')
