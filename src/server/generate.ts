@@ -351,7 +351,8 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   while (llm.name !== 'offline' && attempts < 3) {
     attempts++
     try {
-      const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA }))
+      // pro: своё дело — редкий и главный для настройки запрос, на Lite он почти всегда проваливается в папку
+      const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA, pro: true }))
       const order = orderProblems(raw)
       const r = order.length ? { problems: order, scenario: undefined } : scenarioProblems(toScenario(raw, req))
       const soft = r.problems.length ? [] : storyProblems(raw)

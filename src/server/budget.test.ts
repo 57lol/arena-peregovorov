@@ -54,6 +54,18 @@ describe('суточный бюджет', () => {
     expect(await again.summary()).toMatch(/режим offline/)
   })
 
+  it('сборка своего дела просит Pro и после 80%, но на 100% — тоже офлайн', async () => {
+    const b = makeBudget(dir(), env)
+    const { llm, calls } = fakeYandex(b)
+    for (let i = 0; i < 10; i++) await llm.json({ system: '', user: '', temperature: 0 })
+    expect(await llmMode(llm, b)).toBe('lite')
+    await llm.json({ system: '', user: '', temperature: 0, pro: true })
+    await llm.json({ system: '', user: '', temperature: 0 })
+    expect(calls.slice(10)).toEqual(['yandexgpt-5.1', 'yandexgpt-lite'])
+    await b.addLlm('yandexgpt-5.1', 5000, 0)
+    await expect(llm.json({ system: '', user: '', temperature: 0, pro: true })).rejects.toThrow(/лимит/)
+  })
+
   it('озвучка: лимит символов в сутки', async () => {
     const b = makeBudget(dir(), env)
     expect(await b.ttsAllowed(80)).toBe(true)

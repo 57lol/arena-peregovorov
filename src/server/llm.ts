@@ -12,6 +12,8 @@ export interface JsonRequest {
   temperature: number
   maxTokens?: number
   schema?: { name: string; schema: object } // JSON Schema: строгий формат там, где провайдер умеет
+  /** основная модель даже после 80% бюджета: сборку своего дела Lite не тянет (путает порядок вариантов) */
+  pro?: boolean
 }
 
 export interface LLM {
@@ -148,7 +150,7 @@ export function yandex(b: Budget = sharedBudget(), transport?: (model: string) =
     },
     async json(req) {
       if ((await b.mode()) === 'offline') throw new Error('Суточный лимит на нейросеть исчерпан — ход разобран правилами')
-      return pick().json(req)
+      return (req.pro ? primary : pick()).json(req)
     },
   }
 }
