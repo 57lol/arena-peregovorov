@@ -2,16 +2,33 @@
 
 /* ---------- стол, на котором лежит интерфейс ---------- */
 
+/* Деревянный забор: доски по 24 игровых пикселя со швом, светлой фаской под швом, через одну чуть темнее;
+   стыки досок вразбежку, гвозди у стыков и волокна — плиткой-SVG (полупрозрачные, годятся на любой цвет стола).
+   Старый забор (только швы) — класс fence-old на <html> или любом предке, или ?fence=old в адресе. */
 .px-desk {
   --on-desk: var(--c-paper);
   --on-desk-muted: var(--c-mist);
   background-color: var(--desk);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 48' shape-rendering='crispEdges'%3E%3Cg fill='%23000' fill-opacity='.07'%3E%3Crect x='8' y='6' width='46' height='1'/%3E%3Crect x='96' y='15' width='70' height='1'/%3E%3Crect x='178' y='9' width='38' height='1'/%3E%3Crect x='30' y='33' width='58' height='1'/%3E%3Crect x='132' y='40' width='44' height='1'/%3E%3Crect x='196' y='29' width='36' height='1'/%3E%3C/g%3E%3Cg fill='%23fff' fill-opacity='.05'%3E%3Crect x='60' y='11' width='30' height='1'/%3E%3Crect x='150' y='36' width='40' height='1'/%3E%3C/g%3E%3Cg fill='%23000' fill-opacity='.32'%3E%3Crect x='74' y='0' width='1' height='23'/%3E%3Crect x='194' y='24' width='1' height='23'/%3E%3Crect x='70' y='4' width='2' height='2'/%3E%3Crect x='70' y='17' width='2' height='2'/%3E%3Crect x='77' y='4' width='2' height='2'/%3E%3Crect x='77' y='17' width='2' height='2'/%3E%3Crect x='190' y='28' width='2' height='2'/%3E%3Crect x='190' y='41' width='2' height='2'/%3E%3Crect x='197' y='28' width='2' height='2'/%3E%3Crect x='197' y='41' width='2' height='2'/%3E%3C/g%3E%3Cg fill='%23fff' fill-opacity='.18'%3E%3Crect x='70' y='4' width='1' height='1'/%3E%3Crect x='70' y='17' width='1' height='1'/%3E%3Crect x='77' y='4' width='1' height='1'/%3E%3Crect x='77' y='17' width='1' height='1'/%3E%3Crect x='190' y='28' width='1' height='1'/%3E%3Crect x='190' y='41' width='1' height='1'/%3E%3Crect x='197' y='28' width='1' height='1'/%3E%3Crect x='197' y='41' width='1' height='1'/%3E%3C/g%3E%3C/svg%3E"),
+    repeating-linear-gradient(180deg, transparent 0 calc(23 * var(--u)), var(--desk-lo) calc(23 * var(--u)) calc(24 * var(--u))),
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--desk-hi) 30%, transparent) 0 var(--u), transparent var(--u) calc(24 * var(--u))),
+    repeating-linear-gradient(180deg, transparent 0 calc(24 * var(--u)), rgba(16, 20, 31, 0.07) calc(24 * var(--u)) calc(48 * var(--u)));
+  background-size:
+    calc(240 * var(--u)) calc(48 * var(--u)),
+    auto,
+    auto,
+    auto;
+  color: var(--on-desk);
+}
+.fence-old .px-desk,
+.fence-old.px-desk {
   background-image: repeating-linear-gradient(
     180deg,
     transparent 0 calc(23 * var(--u)),
     var(--desk-lo) calc(23 * var(--u)) calc(24 * var(--u))
   );
-  color: var(--on-desk);
+  background-size: auto;
 }
 [data-desk='office'].px-desk,
 [data-desk='office'] .px-desk {
@@ -20,6 +37,7 @@
   --desk-hi: var(--c-mist);
   --on-desk: var(--c-ink);
   --on-desk-muted: var(--c-steel-3);
+  background-size: auto;
   background-image:
     repeating-linear-gradient(
       180deg,

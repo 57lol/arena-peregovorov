@@ -4,6 +4,9 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
+// ?fence=old — прежний фон-забор (только швы досок), чтобы сравнить или откатиться; см. .fence-old в ui/ui.css
+if (new URLSearchParams(location.search).get('fence') === 'old') document.documentElement.classList.add('fence-old')
+
 // ?showcase — витрина пиксельного UI-кита (временно, для команды)
 const Showcase = lazy(() => import('./game/ui/Showcase.tsx'))
 const showcase = new URLSearchParams(location.search).has('showcase')
