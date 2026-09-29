@@ -6,7 +6,7 @@ import { getScenario } from '../../content/scenarios'
 import { CHAPTERS } from '../../content/story'
 import { PORTRAITS, type PortraitId } from '../ui/assets'
 import { BUS, SPOTS } from './art'
-import type { Card, Cutscene, Shot } from './types'
+import type { Card, Cutscene, Guide, Shot } from './types'
 
 const S = SPOTS.street
 const O = SPOTS.oez
@@ -39,6 +39,29 @@ export function chapterCard(id: string): Card {
 const card = (id: string, dur = 3): Shot => ({ set: 'black', dur, card: chapterCard(id) })
 const map = (from: string, to: string, text: string, dur = 3.6): Shot => ({ set: 'map', dur, route: { from, to }, lines: [{ at: 0.3, text }] })
 
+/**
+ * Сообщение в автобусе: кто пишет, зачем и четыре приёма на неделю — каждый привязан к ближайшей встрече,
+ * чтобы было понятно, где он пригодится. Листает сам игрок.
+ */
+export const WELCOME: Guide = {
+  from: 'Гульнара',
+  role: 'HR «Алабуги», наставник новеньких',
+  face: 'hr',
+  hello: [
+    'Привет! Я Гульнара из отдела кадров. Добро пожаловать в Алабугу!',
+    'Всю неделю придётся договариваться: с соседом, в магазине, на заводах.',
+    'Вот четыре приёма. Полистай, пока едешь, — первый нужен уже сегодня.',
+  ],
+  open: 'Смотреть приёмы',
+  tips: [
+    { title: 'Меняйся', text: 'Отдай то, что тебе почти ничего не стоит, за то, что тебе важно.', when: 'Сегодня вечером, с соседом по комнате' },
+    { title: 'Не заводись', text: 'Спокойный голос сильнее громкого. И заранее знай, куда уйти.', when: 'Завтра утром, на остановке' },
+    { title: 'Первая цифра — не последняя', text: 'Её всегда называют с запасом. Не соглашайся сразу.', when: 'В понедельник, на заводе' },
+    { title: 'Спроси «зачем?»', text: 'За просьбой прячется причина. Узнаешь её — найдёшь, чем помочь.', when: 'В среду, на собеседовании' },
+  ],
+  done: 'Понятно, едем!',
+}
+
 export const PROLOGUE: Cutscene = {
   id: 'prologue',
   title: 'Пролог: дорога в Алабугу',
@@ -62,26 +85,19 @@ export const PROLOGUE: Cutscene = {
       dur: 4,
       drive: 90,
       sit: 'look',
-      lines: [{ at: 0.3, text: 'Ехать ещё сорок минут. Можно полистать памятку.' }],
+      lines: [
+        { at: 0.3, text: 'Ехать ещё сорок минут.' },
+        { at: 2, text: 'Телефон пиликает: сообщение из Алабуги.' },
+      ],
     },
     {
       set: 'phone',
       mood: 'dusk',
       behind: 'bus',
-      dur: 14.8,
+      dur: 1.4,
       drive: 90,
-      phone: [
-        { at: 0, kind: 'memo', n: '1/4', title: 'Не драка', text: 'Ищем сделку, где лучше обоим.' },
-        { at: 3.7, kind: 'memo', n: '2/4', title: 'Спроси «зачем?»', text: 'За просьбой прячется причина.' },
-        { at: 7.4, kind: 'memo', n: '3/4', title: 'Меняйся', text: 'Отдай то, что дёшево тебе, за то, что важно.' },
-        { at: 11.1, kind: 'memo', n: '4/4', title: 'Знай, куда уйти', text: 'Плохая сделка хуже, чем никакой.' },
-      ],
-      lines: [
-        { at: 0.2, text: 'Переговоры — не спор. Цель — договориться с выгодой.' },
-        { at: 3.9, text: 'Узнаете причину — найдёте, чем её закрыть.' },
-        { at: 7.6, text: 'Уступите в мелочи — получите главное.' },
-        { at: 11.3, text: 'Помните, что будет, если не договоритесь.' },
-      ],
+      guide: WELCOME,
+      lines: [{ at: 0.1, text: 'Листайте: кнопка внизу или свайп.' }],
     },
     {
       set: 'street',

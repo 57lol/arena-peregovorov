@@ -352,3 +352,203 @@
 .cs-root.is-over .cs-hint {
   display: none;
 }
+
+/* ——— телефон-памятка, который листает игрок (пролог) ——— */
+
+.cs-guide {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  cursor: default;
+  touch-action: pan-y;
+  animation: cs-swipe 0.3s steps(4) both;
+}
+/* нарисованный телефон мелкий (телефон, узкое окно) — большая карточка поверх кадра */
+.cs-guide-over {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 64px 16px 24px;
+  background: rgba(9, 10, 20, 0.72);
+}
+.cs-guide.is-big {
+  position: relative;
+  width: min(420px, 100%);
+  height: min(640px, 100%);
+  box-shadow:
+    0 0 0 6px var(--c-ink),
+    0 0 0 8px var(--c-steel-2);
+}
+
+.cs-guide-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--c-denim);
+  color: var(--c-paper);
+}
+.cs-guide-head b {
+  display: block;
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.cs-guide-head small {
+  display: block;
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-grid);
+}
+.cs-guide-face {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  background-repeat: no-repeat;
+  background-size: 216px 432px;
+  background-position: -12px -8px;
+  background-color: var(--c-sky);
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 var(--u) var(--c-paper);
+}
+
+/* приветствие: пузыри чата по одному */
+.cs-guide-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px;
+  overflow: auto;
+  background: var(--c-paper-2);
+}
+.cs-guide-msg {
+  margin: 0;
+  max-width: 92%;
+  padding: 8px 12px;
+  background: #fff;
+  box-shadow: 0 0 0 var(--u) var(--c-mist);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-ink);
+  animation: cs-in 0.3s steps(3) both;
+}
+
+/* приём: полоса «1 из 4», крупный заголовок, одна мысль, где пригодится */
+.cs-guide-tip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 8px;
+  overflow: auto;
+  animation: cs-in 0.25s steps(3) both;
+}
+.cs-guide-step {
+  margin: 0;
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-wood);
+}
+.cs-guide-dots {
+  display: flex;
+  gap: 6px;
+}
+.cs-guide-dots b {
+  flex: 1;
+  height: 8px;
+  background: var(--c-mist);
+}
+.cs-guide-dots b.is-on {
+  background: var(--c-brass);
+}
+.cs-guide-tip h2 {
+  margin: auto 0 0;
+  font: 700 var(--fs-ui-big) / 1.25 var(--f-ui);
+  color: var(--c-stamp-2);
+}
+.cs-guide-text {
+  margin: 0;
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-ink);
+}
+.cs-guide-when {
+  margin: 0 0 auto;
+  padding: 6px 10px;
+  background: var(--c-grid);
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--c-night);
+}
+.cs-guide-when span {
+  color: var(--c-denim);
+}
+
+.cs-guide-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+.cs-guide-foot button {
+  min-height: 56px;
+  border: 0;
+  cursor: pointer;
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  box-shadow: inset 0 calc(var(--u) * -2) 0 rgba(0, 0, 0, 0.25);
+}
+.cs-guide-go {
+  flex: 1;
+  background: var(--c-brass);
+  color: var(--c-ink);
+}
+.cs-guide-go:hover,
+.cs-guide-go:focus-visible {
+  background: var(--c-brass-hi);
+  outline: var(--u) solid var(--c-ink);
+  outline-offset: calc(var(--u) * -3);
+}
+.cs-guide-back {
+  padding: 0 14px;
+  background: var(--c-mist);
+  color: var(--c-ink);
+}
+.cs-guide-back:hover,
+.cs-guide-back:focus-visible {
+  background: var(--c-paper-2);
+}
+
+/* в нарисованном телефоне места меньше: сообщения — шрифтом интерфейса */
+.cs-guide:not(.is-big) .cs-guide-msg {
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+
+/* низкий экран (телефон боком): текст шрифтом интерфейса, поля уже — кнопка остаётся на экране */
+@media (max-height: 700px) {
+  .cs-guide-over {
+    padding: 8px 16px;
+  }
+  .cs-guide-msg,
+  .cs-guide-text,
+  .cs-guide-when {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+  .cs-guide-tip {
+    gap: 6px;
+    padding-top: 10px;
+  }
+  .cs-guide-tip h2 {
+    font-size: var(--fs-ui);
+  }
+  .cs-guide-head {
+    padding-block: 6px;
+  }
+  .cs-guide-foot button {
+    min-height: 48px;
+  }
+}
+
+/* «Пропустить» — поверх затемнения памятки */
+.cs-root .cs-skip {
+  z-index: 3;
+}

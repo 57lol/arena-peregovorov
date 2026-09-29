@@ -3,7 +3,8 @@
 // Баг 29.09: капитан сбросил прогресс, нажал «Сюжет» — после пролога открылась «Остановка у ларька», а не общага.
 // 1) грязный профиль (общагу играли из хаба жюри, есть имя, вид, открытая партия) → /?cutscenes=1&reset → хранилище пустое;
 // 2) «Сюжет» → пролог, листаем кликами → бриф «Сосед по комнате»;
-// 3) без сброса: общагу уже играли, пролог не видели → после пролога всё равно общага.
+// 3) без сброса: общагу уже играли, пролог не видели → после пролога всё равно общага;
+// 4) памятка в автобусе ждёт игрока: кто пишет, большая кнопка, «Приём 1 из 4», свайп.
 import { chromium, type Page } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -82,6 +83,42 @@ await p.evaluate((d) => {
 }, dirty)
 await p.goto(`${BASE}/?cutscenes=1`)
 check((await playStory(p, 'общагу-играли')).includes(DORM), `общагу уже играли, пролог нет → после пролога «${DORM}»`)
+
+// 4: памятка в автобусе ждёт игрока и листается большой кнопкой и свайпом (1440 и 390)
+for (const [w, h] of [
+  [1440, 900],
+  [390, 844],
+] as const) {
+  const c = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: w < 500 })
+  const q = await c.newPage()
+  q.on('pageerror', (e) => errors.push(String(e)))
+  await q.goto(`${BASE}/?cutscene=prologue`)
+  await q.waitForSelector('.cs-guide', { timeout: 20000 })
+  await q.waitForTimeout(3000)
+  check((await q.locator('.cs-guide').count()) === 1, `${w}: памятка ждёт, пока её не пролистают`)
+  const head = (await q.locator('.cs-guide-head').textContent()) ?? ''
+  const hello = (await q.locator('.cs-guide-chat').textContent()) ?? ''
+  check(/HR/.test(head) && /Добро пожаловать в Алабугу/.test(hello), `${w}: видно, кто пишет и зачем`)
+  const go = q.locator('.cs-guide-go')
+  const box = await go.boundingBox()
+  check(!!box && box.height >= 44 && box.y + box.height <= h, `${w}: большая кнопка «${await go.textContent()}» на экране`)
+  await go.click()
+  check(((await q.locator('.cs-guide-step').textContent()) ?? '').includes('1 из 4'), `${w}: прогресс «Приём 1 из 4»`)
+  // свайп влево — следующий приём
+  const g = (await q.locator('.cs-guide').boundingBox())!
+  await q.mouse.move(g.x + g.width * 0.8, g.y + g.height * 0.5)
+  await q.mouse.down()
+  await q.mouse.move(g.x + g.width * 0.2, g.y + g.height * 0.5, { steps: 5 })
+  await q.mouse.up()
+  check(((await q.locator('.cs-guide-step').textContent()) ?? '').includes('2 из 4'), `${w}: свайп — «Приём 2 из 4»`)
+  await go.click()
+  await go.click()
+  check((await go.textContent()) === 'Понятно, едем!', `${w}: на последнем приёме — «Понятно, едем!»`)
+  await go.click()
+  await q.waitForTimeout(1500)
+  check((await q.locator('.cs-guide').count()) === 0 && (await q.locator('.cs-root').count()) === 1, `${w}: дочитал — катсцена едет дальше`)
+  await c.close()
+}
 
 await browser.close()
 if (errors.length) console.error('Ошибки на странице:\n' + [...new Set(errors)].join('\n'))

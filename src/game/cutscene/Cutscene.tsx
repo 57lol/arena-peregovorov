@@ -2,13 +2,13 @@
 // Клик, пробел или → — следующий план; Esc или «Пропустить» — сразу дальше по игре.
 // ?cutscene=<id>&t=<секунды> в адресе останавливает кадр — для снимков и проверки глазами.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PORTRAITS } from '../ui/assets'
 import { H } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
 import { pinLabel } from './scripts'
-import { lineAt, locate, phoneAt, starts, total } from './timeline'
-import type { Card, Cutscene as Script, PhoneCard } from './types'
+import { GUIDE_AT, lineAt, locate, phoneAt, starts, total } from './timeline'
+import type { Card, Cutscene as Script, Guide, PhoneCard } from './types'
 import './cutscene.css'
 
 interface Props {
@@ -46,6 +46,26 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   const [ui, setUi] = useState<{ i: number; line: number; card: number; phone?: FrameInfo['phone'] }>({ i: 0, line: -1, card: -1 })
   const total_ = useMemo(() => total(script), [script])
   const starts_ = useMemo(() => starts(script), [script])
+  // телефон, который листает игрок: страница (0 — приветствие) и дочитал ли он; пока нет — время стоит
+  const [page, setPage] = useState(0)
+  const guideDone = useRef(false)
+  const holding = useCallback(() => {
+    const { i, t } = locate(script, T.current)
+    return !!script.shots[i].guide && !guideDone.current && t >= GUIDE_AT - 0.001
+  }, [script])
+  // последняя страница + 1 — дочитал: телефон убирается, катсцена едет дальше
+  const turn = useCallback(
+    (d: 1 | -1) => {
+      const g = script.shots[locate(script, T.current).i].guide
+      if (!g || guideDone.current) return
+      setPage((n) => {
+        const to = Math.max(0, n + d)
+        if (to > g.tips.length) guideDone.current = true
+        return to
+      })
+    },
+    [script],
+  )
 
   const finish = useCallback(() => {
     if (done.current) return
@@ -55,9 +75,15 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
 
   const next = useCallback(() => {
     const { i } = locate(script, T.current)
+    // телефон в руках: клик мимо кнопки тоже листает, а не проматывает весь план
+    if (script.shots[i].guide && !guideDone.current) {
+      if (holding()) turn(1)
+      else T.current = starts_[i] + GUIDE_AT
+      return
+    }
     if (i >= script.shots.length - 1) finish()
     else T.current = starts_[i + 1]
-  }, [script, starts_, finish])
+  }, [script, starts_, finish, turn, holding])
 
   useEffect(() => {
     const onResize = () => setSize(fit(window.innerWidth, window.innerHeight))
@@ -66,9 +92,14 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       if (e.key === 'Escape') {
         e.preventDefault()
         finish()
+      } else if ((e.key === ' ' || e.key === 'Enter') && (e.target as HTMLElement | null)?.closest?.('button')) {
+        // кнопка в фокусе нажмётся сама
       } else if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') {
         e.preventDefault()
         next()
+      } else if (e.key === 'ArrowLeft' && holding()) {
+        e.preventDefault()
+        turn(-1)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -79,7 +110,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [finish, next])
+  }, [finish, next, turn, holding])
 
   // картинки всех планов — заранее, но не дольше трёх секунд: без файла слой просто пропускается
   useEffect(() => {
@@ -108,6 +139,12 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
       last = now
       if (at === undefined) T.current += dt
+      // телефон-памятка: стоим, пока игрок не долистает
+      {
+        const { i: gi } = locate(script, T.current)
+        const gs = starts_[gi] + GUIDE_AT
+        if (script.shots[gi].guide && !guideDone.current && T.current > gs) T.current = gs
+      }
       if (T.current >= total_ && at === undefined) {
         finish()
         return
@@ -134,7 +171,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [ready, size.vw, size.s, script, total_, at, finish])
+  }, [ready, size.vw, size.s, script, starts_, total_, at, finish])
 
   const shot = script.shots[ui.i]
   const line = ui.line >= 0 ? shot.lines![ui.line] : null
@@ -146,6 +183,9 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
         <div className="cs-frame" style={{ width: vw * s, height: H * s, ['--s' as string]: s }}>
           <canvas ref={canvas} className="cs-canvas" width={vw} height={H} style={{ width: vw * s, height: H * s }} aria-hidden="true" />
           {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} />}
+          {shot.guide && page <= shot.guide.tips.length && ui.phone && ui.phone[2] * s >= GUIDE_MIN && (
+            <GuidePhone guide={shot.guide} page={page} onTurn={turn} style={rectStyle(ui.phone, s)} />
+          )}
           {shot.card && <TitleCard key={ui.i} card={shot.card} />}
           {shot.route && (
             <span ref={pin} key={ui.i} className="cs-pin">
@@ -166,6 +206,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
           )}
         </p>
       </div>
+      {shot.guide && page <= shot.guide.tips.length && ui.phone && ui.phone[2] * s < GUIDE_MIN && (
+        <div className="cs-guide-over">
+          <GuidePhone guide={shot.guide} page={page} onTurn={turn} />
+        </div>
+      )}
       {ui.i === 0 && at === undefined && (
         <p className="cs-hint" aria-hidden="true">
           {TOUCH ? 'тап — дальше' : 'клик — дальше, Esc — пропустить'}
@@ -249,6 +294,83 @@ function TitleCard({ card }: { card: Card }) {
       <p className="cs-card-kicker">{card.kicker}</p>
       <h2 className="cs-card-title">{card.title}</h2>
       {card.sub && <p className="cs-card-sub">{card.sub}</p>}
+    </div>
+  )
+}
+
+/** Уже этого (в пикселях экрана) нарисованный телефон не годится для чтения: памятка встаёт большой карточкой поверх кадра. */
+const GUIDE_MIN = 300
+
+const rectStyle = ([x, y, w, h]: [number, number, number, number], s: number) => ({ left: x * s, top: y * s, width: w * s, height: h * s })
+
+/**
+ * Телефон-памятка, который листает игрок: чат с приветствием (кто пишет и зачем), потом приёмы по одному,
+ * крупно, с полосой «1 из 4». Листать — большой кнопкой, свайпом, стрелками или кликом мимо.
+ */
+function GuidePhone({ guide, page, onTurn, style }: { guide: Guide; page: number; onTurn: (d: 1 | -1) => void; style?: CSSProperties }) {
+  const face = PORTRAITS[guide.face]
+  const n = guide.tips.length
+  const tip = page > 0 ? guide.tips[page - 1] : null
+  const x0 = useRef<number | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  // кнопка в фокусе: Enter и пробел листают дальше, а у экранной читалки — понятная точка входа
+  useEffect(() => btn.current?.focus({ preventScroll: true }), [page])
+  return (
+    <div
+      className={`cs-guide${style ? '' : ' is-big'}`}
+      style={style}
+      role="group"
+      aria-label={`Сообщение: ${guide.from}, ${guide.role}`}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => (x0.current = e.clientX)}
+      onPointerUp={(e) => {
+        const dx = x0.current === null ? 0 : e.clientX - x0.current
+        x0.current = null
+        if (Math.abs(dx) > 40) onTurn(dx < 0 ? 1 : -1)
+      }}
+    >
+      <header className="cs-guide-head">
+        <span className="cs-guide-face" style={{ backgroundImage: `url(${face.sheet})` }} aria-hidden="true" />
+        <span>
+          <b>{guide.from}</b>
+          <small>{guide.role}</small>
+        </span>
+      </header>
+      {tip ? (
+        <div key={page} className="cs-guide-tip" aria-live="polite">
+          <p className="cs-guide-step">
+            Приём {page} из {n}
+          </p>
+          <i className="cs-guide-dots" aria-hidden="true">
+            {guide.tips.map((_, k) => (
+              <b key={k} className={k < page ? 'is-on' : ''} />
+            ))}
+          </i>
+          <h2>{tip.title}</h2>
+          <p className="cs-guide-text">{tip.text}</p>
+          <p className="cs-guide-when">
+            <span>Пригодится:</span> {tip.when.charAt(0).toLowerCase() + tip.when.slice(1)}
+          </p>
+        </div>
+      ) : (
+        <div className="cs-guide-chat">
+          {guide.hello.map((m, k) => (
+            <p key={k} className="cs-guide-msg" style={{ animationDelay: `${k * 0.35}s` }}>
+              {m}
+            </p>
+          ))}
+        </div>
+      )}
+      <footer className="cs-guide-foot">
+        {page > 0 && (
+          <button type="button" className="cs-guide-back" onClick={() => onTurn(-1)}>
+            Назад
+          </button>
+        )}
+        <button ref={btn} type="button" className="cs-guide-go" onClick={() => onTurn(1)}>
+          {page === 0 ? guide.open : page === n ? guide.done : 'Дальше →'}
+        </button>
+      </footer>
     </div>
   )
 }

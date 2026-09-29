@@ -3,6 +3,9 @@
 
 import type { Cutscene, Line, PhoneCard, Shot, Track } from './types'
 
+/** На какой секунде плана с телефоном-памяткой катсцена встаёт и ждёт, пока игрок долистает. */
+export const GUIDE_AT = 0.5
+
 export const total = (cs: Cutscene) => cs.shots.reduce((s, x) => s + x.dur, 0)
 
 /** Начало каждого плана от начала катсцены. */

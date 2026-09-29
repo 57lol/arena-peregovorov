@@ -48,6 +48,25 @@ export type PhoneCard =
   | { at: number; kind: 'memo'; title: string; text: string; n?: string }
   | { at: number; kind: 'chat'; from: string; face: PortraitId; text: string }
 
+/**
+ * Телефон, который игрок листает сам: сначала приветствие в чате, потом приёмы по одному на экран.
+ * Пока он не дочитал (или не нажал «Пропустить»), катсцена стоит на этом плане.
+ */
+export interface Guide {
+  /** кто пишет — имя в шапке чата */
+  from: string
+  /** кто это — строка под именем */
+  role: string
+  face: PortraitId
+  /** первый экран: два-три коротких сообщения — кто пишет и зачем */
+  hello: string[]
+  /** надпись на кнопке первого экрана */
+  open: string
+  tips: { title: string; text: string; /** где пригодится на неделе */ when: string }[]
+  /** надпись на кнопке последнего приёма */
+  done: string
+}
+
 /** Титр главы: чёрный экран, день и место. */
 export interface Card {
   kicker: string
@@ -75,6 +94,8 @@ export interface Shot {
   /** карта недели: маршрут от главы к главе */
   route?: { from: string; to: string }
   card?: Card
+  /** телефон в руках листает игрок; только на плане с set: 'phone', катсцена ждёт на секунде GUIDE_AT (timeline.ts) */
+  guide?: Guide
   /** плавный вход из чёрного, секунды (по умолчанию 0.35, у первого плана 0.6) */
   fadeIn?: number
 }

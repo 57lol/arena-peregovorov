@@ -5,7 +5,7 @@ import { SPOTS } from './art'
 import { lut, nearest } from './mood'
 import { pathLength, pointAt, routeBetween } from './render'
 import { BRIDGES, chapterCard, CUTSCENES, PROLOGUE } from './scripts'
-import { lineAt, locate, phoneAt, sample, starts, total, travelled, walkFrame } from './timeline'
+import { GUIDE_AT, lineAt, locate, phoneAt, sample, starts, total, travelled, walkFrame } from './timeline'
 
 describe('катсцены: одна мысль за раз и не дольше 40 секунд', () => {
   it.each(CUTSCENES.map((c) => [c.id, c] as const))('%s', (_, cs) => {
@@ -22,6 +22,7 @@ describe('катсцены: одна мысль за раз и не дольше
         expect(l.at).toBeLessThan(shot.dur)
         if (k) expect(l.at).toBeGreaterThan(lines[k - 1].at)
       }
+      if (shot.guide) expect(shot.set).toBe('phone')
       for (const c of shot.phone ?? []) {
         expect(shot.set).toBe('phone')
         expect(c.at).toBeLessThan(shot.dur)
@@ -73,6 +74,35 @@ describe('катсцены: одна мысль за раз и не дольше
   })
 })
 
+describe('памятка в автобусе: что это, зачем и как листать', () => {
+  const shot = PROLOGUE.shots.find((s) => s.guide)!
+  const g = shot.guide!
+  it('телефон в руках в автобусе, листает игрок', () => {
+    expect(shot.set).toBe('phone')
+    expect(shot.behind).toBe('bus')
+    expect(shot.dur).toBeGreaterThan(GUIDE_AT)
+    // во всех катсценах памятка одна — в прологе
+    expect(CUTSCENES.flatMap((c) => c.shots).filter((s) => s.guide)).toHaveLength(1)
+  })
+  it('кто пишет и зачем — коротко, без простыней', () => {
+    expect(g.from.length).toBeGreaterThan(0)
+    expect(g.role).toMatch(/HR|кадр/)
+    expect(g.hello.join(' ')).toMatch(/Добро пожаловать в Алабугу/)
+    expect(g.hello.length).toBeLessThanOrEqual(3)
+    for (const m of g.hello) expect(m.length).toBeLessThanOrEqual(72)
+  })
+  it('четыре приёма: заголовок, одна мысль, где пригодится', () => {
+    expect(g.tips).toHaveLength(4)
+    for (const t of g.tips) {
+      expect(t.title.length).toBeLessThanOrEqual(28)
+      expect(t.text.length).toBeLessThanOrEqual(72)
+      expect(t.when.length).toBeLessThanOrEqual(40)
+    }
+    expect(g.open.length).toBeLessThanOrEqual(20)
+    expect(g.done.length).toBeLessThanOrEqual(20)
+  })
+})
+
 describe('время катсцены', () => {
   const cs = PROLOGUE
   it('план и секунда', () => {
@@ -109,10 +139,11 @@ describe('время катсцены', () => {
     expect(walkFrame(33, 32, 8)).toBe(0)
   })
   it('строка и карточка телефона держатся до следующей', () => {
-    const phone = cs.shots.find((s) => s.set === 'phone')!
+    const phone = BRIDGES.stop.shots.find((s) => s.set === 'phone')!
     expect(lineAt(phone, 0)).toBeNull()
     expect(lineAt(phone, 5)!.text).toBe(phone.lines![1].text)
-    expect(phoneAt(phone, 8)!.index).toBe(2)
+    expect(phoneAt(phone, 3)!.index).toBe(0)
+    expect(phoneAt(phone, 5)!.index).toBe(1)
   })
 })
 
