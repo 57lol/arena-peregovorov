@@ -1,6 +1,6 @@
 // Ворота прототипа: пока идёт экспертиза, сайт открыт только жюри и команде.
 // Вход — по волшебной ссылке ?key=<JURY_KEY> или по логину и паролю на странице входа;
-// после входа — подписанная cookie на 30 дней. Открыты только /api/health и ассеты страницы входа.
+// после входа — подписанная cookie на 30 дней. Открыты только /api/health, ассеты страницы входа и скринкаст /screencast.mp4.
 // Секреты — только в окружении: GATE_SECRET (подпись cookie), JURY_KEY, SITE_LOGIN, SITE_PASSWORD_HASH
 // (scrypt:<соль hex>:<хэш hex> из hashPassword).
 
@@ -11,7 +11,7 @@ import { GATE_SCENE_JS } from './gate-scene'
 
 const COOKIE = 'arena_pass'
 const TTL = 30 * 24 * 3600
-const OPEN = [/^\/api\/health$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
+const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
 const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
 
