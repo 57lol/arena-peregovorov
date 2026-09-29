@@ -19,10 +19,17 @@ interface Props {
 }
 
 /** Масштаб и ширина кадра: высота 180 точек целым масштабом, под субтитры остаётся полоса. */
-function fit(cw: number, ch: number): { s: number; vw: number } {
-  const s = Math.max(1, Math.min(Math.floor((ch - 120) / H), Math.floor(cw / H)))
+/**
+ * Масштаб и ширина кадра: высота 180 точек целым масштабом, под кадром полоса субтитров.
+ * Низкий экран (телефон боком) — субтитры поверх кадра, зато кадр крупнее.
+ */
+function fit(cw: number, ch: number): { s: number; vw: number; over: boolean } {
+  const wide = Math.floor(cw / H)
+  const below = Math.max(1, Math.min(Math.floor((ch - 120) / H), wide))
+  const over = Math.max(1, Math.min(Math.floor((ch - 8) / H), wide))
+  const s = below < 3 && over > below ? over : below
   const vw = Math.max(160, Math.min(320, Math.floor(cw / s)))
-  return { s, vw }
+  return { s, vw, over: s > below }
 }
 
 export function CutscenePlayer({ script, onDone, at }: Props) {
@@ -134,7 +141,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   const card = ui.card >= 0 ? shot.phone![ui.card] : null
   const { s, vw } = size
   return (
-    <div className="px-root cs-root" role="dialog" aria-label={script.title} onClick={next}>
+    <div className={`px-root cs-root${size.over ? ' is-over' : ''}`} role="dialog" aria-label={script.title} onClick={next}>
       <div className="cs-stage">
         <div className="cs-frame" style={{ width: vw * s, height: H * s, ['--s' as string]: s }}>
           <canvas ref={canvas} className="cs-canvas" width={vw} height={H} style={{ width: vw * s, height: H * s }} aria-hidden="true" />

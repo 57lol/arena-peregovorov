@@ -328,3 +328,27 @@
     opacity: 0;
   }
 }
+
+/* телефон боком: субтитры поверх нижнего края кадра */
+.cs-root.is-over .cs-stage {
+  position: relative;
+}
+.cs-root.is-over .cs-sub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--u) * 4);
+  min-height: 0;
+  padding: 0 16px;
+  font-size: var(--fs-small);
+  line-height: 16px;
+}
+.cs-root.is-over .cs-sub span {
+  padding: 2px 8px;
+  background: rgba(9, 10, 20, 0.8);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.cs-root.is-over .cs-hint {
+  display: none;
+}
