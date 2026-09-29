@@ -115,6 +115,7 @@ export const SYSTEM = `Ты — методист, который придумы�
 - Варианты короткие, до 5 слов, без повтора названия пункта: пункт «Предоплата» → «нет», «1 месяц», «3 месяца», а не «предоплата за 3 месяца».
 - Слово «игрок» — служебное, в тексты для людей (brief, opening, interests) его не пиши.
 - bestForPlayer — дословно тот вариант из options, который выгоднее всего игроку (для shared — нужный обоим). Подумай отдельно: например, заказчику выгоднее меньшая цена и оплата после работ, исполнителю — наоборот.
+- Направление выгоды — по стороне сделки. Покупателю, заказчику, арендатору выгоднее ниже цена, больше скидка, дольше отсрочка и гарантия, больше бесплатного; продавцу, исполнителю, арендодателю — наоборот. Исключение — только пункт shared, и его интерес это объясняет. Не бывает покупателя, который сам просит «без гарантии» или «без образцов», и продавца, которому выгодно раздать больше бесплатного.
 - id пунктов — латиницей, коротко (price, payment, term...).
 - opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
 - opponentGender — m или f, по имени.
@@ -133,11 +134,43 @@ export const SYSTEM = `Ты — методист, который придумы�
 const LETTERS = 'АБВГДЕЗИКЛМНОРСТЭЮЯ'
 const nameHint = (req: GenerateRequest) => LETTERS[parseInt(hashOf(req).slice(0, 8), 16) % LETTERS.length]
 
+/**
+ * Кто из сторон платит. Модель путает стороны, когда игрок продаёт: закупщик у неё требует «без гарантии»
+ * и «100% предоплату», а продавцу выгодна скидка 30%. Если сторону видно из роли (или, без роли, из сферы),
+ * называем её в промпте прямо и потом проверяем денежные пункты (sideProblems).
+ */
+export type Side = 'payer' | 'payee'
+const PAYEE = /продаж|продав|поставщик|исполнител|подрядчик|арендодател|сда[её]т|собственник|кандидат|соискател/i
+const PAYER = /закуп|снабж|покупател|заказчик|арендатор|снима|нанима|работодател|(^|[^\p{L}])hr([^\p{L}]|$)|кадр|рекрутер|менеджер по персоналу/iu
+export function sideOf(req: Pick<GenerateRequest, 'sphere' | 'playerRole'>): Side | undefined {
+  const role = req.playerRole.trim()
+  if (role) {
+    const payee = PAYEE.test(role)
+    const payer = PAYER.test(role)
+    return payee === payer ? undefined : payee ? 'payee' : 'payer'
+  }
+  // роль не указана — по сфере, как в подсказках формы: «Продажи» — продаёте, остальное — платите
+  const sphere = req.sphere.toLowerCase()
+  if (/продаж/.test(sphere)) return 'payee'
+  if (/закуп|найм|аренд|подряд/.test(sphere)) return 'payer'
+  return undefined
+}
+const SIDE_LINE: Record<Side, string> = {
+  payee:
+    'Сторона игрока: он ПРОДАЁТ (товар, работу, помещение или себя как специалиста) и ПОЛУЧАЕТ деньги. Оппонент — тот, кто ПЛАТИТ. ' +
+    'Значит, в options первым идёт выгодное продавцу: скидка — самая маленькая, предоплата — самая большая, отсрочка — самая короткая, цена — самая высокая, гарантия — самая короткая (если это не shared). ' +
+    'Оппонент-покупатель в opening требует обратного: большую скидку, без предоплаты, длинную отсрочку и гарантию.',
+  payer:
+    'Сторона игрока: он ПЛАТИТ (покупатель, заказчик, арендатор или работодатель). Оппонент — тот, кто ПОЛУЧАЕТ деньги. ' +
+    'Значит, в options первым идёт выгодное покупателю: цена — самая низкая, скидка — самая большая, отсрочка — самая длинная, предоплата — самая маленькая, гарантия — самая длинная.',
+}
+
 export function userPrompt(req: GenerateRequest, problems: string[]): string {
   const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'напористый', evasive: 'уклончивый' }[req.opponentTone]
+  const side = sideOf(req)
   return `Сфера: ${req.sphere}
 Тема: ${req.theme || 'на твой выбор'}
-Роль игрока: ${req.playerRole || 'на твой выбор'}
+Роль игрока: ${req.playerRole || 'на твой выбор'}${side ? `\n${SIDE_LINE[side]}` : ''}
 Характер оппонента: ${tone}${req.opponentRole?.trim() ? `\nКто оппонент: ${req.opponentRole.trim()} — сделай его именно таким (должность, положение, сторона сделки)` : ''}${req.opponentGoals?.trim() ? `\nЧего добивается оппонент: ${req.opponentGoals.trim()} — пусть его стартовые требования и скрытые интересы исходят из этого` : ''}
 Что игрок хочет потренировать: ${req.goals || 'не указано'}${req.goals ? ' — построй кейс так, чтобы это пришлось делать' : ''}
 Имя оппонента начинается на «${nameHint(req)}».
@@ -157,6 +190,49 @@ export function orderProblems(raw: z.infer<typeof Raw>): string[] {
   return raw.issues
     .filter((i) => i.bestForPlayer && !i.options.some((o, n) => (n === 0 || n === i.options.length - 1) && same(o, i.bestForPlayer!)))
     .map((i) => `«${i.title}»: bestForPlayer должен дословно совпадать с первым вариантом, а варианты идти от лучшего для игрока к худшему`)
+}
+
+/** Число в варианте для сравнения «больше/меньше»; «без предоплаты», «по факту», «нет» — ноль. */
+function amount(o: string): number {
+  const m = o.replace(/\s(?=\d{3}(\D|$))/gu, '').match(/\d+(?:[.,]\d+)?/)
+  if (m) return parseFloat(m[0].replace(',', '.'))
+  return /(^|[^\p{L}])(без|нет|по факту|после|сразу|не требуется)([^\p{L}]|$)/iu.test(o) ? 0 : NaN
+}
+
+/**
+ * Чему в пункте выгодно «больше»: тому, кто получает деньги (цена, предоплата), или тому, кто платит
+ * (скидка, отсрочка, гарантия). Непонятные пункты не проверяем.
+ */
+function moreHelps(title: string, options: string[]): Side | undefined {
+  const t = `${title} ${options.join(' ')}`.toLowerCase()
+  // «предоплата 100% / 50 на 50 / отсрочка 30 дней» в одном пункте — числа про разное, не судим
+  if (/отсрочк/.test(t) && /предоплат|аванс/.test(t)) return undefined
+  if (/скидк/.test(t)) return 'payer'
+  if (/отсрочк/.test(t)) return 'payer'
+  if (/гаранти/.test(title.toLowerCase())) return 'payer'
+  if (/предоплат|аванс/.test(t)) return 'payee'
+  if (/(^|[^\p{L}])(цена|стоимость|ставка|тариф|оклад|зарплата|вознаграждение|гонорар)/iu.test(title)) return 'payee'
+  return undefined
+}
+
+/** Денежные пункты повёрнуты не в ту сторону: продавцу «выгоднее» скидка 30%, покупателю — «без гарантии». */
+export function sideProblems(raw: z.infer<typeof Raw>, side: Side | undefined): string[] {
+  if (!side) return []
+  const who = side === 'payee' ? 'продаёт и получает деньги' : 'платит'
+  return raw.issues
+    .filter((i) => i.role !== 'shared')
+    .flatMap((i) => {
+      const opts = orient(i)
+      const helps = moreHelps(i.title, opts)
+      const first = amount(opts[0])
+      const last = amount(opts[opts.length - 1])
+      if (!helps || Number.isNaN(first) || Number.isNaN(last) || first === last) return []
+      // первый вариант — лучший для игрока: ему должно быть выгодно то, в какую сторону он идёт
+      const playerWantsMore = helps === side
+      return playerWantsMore === first > last
+        ? []
+        : [`«${i.title}»: игрок ${who}, ему выгоднее ${playerWantsMore ? 'больше' : 'меньше'}, а варианты повёрнуты наоборот — перепутаны стороны сделки`]
+    })
 }
 
 /** Компания повторяет должность: «руководитель строительной фирмы» + «строительная фирма» (сравниваем по основам слов). */
@@ -353,7 +429,7 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
     try {
       // pro: своё дело — редкий и главный для настройки запрос, на Lite он почти всегда проваливается в папку
       const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA, pro: true }))
-      const order = orderProblems(raw)
+      const order = [...orderProblems(raw), ...sideProblems(raw, sideOf(req))]
       const r = order.length ? { problems: order, scenario: undefined } : scenarioProblems(toScenario(raw, req))
       const soft = r.problems.length ? [] : storyProblems(raw)
       // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GenerateRequest, orderProblems, scenarioProblems, storyProblems, toScenario, userPrompt } from './generate'
+import { GenerateRequest, orderProblems, scenarioProblems, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
 
 const raw = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -99,6 +99,44 @@ describe('своё дело: то, что видит игрок', async () => {
     expect(plain).not.toContain('Кто оппонент')
     expect(plain).not.toContain('Чего добивается')
     expect(GenerateRequest.parse({ sphere: 'Продажи' })).not.toHaveProperty('opponentRole')
+  })
+
+  it('сторона игрока: из роли, а без роли — из сферы; противоречивая роль — не знаем', () => {
+    expect(sideOf({ sphere: 'Продажи', playerRole: 'менеджер по продажам поставщика ячеек' })).toBe('payee')
+    expect(sideOf({ sphere: 'Закупки', playerRole: 'менеджер по закупкам завода' })).toBe('payer')
+    expect(sideOf({ sphere: 'Подряд', playerRole: 'прораб подрядчика' })).toBe('payee')
+    expect(sideOf({ sphere: 'Аренда', playerRole: 'арендатор, владелец небольшого магазина' })).toBe('payer')
+    expect(sideOf({ sphere: 'Продажи', playerRole: '' })).toBe('payee')
+    expect(sideOf({ sphere: 'Аренда', playerRole: '' })).toBe('payer')
+    expect(sideOf({ sphere: 'Найм', playerRole: 'инженер-робототехник' })).toBeUndefined()
+    expect(sideOf({ sphere: 'Продажи', playerRole: 'директор по закупкам и продажам' })).toBeUndefined()
+    expect(userPrompt(GenerateRequest.parse({ sphere: 'Продажи', playerRole: 'менеджер по продажам' }), [])).toContain('он ПРОДАЁТ')
+    expect(userPrompt(GenerateRequest.parse({ sphere: 'Найм', playerRole: 'инженер' }), [])).not.toContain('Сторона игрока')
+  })
+
+  it('перепутанные стороны у денежных пунктов — переписать (случай с прода: продавцу «выгодна» скидка 30%)', () => {
+    const seller = {
+      ...raw,
+      issues: [
+        { id: 'disc', title: 'Скидка', role: 'split' as const, options: ['30%', '20%', '10%'], bestForPlayer: '30%' },
+        { id: 'pay', title: 'Условия оплаты', role: 'theirs' as const, options: ['после получения товара', '50% предоплата', '100% предоплата'], bestForPlayer: 'после получения товара' },
+        { id: 'warr', title: 'Гарантия', role: 'shared' as const, options: ['2 года', '1 год', 'без гарантии'], bestForPlayer: '2 года' },
+        { id: 'check', title: 'Срок проверки', role: 'mine' as const, options: ['не требуется', '1 неделя', '2 недели'], bestForPlayer: 'не требуется' },
+      ],
+    }
+    const p = sideProblems(seller, 'payee')
+    expect(p).toHaveLength(2)
+    expect(p[0]).toMatch(/«Скидка»: игрок продаёт.*меньше/)
+    expect(p[1]).toMatch(/«Условия оплаты».*больше/)
+    // тот же кейс, повёрнутый правильно, — без замечаний; совместимый пункт (гарантия) не трогаем
+    const fixed = { ...seller, issues: seller.issues.map((i) => (i.role === 'shared' || i.role === 'mine' ? i : { ...i, options: [...i.options].reverse(), bestForPlayer: i.options[i.options.length - 1] })) }
+    expect(sideProblems(fixed, 'payee')).toEqual([])
+    // для покупателя всё наоборот; сторона неизвестна — не проверяем
+    expect(sideProblems(seller, 'payer')).toEqual([])
+    expect(sideProblems(seller, undefined)).toEqual([])
+    // «предоплата или отсрочка» в одном пункте — не судим
+    const mixed = { ...raw, issues: [{ id: 'm', title: 'Оплата', role: 'split' as const, options: ['отсрочка 30 дней', '50 на 50', 'предоплата 100%'], bestForPlayer: 'отсрочка 30 дней' }] }
+    expect(sideProblems(mixed, 'payee')).toEqual([])
   })
 
   it('«Что хотите потренировать» попадает в дело', () => {
