@@ -20,6 +20,7 @@ import {
 } from 'three'
 import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
 import { SPRITE_M_PER_PX as M, TABLE } from './layout'
+import { lipState } from '../speech'
 
 const S = PORTRAIT_SIZE
 /** на сколько точек пиджак продолжается вниз под стол */
@@ -343,7 +344,11 @@ export class Person {
   update(t: number, dt: number, cam: Camera, stir: boolean) {
     if (!this.body) return
     // кадр: рот, моргание, «смотрит в бумаги» — это моргание подольше
-    if (this.talking) {
+    // у собеседника, пока звучит голос, рот — по громкости звука; нет голоса — по печати текста
+    const lip = this.lead ? lipState() : 'off'
+    if (lip !== 'off') {
+      this.frame = lip === 'open' ? 'talk' : 'idle'
+    } else if (this.talking) {
       this.talkFlip -= dt
       if (this.talkFlip <= 0) {
         this.talkFlip = 0.11

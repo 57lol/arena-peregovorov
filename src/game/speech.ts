@@ -167,6 +167,7 @@ export function unlockAudio() {
 
 export function stopAudio() {
   audio?.pause()
+  lip = null
   if (url) URL.revokeObjectURL(url)
   url = ''
 }
@@ -175,6 +176,96 @@ export interface Prepared {
   url: string
   /** секунды: из заголовка x-audio-ms, метаданных или по размеру mp3 */
   duration: number
+  /** огибающая громкости для губ — считается сразу после скачивания */
+  env?: Promise<Float32Array | null>
+}
+
+// ---------- губы по звуку ----------
+
+/** Шаг огибающей, с. */
+const ENV_STEP = 0.02
+const envCache = new Map<string, Promise<Float32Array | null>>()
+
+/**
+ * Огибающая громкости записи: RMS по 20 мс, быстрый подъём, плавный спад, нормировка по 95-му перцентилю.
+ * Считаем по тем же байтам, что играет <audio>, — сам плеер через Web Audio не пускаем, звук не рискуем.
+ */
+async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null> {
+  try {
+    const W = window as unknown as { OfflineAudioContext?: typeof OfflineAudioContext; webkitOfflineAudioContext?: typeof OfflineAudioContext }
+    const Off = W.OfflineAudioContext ?? W.webkitOfflineAudioContext
+    if (!Off) return null
+    const buf = await data
+    const ctx = new Off(1, 1, 44100)
+    const ab = await new Promise<AudioBuffer>((res, rej) => ctx.decodeAudioData(buf, res, rej))
+    const ch = ab.getChannelData(0)
+    const w = Math.max(1, Math.floor(ab.sampleRate * ENV_STEP))
+    const env = new Float32Array(Math.ceil(ch.length / w))
+    let prev = 0
+    for (let k = 0; k < env.length; k++) {
+      let e = 0
+      const end = Math.min(ch.length, (k + 1) * w)
+      for (let i = k * w; i < end; i++) e += ch[i] * ch[i]
+      const rms = Math.sqrt(e / Math.max(1, end - k * w))
+      prev = rms > prev ? rms : prev * 0.35 + rms * 0.65
+      env[k] = prev
+    }
+    const sorted = Array.from(env).sort((a, b) => a - b)
+    const top = sorted[Math.floor(sorted.length * 0.95)] || 1
+    for (let k = 0; k < env.length; k++) env[k] = Math.min(1, env[k] / top)
+    return env
+  } catch {
+    return null
+  }
+}
+
+function envelopeOf(src: string): Promise<Float32Array | null> {
+  let p = envCache.get(src)
+  if (!p) {
+    p = envelope(fetch(src).then((r) => r.arrayBuffer()))
+    envCache.set(src, p)
+  }
+  return p
+}
+
+/** Что сейчас звучит в нашем <audio> и его огибающая. null — голос молчит. */
+let lip: { src: string; env: Float32Array | null; open: boolean; at: number; line: boolean; endedAt: number } | null = null
+
+function trackLip(a: HTMLAudioElement, env: Promise<Float32Array | null>, line: boolean) {
+  const me = { src: a.src, env: null as Float32Array | null, open: false, at: 0, line, endedAt: 0 }
+  lip = me
+  env.then((e) => (me.env = e))
+}
+
+/**
+ * Рот собеседника по реальному звуку. 'off' — голоса нет, рот живёт по печати текста;
+ * 'open'/'closed' — голос звучит (реплика или фраза-пауза), рот открыт, пока громкость выше порога.
+ * После конца реплики ещё полторы секунды 'closed': дописывающийся текст рот не шевелит.
+ */
+export function lipState(): 'off' | 'open' | 'closed' {
+  const a = audio
+  const l = lip
+  if (!a || !l || a.src !== l.src) return 'off'
+  if (a.ended) {
+    if (!l.line) return 'off'
+    l.endedAt ||= performance.now()
+    return performance.now() - l.endedAt < 1500 ? 'closed' : 'off'
+  }
+  if (a.paused || !l.env) return 'off'
+  // рот открыт на слогах: громкость выше порога и близко к местному пику (±80 мс); между слогами и в паузах — закрыт.
+  // Кадр держится не меньше 70 мс, чтобы рот не дрожал
+  const e = l.env
+  const k = Math.floor(a.currentTime / ENV_STEP)
+  const v = e[k] ?? 0
+  let peak = 0
+  for (let j = k - 4; j <= k + 4; j++) peak = Math.max(peak, e[j] ?? 0)
+  const want = v > 0.22 && v >= 0.7 * peak
+  const now = performance.now()
+  if (want !== l.open && now - l.at >= 70) {
+    l.open = want
+    l.at = now
+  }
+  return l.open ? 'open' : 'closed'
 }
 
 /** Длительность из метаданных, если сервер её не сообщил (OpenAI отдаёт mp3 с неизвестным битрейтом). */
@@ -234,10 +325,11 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
     const blob = await r.blob()
     if (blob.size < 500) return null
     const url = URL.createObjectURL(blob)
+    const env = typeof window === 'undefined' ? undefined : envelope(blob.arrayBuffer())
     const header = Number(r.headers.get('x-audio-ms')) / 1000
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
     const duration = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
-    return { url, duration }
+    return { url, duration, env }
   } catch {
     return null
   }
@@ -249,6 +341,7 @@ export async function playPrepared(p: Prepared): Promise<boolean> {
   stopAudio()
   url = p.url
   a.src = p.url
+  trackLip(a, p.env ?? envelopeOf(p.url), true)
   try {
     await a.play()
     return true
@@ -303,6 +396,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     const guard = setTimeout(end, 2500)
     for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
     a.src = `/assets/voice-fillers/${voice}/${id}.mp3`
+    trackLip(a, envelopeOf(a.src), false)
     a.play().catch(end)
   }, delay)
   return {
@@ -476,3 +570,6 @@ export function micError(e: unknown): string {
   if (e instanceof SttError) return e.message
   return 'Не получилось записать звук. Напишите реплику текстом.'
 }
+
+// проверка губ из прогонов на dev-сервере (scripts/): window.__lipState()
+if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __lipState: typeof lipState }).__lipState = lipState

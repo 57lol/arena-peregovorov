@@ -71,7 +71,7 @@ export function Jury(p: Props) {
 
         <ol className="jr-path">
           <li>
-            <button type="button" className="jr-step" onClick={p.onSetup}>
+            <button type="button" className="jr-step is-hot" onClick={p.onSetup}>
               <span className="jr-step-n">1</span>
               <span className="jr-step-name">Настроить</span>
               <span className="jr-step-note">своё дело: сфера, роли и цели сторон, характер, сложность</span>
@@ -85,7 +85,7 @@ export function Jury(p: Props) {
             </button>
           </li>
           <li>
-            <button type="button" className="jr-step is-hot" onClick={() => p.onDemo(lib(demo), demoHistory(demo))}>
+            <button type="button" className="jr-step" onClick={() => p.onDemo(lib(demo), demoHistory(demo))}>
               <span className="jr-step-n">3</span>
               <span className="jr-step-name">Разбор</span>
               <span className="jr-step-note">готовой встречи: сыграна движком за секунду</span>

@@ -27,13 +27,15 @@ interface Props {
   character: PortraitId
   emotion: PortraitEmotion
   talking?: boolean
+  /** рот по звуку голоса (встреча) */
+  lip?: boolean
   maxScale?: number
   /** слой поверх сцены (штамп, рентген) */
   children?: ReactNode
 }
 
 /** Сцена: фон, портрет, стол переднего плана. Масштаб только целый. */
-export function Scene({ scene, character, emotion, talking, maxScale = 6, children }: Props) {
+export function Scene({ scene, character, emotion, talking, lip, maxScale = 6, children }: Props) {
   // на телефоне лучше крупный портрет, чем поля: разрешаем срезать края сцены до 35% ширины
   const [ref, s] = useIntegerScale(SCENE_W, 1, maxScale, 0.35)
   const def = SCENES[scene]
@@ -42,7 +44,7 @@ export function Scene({ scene, character, emotion, talking, maxScale = 6, childr
       <div className="px-scene" style={{ width: SCENE_W * s, height: SCENE_H * s }} aria-label={def.title}>
         <img className="px-scene-layer" src={def.bg} alt="" width={SCENE_W * s} height={SCENE_H * s} />
         <div className="px-scene-actor" style={{ left: ((SCENE_W - PORTRAIT_SIZE) / 2) * s, top: 4 * s }}>
-          <Portrait id={character} emotion={emotion} talking={talking} scale={s} />
+          <Portrait id={character} emotion={emotion} talking={talking} lip={lip} scale={s} />
         </div>
         <img className="px-scene-layer" src={def.desk} alt="" width={SCENE_W * s} height={SCENE_H * s} />
         {children}

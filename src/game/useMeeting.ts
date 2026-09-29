@@ -69,7 +69,9 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const max = maxScore(P, sc.issues)
   const revealedNow = last?.decision.kind === 'reveal' ? last.decision.interestId : undefined
   const online = source !== 'local'
-  const canVoice = !!speech?.tts && online
+  // сервер ещё не ответил про голос (медленный /api/health) — считаем, что голос есть: реплика без звука просто печатается.
+  // Раньше тут было !!speech?.tts, и при долгом ответе /api/health собеседник молчал всю встречу
+  const canVoice = (speech ? speech.tts : true) && online
   const canMic = !!speech?.stt && online && !micOff
   const theirsForMe = isComplete(sc, state.lastOpponentOffer) ? score(P, state.lastOpponentOffer) : null
   const stamp: 'deal' | 'timeout' | 'walked' | null =
@@ -106,7 +108,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
   async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {
     const my = ++seq.current
-    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion))
+    // приветствие и повтор качаются без ответа модели: даём синтезу до 15 с, пусть лучше поздно, чем молча
+    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion, 15_000))
     if (!p || !voiceRef.current || my !== seq.current) return
     setVoiced((v) => ({ text, cps: cpsFor(text, p.duration), n: (v?.n ?? 0) + 1 }))
     if (!(await playPrepared(p))) setVoiced(null)

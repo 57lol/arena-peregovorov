@@ -22,7 +22,7 @@ import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
 import { nextStory } from './game/story'
-import { cutsceneLink, juryLink, markCutsceneSeen, seenForStory, storyAfter, storyEnter, storyStart, type Next, type Step } from './game/story/flow'
+import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscenes, seenForStory, storyAfter, storyEnter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
 import { chapterOf } from './content/story'
@@ -134,7 +134,16 @@ export default function App() {
   }, [screen, current, history, recorded, room, startedAt, sent, from])
 
   useEffect(() => {
-    health().then(setServer)
+    // /api/health под нагрузкой бывает дольше таймаута: не ответил — переспрашиваем, иначе голос и распознавание
+    // пропадут на всю вкладку
+    let alive = true
+    const ask = (n: number) =>
+      health().then((h) => {
+        if (!alive) return
+        if (h || n >= 4) return setServer(h)
+        setTimeout(() => ask(n + 1), 2000)
+      })
+    ask(0)
     const fromLink = () =>
       readLink().then((l) => {
         if (!l) return
@@ -169,7 +178,10 @@ export default function App() {
     fromLink()
     // ссылку вставили в адрес открытой вкладки — меняется только #
     window.addEventListener('hashchange', fromLink)
-    return () => window.removeEventListener('hashchange', fromLink)
+    return () => {
+      alive = false
+      window.removeEventListener('hashchange', fromLink)
+    }
   }, [])
 
   // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
@@ -203,8 +215,9 @@ export default function App() {
   }
 
   const start = () => {
-    // «Войти в переговорку» — клик: прогреваем звук, чтобы собеседник поздоровался вслух (iOS)
-    if (server?.speech?.tts && loadVoiceOn()) unlockAudio()
+    // «Войти в переговорку» — клик: прогреваем звук, чтобы собеседник поздоровался вслух (Safari, iOS).
+    // Не ждём /api/health: пока он не ответил, звук всё равно прогреваем
+    if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
     setHistory([])
     setRedo('')
     setStartedAt(Date.now())
@@ -212,6 +225,13 @@ export default function App() {
     go('play')
   }
 
+  // первый клик игрока: прогреваем <audio> (Safari и iOS пускают звук только после play() внутри клика)
+  const unlock = () => {
+    if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
+  }
+  // «Сюжет» с титула или из хаба: пролог и глава 1 для нового игрока, дальше — переход к следующей главе и её бриф.
+  // Прогоны из scripts/ (navigator.webdriver) по-прежнему сразу на карту
+  const story = () => run(cutscenesAllowed() ? storyStart(progress, seenCutscenes()) : { then: { to: 'map' } })
   // «Сюжет»: катсцена (если есть), потом бриф следующей главы или карта недели
   const follow = (n: Next) => {
     const sc = n.to === 'brief' ? getScenario(n.caseId) : undefined
@@ -301,7 +321,10 @@ export default function App() {
           onCareer={() => toCareer('jury')}
           onCutscene={(id) => watch(id, 'jury')}
           onFilms={() => films('jury')}
-          onStory={() => run(storyStart(progress, seenForStory()))}
+          onStory={() => {
+            unlock()
+            story()
+          }}
           onBack={() => go('title')}
         />
       </Suspense>
@@ -373,15 +396,18 @@ export default function App() {
         // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {
           setNotice(null)
-          run(storyStart(progress, seenForStory()))
+          unlock()
+          story()
         }}
         // «Для жюри»: всё открыто, без катсцен
         onJury={() => {
           setNotice(null)
+          unlock()
           go('jury')
         }}
         onStart={() => {
           setNotice(null)
+          unlock()
           if (invited && current) {
             clearLink()
             setInvited(false)
@@ -483,7 +509,7 @@ export default function App() {
         from === 'map' && chapterOf(current.scenario.id)
           ? () => {
               setProgress(markStorySeen(chapterOf(current.scenario.id)!.id))
-              run(storyAfter(current.scenario.id, progress, seenForStory()))
+              run(cutscenesAllowed() ? storyAfter(current.scenario.id) : { then: { to: 'map' } })
             }
           : undefined
       }

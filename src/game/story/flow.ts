@@ -20,27 +20,36 @@ const played = (p: Progress, id: string) => !!(p.cases[id] || p.cases[`${id}-har
 /** Первая несыгранная глава по порядку недели. */
 export const nextChapter = (p: Progress) => CHAPTERS.find((c) => !played(p, c.id))?.id
 
+const brief = (caseId: string): Next => ({ to: 'brief', caseId })
+
 /**
- * «Сюжет» с титула: в первый раз — пролог и сразу бриф первой главы, потом — карта недели.
- * Пролог кончается титром «Глава 1 · Общага», поэтому после него всегда общага, даже если её уже играли
- * (например, из хаба жюри): иначе титр обещает соседа, а открывается остановка с гопником.
+ * «Сюжет» с титула или из хаба — строго по порядку недели, через катсцены, без карты в начале:
+ * новый игрок (пролог не видел или ни одной главы не сыграл) — пролог и сразу бриф первой главы.
+ * Пролог кончается титром «Глава 1 · Общага», поэтому после него всегда общага, даже если её уже играли из хаба.
+ * Дальше — переход к первой несыгранной главе и её бриф. Неделя пройдена — карта.
+ * Раньше «видели пролог» вело на карту: в инкогнито после первого же захода «Сюжет» больше не показывал катсцен.
  */
-export function storyStart(_p: Progress, seen: string[]): Step {
-  if (seen.includes(PROLOGUE.id)) return { then: { to: 'map' } }
-  return { cutscene: PROLOGUE, then: { to: 'brief', caseId: CHAPTERS[0].id } }
+export function storyStart(p: Progress, seen: string[]): Step {
+  const nx = nextChapter(p)
+  const i = nx ? CHAPTERS.findIndex((c) => c.id === nx) : -1
+  if (!seen.includes(PROLOGUE.id) || i === 0) return { cutscene: PROLOGUE, then: brief(CHAPTERS[0].id) }
+  if (i < 0) return { then: { to: 'map' } }
+  const cs = BRIDGES[CHAPTERS[i - 1].id]
+  return cs ? { cutscene: cs, then: brief(nx!) } : { then: brief(nx!) }
 }
 
 /**
- * После разбора главы в «Сюжете»: переход к следующей главе, если его ещё не видели, и её бриф (если она не сыграна).
- * Переход уже видели или дело не из кампании — на карту.
+ * «Дальше» после разбора главы в «Сюжете»: переход к следующей главе (всегда — это явный шаг игрока) и её бриф.
+ * Последняя глава — финал недели и карта. Дело не из кампании — на карту.
  */
-export function storyAfter(caseId: string, p: Progress, seen: string[]): Step {
+export function storyAfter(caseId: string): Step {
   const ch = chapterOf(caseId)
-  const cs = ch && BRIDGES[ch.id]
-  if (!ch || !cs || seen.includes(cs.id)) return { then: { to: 'map' } }
+  if (!ch) return { then: { to: 'map' } }
   const i = CHAPTERS.findIndex((c) => c.id === ch.id)
   const nx = CHAPTERS[i + 1]
-  return { cutscene: cs, then: nx && !played(p, nx.id) ? { to: 'brief', caseId: nx.id } : { to: 'map' } }
+  const then: Next = nx ? brief(nx.id) : { to: 'map' }
+  const cs = BRIDGES[ch.id]
+  return cs ? { cutscene: cs, then } : { then }
 }
 
 /**

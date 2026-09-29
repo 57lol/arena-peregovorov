@@ -1,35 +1,54 @@
 import { useEffect, useRef, useState } from 'react'
 import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from './assets'
+import { lipState } from '../speech'
 
 interface Props {
   id: PortraitId
   emotion: PortraitEmotion
   /** рот шевелится, пока печатается реплика */
   talking?: boolean
+  /** это собеседник на встрече: пока звучит его голос, рот двигается по громкости звука, а не по печати */
+  lip?: boolean
   /** целый масштаб: 1 пиксель спрайта = scale px экрана */
   scale: number
   className?: string
 }
 
 /** Портрет из листа 3x6: кадры по горизонтали, эмоции по вертикали. */
-export function Portrait({ id, emotion, talking = false, scale, className }: Props) {
+export function Portrait({ id, emotion, talking = false, lip = false, scale, className }: Props) {
   const [frame, setFrame] = useState<PortraitFrame>('idle')
   const [jolt, setJolt] = useState(false)
   const prevEmotion = useRef(emotion)
 
-  // рот: открыт-закрыт, пока идёт текст
+  // рот: звучит голос — по громкости звука; голоса нет — открыт-закрыт, пока идёт текст
   useEffect(() => {
-    if (!talking) {
-      setFrame('idle')
-      return
-    }
+    setFrame('idle')
+    if (!talking && !lip) return
     let open = false
+    let flip = 0
+    let voiced = false
     const t = setInterval(() => {
+      const s = lip ? lipState() : 'off'
+      if (s !== 'off') {
+        voiced = true
+        setFrame(s === 'open' ? 'talk' : 'idle')
+        return
+      }
+      if (!talking) {
+        // голос кончился, текста нет — закрыть рот один раз и отдать кадр морганию
+        if (voiced) setFrame('idle')
+        voiced = false
+        return
+      }
+      voiced = false
+      const now = performance.now()
+      if (now - flip < 110) return
+      flip = now
       open = !open
       setFrame(open ? 'talk' : 'idle')
-    }, 110)
+    }, 30)
     return () => clearInterval(t)
-  }, [talking])
+  }, [talking, lip])
 
   // моргание в случайные моменты, когда молчит
   useEffect(() => {
@@ -39,6 +58,8 @@ export function Portrait({ id, emotion, talking = false, scale, className }: Pro
     const loop = () => {
       timer = setTimeout(() => {
         if (!alive) return
+        // голос звучит — не моргаем поверх губ
+        if (lip && lipState() !== 'off') return loop()
         setFrame('blink')
         timer = setTimeout(() => {
           if (!alive) return
@@ -52,7 +73,7 @@ export function Portrait({ id, emotion, talking = false, scale, className }: Pro
       alive = false
       clearTimeout(timer)
     }
-  }, [talking])
+  }, [talking, lip])
 
   // смена эмоции — короткий подскок на один пиксель
   useEffect(() => {

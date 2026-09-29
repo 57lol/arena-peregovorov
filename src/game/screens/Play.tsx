@@ -130,7 +130,7 @@ export function Play(props: Props) {
               </div>
             </div>
 
-            <Scene scene={sceneFor(sc)} character={portraitFor(sc)} emotion={emotion} talking={talking && !pending} maxScale={maxScale}>
+            <Scene scene={sceneFor(sc)} character={portraitFor(sc)} emotion={emotion} talking={talking && !pending} lip maxScale={maxScale}>
               {stamp && <Stamp kind={stamp} />}
             </Scene>
 

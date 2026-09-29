@@ -16,8 +16,19 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(s.cutscene?.id).toBe('prologue')
     expect(s.then).toEqual({ to: 'brief', caseId: 'dorm' })
   })
-  it('пролог видели — карта недели', () => {
-    expect(storyStart(prog(), ['prologue'])).toEqual({ then: { to: 'map' } })
+  it('пролог видели, но первую главу не сыграли (инкогнито, второй заход) — снова пролог и глава 1, не карта', () => {
+    const s = storyStart(prog(), ['prologue'])
+    expect(s.cutscene?.id).toBe('prologue')
+    expect(s.then).toEqual({ to: 'brief', caseId: 'dorm' })
+  })
+  it('продолжение: переход к первой несыгранной главе и её бриф', () => {
+    const s = storyStart(prog('dorm'), ['prologue'])
+    expect(s.cutscene?.id).toBe('to-stop')
+    expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
+    expect(storyStart(prog('dorm', 'stop'), ['prologue', 'to-stop', 'to-tara']).cutscene?.id).toBe('to-tara')
+  })
+  it('неделя пройдена — карта', () => {
+    expect(storyStart(prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch'), ['prologue'])).toEqual({ then: { to: 'map' } })
   })
   it('пролог не видели, но главы сыграны — пролог и всё равно глава 1: титр пролога обещает общагу', () => {
     // баг 29.09: общагу сыграли из хаба жюри, пролог не видели — после автобуса открывалась «Остановка у ларька»
@@ -31,7 +42,7 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(last.card?.title).toBe(chapterCard((s.then as { caseId: string }).caseId).title)
   })
   it('после главы — переход и бриф следующей', () => {
-    const s = storyAfter('dorm', prog('dorm'), ['prologue'])
+    const s = storyAfter('dorm')
     expect(s.cutscene?.id).toBe('to-stop')
     expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
   })
@@ -44,23 +55,21 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(storyEnter('not-a-chapter', [])).toBeNull()
   })
   it('жёсткая версия главы — тот же переход', () => {
-    expect(storyAfter('stop-hard', prog('dorm', 'stop-hard'), []).cutscene?.id).toBe('to-tara')
+    expect(storyAfter('stop-hard').cutscene?.id).toBe('to-tara')
   })
-  it('переход уже видели — на карту', () => {
-    expect(storyAfter('dorm', prog('dorm'), ['to-stop'])).toEqual({ then: { to: 'map' } })
-  })
-  it('следующая глава уже сыграна — переход и карта', () => {
-    const s = storyAfter('tara', prog('tara', 'shop'), [])
+  it('«Дальше» линейно: переход и следующая глава, даже если переход видели или главу уже играли', () => {
+    expect(storyAfter('dorm').cutscene?.id).toBe('to-stop')
+    const s = storyAfter('tara')
     expect(s.cutscene?.id).toBe('to-shop')
-    expect(s.then).toEqual({ to: 'map' })
+    expect(s.then).toEqual({ to: 'brief', caseId: 'shop' })
   })
   it('финал недели — катсцена финала и карта', () => {
-    const s = storyAfter('launch', prog('launch'), [])
+    const s = storyAfter('launch')
     expect(s.cutscene?.id).toBe('finale')
     expect(s.then).toEqual({ to: 'map' })
   })
   it('дело не из кампании — на карту без катсцены', () => {
-    expect(storyAfter('gen-abc', prog(), [])).toEqual({ then: { to: 'map' } })
+    expect(storyAfter('gen-abc')).toEqual({ then: { to: 'map' } })
   })
 })
 
