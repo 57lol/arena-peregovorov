@@ -169,7 +169,7 @@ export default function App() {
 
   // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
   // «Все дела» открывают с титула и с карты — «Назад» возвращает туда же
-  const [setupBack, setSetupBack] = useState<'title' | 'map' | 'jury'>(juryLink() ? 'jury' : 'title')
+  const [setupBack, setSetupBack] = useState<'title' | 'map' | 'jury'>(() => (juryLink() || saved?.screen === 'jury' ? 'jury' : 'title'))
   const go = useCallback((s: Screen) => {
     if (s === 'title' || s === 'map' || s === 'jury') setSetupBack(s)
     setScreen(s)
