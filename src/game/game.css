@@ -93,6 +93,10 @@ body {
   color: var(--c-steel-2);
   font-weight: 400;
 }
+/* «Сесть за стол в 3D» лежит прямо на столе — тем же цветом, что «ещё N реплик», иначе не читается */
+.g-view-3d {
+  color: var(--on-desk-muted);
+}
 .g-quote {
   margin: 0;
   padding: 0 0 0 calc(6 * var(--u));
