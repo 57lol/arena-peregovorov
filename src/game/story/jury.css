@@ -1,4 +1,4 @@
-/* «Для жюри»: путь за минуту крупно, под ним листы на столе — кампания, дела, настройки, катсцены. */
+/* «Для жюри»: главный путь крупно, под ним листы на столе — кампания, дела, настройки, катсцены. */
 
 .jr-page > * {
   max-width: 1240px;
@@ -16,11 +16,11 @@
   color: var(--on-desk-muted);
 }
 
-/* ——— три шага ——— */
+/* ——— четыре шага ——— */
 
 .jr-path {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: calc(6 * var(--u));
   margin-bottom: calc(12 * var(--u));
   padding: 0;
@@ -398,6 +398,14 @@
   }
   .jr-hard {
     padding-inline: calc(4 * var(--u));
+  }
+  /* узкий экран: «Оффер для робототехника» рвался посреди слова — дело на всю ширину, «Жёстче» строкой ниже */
+  .jr-cases li {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .jr-case {
+    flex-basis: 100%;
   }
 }
 

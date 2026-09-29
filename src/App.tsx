@@ -170,8 +170,11 @@ export default function App() {
   // «Назад» в браузере возвращает на прошлый экран, а не уводит с сайта
   // «Все дела» открывают с титула и с карты — «Назад» возвращает туда же
   const [setupBack, setSetupBack] = useState<'title' | 'map' | 'jury'>(() => (juryLink() || saved?.screen === 'jury' ? 'jury' : 'title'))
+  // из хаба жюри «Настроить» ведёт сразу в раскрытую форму своего дела, а не в папку
+  const [customOpen, setCustomOpen] = useState(false)
   const go = useCallback((s: Screen) => {
     if (s === 'title' || s === 'map' || s === 'jury') setSetupBack(s)
+    if (s === 'title' || s === 'map') setCustomOpen(false)
     setScreen(s)
     window.history.pushState({ screen: s }, '')
     window.scrollTo({ top: 0 })
@@ -271,7 +274,10 @@ export default function App() {
             setRecorded(runKey(c, h))
             go('report')
           }}
-          onSetup={() => go('setup')}
+          onSetup={() => {
+            setCustomOpen(true)
+            go('setup')
+          }}
           onCoach={() => go('coach')}
           onCareer={() => toCareer('jury')}
           onCutscene={(id) => watch(id, 'jury')}
@@ -363,6 +369,7 @@ export default function App() {
       <Setup
         progress={progress}
         server={server}
+        customOpen={customOpen}
         onOpen={open}
         onBack={() => go(setupBack)}
         onCoach={() => go('coach')}

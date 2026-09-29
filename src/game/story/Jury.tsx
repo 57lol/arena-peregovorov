@@ -1,6 +1,7 @@
-// «Для жюри»: всё открыто на одном экране, без катсцен. Сверху — ключевой путь кейса за минуту:
-// настроить дело → провести встречу → разбор (готовая встреча считается движком в браузере за секунду).
-// Ниже — любая глава кампании, дела из папки и их жёсткие версии, кабинет руководителя, настройки и катсцены.
+// «Для жюри»: всё открыто на одном экране, без катсцен. Сверху — для кого это и ключевой путь кейса:
+// настроить дело → провести встречу → разбор (готовая встреча считается движком в браузере за секунду) → команда
+// (кабинет руководителя, контур администратора из ТЗ). Ниже — деловые дела и их жёсткие версии, главы кампании,
+// настройки и катсцены.
 
 import { useState } from 'react'
 import type { Case } from '../../App'
@@ -57,14 +58,17 @@ export function Jury(p: Props) {
         </header>
 
         <h1 className="g-h1 jr-h1">Для жюри</h1>
-        <p className="jr-lead">Всё открыто сразу. Главный путь кейса — за минуту:</p>
+        <p className="jr-lead">
+          Тренажёр деловых переговоров для закупок, продаж и найма. Руководитель настраивает дело под свою задачу, команда играет
+          по ссылке, итог и разбор считает движок — одинаково для всех. Всё открыто, главный путь — за пять минут:
+        </p>
 
         <ol className="jr-path">
           <li>
             <button type="button" className="jr-step" onClick={p.onSetup}>
               <span className="jr-step-n">1</span>
               <span className="jr-step-name">Настроить</span>
-              <span className="jr-step-note">своё дело: сфера, роль, характер, сложность</span>
+              <span className="jr-step-note">своё дело: сфера, роли и цели сторон, характер, сложность</span>
             </button>
           </li>
           <li>
@@ -81,39 +85,16 @@ export function Jury(p: Props) {
               <span className="jr-step-note">готовой встречи: сыграна движком за секунду</span>
             </button>
           </li>
+          <li>
+            <button type="button" className="jr-step" onClick={p.onCoach}>
+              <span className="jr-step-n">4</span>
+              <span className="jr-step-name">Команда</span>
+              <span className="jr-step-note">кабинет руководителя: одно дело всем по ссылке, доска результатов</span>
+            </button>
+          </li>
         </ol>
 
         <div className="jr-grid">
-          <section className="g-sheet jr-sheet jr-story" aria-labelledby="jr-story">
-            <h2 id="jr-story" className="jr-h2">
-              Кампания «Новенький»
-            </h2>
-            <ul className="jr-chapters">
-              {CHAPTERS.map((ch, i) => {
-                const sc = getScenario(ch.id)
-                if (!sc) return null
-                const done = !!(p.progress.cases[ch.id] || p.progress.cases[`${ch.id}-hard`])
-                return (
-                  <li key={ch.id}>
-                    <button type="button" className="jr-chapter" onClick={() => p.onOpen(lib(sc))}>
-                      <Face sc={sc} />
-                      <span className="jr-chapter-n">{ch.kind === 'finale' ? 'Финал' : i + 1}</span>
-                      <span className="jr-chapter-name">{ch.label}</span>
-                      <span className="jr-chapter-when">
-                        {ch.day}, {ch.time}
-                      </span>
-                      {done && (
-                        <span className="jr-done" aria-label="сыграно">
-                          <PixelIcon name="check" px={2} />
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-
           <section className="g-sheet jr-sheet" aria-labelledby="jr-cases">
             <h2 id="jr-cases" className="jr-h2">
               Деловые дела
@@ -143,6 +124,36 @@ export function Jury(p: Props) {
                 Личное дело
               </Button>
             </div>
+          </section>
+
+          <section className="g-sheet jr-sheet jr-story" aria-labelledby="jr-story">
+            <h2 id="jr-story" className="jr-h2">
+              Кампания «Новенький»
+            </h2>
+            <ul className="jr-chapters">
+              {CHAPTERS.map((ch, i) => {
+                const sc = getScenario(ch.id)
+                if (!sc) return null
+                const done = !!(p.progress.cases[ch.id] || p.progress.cases[`${ch.id}-hard`])
+                return (
+                  <li key={ch.id}>
+                    <button type="button" className="jr-chapter" onClick={() => p.onOpen(lib(sc))}>
+                      <Face sc={sc} />
+                      <span className="jr-chapter-n">{ch.kind === 'finale' ? 'Финал' : i + 1}</span>
+                      <span className="jr-chapter-name">{ch.label}</span>
+                      <span className="jr-chapter-when">
+                        {ch.day}, {ch.time}
+                      </span>
+                      {done && (
+                        <span className="jr-done" aria-label="сыграно">
+                          <PixelIcon name="check" px={2} />
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
           </section>
 
           <Settings {...p} />

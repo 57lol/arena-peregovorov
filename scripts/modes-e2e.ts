@@ -1,7 +1,7 @@
 // Два режима глазами игрока: npx tsx scripts/modes-e2e.ts
 // BASE=http://localhost:5173 — дев-сервер (npm run dev:offline). Снимки — в ~/Arena-materials/shots/cutscenes/flow (или OUT=…).
 // «Сюжет»: титул → пролог (пропуск по Esc) → бриф первой главы; разбор главы → «Дальше» → переход → бриф следующей.
-// «Для жюри»: хаб → готовый разбор → «К жюри» → глава кампании → бриф → назад в хаб.
+// «Для жюри»: хаб → готовый разбор → «К жюри» → глава кампании → бриф → назад в хаб; «Настроить» → форма, «Команда» → кабинет.
 import { chromium, type Page } from 'playwright'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -104,6 +104,16 @@ for (const [w, h] of [
   await shot('07-жюри-после-катсцены')
   await p.waitForSelector('.jr-path')
   check(true, `${w}: катсцена из хаба → назад в хаб`)
+  // «1 Настроить» — сразу раскрытая форма своего дела на первом экране; «4 Команда» — кабинет руководителя
+  await p.getByRole('button', { name: /Настроить/ }).click()
+  await p.waitForSelector('form.g-form')
+  const box = await p.locator('form.g-form').boundingBox()
+  check(!!box && box.y >= 0 && box.y < h, `${w}: «Настроить» → форма своего дела на первом экране`)
+  await p.locator('.g-bar button').first().click()
+  await p.waitForSelector('.jr-path')
+  await p.getByRole('button', { name: /Команда/ }).click()
+  await p.waitForSelector('text=Какое дело дать команде')
+  check(true, `${w}: «Команда» → кабинет руководителя`)
   await ctx.close()
 }
 await browser.close()

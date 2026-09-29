@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Case } from '../../App'
 import { SCENARIOS, harder, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
@@ -25,9 +25,11 @@ interface Props {
   onCareer?: () => void
   /** что показать над папкой (в кабинете — открытые тренировки) */
   intro?: React.ReactNode
+  /** форма своего дела раскрыта сразу и видна на первом экране (из хаба жюри: «Настроить») */
+  customOpen?: boolean
 }
 
-export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCareer, intro }: Props) {
+export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCareer, intro, customOpen }: Props) {
   // совет, а не замок: все дела открыты, отмечаем только одно
   const advice = coach ? null : nextCase(progress)
   return (
@@ -64,7 +66,7 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCare
               onOpen={(s) => onOpen({ scenario: s, fromLibrary: true })}
             />
           ))}
-          <CustomCase server={server} onOpen={onOpen} coach={coach} />
+          <CustomCase server={server} onOpen={onOpen} coach={coach} startOpen={customOpen} />
         </div>
         {onCoach && !coach && (
           <div className="g-coach-slot">
@@ -168,8 +170,13 @@ const STEPS = [
   'Не сошлось — переписываем…',
 ]
 
-function CustomCase({ server, onOpen, coach }: { server: Health | null | undefined; onOpen: (c: Case) => void; coach?: boolean }) {
-  const [openForm, setOpenForm] = useState(false)
+function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | null | undefined; onOpen: (c: Case) => void; coach?: boolean; startOpen?: boolean }) {
+  const [openForm, setOpenForm] = useState(!!startOpen)
+  const formRef = useRef<HTMLElement>(null)
+  // раскрыли сразу — прокручиваем к форме: в папке она последняя и на ноутбуке ниже сгиба
+  useEffect(() => {
+    if (startOpen) formRef.current?.scrollIntoView({ block: 'start' })
+  }, [startOpen])
   const [req, setReq] = useState<GenerateRequest>({
     sphere: 'Аренда',
     theme: '',
@@ -240,7 +247,7 @@ function CustomCase({ server, onOpen, coach }: { server: Health | null | undefin
     )
 
   return (
-    <article className="g-folder g-folder--blank" aria-busy={busy}>
+    <article ref={formRef} className="g-folder g-folder--blank" aria-busy={busy}>
       <span className="g-folder-tab">Своё дело</span>
       <form
         className="g-form"
