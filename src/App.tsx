@@ -20,7 +20,7 @@ import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
 import { nextStory } from './game/story'
-import { cutsceneLink, juryLink, markCutsceneSeen, seenCutscenes, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
+import { cutsceneLink, juryLink, markCutsceneSeen, seenForStory, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
 import { chapterOf } from './content/story'
@@ -275,7 +275,7 @@ export default function App() {
           onCoach={() => go('coach')}
           onCareer={() => toCareer('jury')}
           onCutscene={(id) => watch(id, 'jury')}
-          onStory={() => run(storyStart(progress, seenCutscenes()))}
+          onStory={() => run(storyStart(progress, seenForStory()))}
           onBack={() => go('title')}
         />
       </Suspense>
@@ -334,7 +334,7 @@ export default function App() {
         // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {
           setNotice(null)
-          run(storyStart(progress, seenCutscenes()))
+          run(storyStart(progress, seenForStory()))
         }}
         // «Для жюри»: всё открыто, без катсцен
         onJury={() => {
@@ -441,7 +441,7 @@ export default function App() {
         from === 'map' && chapterOf(current.scenario.id)
           ? () => {
               setProgress(markStorySeen(chapterOf(current.scenario.id)!.id))
-              run(storyAfter(current.scenario.id, progress, seenCutscenes()))
+              run(storyAfter(current.scenario.id, progress, seenForStory()))
             }
           : undefined
       }

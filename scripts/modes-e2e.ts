@@ -9,6 +9,8 @@ import { getScenario } from '../src/content/scenarios'
 import { demoHistory } from '../src/game/story/demo'
 
 const BASE = process.env.BASE ?? 'http://localhost:5173'
+// Playwright — это navigator.webdriver, без ?cutscenes=1 «Сюжет» идёт без катсцен
+const URL = `${BASE}/?cutscenes=1`
 const out = process.env.OUT ?? `${homedir()}/Arena-materials/shots/cutscenes/flow`
 mkdirSync(out, { recursive: true })
 
@@ -29,14 +31,14 @@ for (const [w, h] of [
   p.on('pageerror', (e) => errors.push(String(e)))
   const shot = (name: string) => p.screenshot({ path: `${out}/${name}-${w}.png` })
   const fresh = async (seen: string[] = []) => {
-    await p.goto(BASE)
+    await p.goto(URL)
     await p.evaluate((s) => {
       localStorage.clear()
       sessionStorage.clear()
       localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ cases: {}, tutorialDone: true, endings: {}, runs: [] }))
       if (s.length) localStorage.setItem('peregovorka.cutscenes.v1', JSON.stringify(s))
     }, seen)
-    await p.goto(BASE)
+    await p.goto(URL)
   }
 
   // ——— «Сюжет» с нуля: пролог, потом сразу бриф первой главы
@@ -53,7 +55,7 @@ for (const [w, h] of [
   await shot('02-после-пролога-бриф')
 
   // повторный «Сюжет» — карта недели без пролога
-  await p.goto(BASE)
+  await p.goto(URL)
   await p.getByRole('button', { name: /Сюжет/ }).click()
   await p.waitForTimeout(600)
   check((await p.locator('.cs-root').count()) === 0 && (await p.locator('.mp-map').count()) > 0, `${w}: второй раз «Сюжет» — сразу карта`)

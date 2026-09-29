@@ -3,7 +3,7 @@
 // Здесь — чистые решения «что показать дальше»; App.tsx только исполняет их.
 
 import { chapterOf, CHAPTERS } from '../../content/story'
-import { BRIDGES, PROLOGUE } from '../cutscene/scripts'
+import { BRIDGES, CUTSCENES, PROLOGUE } from '../cutscene/scripts'
 import type { Cutscene } from '../cutscene/types'
 import type { Progress } from '../progress'
 
@@ -61,6 +61,16 @@ export function markCutsceneSeen(id: string) {
     // нет хранилища — катсцена покажется ещё раз, не страшно
   }
 }
+
+/**
+ * Прогоны из scripts/ (Playwright, navigator.webdriver) идут без катсцен, как и без обучения: «Сюжет» сразу ведёт
+ * на карту, «Дальше» — тоже. Проверить сами катсцены в прогоне — ?cutscenes=1 в адресе.
+ */
+export const cutscenesAllowed = () => typeof navigator === 'undefined' || !navigator.webdriver || forced
+const forced = /[?&]cutscenes=1\b/.test(globalThis.location?.search ?? '')
+
+/** Что считать уже виденным для решений «Сюжета». */
+export const seenForStory = () => (cutscenesAllowed() ? seenCutscenes() : CUTSCENES.map((c) => c.id))
 
 // ——— адрес: /?jury — сразу хаб жюри; /?cutscene=prologue&t=12 — катсцена (с t — стоп-кадр для снимков) ———
 
