@@ -25,6 +25,8 @@ interface Props {
   onPlay: () => void
   /** «Для жюри»: всё открыто — дела, свои условия, кабинет, настройки. Пока App его не передаёт — папка дел */
   onJury?: () => void
+  /** галерея катсцен сюжета — посмотреть без прохождения */
+  onFilms?: () => void
   onStart: () => void
   onLibrary: () => void
   onCoach: () => void
@@ -35,7 +37,7 @@ interface Props {
  * Титул: живая сцена на весь экран — вечер на Каме, автобус привозит новенького в Алабугу.
  * Слов минимум: название, одна строка и две кнопки. По ссылке-приглашению — записка с делом.
  */
-export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onStart, onLibrary, onCareer }: Props) {
+export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onStart, onLibrary, onCareer }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -53,11 +55,18 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
     <div className="px-root tt-root">
       <TitleScene story={!invited} />
       <main className="tt-ui">
-        {played && !invited && (
+        {!invited && (played || onFilms) && (
           <nav className="tt-corner">
-            <Button variant="ghost" icon="stamp" onClick={onCareer}>
-              Личное дело
-            </Button>
+            {onFilms && (
+              <Button icon="right" onClick={onFilms}>
+                Катсцены
+              </Button>
+            )}
+            {played && (
+              <Button variant="ghost" icon="stamp" onClick={onCareer}>
+                Личное дело
+              </Button>
+            )}
           </nav>
         )}
 

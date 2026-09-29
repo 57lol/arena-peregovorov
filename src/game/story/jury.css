@@ -412,3 +412,20 @@
 .jr-method {
   margin-top: calc(8 * var(--u));
 }
+
+/* катсцены: кнопка в шапке и лента карточек с превью под делами */
+.jr-bar-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2 * var(--u));
+}
+.jr-films {
+  margin-top: calc(8 * var(--u));
+}
+.jr-films .jr-h2 small {
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-steel-2);
+}
+.jr-films .gl-film {
+  background: #fff;
+}

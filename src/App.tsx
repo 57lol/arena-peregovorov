@@ -36,8 +36,9 @@ const Play3D = lazy(loadPlay3D)
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
 const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
 const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
+const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ default: m.Gallery })))
 
-export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury'
+export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films'
 
 export interface Case {
   scenario: Scenario
@@ -225,6 +226,12 @@ export default function App() {
     })
     go('cutscene')
   }
+  // галерея катсцен: с титула или из хаба жюри — туда и возвращаемся
+  const [filmsBack, setFilmsBack] = useState<'title' | 'jury'>('title')
+  const films = (back: 'title' | 'jury') => {
+    setFilmsBack(back)
+    go('films')
+  }
   const watch = (id: string, back: Screen) => {
     setFilm({ id, then: () => go(back) })
     go('cutscene')
@@ -251,6 +258,13 @@ export default function App() {
       </Suspense>
     ) : null
   }
+
+  if (screen === 'films')
+    return (
+      <Suspense fallback={null}>
+        <Gallery back={filmsBack === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(filmsBack)} onPlay={(id) => watch(id, 'films')} />
+      </Suspense>
+    )
 
   if (screen === 'jury')
     return (
@@ -281,6 +295,7 @@ export default function App() {
           onCoach={() => go('coach')}
           onCareer={() => toCareer('jury')}
           onCutscene={(id) => watch(id, 'jury')}
+          onFilms={() => films('jury')}
           onStory={() => run(storyStart(progress, seenForStory()))}
           onBack={() => go('title')}
         />
@@ -336,6 +351,7 @@ export default function App() {
         }}
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
+        onFilms={() => films('title')}
         next={nextStory(progress) ?? nextCase(progress)}
         // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {

@@ -10,8 +10,7 @@ import { CHAPTERS } from '../../content/story'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import type { Health } from '../api'
 import { portraitFor } from '../cast'
-import { CUTSCENES } from '../cutscene/scripts'
-import { total } from '../cutscene/timeline'
+import { Films } from '../cutscene/Gallery'
 import { loadInstantOn, saveInstantOn } from '../instant'
 import { loadProgress, markTutorialDone, resetTutorial, type Progress } from '../progress'
 import { loadVoiceOn, saveVoiceOn } from '../speech'
@@ -35,6 +34,8 @@ interface Props {
   onCoach: () => void
   onCareer: () => void
   onCutscene: (id: string) => void
+  /** галерея катсцен отдельным экраном */
+  onFilms: () => void
   onStory: () => void
   onBack: () => void
 }
@@ -52,9 +53,14 @@ export function Jury(p: Props) {
           <Button variant="ghost" icon="left" onClick={p.onBack}>
             Титул
           </Button>
-          <Button variant="ghost" icon="right" onClick={p.onStory}>
-            Сюжет
-          </Button>
+          <span className="jr-bar-right">
+            <Button variant="ghost" icon="right" onClick={p.onFilms}>
+              Катсцены
+            </Button>
+            <Button variant="ghost" icon="right" onClick={p.onStory}>
+              Сюжет
+            </Button>
+          </span>
         </header>
 
         <h1 className="g-h1 jr-h1">Для жюри</h1>
@@ -157,27 +163,14 @@ export function Jury(p: Props) {
           </section>
 
           <Settings {...p} />
-
-          <section className="g-sheet jr-sheet" aria-labelledby="jr-cuts">
-            <h2 id="jr-cuts" className="jr-h2">
-              Катсцены сюжета
-            </h2>
-            <ul className="jr-cuts">
-              {CUTSCENES.map((cs) => (
-                <li key={cs.id}>
-                  <button type="button" className="jr-cut" onClick={() => p.onCutscene(cs.id)}>
-                    <PixelIcon name="right" px={2} />
-                    <span>{cs.title}</span>
-                    <small>{Math.round(total(cs))} с</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="jr-fine">
-              Лаборатория: <a href="/?voices">голоса</a> · <a href="/?lab">модели</a>
-            </p>
-          </section>
         </div>
+
+        <section className="g-sheet jr-sheet jr-films" aria-labelledby="jr-cuts">
+          <h2 id="jr-cuts" className="jr-h2">
+            Катсцены сюжета <small>— смотреть без прохождения, клик по карточке</small>
+          </h2>
+          <Films onPlay={p.onCutscene} />
+        </section>
 
         <section className="g-sheet jr-sheet jr-method">
           <Method />
@@ -267,6 +260,9 @@ function Settings({ progress, server, view, onView, onProgress }: Props) {
           <dd className="jr-mode">{mode}</dd>
         </div>
       </dl>
+      <p className="jr-fine">
+        Лаборатория: <a href="/?voices">голоса</a> · <a href="/?lab">модели</a>
+      </p>
     </section>
   )
 }

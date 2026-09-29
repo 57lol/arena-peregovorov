@@ -1,0 +1,116 @@
+/* Галерея катсцен: карточки с превью-кадром целыми пикселями. */
+
+.gl-page > * {
+  max-width: 1240px;
+  margin-inline: auto;
+}
+.gl-lead {
+  margin-top: calc(2 * var(--u));
+  margin-bottom: calc(6 * var(--u));
+  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  color: var(--on-desk-muted);
+}
+
+.gl-films {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: calc(6 * var(--u));
+  margin-block: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gl-film {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(1 * var(--u));
+  width: 100%;
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(3 * var(--u)) calc(4 * var(--u));
+  border: 0;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--u) rgba(16, 20, 31, 0.45);
+}
+.gl-film:hover,
+.gl-film:focus-visible {
+  background: #fff;
+  outline: none;
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink),
+    0 0 0 calc(3 * var(--u)) var(--c-brass),
+    calc(2 * var(--u)) calc(2 * var(--u)) 0 calc(3 * var(--u)) rgba(16, 20, 31, 0.45);
+}
+
+.gl-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  margin-bottom: calc(2 * var(--u));
+  overflow: hidden;
+  background: #090a14;
+}
+.gl-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+.gl-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%, -50%);
+  background: var(--c-brass);
+  color: var(--c-ink);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  opacity: 0.92;
+}
+.gl-film:hover .gl-play,
+.gl-film:focus-visible .gl-play {
+  background: var(--c-brass-hi);
+  opacity: 1;
+}
+.gl-len {
+  position: absolute;
+  right: calc(2 * var(--u));
+  bottom: calc(2 * var(--u));
+  padding: 0 calc(2 * var(--u));
+  background: rgba(9, 10, 20, 0.8);
+  color: var(--c-paper);
+  font: 400 var(--fs-small) / 16px var(--f-read);
+}
+
+.gl-place {
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-wood);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.gl-title {
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.gl-to {
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-steel-2);
+}
+
+@media (max-width: 480px) {
+  .gl-films {
+    grid-template-columns: 1fr;
+  }
+  .gl-lead {
+    font-size: var(--fs-small);
+    line-height: 16px;
+  }
+}

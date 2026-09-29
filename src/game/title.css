@@ -40,6 +40,10 @@
   position: absolute;
   top: max(8px, env(safe-area-inset-top));
   right: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ---------- название ---------- */
