@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -61,7 +61,10 @@ describe('живой прогресс комнаты', () => {
     expect((await board(id, key)).live![0].needsHelp).toBe(true)
     await send(id, { seq: 7, attemptId: 'attempt002' })
     await send(id, { seq: 6, attemptId: 'attempt001', tension: 90 })
-    expect((await board(id, key)).live![0].needsHelp).toBe(false)
+    const live = (await board(id, key)).live!
+    expect(live).toHaveLength(2)
+    expect(live.find((p) => p.tension === 20)?.needsHelp).toBe(false)
+    expect(live.find((p) => p.tension === 70)?.needsHelp).toBe(true) // старый снимок A не затёр её прогресс
   })
   it('помечает молчание и удаляет истёкшие пульсы по TTL', async () => {
     const { id, key } = await room()
@@ -85,6 +88,50 @@ describe('живой прогресс комнаты', () => {
       expect((await send(id, { seq: 2 })).status).toBe(200)
     } finally { ROOM_LIMITS.players = was }
   })
+  it('две вкладки одного браузера независимо пульсируют и записывают результаты после закрытия комнаты', async () => {
+    const { id, key } = await room()
+    expect((await send(id)).status).toBe(200)
+    expect((await send(id, { attemptId: 'attempt002', seq: 1 })).status).toBe(200)
+    expect((await send(id, { seq: 2, turn: 1, phase: 'playing' })).status).toBe(200)
+    expect((await board(id, key)).live).toHaveLength(2)
+    await close(id, key)
+    // Допуск обеих вкладок сохраняется даже после перезапуска сервера.
+    const restored = makeApp()
+    const r = await app.request('/api/turn', post({ scenarioId: 'tara', history: [], playerText: 'Я ухожу.', walkAway: true }))
+    const { record } = await r.json() as { record: TurnRecord }
+    for (const attemptId of ['attempt002', 'attempt001']) {
+      const body = { clientId: pulse.clientId, attemptId, name: pulse.name, history: [record] }
+      expect((await restored.request(`/api/rooms/${id}/results`, post(body))).status).toBe(200)
+      expect((await restored.request(`/api/rooms/${id}/results`, post(body))).status).toBe(200)
+    }
+    const b = await board(id, key)
+    expect(b.players).toMatchObject([{ name: 'Аня', attempts: 2 }])
+    expect(b.live).toHaveLength(0)
+  })
+
+  it('читает допуск из старого формата хранения по clientId', async () => {
+    const { id, key } = await room()
+    await send(id)
+    const path = join(dir, `${id}.json`)
+    const stored = JSON.parse(readFileSync(path, 'utf8'))
+    stored.pulses = { [pulse.clientId]: Object.values(stored.pulses)[0] }
+    writeFileSync(path, JSON.stringify(stored))
+    await close(id, key)
+    expect((await send(id, { seq: 2, turn: 1 })).status).toBe(200)
+    expect((await board(id, key)).live).toMatchObject([{ turn: 1 }])
+  })
+
+  it('несколько вкладок одного браузера занимают одно место в лимите участников', async () => {
+    const { id } = await room()
+    const was = ROOM_LIMITS.players
+    ROOM_LIMITS.players = 1
+    try {
+      for (const attemptId of ['attempt001', 'attempt002', 'attempt003'])
+        expect((await send(id, { attemptId })).status).toBe(200)
+      expect((await send(id, { clientId: 'client002' })).status).toBe(409)
+    } finally { ROOM_LIMITS.players = was }
+  })
+
   it('закрывает новые попытки с секретом, разрешает закончить начатую и записывает ровно один раз', async () => {
     const { id, key } = await room()
     await send(id)
