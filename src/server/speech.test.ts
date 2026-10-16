@@ -259,6 +259,33 @@ describe('внешний голос (TTS_PROVIDER)', () => {
     })
   })
 
+  it('основной внешний TTS работает без ключа Яндекса, STT и явный SpeechKit выключены', async () => {
+    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'eleven-v4-turbo', YANDEX_API_KEY: '' }, async () => {
+      const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+      const speech = makeSpeech({ key: '', fetch: f as typeof fetch })
+      const app = createApp(offline, undefined, speech)
+      const health = await (await app.request('/api/health')).json() as { speech: object }
+      expect(health.speech).toEqual({ tts: true, stt: false })
+      const r = await tts(app, { text: `Без Яндекса ${Math.random()}`, voice: 'sergey', who: 'palych' })
+      expect(r.status).toBe(200)
+      expect(r.headers.get('x-tts-api')).toBe('aitunnel')
+      expect(String(f.mock.calls[0]?.[0])).toContain('aitunnel')
+      expect((await tts(app, { text: 'Явный SpeechKit', voice: 'sergey', api: 'v3' })).status).toBe(503)
+      expect((await app.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })).status).toBe(503)
+      expect(f).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('при сбое внешнего TTS не вызывает SpeechKit без ключа', async () => {
+    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait' }, async () => {
+      const f = vi.fn(async (_url: string | URL | Request) => new Response('{}', { status: 500 }))
+      const app = createApp(offline, undefined, makeSpeech({ key: '', fetch: f as typeof fetch }))
+      expect((await tts(app, { text: `Сбой внешнего ${Math.random()}`, voice: 'sergey' })).status).toBe(503)
+      expect(f).toHaveBeenCalledTimes(1)
+      expect(String(f.mock.calls[0]?.[0])).toContain('aitunnel')
+    })
+  })
+
   it('без ключа TTS_PROVIDER ничего не меняет', async () => {
     await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: '' }, async () => {
       const f = fakeYandex()

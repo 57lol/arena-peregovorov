@@ -94,7 +94,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     return r
   }
 
-  const status = () => ({ tts: !!key && !denied.tts, stt: !!key && !denied.stt })
+  const yandexTtsReady = () => !!key && !denied.tts
+  const primaryTts = () => env.SPEECH === 'off' ? undefined : mainTts(env)
+  const status = () => ({ tts: yandexTtsReady() || !!primaryTts(), stt: !!key && !denied.stt })
 
   const app = new Hono()
   // синтезы, которые идут прямо сейчас: файл кэша → звук
@@ -159,13 +161,13 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   app.post('/api/tts', async (c) => {
     const b = TtsBody.parse(await c.req.json())
     const yandexOnly = b.provider === 'yandex'
-    const ready = yandexOnly ? status().tts : ttsStatus(env)[b.provider].ready
-    if (!ready) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
+    const main = yandexOnly && b.api === undefined && b.natural === undefined && b.live === undefined ? primaryTts() : undefined
+    const ready = yandexOnly ? yandexTtsReady() : ttsStatus(env)[b.provider].ready
+    if (!ready && !main) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
     // основной внешний голос (TTS_PROVIDER): игра шлёт голос SpeechKit и лицо, сервер берёт голос этого лица у провайдера.
     // Лаборатория и ?voice=classic (явные api/natural/live) его не трогают. Не вышло — дальше обычный SpeechKit.
-    const main = mainTts(env)
-    if (main && b.provider === 'yandex' && b.api === undefined && b.natural === undefined && b.live === undefined && Date.now() > outage.until) {
+    if (main && Date.now() > outage.until) {
       const r = await external(c, main, b).catch((e: Error) => {
         if (++outage.fails >= 3) {
           outage.until = Date.now() + 5 * 60_000
@@ -179,6 +181,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         return r
       }
     }
+    if (yandexOnly && !yandexTtsReady()) return c.json({ error: 'Озвучка временно недоступна' }, 503)
     const mode = naturalMode(env)
     const natural = yandexOnly && (b.natural ?? (mode === 'on' || mode === 'live'))
     const voice = yandexOnly && (b.live ?? liveMode(mode)) ? liveVoiceFor(b.voice) : b.voice
