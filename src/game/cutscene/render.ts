@@ -3,7 +3,7 @@
 
 import { MAP } from '../map.gen'
 import { BUS, BUS_IN, BUS_POV, DIR, H, PHONE, SHEETS, SPOTS, type Sheet } from './art'
-import { dither, lut, recolor, rgb } from './mood'
+import { dither, recolor, rgb } from './mood'
 import { glide, sample, swiping, travelled, walkFrame } from './timeline'
 import type { Actor, Mood, SetId, Shot } from './types'
 
@@ -22,8 +22,6 @@ interface Layer {
   sky?: boolean
   /** после слоя — туман такой плотности (только утром) */
   fog?: number
-  /** не картинка, а заливка цветом палитры от dy + H до низа кадра (низ окна под лентами пейзажа) */
-  fill?: number
   /** закатные пятна в салоне: их пересекают тени столбов за окном */
   sun?: boolean
 }
@@ -54,13 +52,15 @@ const town = (name: 'street' | 'oez'): Layer[] => [
 
 export const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'> | 'pov', SetDef> = {
   road: { w: Infinity, back: outside() },
-  /** салон от первого лица: за телефоном в автобусе. Ближе всего за стеклом — столбы у обочины, быстрее трассы */
+  /** салон от первого лица: за телефоном в автобусе. Окно боковое: дальше — медленнее, кусты у обочины — быстрее всех */
   pov: {
     w: BUS_POV.w,
     back: [
-      { src: '', par: 0, fill: BUS_POV.ground, dy: BUS_POV.view },
-      ...outside(BUS_POV.view),
-      { src: BUS_POV.pass, par: BUS_POV.par, tile: true, drive: true, dy: BUS_POV.view },
+      { src: 'sky', par: 0, sky: true, dy: BUS_POV.view },
+      { src: 'road_far.png', par: 0.12, tile: true, drive: true, dy: BUS_POV.view },
+      { src: 'road_river.png', par: 0.3, tile: true, drive: true, dy: BUS_POV.view },
+      { src: BUS_POV.field, par: BUS_POV.fieldPar, tile: true, drive: true },
+      { src: BUS_POV.near, par: BUS_POV.nearPar, tile: true, drive: true },
       { src: BUS_POV.src, par: 1 },
       { src: BUS_POV.sun, par: 1, sun: true },
     ],
@@ -81,7 +81,7 @@ export function imagesOf(shot: Shot): string[] {
   if (set === 'map') out.push('/assets/map/elabuga.png')
   else if (set !== 'black') {
     const def = SETS[set]
-    for (const l of [...def.back, ...(def.front ?? [])]) if (l.fill === undefined) out.push(l.sky ? `${DIR}sky_${mood}.png` : DIR + l.src)
+    for (const l of [...def.back, ...(def.front ?? [])]) out.push(l.sky ? `${DIR}sky_${mood}.png` : DIR + l.src)
     if (set === 'bus') out.push(DIR + BUS_IN.sit.src)
   }
   if (shot.set === 'phone') out.push(DIR + PHONE.src)
@@ -176,7 +176,8 @@ export class Painter {
       const w = SETS[behind].w
       const want = behind === 'pov' ? w / 2 : sample(shot.cam, t, w / 2)
       const cam = Math.max(vw / 2, Math.min(w - vw / 2, want))
-      const sway = behind === 'pov' ? [Math.round(Math.sin(anim * 1.1)), bumpAt(anim)] : [0, 0]
+      // качка только вверх-вниз на точку; под сдвинутым кадром — тот же кадр без сдвига, пустого края не бывает
+      const sway = behind === 'pov' ? [0, bumpAt(anim)] : [0, 0]
       const world: Shot = { ...shot, set: behind === 'pov' ? 'bus' : behind, actors: shot.actors ?? [] }
       this.dim = behind !== 'pov'
       // сдвинутый кадр оголил бы край — под ним тот же кадр без сдвига
@@ -236,13 +237,8 @@ export class Painter {
     const layer = (l: Layer) => {
       if (l.lights && mood === 'day') return
       const dy = l.dy ?? 0
-      if (l.fill !== undefined) {
-        ctx.fillStyle = rgb(lut(mood, this.dim)[l.fill])
-        ctx.fillRect(0, H + dy, vw, -dy)
-        return
-      }
       if (l.sun) {
-        if (mood === 'dusk' || mood === 'day') this.sunlight(DIR + l.src, mood, run * BUS_POV.par, left)
+        if (mood === 'dusk' || mood === 'day') this.sunlight(DIR + l.src, mood, run, left)
         return
       }
       if (l.sky) {
@@ -270,24 +266,29 @@ export class Painter {
   }
 
   /**
-   * Закатные пятна на спинках: слой рисуется полосами по 3 строки, а тени столбов у обочины (те же, что за окном,
-   * лента pov_pass) вырезают из них косые просветы — тень пробегает по салону, когда столб проносится мимо окна.
+   * Закатные пятна на спинках: слой рисуется полосами по 3 строки, а тени кустов у обочины (те же, что за окном,
+   * лента pov_near) вырезают из них косые просветы — тень пробегает по салону, когда куст проносится мимо окна.
    */
   private sunlight(src: string, mood: Mood, run: number, left: number) {
     const im = this.img(src, mood)
     if (!im) return
     const { ctx, vw } = this
-    const off = left * BUS_POV.par + run
-    const shades: number[] = []
-    for (const p of POLES) for (let k = -1; k <= 1; k++) shades.push(p + k * 640 - off)
+    const off = (left + run) * BUS_POV.nearPar
+    const W = BUS_POV.nearW
+    // тень куста: [левый край, ширина] на ленте у обочины, ленту повторяем, чтобы тени шли без конца
+    const shades: [number, number][] = []
+    for (const [cx, w] of BUS_POV.bushes) for (let k = -1; k <= 1; k++) shades.push([cx - w + k * W - (off % W), w * 2])
     for (let y = 0; y < H; y += 3) {
-      // тень падает наискось и отстаёт от столба: чем ниже, тем правее
-      const cuts = shades.map((x) => Math.round(x * 0.9 + 150 + y * 0.55)).filter((x) => x > -12 && x < vw).sort((a, b) => a - b)
+      // тень падает наискось и отстаёт от куста: чем ниже, тем правее
+      const cuts = shades
+        .map(([x, w]) => [Math.round(x * 0.5 + 150 + y * 0.55), Math.round(w * 0.5)] as const)
+        .filter(([x, w]) => x + w > 0 && x < vw)
+        .sort((a, b) => a[0] - b[0])
       let x0 = 0
-      for (const c of [...cuts, vw + 20]) {
+      for (const [c, w] of [...cuts, [vw + 20, 0] as const]) {
         const x1 = Math.min(vw, c)
         if (x1 > x0) ctx.drawImage(im, x0 + left, y, x1 - x0, 3, x0, y, x1 - x0, 3)
-        x0 = Math.max(x0, c + 9)
+        x0 = Math.max(x0, c + w)
       }
     }
   }
@@ -410,9 +411,6 @@ const bumpAt = (t: number) => (Math.sin(t * 7.3) > 0.85 ? 1 : 0)
 
 /** Телефон поднимается к глазам в начале плана, секунды. */
 const PHONE_RISE = 0.45
-
-/** Столбы на ленте pov_pass.png (tools/art/cutscene_pov.py, build_pass): x в ленте 640 точек. */
-const POLES = [40, 250, 470]
 
 /** Стая: x, y, скорость, фаза взмаха. */
 const FLOCK = [

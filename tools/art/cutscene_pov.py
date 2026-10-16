@@ -15,9 +15,13 @@ from PIL import Image, ImageDraw
 from room3d import FONT, T, Tex, darker, lighter
 
 BW, BH = 320, 180
-VIEW = -40            # сдвиг пейзажа за окном вверх: горизонт — на уровне глаз
-PASS_PAR = 2.2        # ближние столбы у обочины едут быстрее трассы
-GROUND_FILL = 7       # чем залить низ окна под лентами пейзажа (трава)
+VIEW = -48            # сдвиг дальних лент (небо, берег, Кама) вверх: горизонт — на уровне глаз
+# боковое окно: смотрим перпендикулярно ходу, дороги не видно. Ленты пейзажа и их параллакс (доля скорости автобуса)
+FAR_PAR, RIVER_PAR = 0.12, 0.3   # дальний берег с заводами ОЭЗ и Кама
+FIELD_PAR = 0.8       # поля и опушка на нашем берегу
+NEAR_PAR = 3.2        # кусты и трава у самой обочины — проносятся смазанно
+NEAR_BUSHES = [(90, 30), (420, 18), (700, 36)]   # центр и полуширина кустов на ленте 960
+WIN = (8, 22, 146, 116)                       # стекло ближнего окна в кадре, x0, y0, x1, y1 включительно
 rng = np.random.default_rng(1610)    # свой генератор: остальные листы не меняются
 
 SKIN, SKIN_S, SKIN_D, SKIN_L = 16, 15, 14, 17
@@ -194,7 +198,8 @@ def build_bus_pov():
     s.line((WALL_L + 0.01, -0.84, -1), (WALL_L + 0.01, -0.84, FRONT), 41)
     for z0, z1 in PANES:
         s.quad(wall_l(z0 - 0.04, z1 + 0.04, SILL - 0.03, WTOP + 0.03), 38)           # уплотнитель
-        s.quad(wall_l(z0, z1, SILL, WTOP), T)
+        s.quad(wall_l(z0, z1, SILL, WTOP), 29)                                       # дальние стёкла вскользь — закатный отблеск
+        s.quad(wall_l(z0, z1, SILL, (SILL + WTOP) / 2), 28)
         s.quad(wall_l(z0, z1, WTOP - 0.17, WTOP - 0.14), 39)                          # перекладина форточки
         s.line((WALL_L, WTOP - 0.14, z0), (WALL_L, WTOP - 0.14, z1), 41)
         # блики на стекле — косые полоски, не едут вместе с пейзажем
@@ -252,6 +257,8 @@ def build_bus_pov():
     # поручень над проходом справа
     s.line((1.0, 0.68, -1), (1.0, 0.68, FRONT), 43)
     s.line((1.0, 0.665, -1), (1.0, 0.665, FRONT), 40)
+    window_panel(t)
+    s.kind[:, :WIN[2] + 11] = 0
     # --- свои колени в джинсах внизу
     xs, ys = t.grid()
     knee = ((xs - 150) / 70) ** 2 + ((ys - 204) / 32) ** 2 <= 1
@@ -432,15 +439,116 @@ def rounded(t, x0, y0, x1, y1, r, c):
             t.ellipse(cx, cy, r + 0.3, r + 0.3, c)
 
 
-def build_pass():
-    """Ближний план за окном: столбы у самой обочины проносятся быстро (параллакс 2.2). Лента 640×180."""
+def window_panel(t):
+    """Ближнее окно слева — как его видит сидящий рядом: прямоугольник стекла в резиновом уплотнителе, форточка,
+    шторка у края, внизу подоконник и стенка с решёткой отопителя, сверху кромка багажной полки. Пейзаж — только
+    в стекле (прозрачные пиксели), ни одной диагонали: автобус едет прямо, окно смотрит вбок."""
+    x0, y0, x1, y1 = WIN
+    R = x1 + 10                                     # правый край панели — простенок
+    t.rect(0, 0, R, BH - 1, 41)
+    # кромка полки и стенка над окном
+    t.rect(0, 0, R, 8, 39)
+    t.rect(0, 9, R, 11, 40)
+    t.rect(0, 11, R, 11, 43)
+    t.rect(0, 15, R, 15, 44)                        # карниз шторки
+    # уплотнитель и стекло со скруглёнными углами
+    rounded(t, x0 - 4, y0 - 4, x1 + 4, y1 + 4, 5, 37)
+    rounded(t, x0 - 3, y0 - 3, x1 + 3, y1 + 3, 4, 38)
+    t.rect(x0 - 1, y0 - 3, x1 - 1, y0 - 3, 39)
+    rounded(t, x0, y0, x1, y1, 3, T)
+    # форточка: верхняя створка с перекладиной и стыком
+    t.rect(x0, y0 + 17, x1, y0 + 19, 38)
+    t.rect(x0, y0 + 17, x1, y0 + 17, 40)
+    t.rect(x0 + 66, y0, x0 + 67, y0 + 17, 38)
+    t.rect(x0 + 60, y0 + 15, x0 + 72, y0 + 16, 40)    # защёлка
+    # блики на стекле: короткие косые полосы в углах — стоят на месте, пока пейзаж едет
+    for bx, by, n in ((x0 + 8, y0 + 24, 9), (x0 + 12, y0 + 24, 5), (x1 - 30, y1 - 18, 7)):
+        for j in range(n):
+            t.px(bx + j, by + j, 44 if j % 3 else T)
+    for j in range(10):
+        t.px(x0 + 70 + j, y0 + 2 + j // 2, 44 if j % 3 else T)
+    # подоконник и стенка под окном
+    t.rect(0, y1 + 5, R, y1 + 9, 43)
+    t.rect(0, y1 + 5, R, y1 + 5, 44)
+    t.rect(0, y1 + 10, R, y1 + 11, 39)
+    t.rect(0, y1 + 12, R, BH - 1, 40)
+    for yy in range(y1 + 22, BH - 8, 5):              # решётка отопителя
+        t.rect(6, yy, R - 6, yy + 1, 39)
+        t.rect(6, yy + 2, R - 6, yy + 2, 41)
+    t.rect(0, BH - 6, R, BH - 1, 39)
+    # простенок справа: металлическая стойка
+    t.rect(x1 + 5, 0, R, BH - 1, 40)
+    t.rect(x1 + 5, 0, x1 + 5, BH - 1, 42)
+    t.rect(R, 0, R, BH - 1, 38)
+    # шторки, собранные у краёв окна: складки, подхват, кисточка внизу
+    for cx, w in ((0, 13), (x1 - 9, 15)):
+        top, bot = 14, y1 - 22
+        t.rect(cx, top, cx + w, bot, CURT)
+        for k in range(cx + 1, cx + w, 3):
+            t.rect(k, top, k, bot, CURT_S)
+        t.rect(cx + 2, top, cx + 2, bot, CURT_L)
+        t.rect(cx, top, cx + w, top + 1, CURT_L)
+        t.rect(cx - 1, 60, cx + w + 1, 62, 23)       # подхват
+        t.rect(cx - 1, 60, cx + w + 1, 60, 22)
+        t.poly([(cx, bot), (cx + w, bot), (cx + w - 2, bot + 9), (cx + 2, bot + 9)], CURT_S)
+        t.rect(cx + 2, bot + 9, cx + w - 2, bot + 9, CURT)
+
+
+def build_field():
+    """Наш берег за обочиной: поле в стерне, перелески и опушка; верх рощ заслоняет Каму. Лента 640×180, y — в кадре."""
     t = Tex(640, BH)
-    for x0 in (40, 250, 470):
-        t.rect(x0, 0, x0 + 4, 156, 39)
-        t.rect(x0, 0, x0, 156, 41)
-        t.rect(x0 + 4, 0, x0 + 4, 156, 38)
-        t.rect(x0 - 8, 60, x0 + 12, 62, 38)                          # перекладина
-        t.rect(x0 - 8, 60, x0 + 12, 60, 40)
+    xs, ys = t.grid()
+    top = 89 + 2 * np.sin(xs / 37) + np.sin(xs / 11)
+    field = ys >= top
+    t.a[field] = 9
+    t.a[field & (ys >= top + 6)] = 8
+    t.a[field & (rng.random(t.a.shape) < 0.05)] = 21          # стерня
+    for k in range(0, 640, 9):                                  # борозды
+        t.a[field & (np.abs(ys - (top + 3 + (k % 27) / 3)) < 0.5) & (xs > k) & (xs < k + 6)] = 8
+    # перелески и опушка: ряд крон-шапок, освещены сверху слева, редкие жёлтые и рыжие пятна осени
+    for cx, w in ((40, 46), (150, 20), (250, 70), (390, 28), (470, 56), (590, 32)):
+        for x in range(int(cx - w), int(cx + w), 5):
+            r = rng.uniform(3.5, 6.5) * (1 - 0.5 * abs(x - cx) / w)
+            cy = 89 - r * 1.2 - rng.uniform(0, 3) * (1 - abs(x - cx) / w)
+            crown = ((xs - x) / r) ** 2 + ((ys - cy) / r) ** 2 <= 1
+            t.a[crown | ((np.abs(xs - x) < r) & (ys > cy) & (ys < top + 1))] = 6
+            lit = ((xs - x + r * 0.35) / (r * 0.7)) ** 2 + ((ys - cy + r * 0.35) / (r * 0.6)) ** 2 <= 1
+            t.a[lit] = 7
+            t.a[lit & (rng.random(t.a.shape) < 0.12)] = 22
+            t.a[crown & (rng.random(t.a.shape) < 0.04)] = 28
+    return t
+
+
+def build_near():
+    """У самой обочины: трава снизу и кусты, которые проносятся быстро — смазаны по ходу движения длинными
+    горизонтальными мазками. Лента 960×180, y — в кадре (низ окна — 116)."""
+    t = Tex(960, BH)
+    xs, ys = t.grid()
+    # трава обочины тянется снизу, местами выше
+    grass = ys >= 109 + 3 * np.sin(xs / 41) + 1.5 * np.sin(xs / 9)
+    t.a[grass] = 7
+    t.a[grass & (ys > 114)] = 6
+    for y in range(100, 122):
+        for x in range(0, 960, 1):
+            if rng.random() < 0.03 and grass[min(y + 2, BH - 1), x]:
+                n = int(rng.integers(12, 30))
+                t.rect(x, y, x + n, y, int(rng.choice([8, 9, 21])))
+    for cx, w in NEAR_BUSHES:
+        h = 10 + w // 3
+        for y in range(116 - h, 117):
+            u = (116 - y) / h
+            half = w * math.sqrt(max(0.0, 1 - u * u)) * (1.4 - 0.4 * u)
+            x0 = cx - half
+            x = x0
+            while x < cx + half:
+                n = int(rng.integers(14, 34))
+                c = int(rng.choice([6, 6, 7, 7, 8, 21, 22] if u > 0.35 else [6, 6, 7, 38]))
+                t.rect(x, y, min(cx + half, x + n), y, c)
+                x += n + (0 if rng.random() < 0.7 else int(rng.integers(1, 4)))
+            # смазанный хвост против хода (вправо): редкие мазки
+            for _ in range(2):
+                tx = cx + half + rng.integers(0, 20)
+                t.rect(tx, y, tx + rng.integers(3, 10), y, 6)
     return t
 
 
@@ -555,7 +663,7 @@ def outline_mask(t, c):
 # ---------------------------------------------------------------------------------------------------
 # превью: салон вечером со всеми слоями и телефоном — как в кадре (тонировка — та же, что в mood.ts)
 # ---------------------------------------------------------------------------------------------------
-def dusk_preview(out_path, assets, pov, sun, pas, phone, view, shift=0):
+def dusk_preview(out_path, assets, pov, sun, field, near, phone, view, shift=0):
     from apollo import RGB
     pal = np.array(RGB, float) / 255
 
@@ -579,12 +687,14 @@ def dusk_preview(out_path, assets, pov, sun, pas, phone, view, shift=0):
 
     canvas = Image.new('RGBA', (BW, BH), (9, 10, 20, 255))
     canvas.alpha_composite(Image.open(f'{assets}/sky_dusk.png').convert('RGBA'), (0, view))
-    canvas.paste(tuple(RGB[lut[7]]) + (255,), (0, BH + view, BW, BH))
-    for name, par, img in (('road_far', 0.18, None), ('road_river', 0.42, None), ('road_near', 1, None), (None, 2.2, pas)):
+    for name, par, img, dy in (('road_far', FAR_PAR, None, view), ('road_river', RIVER_PAR, None, view),
+                               (None, FIELD_PAR, field, 0), (None, NEAR_PAR, near, 0)):
         im = tone(Image.open(f'{assets}/{name}.png')) if name else tone(img.image())
+        layer = Image.new('RGBA', (BW, BH))
         off = int(shift * par) % im.width
         for x in range(-off, BW, im.width):
-            canvas.alpha_composite(im, (x, view) if x >= 0 else (0, view), (0, 0) if x >= 0 else (-x, 0, im.width, BH))
+            layer.alpha_composite(im, (max(0, x), max(0, dy)), (max(0, -x), max(0, -dy), im.width, BH))
+        canvas.alpha_composite(layer)
     canvas.alpha_composite(tone(pov.image()))
     canvas.alpha_composite(tone(sun.image()))
     if phone is not None:

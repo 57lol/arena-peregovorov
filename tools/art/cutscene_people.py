@@ -6,7 +6,7 @@
 ровно с шагом, поэтому при движении тела на CYCLE/8 точек за кадр ноги не скользят.
 
 Запуск: ~/Arena-materials/.venv/bin/python tools/art/cutscene_people.py
-Пишет public/assets/cutscene/{newbie_walk,newbie_case,newbie_box,newbie_sit,bus_in,bus_fg,bus_pov,bus_pov_sun,pov_pass,phone,timur}.png,
+Пишет public/assets/cutscene/{newbie_walk,newbie_case,newbie_box,newbie_sit,bus_in,bus_fg,bus_pov,bus_pov_sun,pov_field,pov_near,phone,timur}.png,
 src/game/cutscene/people.gen.ts и превью tools/art/out/cs_*.
 """
 import json
@@ -949,7 +949,8 @@ def main():
     fg = build_bus_fg()
     phone = [pov_art.build_phone(0), pov_art.build_phone(1)]
     pov, sun = pov_art.build_bus_pov()
-    passing = pov_art.build_pass()
+    field = pov_art.build_field()
+    near = pov_art.build_near()
     tim = [timur(0), timur(1)]
     save(sheet(walk), 'newbie_walk.png')
     save(sheet(case), 'newbie_case.png')
@@ -960,8 +961,9 @@ def main():
     save(sheet(phone), 'phone.png')
     save(pov, 'bus_pov.png')
     save(sun, 'bus_pov_sun.png')
-    save(passing, 'pov_pass.png')
-    pov_art.dusk_preview(os.path.join(PREV, 'cs_bus_pov_x4.png'), OUT, pov, sun, passing, phone[0], pov_art.VIEW)
+    save(field, 'pov_field.png')
+    save(near, 'pov_near.png')
+    pov_art.dusk_preview(os.path.join(PREV, 'cs_bus_pov_x4.png'), OUT, pov, sun, field, near, phone[0], pov_art.VIEW)
     save(sheet(tim), 'timur.png')
     preview_strip(walk, 'cs_people_walk_x4.png')
     preview_strip(case, 'cs_people_case_x4.png')
@@ -986,8 +988,9 @@ def main():
         'busIn': {'src': '/assets/cutscene/bus_in.png', 'fg': '/assets/cutscene/bus_fg.png', 'w': BW, 'h': BH,
                   'windows': [[x0, WIN_Y0 + 2, x1, WIN_Y1 - 2] for x0, x1 in WINDOWS], 'floor': FLOOR},
         'busPov': {'src': '/assets/cutscene/bus_pov.png', 'sun': '/assets/cutscene/bus_pov_sun.png',
-                   'pass': '/assets/cutscene/pov_pass.png', 'w': BW, 'h': BH, 'view': pov_art.VIEW,
-                   'passPar': pov_art.PASS_PAR, 'ground': pov_art.GROUND_FILL},
+                   'field': '/assets/cutscene/pov_field.png', 'near': '/assets/cutscene/pov_near.png',
+                   'w': BW, 'h': BH, 'view': pov_art.VIEW, 'fieldPar': pov_art.FIELD_PAR, 'nearPar': pov_art.NEAR_PAR,
+                   'bushes': pov_art.NEAR_BUSHES, 'nearW': 960},
         'phone': {'src': '/assets/cutscene/phone.png', 'w': PW, 'h': PH, 'frames': 2, 'rest': 0, 'swipe': 1,
                   'screen': list(SCREEN)},
         'timur': {'src': '/assets/cutscene/timur.png', 'w': FW, 'h': FH, 'frames': 2, 'idle': 0, 'sip': 1,

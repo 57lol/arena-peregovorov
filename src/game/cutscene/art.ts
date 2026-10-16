@@ -71,18 +71,22 @@ export const BUS_IN = {
 }
 
 /**
- * Салон от первого лица (телефон в руках в автобусе): сидим у левого окна, за стеклом та же трасса, что снаружи.
- * view — сдвиг пейзажа вверх (горизонт на уровне глаз), pass — столбы у обочины, едут быстрее трассы (par),
- * sun — закатные пятна из окон на спинках: их режут тени столбов; ground — чем залить низ окна под пейзажем.
+ * Салон от первого лица (телефон в руках в автобусе): сидим у левого окна, окно смотрит вбок — дороги в нём нет.
+ * В стекле: небо, дальний берег с заводами и Кама (ленты трассы, сдвинутые на view вверх), наш берег с полями и
+ * опушкой (field) и кусты с травой у самой обочины, смазанные скоростью (near). sun — закатные пятна на спинках:
+ * их пересекают тени тех же кустов.
  */
 export const BUS_POV = {
   src: file(P.busPov.src),
   sun: file(P.busPov.sun),
-  pass: file(P.busPov.pass),
-  par: P.busPov.passPar,
+  field: file(P.busPov.field),
+  near: file(P.busPov.near),
+  fieldPar: P.busPov.fieldPar,
+  nearPar: P.busPov.nearPar,
+  bushes: P.busPov.bushes,
+  nearW: P.busPov.nearW,
   w: P.busPov.w,
   view: P.busPov.view,
-  ground: P.busPov.ground,
 }
 
 export const PHONE = {
