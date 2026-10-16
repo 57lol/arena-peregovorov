@@ -209,13 +209,13 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }, [])
 
-  const admit = async (c: Case, id: string) => {
-    if (!room || room.caseId !== c.scenario.id) return true
+  const admit = async (c: Case, id: string, activeRoom = room) => {
+    if (!activeRoom || activeRoom.caseId !== c.scenario.id) return true
     const state = initialState(c.scenario)
     setAdmitting(true)
     setRoomError(null)
     try {
-      await sendPulse(room.id, { clientId: player.clientId, name: player.name.trim() || 'Без имени', attemptId: id,
+      await sendPulse(activeRoom.id, { clientId: player.clientId, name: player.name.trim() || 'Без имени', attemptId: id,
         seq: nextPulseSeq(), turn: 0, total: c.scenario.turnLimit, trust: state.trust, tension: state.tension, phase: 'brief' })
       return true
     } catch (e) {
@@ -242,9 +242,13 @@ export default function App() {
     return () => window.removeEventListener('popstate', back)
   })
   const open = async (c: Case, origin: Origin = 'setup') => {
-    if (admitting) return
+    if (admitting) return false
     const id = newAttemptId()
-    if (!(await admit(c, id))) return
+    // Сюжет всегда самостоятелен, в том числе при вызове из старого callback катсцены.
+    const activeRoom = origin === 'story' ? null : room
+    if (!(await admit(c, id, activeRoom))) return false
+    setRoom(activeRoom)
+    setRoomError(null)
     clearLink()
     setInvited(false)
     setAttemptId(id)
@@ -253,6 +257,7 @@ export default function App() {
     setHistory([])
     setRedo('')
     go('brief')
+    return true
   }
 
   const start = async () => {
@@ -274,12 +279,25 @@ export default function App() {
   }
   // «Сюжет» с титула или из хаба: пролог и глава 1 для нового игрока, дальше — переход к следующей главе и её бриф.
   // Карты в «Сюжете» нет. Прогоны из scripts/ (navigator.webdriver) идут без катсцен на карту недели, как жюри
-  const story = () => run(cutscenesAllowed() ? storyStart(progress, seenCutscenes()) : { then: { to: 'map' } })
+  const story = () => {
+    clearLink()
+    setInvited(false)
+    setRoom(null)
+    setRoomError(null)
+    return run(cutscenesAllowed() ? storyStart(progress, seenCutscenes()) : { then: { to: 'map' } })
+  }
   // «Сюжет»: катсцена (если есть), потом бриф следующей главы; неделя пройдена — титул
-  const follow = (n: Next) => {
+  const follow = async (n: Next) => {
     const sc = n.to === 'brief' ? getScenario(n.caseId) : undefined
-    if (sc) open({ scenario: sc, fromLibrary: true }, 'story')
-    else go(n.to === 'map' ? 'map' : 'title')
+    if (sc) {
+      try {
+        if (await open({ scenario: sc, fromLibrary: true }, 'story')) return
+      } catch {
+        setNotice('Не получилось открыть главу. Попробуйте начать сюжет ещё раз.')
+      }
+      // Катсцена уже завершена и не может повторно вызвать onDone.
+      go('title')
+    } else go(n.to === 'map' ? 'map' : 'title')
   }
   const run = (step: Step) => {
     const cs = step.cutscene
@@ -288,7 +306,7 @@ export default function App() {
       id: cs.id,
       then: () => {
         markCutsceneSeen(cs.id)
-        follow(step.then)
+        return follow(step.then)
       },
     })
     go('cutscene')

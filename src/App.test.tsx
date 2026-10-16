@@ -85,6 +85,7 @@ function props(name: string, node: ReactNode = tree): Record<string, unknown> {
     for (const child of node) { const found = props(name, child); if (Object.keys(found).length) return found }
   }
   if (isValidElement<Record<string, unknown>>(node)) {
+    if (name === 'CutscenePlayer' && 'onDone' in node.props) return node.props
     if (typeof node.type === 'function' && node.type.name === name) return node.props
     return props(name, (node.props.children ?? null) as ReactNode)
   }
@@ -107,6 +108,7 @@ beforeEach(async () => {
   vi.spyOn(performance, 'getEntriesByType').mockReturnValue([{ type: 'reload' } as unknown as PerformanceEntry])
   const events = new EventTarget()
   vi.stubGlobal('window', Object.assign(events, { history: { pushState: vi.fn(), replaceState: vi.fn() }, scrollTo: vi.fn() }))
+  vi.stubGlobal('history', window.history)
   sessionStorage.setItem(SESSION, JSON.stringify({
     screen: 'report', current: { scenario, fromLibrary: true }, history,
     room: { id: 'room0001', caseId: 'dorm', name: 'Команда' },
@@ -157,5 +159,47 @@ describe('повтор отправленной командной попытк�
     await act('Play', 'setHistory', history)
     await act('Play', 'onFinish')
     expect(props('RoomReceipt', props('Debrief').receipt as ReactNode)).toMatchObject({ attemptId: id, sent: false })
+  })
+})
+
+describe('самостоятельный сюжет после командной тренировки', () => {
+  it('после меню и пролога открывает общагу без допуска в закрытую комнату', async () => {
+    const { sendPulse } = await import('./game/rooms')
+    vi.mocked(sendPulse).mockRejectedValue(new Error('Тренировка завершена'))
+    await act('Debrief', 'onOther')
+    await act('Setup', 'onBack')
+    await act('Title', 'onPlay')
+    expect(savedState().room).toBeNull()
+    expect(savedState().screen).toBe('cutscene')
+    await act('CutscenePlayer', 'onDone')
+    expect(savedState().screen).toBe('brief')
+    expect(savedState().room).toBeNull()
+    await act('Brief', 'onStart')
+    expect(savedState().screen).toBe('play')
+    expect(sendPulse).not.toHaveBeenCalled()
+  })
+
+  it('прямой переход в сюжетный бриф также игнорирует старую комнату', async () => {
+    const flow = await import('./game/story/flow')
+    vi.spyOn(flow, 'storyStart').mockReturnValue({ then: { to: 'brief', caseId: 'dorm' } })
+    const { sendPulse } = await import('./game/rooms')
+    vi.mocked(sendPulse).mockRejectedValue(new Error('Тренировка завершена'))
+    await act('Debrief', 'onOther')
+    await act('Setup', 'onBack')
+    await act('Title', 'onPlay')
+    await vi.waitFor(() => { render(); expect(savedState().screen).toBe('brief') })
+    expect(savedState().room).toBeNull()
+    expect(sendPulse).not.toHaveBeenCalled()
+  })
+
+  it('ошибка асинхронного открытия главы возвращает в меню с сообщением', async () => {
+    await act('Debrief', 'onOther')
+    await act('Setup', 'onBack')
+    await act('Title', 'onPlay')
+    const random = vi.spyOn(crypto, 'getRandomValues').mockImplementation(() => { throw new Error('Не удалось открыть главу') })
+    await act('CutscenePlayer', 'onDone')
+    random.mockRestore()
+    expect(savedState().screen).toBe('title')
+    expect(props('Title').notice).toContain('Не получилось открыть главу')
   })
 })
