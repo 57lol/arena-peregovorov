@@ -148,6 +148,8 @@
 }
 .g-linkfield-row input {
   flex: 1;
+  /* без ширины поле тянет строку по своему size=20 — на телефоне «Скопировать» уезжал за экран */
+  width: 0;
   min-width: 0;
   min-height: 44px;
   box-sizing: border-box;
