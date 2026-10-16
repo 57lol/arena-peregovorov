@@ -13,6 +13,7 @@ import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
 import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
+import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
 
 export interface MeetingProps {
@@ -56,8 +57,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const [source, setSource] = useState<string>('')
   const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
   const voiceRef = useRef(voiceOn)
-  // скорость печати под озвучку — только для той реплики, что сейчас звучит
-  const [voiced, setVoiced] = useState<{ text: string; cps: number; n: number } | null>(null)
+  const [delivery, setDelivery] = useState<{ text: string; record: TurnRecord | undefined; cps?: number } | null>(null)
+  const playback = useRef<ReturnType<typeof startLinePlayback> | null>(null)
   const [micOff, setMicOff] = useState(false)
   const [lowSure, setLowSure] = useState(false)
   const [acceptSure, setAcceptSure] = useState(false)
@@ -78,43 +79,44 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const stamp: 'deal' | 'timeout' | 'walked' | null =
     state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
 
-  // реплика сменилась не озвучкой (перемотка, ожидание) — замолкаем; уход с экрана — тоже
+  // Один запуск на появление реплики, включая приветствие и перемотку.
+  // Готовность голоса и его выключатель не меняют идентичность уже напечатанной реплики.
   useEffect(() => {
-    if (voiced && voiced.text !== line) stopAudio()
-  }, [line, voiced])
+    stopAudio()
+    if (pending) {
+      setDelivery(null)
+      return
+    }
+    const current = startLinePlayback({
+      prepare: canVoice && voiceRef.current
+        ? () => prepareLine(line, voiceFor(sc), last?.emotion ?? 'neutral', LINE_WAIT_MS)
+        : undefined,
+      play: playPrepared,
+      start: (p) => setDelivery({ text: line, record: last, cps: p ? cpsFor(line, p.duration) : undefined }),
+      stop: stopAudio,
+      release: (p) => URL.revokeObjectURL(p.url),
+    })
+    playback.current = current
+    return () => {
+      current.cancel()
+      if (playback.current === current) playback.current = null
+    }
+    // canVoice/voiceOn обрабатываются отдельно: включение голоса не перезапускает печать.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line, last, pending, sc])
+  useEffect(() => {
+    if (!canVoice || !voiceOn) {
+      playback.current?.silent()
+      stopAudio()
+    }
+  }, [canVoice, voiceOn])
   useEffect(() => stopAudio, [])
+  const delivered = delivery?.text === line && delivery.record === last
+  const lineWaiting = !pending && voiceOn && canVoice && !delivered
+  const lineCps = delivered ? delivery.cps : undefined
+
   // штамп концовки и новое предложение собеседника на столе — звуком
   useMeetingSounds(stamp, JSON.stringify(state.lastOpponentOffer ?? null))
-  // голос включён с прошлого раза — собеседник здоровается вслух; после перемотки (встреча открылась
-  // заново с ходами) — повторяет свою последнюю реплику
-  const greeted = useRef(false)
-  useEffect(() => {
-    if (greeted.current || !canVoice || !voiceRef.current || pending) return
-    greeted.current = true
-    speak(line, last?.emotion ?? 'neutral')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canVoice])
-  // отмена хода или «Переиграть с этого хода» — восстановленная реплика звучит заново
-  const shown = useRef(history.length)
-  useEffect(() => {
-    const before = shown.current
-    shown.current = history.length
-    if (history.length >= before || pending || !canVoice || !voiceRef.current) return
-    speak(line, last?.emotion)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length])
-
-  // номер озвучки: опоздавшая (перемотали или отправили ход, пока качалась) — не звучит
-  const seq = useRef(0)
-  /** Озвучить и допечатать реплику в такт. Любая осечка — просто печатаем. */
-  async function speak(text: string, emotion: string | undefined, ready?: Awaited<ReturnType<typeof prepareLine>>) {
-    const my = ++seq.current
-    // приветствие и повтор качаются без ответа модели: даём синтезу до 15 с, пусть лучше поздно, чем молча
-    const p = ready ?? (await prepareLine(text, voiceFor(sc), emotion, 15_000))
-    if (!p || !voiceRef.current || my !== seq.current) return
-    setVoiced((v) => ({ text, cps: cpsFor(text, p.duration), n: (v?.n ?? 0) + 1 }))
-    if (!(await playPrepared(p))) setVoiced(null)
-  }
 
   const toggleVoice = () => {
     const on = !voiceOn
@@ -122,13 +124,12 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     voiceRef.current = on
     saveVoiceOn(on)
     if (!on) {
+      playback.current?.silent()
       stopAudio()
-      setVoiced(null)
       return
     }
-    // внутри клика: прогреваем звук (iOS) и сразу озвучиваем то, что на экране
+    // Внутри клика разрешаем звук; новая реплика прозвучит без перезапуска текущей.
     unlockAudio()
-    if (!pending) speak(line, last?.emotion)
   }
 
   const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
@@ -158,7 +159,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     if (!t) return
     setPending(t)
     setError(null)
-    seq.current++
+    playback.current?.cancel()
+    stopAudio()
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
@@ -166,13 +168,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     const filler = withVoice ? startFiller(voiceFor(sc), informal(sc), () => voiceRef.current) : null
     try {
       const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
-      // озвучку ждём вместе с ответом («…»), чтобы печать и голос пошли разом; синтез сервер начал ещё до ответа
-      const ready = withVoice && r.source !== 'local' ? await prepareLine(r.record.opponentLine, voiceFor(sc), r.record.emotion) : null
-      // фраза-пауза уже звучит — реплика начнётся сразу после неё, без наложения
+      // Дожидаемся только фразы-паузы. Реплика получит единый лимит ожидания в эффекте выше.
       filler?.cancel()
       await filler?.done
       setHistory((h) => [...h, r.record])
-      if (ready) speak(r.record.opponentLine, r.record.emotion, ready)
       setSource(r.source)
       setDraft('')
       setAcceptSure(false)
@@ -222,7 +221,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     sc, P, last, state, done, name, history,
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
-    voiceOn, toggleVoice, voiced, micOff, setMicOff, lowSure, acceptSure,
+    voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     send, putOnTable, accept, walk, rewind, undo,

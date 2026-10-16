@@ -47,22 +47,24 @@ interface Props {
   /** игрок дописал реплику кликом — например, чтобы оборвать озвучку */
   onSkip?: () => void
   cps?: number
+  /** Синтез ещё готовится: текст не печатается и не раскрывается кликом. */
+  waiting?: boolean
   /** кнопка справа от таблички с именем (например, голос) */
   extra?: ReactNode
 }
 
 /** Окно реплики оппонента: табличка с именем, текст печатается, клик — дописать / дальше.
  * Если высота окна ограничена (телефон), длинная реплика прокручивается внутри, а печать идёт за курсором. */
-export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, cps, extra }: Props) {
-  const { shown, done, skip } = useTypewriter(text, cps)
+export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, cps, extra, waiting = false }: Props) {
+  const { shown, done, skip } = useTypewriter(waiting ? '' : text, cps)
   const boxRef = useRef<HTMLSpanElement>(null)
   const caretRef = useRef<HTMLSpanElement>(null)
   const [clipped, setClipped] = useState(false)
   const [above, setAbove] = useState(false)
 
   useEffect(() => {
-    onTalkingChange?.(!done)
-  }, [done, onTalkingChange])
+    onTalkingChange?.(!waiting && !done)
+  }, [done, waiting, onTalkingChange])
 
   const measure = () => {
     const el = boxRef.current
@@ -89,6 +91,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
   }, [shown, done])
 
   const click = () => {
+    if (waiting) return
     if (done) return onNext?.()
     skip()
     onSkip?.()
@@ -103,8 +106,9 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
       {extra && <div className="px-dialog-extra">{extra}</div>}
       {/* div, а не button: внутри кнопки прокрутка на телефонах работает ненадёжно */}
       <div
-        role="button"
-        tabIndex={0}
+        role={waiting ? 'status' : 'button'}
+        tabIndex={waiting ? undefined : 0}
+        aria-busy={waiting || undefined}
         className="px-dialog-box"
         onClick={click}
         onKeyDown={(e) => {
@@ -113,16 +117,21 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
             click()
           }
         }}
-        aria-label={done ? 'Дальше' : 'Показать реплику целиком'}
+        aria-label={waiting ? `${name} готовится ответить` : done ? 'Дальше' : 'Показать реплику целиком'}
       >
         {/* полный текст держит высоту, чтобы окно не прыгало */}
         <span ref={boxRef} className={`px-dialog-text${clipped ? ' is-clipped' : ''}`} aria-hidden="true" onScroll={measure}>
-          <span className="px-dialog-shown">{shown}</span>
+          {waiting ? (
+            <span className="px-dialog-wait">
+              {name}
+              <span className="px-dialog-dots"><span>.</span><span>.</span><span>.</span></span>
+            </span>
+          ) : <span className="px-dialog-shown">{shown}</span>}
           <span ref={caretRef} />
           <span className="px-dialog-ghost">{text.slice(shown.length)}</span>
         </span>
-        <span className="px-visually-hidden">{text}</span>
-        {above && done && (
+        {!waiting && <span className="px-visually-hidden">{text}</span>}
+        {above && done && !waiting && (
           <span
             role="button"
             tabIndex={0}
@@ -143,7 +152,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
             ↑ ещё
           </span>
         )}
-        {done && (
+        {done && !waiting && (
           <span className="px-dialog-more">
             <PixelIcon name="more" px={2} />
           </span>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { Case } from '../../App'
 import type { Scenario } from '../../engine/types'
 import { baseCaseId } from '../../content/scenarios/harder'
@@ -8,17 +9,22 @@ import { chapterOf } from '../../content/story'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait, worstFirst } from '../ui'
 import { ShareButton } from './ShareButton'
+import { loadVoiceOn, voiceFor, warmLine, type SpeechCaps } from '../speech'
 
 interface Props {
   game: Case
   onStart: () => void
   onBack: () => void
   backLabel?: string
+  speech?: SpeechCaps
 }
 
 /** Бриф: папка дела открыта. Здесь игрок узнаёт всё, что знает его персонаж, — и только это. */
-export function Brief({ game, onStart, onBack, backLabel = 'К делам' }: Props) {
+export function Brief({ game, onStart, onBack, backLabel = 'К делам', speech }: Props) {
   const sc = game.scenario
+  useEffect(() => {
+    if (speech?.tts && loadVoiceOn()) void warmLine(sc.opening, voiceFor(sc))
+  }, [sc, speech?.tts])
   const P = sc.player.profile
   const c = sc.opponent.character
   const max = maxScore(P, sc.issues)

@@ -31,7 +31,7 @@ export function Play(props: Props) {
   })
   const {
     sc, P, last, state, done, name, draft, setDraft, picks, pending, error, setError, talking, setTalking,
-    xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, voiced, setMicOff,
+    xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, lineWaiting, lineCps, setMicOff,
     lowSure, acceptSure, line, emotion, theirsOnTable, canAccept, myTotal, revealedNow, canVoice, canMic, theirsForMe,
     stamp, feedback, tip, send, putOnTable, accept, walk,
   } = m
@@ -143,12 +143,13 @@ export function Play(props: Props) {
             )}
 
             <DialogBox
-              key={voiced?.text === line ? voiced.n : 0}
+              key={pending ? 'pending' : history.length}
               name={sc.opponent.character.name}
               role={sc.opponent.character.role}
               text={line}
               onTalkingChange={setTalking}
-              cps={voiced?.text === line ? voiced.cps : undefined}
+              cps={lineCps}
+              waiting={lineWaiting}
               onSkip={stopAudio}
               extra={voiceBtn}
             />

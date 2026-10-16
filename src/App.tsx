@@ -513,7 +513,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} /></>
+  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} speech={server?.speech} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} /></>
 
   if (screen === 'play') {
     const meeting = {

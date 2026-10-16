@@ -347,8 +347,43 @@ export function ttsVoice(voice: string, o: LineOptions = {}) {
 }
 
 /** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
-export async function prepareLine(text: string, voice: string, emotion?: string, ms = 5000, o: LineOptions = {}): Promise<Prepared | null> {
+const warmedLines = new Map<string, Promise<Prepared | null>>()
+const lineKey = (text: string, voice: string, emotion: string | undefined, o: LineOptions) =>
+  JSON.stringify({ ...ttsVoice(voice, o), text, emotion: toEmotion(emotion), pace: rateOf(voice) })
+
+/** Прогрев не играет звук. Храним до шести реплик, включая ещё скачивающиеся. */
+export function warmLine(text: string, voice: string, emotion = 'neutral', o: LineOptions = {}): Promise<Prepared | null> {
+  const key = lineKey(text, voice, emotion, o)
+  const cached = warmedLines.get(key)
+  if (cached) return cached
+  const pending = downloadLine(text, voice, emotion, 15_000, o)
+  warmedLines.set(key, pending)
+  void pending.then((p) => {
+    if (!p && warmedLines.get(key) === pending) warmedLines.delete(key)
+  })
+  if (warmedLines.size > 6) {
+    const oldest = warmedLines.keys().next().value!
+    const evicted = warmedLines.get(oldest)!
+    warmedLines.delete(oldest)
+    void evicted.then((p) => { if (p) URL.revokeObjectURL(p.url) })
+  }
+  return pending
+}
+
+export function prepareLine(text: string, voice: string, emotion = 'neutral', ms = 5000, o: LineOptions = {}): Promise<Prepared | null> {
+  const key = lineKey(text, voice, emotion, o)
+  const cached = warmedLines.get(key)
+  if (cached) {
+    // Передаём владение URL плееру: stopAudio сможет безопасно освободить его.
+    warmedLines.delete(key)
+    return cached
+  }
+  return downloadLine(text, voice, emotion, ms, o)
+}
+
+async function downloadLine(text: string, voice: string, emotion: string | undefined, ms: number, o: LineOptions): Promise<Prepared | null> {
   const body = ttsVoice(voice, o)
+  const rate = rateOf(voice)
   const provider = 'provider' in body ? body.provider : 'yandex'
   try {
     const r = await fetch('/api/tts', {
@@ -368,14 +403,15 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
     const raw = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
     // плеер играет в темпе лица — печать текста идёт в тот же такт
-    return { url, duration: raw / rateOf(voice), env, voice }
+    return { url, duration: raw / rate, env, voice }
   } catch {
     return null
   }
 }
 
 /** Играть подготовленную реплику. false — браузер не дал звук, печатаем как обычно. */
-export async function playPrepared(p: Prepared): Promise<boolean> {
+export async function playPrepared(p: Prepared, allowed = () => true): Promise<boolean> {
+  if (!allowed()) return false
   const a = player()
   stopAudio()
   url = p.url
@@ -385,7 +421,7 @@ export async function playPrepared(p: Prepared): Promise<boolean> {
   if (p.voice) pace(a, p.voice)
   const g = await levelOf(env)
   // пока мерили громкость, реплику оборвали (игрок взял микрофон, пришла другая) — не играем
-  if (url !== p.url) return false
+  if (url !== p.url || !allowed()) return false
   setGain(g)
   try {
     await a.play()
