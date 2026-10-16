@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { getScenario } from '../../content/scenarios'
 import { endingCatalog, type EndingCard } from '../../content/endings'
 import { AXES, BEHAVIORS, behaviorById, type Axis, type ProfileRow } from '../../engine/behaviors'
 import type { EndingId } from '../../engine/endings'
-import { summarize, type Attempt, type Board as BoardData, type PlayerRow } from '../../engine/team'
+import { summarize, type Attempt, type Board as BoardData, type PlayerRow, type ShareState } from '../../engine/team'
 import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { isFemale, plural } from '../cast'
@@ -11,6 +11,7 @@ import { loadBoard, RoomError, teamLink } from '../rooms'
 import { Button } from '../ui'
 import { LinkField } from './Coach'
 import { Bench } from './Debrief'
+import { PlayerCard } from './PlayerCard'
 import { Stars } from './Stars'
 
 interface Props {
@@ -65,6 +66,14 @@ export function Board({ server, id, secret, onExit }: Props) {
   useEffect(() => {
     if (server) refresh()
   }, [server, refresh])
+  // доска живая: пока вкладка открыта, подтягиваем новые результаты раз в 15 секунд
+  useEffect(() => {
+    if (!server) return
+    const t = setInterval(() => document.visibilityState === 'visible' && refresh(), 15_000)
+    return () => clearInterval(t)
+  }, [server, refresh])
+  const setShare = (pid: string, share: ShareState) =>
+    setData((d) => (d ? { ...d, players: d.players.map((p) => (p.pid === pid ? { ...p, share } : p)) } : d))
 
   const shell = (body: React.ReactNode) => (
     <div className="px-root g-page" data-desk="factory">
@@ -107,10 +116,12 @@ export function Board({ server, id, secret, onExit }: Props) {
         Открываем журнал…
       </p>,
     )
-  return shell(<Journal data={data} sc={sc} updated={updated} error={error} />)
+  return shell(<Journal data={data} sc={sc} updated={updated} error={error} secret={secret} onShare={setShare} />)
 }
 
-function Journal({ data, sc, updated, error }: { data: BoardData; sc: Scenario; updated: Date | null; error: string | null }) {
+function Journal({ data, sc, updated, error, secret, onShare }: {
+  data: BoardData; sc: Scenario; updated: Date | null; error: string | null; secret: string; onShare: (pid: string, s: ShareState) => void
+}) {
   const [pick, setPick] = useState<'best' | 'last'>('best')
   const players = data.players
   const tries = players.reduce((s, p) => s + p.attempts, 0)
@@ -155,8 +166,8 @@ function Journal({ data, sc, updated, error }: { data: BoardData; sc: Scenario; 
         <section className="g-sheet g-order">
           <h2 className="g-sheet-title">Пока никто не сыграл</h2>
           <p>
-            Отправьте команде ссылку выше. Результат каждого появится здесь после его разбора. Доска сама не обновляется —
-            нажмите «Обновить» наверху.
+            Отправьте команде ссылку выше. Результат каждого появится здесь, как только он закончит встречу: доска
+            обновляется сама раз в 15 секунд.
           </p>
         </section>
       ) : (
@@ -165,7 +176,7 @@ function Journal({ data, sc, updated, error }: { data: BoardData; sc: Scenario; 
             <TeamLedger sum={sum} />
             <Endings sum={sum} catalog={catalog} />
           </div>
-          <Roll players={players} pick={pick} catalog={catalog} />
+          <Roll players={players} pick={pick} catalog={catalog} card={(p) => <PlayerCard room={data.id} secret={secret} player={p} pick={pick} catalog={catalog} onShare={(s) => p.pid && onShare(p.pid, s)} />} />
           <div className="g-board-bottom">
             <Mistakes sum={sum} />
             <Profile sum={sum} />
@@ -239,8 +250,9 @@ function Endings({ sum, catalog }: { sum: ReturnType<typeof summarize>; catalog:
   )
 }
 
-function Roll({ players, pick, catalog }: { players: PlayerRow[]; pick: 'best' | 'last'; catalog: EndingCard[] }) {
+function Roll({ players, pick, catalog, card }: { players: PlayerRow[]; pick: 'best' | 'last'; catalog: EndingCard[]; card: (p: PlayerRow) => React.ReactNode }) {
   const [sort, setSort] = useState<SortKey>('points')
+  const [open, setOpen] = useState<string | null>(null)
   const title = (id: EndingId) => catalog.find((e) => e.id === id)
   const rows = useMemo(() => {
     const val = (p: PlayerRow): number | string => {
@@ -276,6 +288,7 @@ function Roll({ players, pick, catalog }: { players: PlayerRow[]; pick: 'best' |
       <h2 id="roll-h" className="g-sheet-title">
         Ведомость
       </h2>
+      <p className="g-muted">Нажмите на имя — откроется личная карточка участника: итог, что получилось и над чем поработать.</p>
       <fieldset className="g-chips g-roll-sort">
         <legend>Сортировать</legend>
         {SORTS.map((s) => (
@@ -302,10 +315,16 @@ function Roll({ players, pick, catalog }: { players: PlayerRow[]; pick: 'best' |
             const a = p[pick]
             const e = title(a.ending)
             const short = a.status === 'deal' && a.points < a.batna
+            const key = p.pid ?? `${p.name}-${p.first.at}-${i}`
+            const isOpen = open === key
             return (
-              <tr key={`${p.name}-${p.first.at}-${i}`}>
+              <Fragment key={key}>
+              <tr className={isOpen ? 'is-open' : undefined}>
                 <th scope="row" className="g-roll-name">
-                  {p.name}
+                  <button type="button" className="g-roll-open" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : key)}>
+                    {p.name}
+                  </button>
+                  {p.share === 'granted' && <small> · переписка открыта</small>}
                 </th>
                 <td className="is-num" data-label="Очки">
                   <b className={short ? 'is-bad' : undefined}>{a.points}</b>
@@ -336,6 +355,12 @@ function Roll({ players, pick, catalog }: { players: PlayerRow[]; pick: 'best' |
                   {p.attempts > 1 && <small> · первая {p.first.points}</small>}
                 </td>
               </tr>
+              {isOpen && (
+                <tr className="g-roll-card">
+                  <td colSpan={8}>{card(p)}</td>
+                </tr>
+              )}
+              </Fragment>
             )
           })}
         </tbody>
@@ -406,8 +431,8 @@ function Profile({ sum }: { sum: ReturnType<typeof summarize> }) {
         Как команда ведёт разговор
       </h2>
       <p className="g-muted">
-        Средний профиль по репликам команды против эталона Rackham & Carlisle: зелёная черта — сильные переговорщики, красная —
-        средние. Число у оси — сильные приёмы минус слабые на человека.
+        Как часто команда в среднем использует каждый приём и как часто его используют сильные и средние переговорщики
+        (наблюдения Rackham & Carlisle). Число у оси — сильные приёмы минус слабые на человека.
       </p>
       <div className="g-team-axes">
         {axes.map((axis) => {

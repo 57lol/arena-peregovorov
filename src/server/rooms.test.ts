@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -124,5 +124,42 @@ describe('комнаты тренировок', () => {
     await Promise.all(Array.from({ length: 8 }, (_, n) => send(id, { clientId: `parallel${n}`, name: `П${n}`, history: h })))
     const b = (await (await board(id, key)).json()) as Board
     expect(b.players).toHaveLength(8)
+  })
+
+  it('переписку руководитель видит только с согласия участника', async () => {
+    const { id, key } = await room()
+    const h = await play(polite)
+    expect((await send(id, { clientId: 'dddddddd4', name: 'Гриша', history: h })).status).toBe(200)
+    const b = (await (await board(id, key)).json()) as Board
+    const pid = b.players[0].pid!
+    expect(pid).toBeTruthy()
+    expect(b.players[0].share).toBe('none')
+    expect(JSON.stringify(b)).not.toContain(h[0].playerText) // на доске самой переписки нет
+
+    const k = { headers: { 'x-room-key': key } }
+    const talk = () => app.request(`/api/rooms/${id}/players/${pid}/talk`, k)
+    const me = async () => ((await (await app.request(`/api/rooms/${id}/me`, json({ clientId: 'dddddddd4' }))).json()) as { share: string }).share
+    const consent = (allow: boolean) => app.request(`/api/rooms/${id}/consent`, json({ clientId: 'dddddddd4', allow }))
+
+    expect((await talk()).status).toBe(403)
+    // без секрета не попросить
+    expect((await app.request(`/api/rooms/${id}/players/${pid}/ask`, { method: 'POST' })).status).toBe(403)
+    expect((await app.request(`/api/rooms/${id}/players/${pid}/ask`, { method: 'POST', ...k })).status).toBe(200)
+    expect(await me()).toBe('asked')
+    expect((await talk()).status).toBe(403)
+
+    expect((await consent(true)).status).toBe(200)
+    const r = await talk()
+    expect(r.status).toBe(200)
+    const t = (await r.json()) as { talk: { player: string; opponent: string }[] }
+    expect(t.talk[0].player).toBe(h[0].playerText)
+    expect(t.talk[0].opponent).toBe(h[0].opponentLine)
+
+    // передумал — переписка закрыта и стёрта
+    expect((await consent(false)).status).toBe(200)
+    expect((await talk()).status).toBe(403)
+    expect(readFileSync(join(dir, `${id}.json`), 'utf8')).not.toContain(h[0].playerText)
+    // чужой браузер согласие не даст
+    expect((await app.request(`/api/rooms/${id}/consent`, json({ clientId: 'zzzzzzzz9', allow: true }))).status).toBe(404)
   })
 })

@@ -31,12 +31,28 @@ export interface Attempt {
   seconds: number
 }
 
+/**
+ * Можно ли руководителю читать переписку участника. По умолчанию нет: руководитель просит (asked),
+ * участник разрешает (granted) или отказывает (denied). Без granted сервер переписку не отдаёт.
+ */
+export type ShareState = 'none' | 'asked' | 'granted' | 'denied'
+
+/** Реплика из переписки: что сказал участник и что ответил собеседник. */
+export interface TalkLine {
+  turn: number
+  player: string
+  opponent: string
+}
+
 export interface PlayerRow {
+  /** публичный id строки на доске (не id браузера участника) */
+  pid?: string
   name: string
   attempts: number
   first: Attempt
   best: Attempt
   last: Attempt
+  share?: ShareState
 }
 
 export interface Board {

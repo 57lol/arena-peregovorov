@@ -1,7 +1,7 @@
 // Тренировка для команды в браузере: ссылки, запросы к комнатам, что помним локально.
 // Участнику — ссылка ?case=<дело>&room=<комната>. Руководителю — ?board=<комната>&key=<секрет>, её никому не шлём.
 
-import type { Board } from '../engine/team'
+import type { Board, ShareState, TalkLine } from '../engine/team'
 import type { TurnRecord } from '../engine/types'
 
 export interface RoomRef {
@@ -50,7 +50,16 @@ export const createRoom = (caseId: string, name: string) => call<RoomRef & { key
 export const roomInfo = (id: string) => call<RoomRef>(`/api/rooms/${encodeURIComponent(id)}`)
 export const loadBoard = (id: string, key: string) => call<Board>(`/api/rooms/${encodeURIComponent(id)}/board`, { headers: { 'x-room-key': key } })
 export const sendResult = (room: string, body: { clientId: string; name: string; history: TurnRecord[]; seconds: number }) =>
-  call<{ ok: true; attempts: number }>(`/api/rooms/${encodeURIComponent(room)}/results`, post(body), 20_000)
+  call<{ ok: true; attempts: number; share?: ShareState }>(`/api/rooms/${encodeURIComponent(room)}/results`, post(body), 20_000)
+
+// переписка: руководитель просит и читает (с секретом доски), участник отвечает (по id своего браузера)
+const room$ = (id: string) => `/api/rooms/${encodeURIComponent(id)}`
+export const askTalk = (id: string, key: string, pid: string) =>
+  call<{ share: ShareState }>(`${room$(id)}/players/${encodeURIComponent(pid)}/ask`, { method: 'POST', headers: { 'x-room-key': key } })
+export const loadTalk = (id: string, key: string, pid: string, at: number) =>
+  call<{ talk: TalkLine[] }>(`${room$(id)}/players/${encodeURIComponent(pid)}/talk?at=${at}`, { headers: { 'x-room-key': key } })
+export const myShare = (id: string, clientId: string) => call<{ share: ShareState }>(`${room$(id)}/me`, post({ clientId }))
+export const setConsent = (id: string, clientId: string, allow: boolean) => call<{ share: ShareState }>(`${room$(id)}/consent`, post({ clientId, allow }))
 
 // ——— что помним в браузере ———
 

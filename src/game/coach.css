@@ -193,6 +193,50 @@
 .g-receipt b {
   color: var(--c-brass-hi);
 }
+.g-receipt-share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 100%;
+  min-height: 32px;
+  color: var(--c-paper);
+  cursor: pointer;
+}
+.g-receipt-share input {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  background: var(--c-night-2);
+  box-shadow: inset 0 0 0 var(--u) var(--c-mist);
+  cursor: pointer;
+}
+.g-receipt-share input:checked {
+  background: var(--c-leaf-hi);
+  box-shadow: inset 0 0 0 var(--u) var(--c-ink);
+}
+.g-receipt-share input:checked::after {
+  content: '✓';
+  color: var(--c-ink);
+  font-weight: 700;
+  line-height: 1;
+}
+.g-receipt-share input:focus-visible {
+  outline: var(--u) solid var(--c-brass-hi);
+  outline-offset: var(--u);
+}
+.g-receipt-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  flex: 1 1 100%;
+  padding-top: calc(3 * var(--u));
+  border-top: var(--u) dashed var(--c-steel);
+}
 .g-receipt.is-error {
   box-shadow: inset calc(2 * var(--u)) 0 0 var(--c-coral), 0 0 0 var(--u) var(--c-ink);
 }
@@ -468,4 +512,99 @@
 }
 .g-team-bench .g-beh-head {
   margin: 0 0 calc(1 * var(--u));
+}
+
+/* ---------- личная карточка участника на доске ---------- */
+
+.g-roll-open {
+  appearance: none;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: calc(2 * var(--u));
+  cursor: pointer;
+}
+.g-roll-open[aria-expanded='true'] {
+  text-decoration-style: solid;
+}
+.g-roll-table tr.is-open td,
+.g-roll-table tr.is-open th {
+  border-bottom: 0;
+}
+.g-roll-card td {
+  padding: 0 0 calc(4 * var(--u));
+}
+@media (max-width: 899px) {
+  .g-roll-table tr.g-roll-card {
+    display: block;
+  }
+}
+.g-pcard {
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  background: var(--c-paper-2);
+  box-shadow: inset calc(2 * var(--u)) 0 0 var(--pen);
+}
+.g-pcard .g-h3 {
+  margin-top: 0;
+}
+.g-pcard-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22em), 1fr));
+  gap: calc(4 * var(--u)) calc(10 * var(--u));
+}
+.g-pcard-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--u) calc(4 * var(--u));
+  margin: 0;
+}
+.g-pcard-facts dt {
+  color: var(--c-steel-2);
+}
+.g-pcard-facts dd {
+  margin: 0;
+}
+.g-pcard-h {
+  margin: calc(3 * var(--u)) 0 var(--u);
+  font-weight: 700;
+}
+.g-pcard-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.g-pcard-list li + li {
+  margin-top: var(--u);
+}
+.g-pcard-talk {
+  margin-top: calc(4 * var(--u));
+  padding-top: calc(3 * var(--u));
+  border-top: var(--u) dashed var(--c-mist);
+}
+.g-pcard-chat {
+  display: grid;
+  gap: calc(3 * var(--u));
+  max-height: 28em;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.g-pcard-chat p {
+  margin: 0;
+  max-width: 70ch;
+}
+.g-pcard-me::before {
+  content: 'Участник: ';
+  font-weight: 700;
+  color: var(--pen);
+}
+.g-pcard-them::before {
+  content: 'Собеседник: ';
+  font-weight: 700;
+  color: var(--c-steel-2);
 }

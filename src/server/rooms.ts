@@ -1,6 +1,8 @@
 // Комнаты тренировок. Руководитель открывает комнату на дело и получает секрет — ключ к доске результатов.
 // Участники по ссылке команды присылают историю своей встречи, сервер сам считает итог и пишет в журнал комнаты.
 // Хранение — файл на комнату в CACHE_DIR/rooms. Аккаунтов нет: кто знает секрет, тот видит доску.
+// Переписку участника руководитель видит только с его согласия: просит на доске, участник разрешает у себя
+// (по id своего браузера). Отказ стирает сохранённую переписку.
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -8,7 +10,7 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
-import { attemptOf, better, type Board, type PlayerRow } from '../engine/team'
+import { attemptOf, better, type Board, type PlayerRow, type ShareState, type TalkLine } from '../engine/team'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { dict } from './library'
 
@@ -17,7 +19,7 @@ export const ROOM_LIMITS = { players: 200, attemptsPerPlayer: 100 }
 interface RoomFile extends Omit<Board, 'players'> {
   keyHash: string
   /** по id браузера участника; наружу id не отдаём */
-  byClient: Record<string, PlayerRow>
+  byClient: Record<string, PlayerRow & { pid: string; share: ShareState; talks?: Record<string, TalkLine[]> }>
 }
 
 const ID = /^[\w-]{6,40}$/
@@ -36,6 +38,9 @@ const Result = z.object({
 })
 
 const sha = (s: string) => createHash('sha256').update(s).digest()
+
+const talkOf = (history: TurnRecord[]): TalkLine[] =>
+  history.map((h) => ({ turn: h.turn, player: h.playerText.slice(0, 1500), opponent: h.opponentLine.slice(0, 1000) }))
 
 interface Deps {
   dir: string
@@ -103,25 +108,102 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       if (!prev && Object.keys(room.byClient).length >= ROOM_LIMITS.players)
         return c.json({ error: 'В тренировке уже максимум участников' }, 409)
       if (prev && prev.attempts >= ROOM_LIMITS.attemptsPerPlayer) return c.json({ error: 'Слишком много попыток' }, 429)
-      room.byClient[body.clientId] = prev
-        ? { name: body.name, attempts: prev.attempts + 1, first: prev.first, best: better(a, prev.best), last: a }
-        : { name: body.name, attempts: 1, first: a, best: a, last: a }
+      const row = prev
+        ? { ...prev, pid: prev.pid ?? randomBytes(6).toString('base64url'), share: prev.share ?? 'none', name: body.name, attempts: prev.attempts + 1, best: better(a, prev.best), last: a }
+        : { pid: randomBytes(6).toString('base64url'), share: 'none' as ShareState, name: body.name, attempts: 1, first: a, best: a, last: a }
+      // переписку храним для первой, лучшей и последней попыток — только их видно на доске; при отказе не храним
+      if (row.share !== 'denied') {
+        const talks = { ...(prev?.talks ?? {}), [String(a.at)]: talkOf(history) }
+        const keep = new Set([row.first.at, row.best.at, row.last.at].map(String))
+        row.talks = Object.fromEntries(Object.entries(talks).filter(([at]) => keep.has(at)))
+      }
+      room.byClient[body.clientId] = row
       await save(room)
-      return c.json({ ok: true, attempts: room.byClient[body.clientId].attempts, ending: a.ending })
+      return c.json({ ok: true, attempts: row.attempts, ending: a.ending, share: row.share })
     })
   })
 
-  app.get('/api/rooms/:id/board', async (c) => {
+  // ——— согласие на просмотр переписки ———
+
+  const Me = z.object({ clientId: z.string().regex(/^[\w-]{8,64}$/) })
+
+  // участник: что сейчас с доступом к его переписке (есть ли запрос руководителя)
+  app.post('/api/rooms/:id/me', bodyLimit({ maxSize: 1024 }), async (c) => {
+    const { clientId } = Me.parse(await c.req.json())
     const room = await load(c.req.param('id'))
-    const key = c.req.header('x-room-key') ?? ''
+    const row = room?.byClient[clientId]
+    if (!row) return c.json({ error: 'Нет результата в этой тренировке' }, 404)
+    return c.json({ share: row.share ?? 'none' })
+  })
+
+  // участник: разрешить или запретить. Запрет стирает сохранённую переписку.
+  app.post('/api/rooms/:id/consent', bodyLimit({ maxSize: 1024 }), async (c) => {
+    const id = c.req.param('id')
+    const { clientId, allow } = Me.extend({ allow: z.boolean() }).parse(await c.req.json())
+    return locked(id, async () => {
+      const room = await load(id)
+      const row = room?.byClient[clientId]
+      if (!room || !row) return c.json({ error: 'Нет результата в этой тренировке' }, 404)
+      row.share = allow ? 'granted' : 'denied'
+      if (!allow) delete row.talks
+      await save(room)
+      return c.json({ share: row.share })
+    })
+  })
+
+  const keyOk = (room: RoomFile | null, key: string): room is RoomFile => {
     const want = room ? Buffer.from(room.keyHash, 'hex') : undefined
-    if (!room || !want || !timingSafeEqual(sha(key), want)) return c.json({ error: 'Нет доступа к этой доске' }, 403)
+    return !!room && !!want && timingSafeEqual(sha(key), want)
+  }
+  const byPid = (room: RoomFile, pid: string) => Object.values(room.byClient).find((r) => r.pid === pid)
+
+  // руководитель: попросить доступ. Уже разрешённое или запрещённое не трогаем — решает участник.
+  app.post('/api/rooms/:id/players/:pid/ask', async (c) => {
+    const id = c.req.param('id')
+    return locked(id, async () => {
+      const room = await load(id)
+      if (!keyOk(room, c.req.header('x-room-key') ?? '')) return c.json({ error: 'Нет доступа к этой доске' }, 403)
+      const row = byPid(room, c.req.param('pid'))
+      if (!row) return c.json({ error: 'Нет такого участника' }, 404)
+      if (row.share === 'none' || row.share === undefined || row.share === 'denied') row.share = 'asked'
+      await save(room)
+      return c.json({ share: row.share })
+    })
+  })
+
+  // руководитель: переписка — только с согласия участника
+  app.get('/api/rooms/:id/players/:pid/talk', async (c) => {
+    const room = await load(c.req.param('id'))
+    if (!keyOk(room, c.req.header('x-room-key') ?? '')) return c.json({ error: 'Нет доступа к этой доске' }, 403)
+    const row = byPid(room, c.req.param('pid'))
+    if (!row) return c.json({ error: 'Нет такого участника' }, 404)
+    if (row.share !== 'granted') return c.json({ error: 'Участник не разрешил смотреть переписку', share: row.share ?? 'none' }, 403)
+    const at = c.req.query('at')
+    const talk = row.talks?.[at ?? String(row.last.at)]
+    if (!talk) return c.json({ error: 'Переписка этой попытки не сохранилась' }, 404)
+    return c.json({ talk })
+  })
+
+  app.get('/api/rooms/:id/board', async (c) => {
+    let room = await load(c.req.param('id'))
+    if (!keyOk(room, c.req.header('x-room-key') ?? '')) return c.json({ error: 'Нет доступа к этой доске' }, 403)
+    // у строк из старых комнат нет публичного id — выдаём, иначе карточку не открыть
+    if (Object.values(room.byClient).some((r) => !r.pid))
+      room = await locked(room.id, async () => {
+        const fresh = (await load(room!.id))!
+        for (const r of Object.values(fresh.byClient)) r.pid ??= randomBytes(6).toString('base64url')
+        await save(fresh)
+        return fresh
+      })
     const board: Board = {
       id: room.id,
       caseId: room.caseId,
       name: room.name,
       createdAt: room.createdAt,
-      players: Object.values(room.byClient).sort((a, b) => a.first.at - b.first.at),
+      // переписку на доску не кладём: её отдаёт отдельный запрос и только с согласия
+      players: Object.values(room.byClient)
+        .map(({ talks: _t, ...row }) => ({ ...row, share: row.share ?? 'none' }))
+        .sort((a, b) => a.first.at - b.first.at),
     }
     return c.json(board)
   })

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TurnRecord } from '../../engine/types'
-import { sendResult, type RoomRef } from '../rooms'
+import type { ShareState } from '../../engine/team'
+import { myShare, sendResult, setConsent, type RoomRef } from '../rooms'
 import { Button } from '../ui'
 
 interface Props {
@@ -18,7 +19,22 @@ interface Props {
 export function RoomReceipt({ room, name, clientId, history, seconds, sent, onSent }: Props) {
   const [state, setState] = useState<'sending' | 'ok' | { error: string }>(sent ? 'ok' : 'sending')
   const [attempts, setAttempts] = useState<number | null>(null)
+  const [share, setShare] = useState<ShareState | null>(null)
   const started = useRef(false)
+
+  // запрос руководителя на переписку: проверяем, пока разбор открыт
+  useEffect(() => {
+    if (state !== 'ok') return
+    let alive = true
+    const check = () => myShare(room.id, clientId).then((r) => alive && setShare(r.share)).catch(() => {})
+    check()
+    const t = setInterval(() => document.visibilityState === 'visible' && check(), 20_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [state, room.id, clientId])
+  const answer = (allow: boolean) => setConsent(room.id, clientId, allow).then((r) => setShare(r.share)).catch(() => {})
 
   const send = async () => {
     setState('sending')
@@ -46,9 +62,10 @@ export function RoomReceipt({ room, name, clientId, history, seconds, sent, onSe
       {state === 'ok' && (
         <p>
           <b>{name}</b>, результат записан в {where}
-          {attempts && attempts > 1 ? `, это ваша ${attempts}-я попытка` : ''}. Руководитель увидит его на доске.
+          {attempts && attempts > 1 ? `, это ваша ${attempts}-я попытка` : ''}. Руководитель увидит ваш итог на доске.
         </p>
       )}
+      {state === 'ok' && share && <Consent share={share} onAnswer={answer} />}
       {typeof state === 'object' && (
         <>
           <p>Результат не дошёл до руководителя. {state.error}</p>
@@ -56,5 +73,32 @@ export function RoomReceipt({ room, name, clientId, history, seconds, sent, onSe
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * Переписка участника закрыта по умолчанию. Руководитель может попросить её на доске — тогда здесь вопрос;
+ * можно и заранее разрешить галочкой. Отказ стирает сохранённую переписку на сервере.
+ */
+function Consent({ share, onAnswer }: { share: ShareState; onAnswer: (allow: boolean) => void }) {
+  if (share === 'asked')
+    return (
+      <div className="g-receipt-ask" role="alert">
+        <p>
+          <b>Руководитель просит посмотреть вашу переписку</b> с собеседником, чтобы разобрать её с вами. Без вашего
+          согласия он видит только итог.
+        </p>
+        <Button variant="brass" onClick={() => onAnswer(true)}>
+          Разрешить
+        </Button>
+        <Button onClick={() => onAnswer(false)}>Не разрешать</Button>
+      </div>
+    )
+  return (
+    <label className="g-receipt-share">
+      <input type="checkbox" checked={share === 'granted'} onChange={(e) => onAnswer(e.target.checked)} />
+      Разрешить руководителю смотреть мою переписку
+      {share === 'denied' ? ' (сейчас закрыта)' : ''}
+    </label>
   )
 }
