@@ -30,7 +30,7 @@ function issueInfo(sc: Scenario): IssueInfo[] {
     const dims = values.filter((v) => v && v.dim !== 'plain').map((v) => v!.dim)
     const dim = dims[0] ?? (values.every((v) => v) ? 'plain' : undefined)
     // «без гарантии» = 0 в той же размерности, что и остальные варианты
-    const fixed = values.map((v) => (v && v.dim === 'plain' && dim ? { value: v.value, dim } : v))
+    const fixed = values.map((v) => (v && v.dim === 'plain' && dim ? (dim === 'time' ? undefined : { value: v.value, dim }) : v))
     const keys = new Set(words(issue.title).map(stem).filter((w) => !STOP.has(w)))
     for (const w of optStems[n]) if (!optStems.some((o, m) => m !== n && o.has(w)) && !UNIT_WORDS.test(w)) keys.add(w)
     return { issue, keys, values: fixed, dim }

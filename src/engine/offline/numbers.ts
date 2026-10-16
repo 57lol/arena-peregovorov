@@ -1,7 +1,7 @@
 // Разбор чисел с единицами в русском тексте: «60 дней», «1,2 млн», «гарантия 2 года», «полгода»,
 // «двести двенадцать рублей», «раз в две недели».
 
-export type Dim = 'money' | 'days' | 'percent' | 'count' | 'rate' | 'plain'
+export type Dim = 'money' | 'days' | 'percent' | 'count' | 'rate' | 'time' | 'plain'
 
 export interface Quantity {
   value: number
@@ -18,6 +18,9 @@ const WORDS: Record<string, number> = {
   шестьдесят: 60, семьдесят: 70, восемьдесят: 80, девяносто: 90, сто: 100, двести: 200, триста: 300,
   четыреста: 400, пятьсот: 500, шестьсот: 600, семьсот: 700, восемьсот: 800, девятьсот: 900,
   полтора: 1.5, полторы: 1.5,
+  часу: 1, семи: 7, восьми: 8, девяти: 9, десяти: 10,
+  одиннадцати: 11, двенадцати: 12, тринадцати: 13, четырнадцати: 14, пятнадцати: 15,
+  шестнадцати: 16, семнадцати: 17, восемнадцати: 18, девятнадцати: 19, двадцати: 20,
 }
 /** «три», «две»: число словами — это значение, а не примета пункта. */
 export const isNumberWord = (w: string) => WORDS[w.toLowerCase()] !== undefined
@@ -54,6 +57,11 @@ const RATE = new RegExp(
   'giu',
 )
 
+// Время суток — отдельная размерность: 23:00 не является ни сроком, ни суммой.
+const CLOCK = /(?<![\p{L}\d])(\d{1,2}):([0-5]\d)(?!\d)/gu
+const WORD_CLOCK = new RegExp(`(?<![\\p{L}\\d])${NUM}\\s*(?:час(?:а|ов|у)?\\s*)?(вечера|ночи|утра)(?!\\p{L})`, 'giu')
+const MIDNIGHT = /(?<!\p{L})(?:полуночи|полночь)(?!\p{L})/giu
+
 function num(s: string): number {
   const parts = s.toLowerCase().split(/\s+/)
   if (parts.every((p) => WORDS[p] !== undefined)) return parts.reduce((a, p) => a + WORDS[p], 0)
@@ -67,6 +75,20 @@ function unitOf(s: string): Unit | undefined {
 export function quantities(text: string): Quantity[] {
   const out: Quantity[] = []
   const taken = (at: number) => out.some((q) => at >= q.at && at < q.end)
+  for (const m of text.matchAll(CLOCK)) {
+    const hour = Number(m[1])
+    if (hour < 24) out.push({ value: hour * 60 + Number(m[2]), dim: 'time', at: m.index!, end: m.index! + m[0].length })
+  }
+  for (const m of text.matchAll(WORD_CLOCK)) {
+    let hour = num(m[1])
+    const period = m[2].toLowerCase()
+    if (hour < 1 || hour > 24) continue
+    if (period === 'вечера' && hour < 12) hour += 12
+    if (hour === 12 && period === 'ночи') hour = 0
+    out.push({ value: (hour % 24) * 60, dim: 'time', at: m.index!, end: m.index! + m[0].length })
+  }
+  for (const m of text.matchAll(MIDNIGHT))
+    out.push({ value: 0, dim: 'time', at: m.index!, end: m.index! + m[0].length })
   for (const m of text.matchAll(RATE)) {
     const n = m[1] ? num(m[1]) : 1
     const k = m[3] ? num(m[3]) : 1

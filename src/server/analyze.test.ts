@@ -77,6 +77,19 @@ describe('предложения подтверждаются словами и�
     expect(explicitOffer(stopCase.scenario, 'Телефон — не доставать.', { phone: 3 })).toEqual({ phone: 3 })
   })
 
+  it.each([
+    ['Предлагаю тишину с одиннадцати вечера', 3],
+    ['Предлагаю тишину с 23:00', 3],
+    ['Предлагаю тишину с двадцати трех часов вечера', 3],
+    ['Предлагаю тишину с полуночи', 2],
+    ['Предлагаю тишину с двенадцати ночи', 2],
+    ['Предлагаю тишину с часу ночи', 1],
+  ])('подтверждает время словами и цифрами: %s', (text, quiet) => {
+    expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ quiet })).offer).toEqual({ quiet })
+    const other = quiet === 3 ? 1 : 3
+    expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ quiet: other })).offer).toBeUndefined()
+  })
+
   it('при недоступной модели и офлайн также отбрасывает отказ с числом', async () => {
     for (const name of ['offline', 'yandex'] as const) {
       const result = await analyzeMove({ name, model: `qa-fail-${name}`, json: async () => { throw new Error('offline') } }, stopCase.scenario, BEHAVIOR_DICT, [], 'Не предлагаю 2000 рублей. Могу включить громкую связь.')
