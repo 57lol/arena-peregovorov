@@ -405,7 +405,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
       // порядок полей как в прогреве сервера (/api/turn), хотя ключ кэша от него и не зависит
       body: JSON.stringify({ ...body, text, emotion: toEmotion(emotion) }),
       // чужие провайдеры отвечают дольше SpeechKit
-      signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 20_000)),
+      signal: AbortSignal.timeout(provider === 'yandex' && !('test' in body) ? ms : Math.max(ms, 15_000)),
     })
     if (!r.ok || !r.headers.get('content-type')?.startsWith('audio/')) return null
     const blob = await r.blob()

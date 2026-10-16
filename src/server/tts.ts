@@ -219,8 +219,15 @@ export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, en
       await f(env.ELEVEN_RELAY_URL, {
         method: 'POST',
         headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET ?? '', 'content-type': 'application/json' },
-        body: JSON.stringify({ text: q.text.slice(0, 1000), voice_id: q.voice, model_id: env.ELEVENLABS_MODEL ?? 'eleven_flash_v2_5' }),
-        signal: AbortSignal.timeout(8_000),
+        // v4 и v3 понимают теги эмоций: «[annoyed] …» — та же эмоция движка, что и у других голосов
+        body: JSON.stringify({
+          text: (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') ? TAG[q.emotion ?? 'neutral'] : '') + q.text.slice(0, 1000),
+          voice_id: q.voice,
+          model_id: env.ELEVENLABS_MODEL ?? 'eleven_flash_v2_5',
+          voice_settings: { stability: Number(env.ELEVEN_STABILITY ?? 0.45), similarity_boost: 0.8, use_speaker_boost: true },
+        }),
+        // новый библиотечный голос ElevenLabs подгружает ~9 с, дальше отвечает за полсекунды
+        signal: AbortSignal.timeout(15_000),
       }),
       'ElevenLabs (воркер)',
     )
@@ -347,8 +354,8 @@ export function mainTts(env = process.env): MainTts | undefined {
  * ~/Arena-materials/voice-test/ (index.html). Своё — TTS_CAST="sosed:Puck,gopnik:Fenrir" в .env.
  */
 export const CAST: Record<'eleven' | 'elevenId' | 'gemini' | 'openai', Record<string, string>> = {
-  // ElevenLabs напрямую (через воркер): стандартные голоса по id — библиотечные на бесплатном тарифе API не отдаёт
-  elevenId: { sosed: 'TX3LPaxmHKxFdv7VOQHJ', gopnik: 'N2lVS1w4EtoT3dr4eOWO', rinat: 'nPczCjzI2devNBz1zQrb', admin: 'XrExE9yKIg1WjnnlVkGX', olga: 'FGY2WhTYpPnrIDTdsKH5', buyer: 'Xb7hH8MSUJpSbSDYk0k2', palych: 'pqHfZKP75CvOlQylNhV4', hr: 'EXAVITQu4vr4xnSDxMaL', official: 'JBFqnCBsd6RMkjVDRZzb', foreman: 'CwhRBWXzGAHq8TQ4Fs17', dev: 'bIHbv24MWmeRgasZH58o', realtor: 'cgSgspJ2msm6clMCkdW9', pacan: 'IKne3meq5aSn9XLyUdCD', guard: 'onwK4e9ZLuTAKqWW03F9', worker: 'iP95p4xoKVk53GoZ742B', student: 'pFZP5JQG7iQjIQuC4Bku', cashier: 'Xb7hH8MSUJpSbSDYk0k2' },
+  // ElevenLabs напрямую (через воркер): русские голоса из библиотеки (Voice Library) по id, подбор 17.10.2026
+  elevenId: { sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: '6A9D8WSMm4rFsg2DWFeE', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n' },
   // ElevenLabs: имена стоковых голосов в AITunnel; свои русские голоса из Voice Library — по id через TTS_CAST
   eleven: { sosed: 'liam', gopnik: 'callum', rinat: 'brian', admin: 'matilda', olga: 'sarah', buyer: 'lily', palych: 'bill', hr: 'bella', official: 'george', foreman: 'adam', dev: 'will', realtor: 'jessica', pacan: 'harry', guard: 'roger', worker: 'chris', student: 'laura', cashier: 'alice' },
   // Gemini: описания голосов Google — Puck бодрый, Fenrir возбуждённый, Charon деловой, Algenib с хрипотцой, Kore твёрдый, Sulafat тёплый
@@ -363,7 +370,7 @@ export function castFor(p: MainTts, who: string | undefined, yandexVoice: string
   // своё из TTS_CAST — как есть (у ElevenLabs это может быть id из библиотеки), из таблицы — только если голос есть у модели
   if (who && own[who]) return own[who]
   const known = who ? table[who] : undefined
-  if (known && pool.some((v) => v.id === known)) return known
+  if (known && (p === 'elevenlabs' || pool.some((v) => v.id === known))) return known
   // нового лица в таблице нет — голос его пола, всегда один и тот же
   const female = YANDEX_VOICES.find((v) => v.id === yandexVoice)?.female ?? false
   const same = pool.filter((v) => v.female === female)
