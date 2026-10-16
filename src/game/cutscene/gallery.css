@@ -109,8 +109,8 @@
   .gl-films {
     grid-template-columns: 1fr;
   }
-  .gl-lead {
-    font-size: var(--fs-small);
-    line-height: 16px;
+  .gl-lead,
+  .gl-to {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
 }

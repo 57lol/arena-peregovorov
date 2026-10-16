@@ -80,8 +80,9 @@
 
 .cs-skip {
   position: fixed;
-  top: 12px;
+  top: max(12px, env(safe-area-inset-top));
   right: 12px;
+  min-height: 44px;
   padding: 6px 12px;
   border: var(--u) solid var(--c-steel-2);
   background: #090a14;
@@ -319,6 +320,12 @@
   pointer-events: none;
   animation: cs-hint 4.5s steps(6) both;
 }
+@media (hover: none) and (pointer: coarse) {
+  .cs-hint {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+}
 @keyframes cs-hint {
   0%,
   70% {
@@ -340,8 +347,8 @@
   bottom: calc(var(--u) * 4);
   min-height: 0;
   padding: 0 16px;
-  font-size: var(--fs-small);
-  line-height: 16px;
+  /* лёжа субтитры читают с вытянутой руки: Pixeloid ×2, а не Ark ×1 */
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
 }
 .cs-root.is-over .cs-sub span {
   padding: 2px 8px;

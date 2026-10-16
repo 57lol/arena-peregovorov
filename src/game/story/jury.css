@@ -354,6 +354,7 @@
   }
 }
 
+/* телефон: читаемый текст — Pixeloid ×2 (18 px), а не Ark ×1; кнопки не ниже 44 px; «Жёстче» — в строке дела */
 @media (max-width: 480px) {
   .jr-grid > *,
   .jr-path > * {
@@ -363,22 +364,28 @@
   .jr-cuts {
     grid-template-columns: 1fr;
   }
-  .jr-toggle {
-    min-height: 36px;
-    padding: var(--u) calc(3 * var(--u));
-    font: 400 var(--fs-small) / 16px var(--f-read);
+  /* шапка: слева «Титул», справа «Сюжет»; карта недели и катсцены есть на листах ниже */
+  .jr-bar-right > .px-btn:not(:last-child) {
+    display: none;
   }
-  .jr-mode {
-    font-size: var(--fs-small);
-    line-height: 16px;
-  }
-  .jr-cut {
-    font-size: var(--fs-small);
-    line-height: 16px;
+  .jr-lead,
+  .jr-step-note,
+  .jr-set dt,
+  .jr-mode,
+  .jr-cut,
+  .jr-fine {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
   .jr-lead {
-    font-size: var(--fs-small);
-    line-height: 16px;
+    margin-bottom: calc(8 * var(--u));
+  }
+  .jr-toggle {
+    min-height: 44px;
+    padding: var(--u) calc(4 * var(--u));
+    font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+  .jr-set > div {
+    padding-bottom: calc(4 * var(--u));
   }
   .jr-step {
     padding: calc(4 * var(--u)) calc(5 * var(--u)) calc(5 * var(--u));
@@ -386,26 +393,38 @@
   .jr-step-name {
     font-size: var(--fs-ui);
   }
-  .jr-set dt {
-    font-size: var(--fs-small);
-    line-height: 16px;
+  /* дело — во всю ширину, «Жёстче» — в его нижнем правом углу, на одной строке со сферой */
+  .jr-cases li {
+    position: relative;
+    display: block;
   }
   .jr-case {
+    width: 100%;
     min-width: 0;
   }
-  .jr-case-name {
-    overflow-wrap: anywhere;
+  .jr-case-sphere {
+    display: flex;
+    align-items: center;
+    justify-self: start;
+    min-height: 54px;
   }
   .jr-hard {
+    position: absolute;
+    right: calc(3 * var(--u));
+    bottom: calc(4 * var(--u));
+    margin: 0;
     padding-inline: calc(4 * var(--u));
   }
-  /* узкий экран: «Оффер для робототехника» рвался посреди слова — дело на всю ширину, «Жёстче» строкой ниже */
-  .jr-cases li {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .jr-chapter-when,
+  .jr-case-sphere {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
-  .jr-case {
-    flex-basis: 100%;
+  .jr-chapter-n {
+    font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+  .jr-page .jr-films .jr-h2 small {
+    display: block;
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
 }
 
