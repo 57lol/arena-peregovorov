@@ -6,6 +6,7 @@ import { BEHAVIOR_DICT } from '../engine/behaviors'
 import { explicitOffer } from '../engine/offerEvidence'
 import type { MoveAnalysis, TurnRecord } from '../engine/types'
 import { client } from '../content/scenarios/client'
+import { dormCase } from '../content/scenarios/story/dorm'
 import { stopCase } from '../content/scenarios/story/stop'
 
 process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-qa-analysis-'))
@@ -52,6 +53,19 @@ describe('предложения подтверждаются словами и�
       expect(result.offer, text).toBeUndefined()
     }
     expect(explicitOffer(stopCase.scenario, 'Не предлагаю 2000 рублей и не буду извиняться.', { money: 0, sorry: 2 })).toEqual({})
+  })
+
+  it('отрицание постороннего действия не отменяет отдельное предложение после «и»', () => {
+    for (const text of [
+      'Не хочу ссориться и предлагаю 300 рублей за вай-фай.',
+      'Не буду спорить и я готов платить 300 рублей за вай-фай.',
+      'Предлагаю 300 рублей за вай-фай и не хочу ссориться.',
+    ]) {
+      expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ wifi: 2 })).offer, text).toEqual({ wifi: 2 })
+    }
+    for (const text of ['Не предлагаю 600 и 300 рублей за вай-фай.', 'Не хочу платить 300 рублей за вай-фай.']) {
+      expect(explicitOffer(dormCase.scenario, text, { wifi: 2 }), text).toEqual({})
+    }
   })
 
   it('сохраняет конкретные числа, числа словами, сроки и текстовые варианты', () => {
