@@ -96,7 +96,9 @@ export interface OpponentState {
 export type Decision =
   | { kind: 'accept' }
   | { kind: 'counter'; offer: Offer; final?: boolean; feigned?: IssueId[] } // feigned: совместимые пункты, выданные за уступку
-  | { kind: 'reveal'; interestId: string; offer?: Offer }
+  // again: про этот пункт уже всё рассказано, собеседник напоминает сказанное, а не выдаёт постороннее;
+  // general: спросили «зачем тебе всё это» в общем; offTopic: про спрошенный пункт рассказать нечего
+  | { kind: 'reveal'; interestId: string; offer?: Offer; again?: true; general?: true; offTopic?: IssueId[] }
   | { kind: 'hold'; reason?: HoldReason }
   | { kind: 'warn_tone' }
   | { kind: 'walk_away' }

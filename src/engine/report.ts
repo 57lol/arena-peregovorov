@@ -228,7 +228,7 @@ function pickMoments(sc: Scenario, history: TurnRecord[]): KeyMoment[] {
     const weight = Math.abs(trust) + Math.abs(tension) + DECISION_WEIGHT[h.decision.kind] + move
     const top = [...h.deltas].sort((a, b) => Math.abs(b.by) - Math.abs(a.by))[0]
     const why =
-      h.decision.kind === 'reveal' ? 'Вы узнали, что на самом деле важно собеседнику'
+      h.decision.kind === 'reveal' && !h.decision.again ? 'Вы узнали, что на самом деле важно собеседнику'
       : h.decision.kind === 'walk_away' ? 'Собеседник встал из-за стола'
       : h.decision.kind === 'accept' ? 'Сделка'
       : h.decision.kind === 'warn_tone' ? 'Собеседник одёрнул вас за тон'

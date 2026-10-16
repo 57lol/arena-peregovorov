@@ -117,7 +117,7 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
   }
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-    line = line.replace('{interest}', lowerFirst(it?.text ?? ''))
+    line = d.again ? `Я ж говорил: ${lowerFirst(it?.text ?? '')}.` : line.replace('{interest}', lowerFirst(it?.text ?? ''))
     if (d.offer) line += ` Поэтому могу так: ${changesOnly(sc, d.offer, prev)}.`
   }
   return { line, emotion: emotionFor(d, state) }

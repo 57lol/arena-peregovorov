@@ -159,7 +159,7 @@ describe('сложность 3', () => {
 })
 
 describe('вежливый исследователь в «Таре»', () => {
-  it('общий вопрос не делает следующий вопрос о пункте «повтором», а вопрос о рассказанном пункте открывает другое', async () => {
+  it('общий вопрос не делает следующий вопрос о пункте «повтором», а вопрос о рассказанном пункте напоминает рассказанное, а не выдаёт постороннее', async () => {
     const { tara } = await import('../content/scenarios/tara')
     const { BEHAVIOR_DICT } = await import('./behaviors')
     const ask = (asksAbout: string[], extra: string[] = []) => ({
@@ -171,12 +171,26 @@ describe('вежливый исследователь в «Таре»', () => {
       ask(['payment'], ['check']),
       ask(['rush']),
       ask(['term'], ['check']),
-      ask(['schedule']),                            // про график уже рассказал — расскажет другое
+      ask(['schedule']),                            // про график уже рассказал — напомнит про график
     ], BEHAVIOR_DICT)
     // вопрос о новом пункте после общего вопроса — в полную силу
     expect(h[1].deltas.find((d) => d.because.startsWith('Вопрос об интересах') && d.field === 'trust')?.by).toBe(4)
-    expect(h[h.length - 1].decision.kind).toBe('reveal')
-    expect(h[h.length - 1].stateAfter.revealed.length).toBeGreaterThanOrEqual(3)
+    const last = h[h.length - 1].decision
+    expect(last.kind).toBe('reveal')
+    if (last.kind !== 'reveal') return
+    expect(last.again).toBe(true)
+    expect(tara.opponent.profile.interests.find((i) => i.id === last.interestId)?.issue).toBe('schedule')
+    expect(h[h.length - 1].stateAfter.revealed).toEqual(h[h.length - 2].stateAfter.revealed)
+  })
+
+  it('общий вопрос раскрывает главное доступное и помечается как общий', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const h = playAnalyses(tara, [
+      { text: '', analysis: { behaviors: [{ id: 'ask_interest', quote: 'почему' }], asksAbout: ['price', 'payment', 'rush', 'term'] } },
+    ], BEHAVIOR_DICT)
+    const d = h[0].decision
+    if (d.kind === 'reveal') expect(d.general).toBe(true)
   })
 })
 
@@ -219,3 +233,15 @@ describe('собеседник не откатывает уступки', () => 
 function bestOptionOf(p: number[]) {
   return p.indexOf(Math.max(...p))
 }
+
+describe('ответ по теме вопроса (заметка капитана 16.10)', () => {
+  it('«зачем тебе гости в субботу?», когда про гостей уже рассказано, — напоминает про субботу, а не про график уборки', async () => {
+    const { dormCase } = await import('../content/scenarios/story/dorm')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const sc = dormCase.scenario
+    const before = { ...initialState(sc), trust: 64, revealed: ['t_phones', 't_kitty', 't_saturday'], turn: 3 }
+    const r = step(sc, before, { behaviors: [{ id: 'ask_interest', quote: 'зачем тебе гости' }], asksAbout: ['guests'] }, BEHAVIOR_DICT)
+    expect(r.decision).toMatchObject({ kind: 'reveal', interestId: 't_saturday', again: true })
+    expect(r.state.revealed).toEqual(before.revealed)
+  })
+})

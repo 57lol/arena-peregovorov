@@ -124,16 +124,23 @@ function isGeneral(sc: Scenario, a: MoveAnalysis): boolean {
 
 /**
  * Что собеседник готов рассказать в ответ на вопрос: сначала про то, о чём спросили; если спросили в общем —
- * про самое главное из доступного. Если про этот пункт уже всё рассказано, вопрос работает как общий.
+ * про самое главное из доступного. Если про спрошенный пункт уже всё рассказано, он напоминает рассказанное
+ * (told), а не выдаёт постороннее: на «зачем тебе гости?» не отвечают про график уборки.
  * Возвращает очередь от самого лёгкого к самому глубокому и первое, на что хватает доверия.
  */
 export function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveAnalysis) {
   const asked = new Set(isGeneral(sc, analysis) ? [] : analysis.asksAbout ?? [])
-  const pool = sc.opponent.profile.interests.filter((i) => !state.revealed.includes(i.id))
+  const all = sc.opponent.profile.interests
+  const pool = all.filter((i) => !state.revealed.includes(i.id))
   const onTopic = pool.filter((i) => i.issue && asked.has(i.issue))
-  const about = onTopic.length ? onTopic : pool
+  const told = all.filter((i) => i.issue && asked.has(i.issue) && state.revealed.includes(i.id))
+  // спросили про пункт, о котором уже рассказано, — новое постороннее не выдаём
+  const about = onTopic.length ? onTopic : told.length ? [] : pool
   const ordered = [...about].sort((a, b) => a.trustToReveal - b.trustToReveal)
-  return { ready: ordered.find((i) => revealAt(sc, i) <= state.trust), queue: ordered }
+  const ready = ordered.find((i) => revealAt(sc, i) <= state.trust)
+  // спросили про пункт, о котором собеседнику рассказать нечего, и он рассказывает другое
+  const offTopic = ready && asked.size && !onTopic.length ? [...asked] : undefined
+  return { ready, queue: ordered, told: onTopic.length ? undefined : told[0], offTopic, general: !!ready && !asked.size }
 }
 
 export interface StepResult {
@@ -209,14 +216,16 @@ export function step(
   const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter, s.trust)
 
   if (asksInterest(analysis, dict)) {
-    const { ready } = pickInterest(sc, s, analysis)
-    if (ready) {
-      s.revealed.push(ready.id)
+    const { ready, told, offTopic, general } = pickInterest(sc, s, analysis)
+    const it = ready ?? told
+    if (it) {
+      if (ready) s.revealed.push(ready.id)
+      const how = { ...(ready ? {} : { again: true as const }), ...(general ? { general: true as const } : {}), ...(offTopic ? { offTopic } : {}) }
       if (newOffer) {
         const offer = counterNow()
-        return end({ kind: 'reveal', interestId: ready.id, offer }, { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast })
+        return end({ kind: 'reveal', interestId: it.id, offer, ...how }, { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast })
       }
-      return end({ kind: 'reveal', interestId: ready.id }, { lastCall: isLast && !!prevCounter })
+      return end({ kind: 'reveal', interestId: it.id, ...how }, { lastCall: isLast && !!prevCounter })
     }
     if (!newOffer) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
   }
