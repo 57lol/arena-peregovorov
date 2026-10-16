@@ -388,21 +388,25 @@ export class Person {
       const d = MathUtils.euclideanModulo(toFocus - toCam + Math.PI, Math.PI * 2) - Math.PI
       want = toCam + MathUtils.clamp(d, -0.75, 0.75)
     }
+    // уходит: разворачивается боком к двери (она слева в обеих комнатах) — плоский спрайт сужается, как при повороте
+    if (this.leaving && this.gone > 0.35) want = toCam - 0.55
     const d = MathUtils.euclideanModulo(want - this.turn + Math.PI, Math.PI * 2) - Math.PI
-    this.turn += d * (1 - Math.exp(-dt * (this.lead ? 20 : 5)))
+    this.turn += d * (1 - Math.exp(-dt * (this.leaving ? 5 : this.lead ? 20 : 5)))
     this.body.rotation.y = this.turn
 
-    // уходит из-за стола: встаёт и уходит вбок
+    // уходит из-за стола: встаёт, поворачивается и идёт к двери ровным шагом, покачиваясь, пока не скроется из кадра.
+    // Назад от стола не отступает: низ спрайта прячется за столешницей, иначе «бюст» висит в воздухе
     if (this.leaving) {
       this.gone += dt
-      // встаёт, отступает от стола за спины соседей и уходит к двери (она слева в обеих комнатах)
-      const up = Math.min(1, this.gone / 0.5)
-      const back = MathUtils.smoothstep(this.gone, 0.5, 1.1)
-      const away = Math.max(0, this.gone - 0.9)
-      this.body.position.y = BUST_BOTTOM - EXT * M + up * 0.3
-      this.body.position.z = -back * 0.45
-      this.body.position.x = -away * away * 1.6
-      this.body.visible = this.gone < 2.8
+      const up = MathUtils.smoothstep(this.gone, 0, 0.45)
+      // разгон за полсекунды, дальше ровно 1,3 м/с
+      const w = Math.max(0, this.gone - 0.55)
+      const away = w < 0.5 ? (1.3 * w * w) / (2 * 0.5) : 1.3 * (w - 0.25)
+      const step = w > 0 ? Math.abs(Math.sin(w * 8)) * 0.025 : 0
+      this.body.position.y = BUST_BOTTOM - EXT * M + up * 0.16 + step
+      this.body.position.z = -up * 0.2
+      this.body.position.x = -away
+      this.body.visible = away < 6
     } else {
       this.body.position.y = BUST_BOTTOM - EXT * M + (this.jolt > 0 ? M : 0)
       this.body.position.x = 0
