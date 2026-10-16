@@ -87,7 +87,7 @@ export function Play(props: Props) {
       aria-pressed={voiceOn}
       onClick={toggleVoice}
     >
-      <span className="g-voice-btn-label">Голос</span>
+      <span className="g-voice-btn-label">{voiceOn ? 'Голос вкл' : 'Голос выкл'}</span>
     </Button>
   )
 
