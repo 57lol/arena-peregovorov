@@ -11,12 +11,16 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { attemptOf, better, type Board, type PlayerRow, type ShareState, type TalkLine } from '../engine/team'
+import { isSilent, needsHelp, PULSE_TTL, trustTrail, type Pulse, type TrustPoint, type LiveRow } from '../engine/live'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { dict } from './library'
 
 export const ROOM_LIMITS = { players: 200, attemptsPerPlayer: 100 }
 
-interface RoomFile extends Omit<Board, 'players'> {
+interface StoredPulse extends Pulse { pid: string; at: number; trail: TrustPoint[]; submitted?: boolean }
+
+interface RoomFile extends Omit<Board, 'players' | 'live'> {
+  pulses?: Record<string, StoredPulse>
   keyHash: string
   /** по id браузера участника; наружу id не отдаём */
   byClient: Record<string, PlayerRow & { pid: string; share: ShareState; talks?: Record<string, TalkLine[]> }>
@@ -27,12 +31,20 @@ const Create = z.object({
   caseId: z.string().regex(/^[\w-]{1,64}$/),
   name: z.string().trim().max(60).default(''),
 })
+const ClientId = z.string().regex(/^[\w-]{8,64}$/).refine((s) => !Object.hasOwn(Object.prototype, s) && s !== 'prototype')
+const Name = z.string().transform((s) => s.replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim()).pipe(z.string().min(1).max(40))
+const PulseBody = z.object({
+  clientId: ClientId, attemptId: ClientId, name: Name,
+  seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  turn: z.number().int().min(0).max(40),
+  total: z.number().int().min(1).max(40),
+  trust: z.number().min(0).max(100), tension: z.number().min(0).max(100),
+  phase: z.enum(['brief', 'playing', 'left', 'finished']),
+}).strict().refine((p) => p.turn <= p.total, { message: 'Ход больше лимита встречи' })
 const Result = z.object({
-  clientId: z.string().regex(/^[\w-]{8,64}$/),
-  name: z
-    .string()
-    .transform((s) => s.replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim())
-    .pipe(z.string().min(1).max(40)),
+  clientId: ClientId,
+  attemptId: ClientId.optional(),
+  name: Name,
   history: z.array(z.any()).min(1).max(40),
   seconds: z.number().min(0).max(24 * 3600).default(0),
 })
@@ -55,14 +67,18 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
   const queue = new Map<string, Promise<unknown>>()
   const locked = <T>(id: string, fn: () => Promise<T>): Promise<T> => {
     const run = (queue.get(id) ?? Promise.resolve()).then(fn, fn)
-    queue.set(id, run.catch(() => {}))
+    queue.set(id, run)
+    const release = () => { if (queue.get(id) === run) queue.delete(id) }
+    void run.then(release, release)
     return run
   }
 
   const load = async (id: string): Promise<RoomFile | null> => {
     if (!ID.test(id)) return null
     try {
-      return JSON.parse(await readFile(file(id), 'utf8')) as RoomFile
+      const room = JSON.parse(await readFile(file(id), 'utf8')) as RoomFile
+      room.pulses = Object.fromEntries(Object.entries(room.pulses ?? {}).filter(([, p]) => Date.now() - p.at <= PULSE_TTL))
+      return room
     } catch {
       return null
     }
@@ -73,6 +89,8 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     await writeFile(tmp, JSON.stringify(room))
     await rename(tmp, file(room.id))
   }
+
+  const memberCount = (room: RoomFile) => new Set([...Object.keys(room.byClient), ...Object.keys(room.pulses ?? {})]).size
 
   app.post('/api/rooms', bodyLimit({ maxSize: 4 * 1024 }), async (c) => {
     const { caseId, name } = Create.parse(await c.req.json())
@@ -88,7 +106,35 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
   app.get('/api/rooms/:id', async (c) => {
     const room = await load(c.req.param('id'))
     if (!room) return c.json({ error: 'Нет такой тренировки' }, 404)
-    return c.json({ id: room.id, caseId: room.caseId, name: room.name })
+    return c.json({ id: room.id, caseId: room.caseId, name: room.name, ...(room.closedAt ? { closedAt: room.closedAt } : {}) })
+  })
+
+  app.post('/api/rooms/:id/pulse', bodyLimit({ maxSize: 2048 }), async (c) => {
+    const body = PulseBody.parse(await c.req.json().catch(() => null))
+    const id = c.req.param('id')
+    return locked(id, async () => {
+      const room = await load(id)
+      if (!room) return c.json({ error: 'Нет такой тренировки' }, 404)
+      const pulses = room.pulses ??= {}
+      const prev = pulses[body.clientId]
+      const same = prev?.attemptId === body.attemptId
+      if (room.closedAt && !same) return c.json({ error: 'Тренировка завершена. Новые попытки закрыты.' }, 409)
+      if (!prev && !room.byClient[body.clientId] && memberCount(room) >= ROOM_LIMITS.players)
+        return c.json({ error: 'В тренировке уже максимум участников' }, 409)
+      if ((room.byClient[body.clientId]?.attempts ?? 0) >= ROOM_LIMITS.attemptsPerPlayer)
+        return c.json({ error: 'Слишком много попыток' }, 429)
+      // Повтор и опоздавший запрос не откатывают доску и не воскрешают записанную попытку.
+      if ((same && prev.submitted) || (prev && body.seq <= prev.seq)) return c.json({ ok: true })
+      const sc = await resolve(room.caseId).catch(() => null)
+      if (!sc) return c.json({ error: 'Дело тренировки больше недоступно' }, 410)
+      if (body.total !== sc.turnLimit) return c.json({ error: 'Неверный лимит ходов' }, 400)
+      pulses[body.clientId] = {
+        ...body, pid: prev?.pid ?? randomBytes(6).toString('base64url'), at: Date.now(),
+        trail: trustTrail(same ? prev.trail : [], body.turn, body.trust),
+      }
+      await save(room)
+      return c.json({ ok: true })
+    })
   })
 
   app.post('/api/rooms/:id/results', bodyLimit({ maxSize: 400 * 1024 }), async (c) => {
@@ -105,7 +151,12 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     return locked(id, async () => {
       const room = (await load(id))!
       const prev = room.byClient[body.clientId]
-      if (!prev && Object.keys(room.byClient).length >= ROOM_LIMITS.players)
+      const pulse = room.pulses?.[body.clientId]
+      const admitted = !!body.attemptId && pulse?.attemptId === body.attemptId
+      if (body.attemptId && pulse && !admitted) return c.json({ error: 'Уже начата другая попытка. Откройте её разбор.' }, 409)
+      if (admitted && pulse.submitted && prev) return c.json({ ok: true, attempts: prev.attempts, share: prev.share })
+      if (room.closedAt && !admitted) return c.json({ error: 'Тренировка завершена. Новые попытки закрыты.' }, 409)
+      if (!prev && !pulse && memberCount(room) >= ROOM_LIMITS.players)
         return c.json({ error: 'В тренировке уже максимум участников' }, 409)
       if (prev && prev.attempts >= ROOM_LIMITS.attemptsPerPlayer) return c.json({ error: 'Слишком много попыток' }, 429)
       const row = prev
@@ -118,6 +169,7 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
         row.talks = Object.fromEntries(Object.entries(talks).filter(([at]) => keep.has(at)))
       }
       room.byClient[body.clientId] = row
+      if (pulse && (!body.attemptId || admitted)) pulse.submitted = true
       await save(room)
       return c.json({ ok: true, attempts: row.attempts, ending: a.ending, share: row.share })
     })
@@ -184,6 +236,17 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     return c.json({ talk })
   })
 
+  app.post('/api/rooms/:id/close', async (c) => {
+    const id = c.req.param('id')
+    return locked(id, async () => {
+      const room = await load(id)
+      if (!keyOk(room, c.req.header('x-room-key') ?? '')) return c.json({ error: 'Нет доступа к этой доске' }, 403)
+      room.closedAt ??= Date.now()
+      await save(room)
+      return c.json({ closedAt: room.closedAt })
+    })
+  })
+
   app.get('/api/rooms/:id/board', async (c) => {
     let room = await load(c.req.param('id'))
     if (!keyOk(room, c.req.header('x-room-key') ?? '')) return c.json({ error: 'Нет доступа к этой доске' }, 403)
@@ -200,6 +263,11 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       caseId: room.caseId,
       name: room.name,
       createdAt: room.createdAt,
+      ...(room.closedAt ? { closedAt: room.closedAt } : {}),
+      live: Object.values(room.pulses ?? {}).filter((p) => !p.submitted).map((p): LiveRow => ({
+        pid: p.pid, name: p.name, turn: p.turn, total: p.total, trust: p.trust, tension: p.tension,
+        phase: p.phase, at: p.at, needsHelp: needsHelp(p.tension, p.trail), silent: isSilent(p.at),
+      })),
       // переписку на доску не кладём: её отдаёт отдельный запрос и только с согласия
       players: Object.values(room.byClient)
         .map(({ talks: _t, ...row }) => ({ ...row, share: row.share ?? 'none' }))

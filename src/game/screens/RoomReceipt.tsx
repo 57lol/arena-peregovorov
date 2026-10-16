@@ -8,6 +8,7 @@ interface Props {
   room: RoomRef
   name: string
   clientId: string
+  attemptId: string
   history: TurnRecord[]
   seconds: number
   /** эту партию уже отправили (разбор открыт после перезагрузки) */
@@ -16,7 +17,7 @@ interface Props {
 }
 
 /** Корешок над разбором: результат ушёл в журнал тренировки или не ушёл, и тогда можно отправить ещё раз. */
-export function RoomReceipt({ room, name, clientId, history, seconds, sent, onSent }: Props) {
+export function RoomReceipt({ room, name, clientId, attemptId, history, seconds, sent, onSent }: Props) {
   const [state, setState] = useState<'sending' | 'ok' | { error: string }>(sent ? 'ok' : 'sending')
   const [attempts, setAttempts] = useState<number | null>(null)
   const [share, setShare] = useState<ShareState | null>(null)
@@ -39,7 +40,7 @@ export function RoomReceipt({ room, name, clientId, history, seconds, sent, onSe
   const send = async () => {
     setState('sending')
     try {
-      const r = await sendResult(room.id, { clientId, name, history, seconds })
+      const r = await sendResult(room.id, { clientId, attemptId, name, history, seconds })
       setAttempts(r.attempts)
       setState('ok')
       onSent()

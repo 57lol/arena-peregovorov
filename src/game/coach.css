@@ -246,6 +246,45 @@
 .g-board > * {
   margin-inline: auto;
 }
+.g-live,
+.g-room-closed {
+  max-width: 1240px;
+  margin-bottom: calc(10 * var(--u));
+}
+.g-live-list {
+  list-style: none;
+  padding: 0;
+  margin: calc(5 * var(--u)) 0 0;
+}
+.g-live-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: calc(5 * var(--u));
+  padding: calc(5 * var(--u));
+  border-top: 1px solid var(--c-mist);
+  font-variant-numeric: tabular-nums;
+}
+.g-live-list > li.is-help { background: var(--c-paper-2); }
+.g-live-person { min-width: 0; overflow-wrap: anywhere; }
+.g-live-person > b,
+.g-live-person > span { display: block; }
+.g-live-person > span { font-size: var(--fs-ui); margin-top: var(--u); }
+.g-live-flags { display: flex; flex-wrap: wrap; gap: calc(2 * var(--u)); }
+.g-live-flags strong { color: var(--c-stamp-2); font-size: var(--fs-ui); }
+.g-live-flags .is-silent { color: var(--c-ink); }
+.g-live-meter > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--u); font-size: var(--fs-ui); }
+.g-live-meter meter { display: block; width: 100%; height: 18px; accent-color: var(--c-leaf-2); }
+.g-live-meter.is-tension meter { accent-color: var(--c-stamp-2); }
+.g-live-meter meter::-webkit-meter-bar { background: var(--c-paper-2); border: 1px solid var(--c-mist); border-radius: 0; }
+.g-live-meter meter::-webkit-meter-optimum-value { background: var(--c-leaf-2); }
+.g-live-meter.is-tension meter::-webkit-meter-optimum-value { background: var(--c-stamp-2); }
+.g-live-meter meter::-moz-meter-bar { background: var(--c-leaf-2); }
+.g-live-meter.is-tension meter::-moz-meter-bar { background: var(--c-stamp-2); }
+@media (max-width: 600px) {
+  .g-live-list > li { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(4 * var(--u)); padding-inline: 0; }
+  .g-live-person { grid-column: 1 / -1; }
+}
 .g-board-err {
   max-width: 1240px;
   margin: 0 auto calc(6 * var(--u));

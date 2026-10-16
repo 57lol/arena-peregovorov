@@ -8,9 +8,11 @@ import { loadProgress, type Progress } from './game/progress'
 import { nextCase } from './game/career'
 import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
-import { loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
+import { newAttemptId, nextPulseSeq, sendPulse, loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
 import { loadVoiceOn, unlockAudio } from './game/speech'
 import { useSoundScene } from './game/audio/scene'
+import { initialState } from './engine/turn'
+import { useRoomPulse } from './game/useRoomPulse'
 import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
@@ -61,6 +63,7 @@ interface Saved {
   recorded?: string
   /** тренировка команды, на которую пришли по ссылке */
   room?: RoomRef | null
+  attemptId?: string
   startedAt?: number
   sent?: string
   /** откуда открыли дело: «Сюжет» (линейно, без карты), карта недели жюри, папка или хаб жюри — туда и возвращаемся */
@@ -104,6 +107,9 @@ export default function App() {
   const [roomWait, setRoomWait] = useState(false)
   const [player, setPlayer] = useState(loadPlayer)
   const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
+  const [attemptId, setAttemptId] = useState(() => saved?.attemptId ?? newAttemptId())
+  const [admitting, setAdmitting] = useState(false)
+  const [roomError, setRoomError] = useState<string | null>(null)
   const [sent, setSent] = useState(saved?.sent ?? '')
   const [from, setFrom] = useState<Origin>(saved?.from ?? 'setup')
   // катсцена на экране и что после неё
@@ -127,16 +133,17 @@ export default function App() {
   }, [view, screen])
   const currentRef = useRef<Case | null>(null)
   currentRef.current = current
+  useRoomPulse(room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
 
   useEffect(() => {
     try {
-      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, startedAt, sent, from } satisfies Saved))
+      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, attemptId, startedAt, sent, from } satisfies Saved))
     } catch {
       // нет хранилища — после перезагрузки начнём с титула
     }
-  }, [screen, current, history, recorded, room, startedAt, sent, from])
+  }, [screen, current, history, recorded, room, attemptId, startedAt, sent, from])
 
   useEffect(() => {
     // /api/health под нагрузкой бывает дольше таймаута: не ответил — переспрашиваем, иначе голос и распознавание
@@ -211,7 +218,29 @@ export default function App() {
     return () => window.removeEventListener('popstate', back)
   }, [])
 
-  const open = (c: Case, origin: Origin = 'setup') => {
+  const admit = async (c: Case, id: string) => {
+    if (!room || room.caseId !== c.scenario.id) return true
+    const state = initialState(c.scenario)
+    setAdmitting(true)
+    setRoomError(null)
+    try {
+      await sendPulse(room.id, { clientId: player.clientId, name: player.name.trim() || 'Без имени', attemptId: id,
+        seq: nextPulseSeq(), turn: 0, total: c.scenario.turnLimit, trust: state.trust, tension: state.tension, phase: 'brief' })
+      return true
+    } catch (e) {
+      const message = e instanceof RoomError ? e.message : 'Не удалось войти в тренировку. Проверьте связь и попробуйте ещё раз.'
+      setRoomError(message)
+      setNotice(message)
+      return false
+    } finally { setAdmitting(false) }
+  }
+  const open = async (c: Case, origin: Origin = 'setup') => {
+    if (admitting) return
+    const id = newAttemptId()
+    if (!(await admit(c, id))) return
+    clearLink()
+    setInvited(false)
+    setAttemptId(id)
     setFrom(origin)
     setCurrent(c)
     setHistory([])
@@ -219,10 +248,12 @@ export default function App() {
     go('brief')
   }
 
-  const start = () => {
-    // «Войти в переговорку» — клик: прогреваем звук, чтобы собеседник поздоровался вслух (Safari, iOS).
-    // Не ждём /api/health: пока он не ответил, звук всё равно прогреваем
+  const start = async () => {
+    if (admitting || !current) return
     if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
+    const id = screen === 'brief' ? attemptId : newAttemptId()
+    if (!(await admit(current, id))) return
+    setAttemptId(id)
     setHistory([])
     setRedo('')
     setStartedAt(Date.now())
@@ -269,7 +300,11 @@ export default function App() {
     if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
   }, [screen, film])
 
-  const rewindTo = (turn: number) => {
+  const rewindTo = async (turn: number) => {
+    if (!current || admitting) return
+    const id = newAttemptId()
+    if (!(await admit(current, id))) return
+    setAttemptId(id)
     // turn — номер хода (с 1); оставляем всё, что было до него
     const before = history.slice(0, Math.max(0, turn - 1))
     setRedo(history[turn - 1]?.playerText ?? '')
@@ -404,9 +439,7 @@ export default function App() {
           setNotice(null)
           unlock()
           if (invited && current) {
-            clearLink()
-            setInvited(false)
-            open(current)
+            void open(current)
           } else go('setup')
         }}
         onLibrary={() => {
@@ -431,7 +464,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} />
+  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} /></>
 
   if (screen === 'play') {
     const meeting = {
@@ -486,6 +519,8 @@ export default function App() {
   }
 
   return (
+    <>
+    {roomError && <p className="g-view-note" role="alert">{roomError}</p>}
     <Debrief
       game={current}
       history={history}
@@ -520,13 +555,15 @@ export default function App() {
             room={room}
             name={player.name.trim() || 'Без имени'}
             clientId={player.clientId}
+            attemptId={attemptId}
             history={history}
             seconds={(Date.now() - startedAt) / 1000}
-            sent={sent === runKey(current, history)}
-            onSent={() => setSent(runKey(current, history))}
+            sent={sent === attemptId}
+            onSent={() => setSent(attemptId)}
           />
         ) : null
       }
     />
+    </>
   )
 }

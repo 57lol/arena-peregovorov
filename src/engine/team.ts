@@ -6,6 +6,7 @@ import type { BehaviorDict } from './dictionary'
 import { ENDING_IDS, endingFacts, pickEnding, type EndingId } from './endings'
 import { buildReport } from './report'
 import type { Scenario, TurnRecord } from './types'
+import type { LiveRow } from './live'
 
 export interface Attempt {
   /** когда записана, мс */
@@ -61,6 +62,8 @@ export interface Board {
   name: string
   createdAt: number
   players: PlayerRow[]
+  closedAt?: number
+  live?: LiveRow[]
 }
 
 export function attemptOf(sc: Scenario, history: TurnRecord[], dict: BehaviorDict, seconds: number, at = Date.now()): Attempt {

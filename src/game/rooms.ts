@@ -3,11 +3,13 @@
 
 import type { Board, ShareState, TalkLine } from '../engine/team'
 import type { TurnRecord } from '../engine/types'
+import type { Pulse } from '../engine/live'
 
 export interface RoomRef {
   id: string
   caseId: string
   name: string
+  closedAt?: number
 }
 
 /** Комната, которую открыл этот браузер: чтобы руководитель мог вернуться к доске. */
@@ -49,7 +51,9 @@ const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'cont
 export const createRoom = (caseId: string, name: string) => call<RoomRef & { key: string }>('/api/rooms', post({ caseId, name }))
 export const roomInfo = (id: string) => call<RoomRef>(`/api/rooms/${encodeURIComponent(id)}`)
 export const loadBoard = (id: string, key: string) => call<Board>(`/api/rooms/${encodeURIComponent(id)}/board`, { headers: { 'x-room-key': key } })
-export const sendResult = (room: string, body: { clientId: string; name: string; history: TurnRecord[]; seconds: number }) =>
+export const sendPulse = (room: string, body: Pulse) => call<{ ok: true }>(`/api/rooms/${encodeURIComponent(room)}/pulse`, post(body))
+export const closeRoom = (id: string, key: string) => call<{ closedAt: number }>(`/api/rooms/${encodeURIComponent(id)}/close`, { method: 'POST', headers: { 'x-room-key': key } })
+export const sendResult = (room: string, body: { clientId: string; attemptId?: string; name: string; history: TurnRecord[]; seconds: number }) =>
   call<{ ok: true; attempts: number; share?: ShareState }>(`/api/rooms/${encodeURIComponent(room)}/results`, post(body), 20_000)
 
 // переписка: руководитель просит и читает (с секретом доски), участник отвечает (по id своего браузера)
@@ -65,6 +69,10 @@ export const setConsent = (id: string, clientId: string, allow: boolean) => call
 
 const PLAYER = 'peregovorka.player.v1'
 const MINE = 'peregovorka.rooms.v1'
+
+export const newAttemptId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
+let pulseSeq = 0
+export const nextPulseSeq = () => (pulseSeq = Math.max(pulseSeq + 1, Date.now() * 1000))
 
 function read<T>(k: string, def: T): T {
   try {

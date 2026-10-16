@@ -1,13 +1,14 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getScenario } from '../../content/scenarios'
 import { endingCatalog, type EndingCard } from '../../content/endings'
 import { AXES, BEHAVIORS, behaviorById, type Axis, type ProfileRow } from '../../engine/behaviors'
 import type { EndingId } from '../../engine/endings'
 import { summarize, type Attempt, type Board as BoardData, type PlayerRow, type ShareState } from '../../engine/team'
+import type { LiveRow } from '../../engine/live'
 import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { isFemale, plural } from '../cast'
-import { loadBoard, RoomError, teamLink } from '../rooms'
+import { closeRoom, loadBoard, RoomError, teamLink } from '../rooms'
 import { Button } from '../ui'
 import { LinkField } from './Coach'
 import { Bench } from './Debrief'
@@ -38,9 +39,14 @@ export function Board({ server, id, secret, onExit }: Props) {
   const [sc, setSc] = useState<Scenario | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const fetching = useRef(false)
+  const [closing, setClosing] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
 
   const refresh = useCallback(async () => {
+    if (fetching.current) return
+    fetching.current = true
     setBusy(true)
     try {
       const b = await loadBoard(id, secret)
@@ -59,6 +65,7 @@ export function Board({ server, id, secret, onExit }: Props) {
           : 'Сервер не ответил. Попробуйте обновить чуть позже.',
       )
     } finally {
+      fetching.current = false
       setBusy(false)
     }
   }, [id, secret])
@@ -66,12 +73,22 @@ export function Board({ server, id, secret, onExit }: Props) {
   useEffect(() => {
     if (server) refresh()
   }, [server, refresh])
-  // доска живая: пока вкладка открыта, подтягиваем новые результаты раз в 15 секунд
+  // доска живая: пока вкладка открыта, подтягиваем новые результаты раз в 4 секунды
   useEffect(() => {
     if (!server) return
-    const t = setInterval(() => document.visibilityState === 'visible' && refresh(), 15_000)
+    const t = setInterval(() => document.visibilityState === 'visible' && refresh(), 4_000)
     return () => clearInterval(t)
   }, [server, refresh])
+  const finish = async () => {
+    setClosing(true)
+    setCloseError(null)
+    try {
+      const { closedAt } = await closeRoom(id, secret)
+      setData((d) => d ? { ...d, closedAt } : d)
+      await refresh()
+    } catch { setCloseError('Не удалось завершить тренировку. Проверьте связь и попробуйте ещё раз.') }
+    finally { setClosing(false) }
+  }
   const setShare = (pid: string, share: ShareState) =>
     setData((d) => (d ? { ...d, players: d.players.map((p) => (p.pid === pid ? { ...p, share } : p)) } : d))
 
@@ -116,10 +133,11 @@ export function Board({ server, id, secret, onExit }: Props) {
         Открываем журнал…
       </p>,
     )
-  return shell(<Journal data={data} sc={sc} updated={updated} error={error} secret={secret} onShare={setShare} />)
+  return shell(<Journal data={data} sc={sc} updated={updated} error={closeError ?? error} secret={secret} closing={closing} onClose={finish} onShare={setShare} />)
 }
 
-function Journal({ data, sc, updated, error, secret, onShare }: {
+function Journal({ data, sc, updated, error, secret, onShare, closing, onClose }: {
+  closing: boolean; onClose: () => void;
   data: BoardData; sc: Scenario; updated: Date | null; error: string | null; secret: string; onShare: (pid: string, s: ShareState) => void
 }) {
   const [pick, setPick] = useState<'best' | 'last'>('best')
@@ -133,7 +151,7 @@ function Journal({ data, sc, updated, error, secret, onShare }: {
       <h1 className="g-h1">Журнал тренировки{data.name ? ` «${data.name}»` : ''}</h1>
       <p className="g-sub">
         <span>
-          Дело «{sc.title}», открыта {day}. {players.length} {plural(players.length, 'участник', 'участника', 'участников')},{' '}
+          Дело «{sc.title}», открыта {day}. Завершили: {players.length} {plural(players.length, 'участник', 'участника', 'участников')},{' '}
           {tries} {plural(tries, 'попытка', 'попытки', 'попыток')}
           {updated ? `. Обновлено в ${updated.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}.
         </span>
@@ -144,6 +162,13 @@ function Journal({ data, sc, updated, error, secret, onShare }: {
         </p>
       )}
 
+      {data.closedAt ? (
+        <section className="g-sheet g-order g-room-closed" aria-label="Финальная сводка">
+          <h2 className="g-sheet-title">Тренировка завершена</h2>
+          <p>Новые попытки закрыты. Ниже — финальная сводка по результатам команды.
+            {!!data.live?.length && ' Участники, которые уже вошли, ещё могут закончить встречу; их результаты дополнят сводку.'}</p>
+        </section>
+      ) : null}
       <div className="g-board-tools">
         <LinkField label="Ссылка для команды" value={teamLink(data)} />
         <div className="g-board-tools-right">
@@ -156,18 +181,22 @@ function Journal({ data, sc, updated, error, secret, onShare }: {
               последнюю
             </Chip>
           </fieldset>
+          {!data.closedAt && <Button onClick={onClose} disabled={closing}>
+            {closing ? 'Завершаем…' : 'Завершить тренировку'}
+          </Button>}
           <Button icon="notebook" onClick={() => downloadCsv(data, sc, catalog)} disabled={!players.length}>
             Выгрузить CSV
           </Button>
         </div>
       </div>
 
+      <LivePlayers rows={data.live ?? []} closed={!!data.closedAt} />
+
       {!players.length ? (
         <section className="g-sheet g-order">
-          <h2 className="g-sheet-title">Пока никто не сыграл</h2>
+          <h2 className="g-sheet-title">{data.closedAt ? 'Завершённых встреч пока нет' : 'Пока никто не сыграл'}</h2>
           <p>
-            Отправьте команде ссылку выше. Результат каждого появится здесь, как только он закончит встречу: доска
-            обновляется сама раз в 15 секунд.
+            {data.closedAt ? 'Результаты уже начатых встреч появятся здесь после разбора.' : 'Отправьте команде ссылку выше. Результат каждого появится здесь после разбора встречи. Доска обновляется сама раз в 4 секунды.'}
           </p>
         </section>
       ) : (
@@ -185,6 +214,43 @@ function Journal({ data, sc, updated, error, secret, onShare }: {
       )}
     </>
   )
+}
+
+const PHASE: Record<LiveRow['phase'], string> = {
+  brief: 'Читает бриф', playing: 'За столом', left: 'Ушёл со встречи', finished: 'Закончил встречу',
+}
+
+function LivePlayers({ rows, closed }: { rows: LiveRow[]; closed: boolean }) {
+  return (
+    <section className="g-sheet g-live" aria-labelledby="live-h">
+      <h2 id="live-h" className="g-sheet-title">Играют сейчас · {rows.length}</h2>
+      <p className="g-muted">{rows.length ? 'Ход встречи без текста реплик. Обновляется каждые 4 секунды.'
+        : closed ? 'Начатых встреч нет.' : 'Когда участник откроет бриф по ссылке команды, он появится здесь.'}</p>
+      {!!rows.length && <ul className="g-live-list">
+        {rows.map((p) => (
+          <li key={p.pid} className={p.needsHelp ? 'is-help' : undefined}>
+            <div className="g-live-person">
+              <b>{p.name}</b>
+              <span>{PHASE[p.phase]} · ход {p.turn} из {p.total}</span>
+              <div className="g-live-flags">
+                {p.needsHelp && <strong>Нужна помощь</strong>}
+                {p.silent && <strong className="is-silent">Давно молчит</strong>}
+              </div>
+            </div>
+            <LiveMeter label="Доверие" value={p.trust} />
+            <LiveMeter label="Напряжение" value={p.tension} tension />
+          </li>
+        ))}
+      </ul>}
+    </section>
+  )
+}
+
+function LiveMeter({ label, value, tension }: { label: string; value: number; tension?: boolean }) {
+  return <label className={`g-live-meter${tension ? ' is-tension' : ''}`}>
+    <span>{label} <b>{Math.round(value)} из 100</b></span>
+    <meter min={0} max={100} value={value} aria-label={label} />
+  </label>
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`

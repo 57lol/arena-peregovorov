@@ -43,6 +43,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
   const start = () => {
+    if (roomWait || room?.closedAt) return
     if (inRoom && !playerName.trim()) {
       setNeedName(true)
       nameRef.current?.focus()
@@ -83,7 +84,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               {room ? (
                 <>
                   Тренировка{room.name ? ` «${room.name}»` : ''}: дело «{invited.scenario.title}», напротив {invited.scenario.opponent.character.name}.
-                  Результат уйдёт руководителю.
+                  {' '}{room.closedAt ? 'Тренировка завершена, новые попытки закрыты.' : 'Руководитель видит ход встречи, доверие и напряжение. Реплики закрыты; доступ к ним — только с вашего согласия.'}
                 </>
               ) : (
                 <>
@@ -114,7 +115,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               </p>
             )}
             <div className="tt-invite-actions">
-              <Button variant="brass" icon="send" className="g-big" onClick={start}>
+              <Button variant="brass" icon="send" className="g-big" onClick={start} disabled={roomWait || !!room?.closedAt}>
                 К делу
               </Button>
               <Button variant="ghost" onClick={onLibrary}>
