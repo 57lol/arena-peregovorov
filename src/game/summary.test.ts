@@ -56,3 +56,14 @@ describe('главное в разборе', () => {
     expect(sum(a)).toEqual(sum(b))
   })
 })
+
+describe('остановка: без сделки хуже, чем было', () => {
+  it('ушли от Серого — не «остаётся то, что было», а опоздание на автобус', () => {
+    const stop = getScenario('stop')!
+    const h: TurnRecord[] = [offlineTurn(stop, [], 'Всё, я ухожу. До свидания.', BEHAVIOR_DICT)]
+    const s = summarize(stop, buildReport(stop, h, BEHAVIOR_DICT), h)
+    expect(s.result).toMatch(/стало хуже/)
+    expect(s.result).toMatch(/7:52/)
+    expect(s.result).not.toMatch(/то, что было/)
+  })
+})

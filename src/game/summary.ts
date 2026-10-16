@@ -7,6 +7,7 @@ import type { Scenario, TurnRecord } from '../engine/types'
 import { isComplete, maxScore, score } from '../engine/utility'
 import { firstName, g } from './cast'
 import { fragment, plainWords } from './instant'
+import { worseWithout } from '../content/scenarios/story'
 
 export interface Summary {
   result: string
@@ -27,9 +28,12 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   const deal = o.status === 'deal'
   const loss = deal && o.playerPoints < batna
 
-  // 1. Чем кончилось
+  // 1. Чем кончилось. Есть дела, где без сделки хуже, чем было до встречи (остановка: автобус ушёл) — там так и пишем
+  const worse = worseWithout(sc.id)
   let result: string
-  if (deal && loss) result = `Сделка, но себе в убыток: выгода ${o.playerPoints}, а без сделки было бы ${batna}.`
+  if (!deal && worse)
+    result = `${o.status === 'walked_away' && state?.endedBy === 'opponent' ? `${n} ${g(sc, 'встал', 'встала')} из-за стола` : o.status === 'walked_away' ? 'Вы ушли' : 'Время вышло'}. Сделки нет, и стало хуже, чем было: ${worse}.${r.zopa ? ' А договориться было можно.' : ''}`
+  else if (deal && loss) result = `Сделка, но себе в убыток: выгода ${o.playerPoints}, а без сделки было бы ${batna}.`
   else if (deal) result = `Сделка! Ваша выгода — ${o.playerPoints} из ${max}, на ${o.playerPoints - batna} больше, чем без неё.`
   else if (o.status === 'walked_away' && state?.endedBy === 'opponent')
     result = `${n} ${g(sc, 'встал', 'встала')} из-за стола. Сделки нет, у вас остаётся то, что было и без неё.`

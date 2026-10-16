@@ -8,6 +8,7 @@ import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types
 import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type FullOffer } from '../engine/utility'
 import { ApiError, playTurn } from './api'
 import { firstName } from './cast'
+import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
 import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type SpeechCaps } from './speech'
@@ -241,6 +242,9 @@ function startPicks(sc: Scenario, state: OpponentState, mine = false): FullOffer
 export function endText(state: OpponentState, sc: Scenario, g: (sc: Scenario, m: string, f: string) => string): string {
   const n = firstName(sc)
   if (state.status === 'deal') return 'По рукам! В разборе — что вы выиграли и можно ли было лучше.'
+  // без сделки хуже, чем было (остановка: автобус ушёл) — не пишем «остаётся то, что было»
+  const worse = worseWithout(sc.id)
+  if (worse) return `${state.endedBy === 'opponent' ? `${n} ${g(sc, 'встал', 'встала')} из-за стола` : state.status === 'timeout' ? 'Время вышло' : 'Вы ушли'}. Сделки нет: ${worse}.`
   if (state.status === 'timeout') return 'Время встречи вышло, сделки нет. В разборе — о чём можно было договориться.'
   if (state.endedBy === 'opponent') return `${n} ${g(sc, 'встал', 'встала')} из-за стола. В разборе — что ${g(sc, 'его', 'её')} так задело.`
   return 'Вы ушли без сделки. Остаётся то, что было и без неё.'
