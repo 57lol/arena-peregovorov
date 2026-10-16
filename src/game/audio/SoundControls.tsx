@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Button, PixelIcon } from '../ui'
-import { getVolume, setSoundOn, setVolume, soundOn, subscribe, type Channel } from './engine'
+import { audible, getVolume, setSoundOn, setVolume, soundOn, subscribe, type Channel } from './engine'
 import './sound.css'
 
 const LABEL: Record<Channel, string> = { music: 'Музыка', sfx: 'Звуки', voice: 'Голос' }
@@ -46,6 +46,26 @@ export function SoundToggle() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Плашка у главных кнопок титула: пока музыка не звучит (браузер ждёт первого клика или звук выключили), её видно
+ * сразу, и включить можно одним нажатием. Любой клик или клавиша по странице тоже включают звук — плашка пропадает.
+ * В прогонах Playwright звук выключен нарочно — там плашки нет.
+ */
+export function MusicHint() {
+  const on = useSyncExternalStore(subscribe, audible, () => true)
+  if (on || (typeof navigator !== 'undefined' && navigator.webdriver)) return null
+  return (
+    <div className="snd-hint-row">
+      <button type="button" className="snd-hint" onClick={() => setSoundOn(true)}>
+        <PixelIcon name="mute" px={2} className="snd-hint-icon" />
+        <span>
+          Музыка выключена — <b>включить</b>
+        </span>
+      </button>
     </div>
   )
 }

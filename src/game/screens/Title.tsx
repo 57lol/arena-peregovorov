@@ -5,7 +5,7 @@ import type { Health } from '../api'
 import type { Progress } from '../progress'
 import type { RoomRef } from '../rooms'
 import { Button } from '../ui'
-import { SoundToggle } from '../audio/SoundControls'
+import { MusicHint, SoundToggle } from '../audio/SoundControls'
 import { TitleScene } from './TitleScene'
 import '../title.css'
 
@@ -121,6 +121,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
                 Другое дело
               </Button>
             </div>
+            <MusicHint />
           </section>
         ) : (
           <div className="tt-actions">
@@ -137,6 +138,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <b>Для жюри</b>
               <span>Все дела, настройки, кабинет</span>
             </button>
+            <MusicHint />
           </div>
         )}
       </main>

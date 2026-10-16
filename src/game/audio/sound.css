@@ -46,3 +46,64 @@
     display: none;
   }
 }
+
+/* Плашка «Музыка выключена — включить» под главными кнопками титула: тёмная табличка, мигает значок, пока звука нет */
+.snd-hint-row {
+  flex: none;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.snd-hint {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--c-ink, #10141f);
+  color: var(--c-paper, #ebede9);
+  font: 400 var(--fs-ui, 18px) / var(--lh-ui, 24px) var(--f-ui, monospace);
+  cursor: pointer;
+  box-shadow: 0 0 0 calc(2 * var(--u, 1px)) var(--c-brass, #de9e41);
+}
+.snd-hint b {
+  color: var(--c-brass-hi, #e8c170);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.snd-hint:hover b,
+.snd-hint:focus-visible b {
+  color: var(--c-paper, #ebede9);
+}
+.snd-hint:focus-visible {
+  outline: calc(2 * var(--u, 1px)) solid var(--c-paper, #ebede9);
+  outline-offset: 3px;
+}
+.snd-hint-icon {
+  animation: snd-blink 1.2s steps(2) infinite;
+}
+@keyframes snd-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snd-hint-icon {
+    animation: none;
+  }
+}
+.snd-hint span {
+  white-space: nowrap;
+}
+@media (max-width: 599px) {
+  .snd-hint {
+    padding: 6px 8px;
+  }
+  .snd-hint-icon {
+    display: none;
+  }
+}

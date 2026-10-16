@@ -69,6 +69,9 @@ export function subscribe(f: () => void) {
 
 export const soundOn = () => settings.on
 
+/** Музыка реально слышна: звук включён и браузер уже пустил контекст (до первого жеста он «спит»). */
+export const audible = () => settings.on && ctx?.state === 'running'
+
 export function getVolume(ch: Channel): number {
   return ch === 'voice' ? loadVolume() : settings[ch]
 }
@@ -103,25 +106,45 @@ let sfxBus: GainNode | null = null
 const AC = () =>
   typeof window === 'undefined' ? undefined : window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
 
+/** Контекст и шины громкости — один раз на вкладку. */
+function ensure(): AudioContext | null {
+  if (ctx) return ctx
+  const Ctx = AC()
+  if (!Ctx) return null
+  try {
+    ctx = new Ctx()
+  } catch {
+    return null
+  }
+  // браузер пустил или усыпил звук — плашка «Музыка выключена» на титуле узнаёт об этом сразу
+  ctx.onstatechange = changed
+  musicBus = ctx.createGain()
+  musicBus.gain.value = settings.music
+  musicBus.connect(ctx.destination)
+  sfxBus = ctx.createGain()
+  sfxBus.gain.value = settings.sfx
+  sfxBus.connect(ctx.destination)
+  for (const names of Object.values(VARIANTS)) names.forEach((n) => load(`sfx-${n}`))
+  return ctx
+}
+
+/**
+ * Без жеста: пробуем завестись сразу при открытии. Chrome пускает звук без клика, если на сайте уже кликали
+ * (перезагрузка, повторный заход, частый сайт); иначе контекст остаётся спящим и стартует в первом жесте (unlock).
+ */
+export function tryAutostart() {
+  if (!settings.on || robot()) return
+  const c = ensure()
+  if (!c) return
+  if (c.state !== 'running') c.resume().catch(() => {})
+  wake()
+}
+
 /** Внутри жеста: создать контекст, разбудить и пискнуть тишиной — так iOS разрешает звук и дальше. */
 export function unlock() {
   if (!settings.on) return
-  const Ctx = AC()
-  if (!Ctx || ctx?.state === 'running') return
-  if (!ctx) {
-    try {
-      ctx = new Ctx()
-    } catch {
-      return
-    }
-    musicBus = ctx.createGain()
-    musicBus.gain.value = settings.music
-    musicBus.connect(ctx.destination)
-    sfxBus = ctx.createGain()
-    sfxBus.gain.value = settings.sfx
-    sfxBus.connect(ctx.destination)
-    for (const names of Object.values(VARIANTS)) names.forEach((n) => load(`sfx-${n}`))
-  }
+  if (ctx?.state === 'running') return
+  if (!ensure() || !ctx) return
   const b = ctx.createBuffer(1, 1, 22050)
   const s = ctx.createBufferSource()
   s.buffer = b
@@ -258,6 +281,7 @@ if (typeof window !== 'undefined') {
   // первый жест открывает звук; и каждый следующий будит его, если iOS усыпил контекст
   for (const ev of ['pointerdown', 'touchend', 'keydown'] as const) window.addEventListener(ev, unlock, { capture: true, passive: true })
   window.addEventListener('click', onClick, { capture: true, passive: true })
+  tryAutostart()
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) ctx?.suspend().catch(() => {})
     else wake()
