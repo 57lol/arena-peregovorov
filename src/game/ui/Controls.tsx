@@ -32,7 +32,7 @@ export function SpeechField({ label, hint, id = 'px-speech', ...rest }: FieldPro
       <label className="px-visually-hidden" htmlFor={id}>
         {label}
       </label>
-      <textarea id={id} className="px-field-input" rows={2} placeholder={label} {...rest} />
+      <textarea id={id} className="px-field-input" rows={2} placeholder={label} enterKeyHint="send" {...rest} />
       {hint && <p className="px-field-hint">{hint}</p>}
     </div>
   )

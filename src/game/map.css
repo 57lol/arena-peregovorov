@@ -200,6 +200,16 @@
 .mp-pin {
   padding-bottom: calc(5 * var(--u));
 }
+/* метка мелкая, а палец толстый: невидимая площадка вокруг неё 44×44 */
+.mp-pin::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -4px);
+}
 .mp-pin.is-done .mp-pin-badge {
   background: var(--c-leaf-hi);
 }

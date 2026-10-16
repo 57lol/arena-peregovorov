@@ -11,6 +11,10 @@
   gap: 4px;
   max-width: calc(100vw - 16px);
 }
+.snd-corner > .px-btn {
+  min-width: 44px;
+  justify-content: center;
+}
 
 .snd-panel {
   flex-basis: 100%;

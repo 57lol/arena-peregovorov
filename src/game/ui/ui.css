@@ -285,6 +285,12 @@
   margin: calc(2 * var(--u)) 0 0;
   color: var(--on-desk-muted);
 }
+/* на телефоне клавиатура сама подписывает «Отправить», а Shift там нет */
+@media (hover: none) and (pointer: coarse) {
+  .px-field-hint {
+    display: none;
+  }
+}
 @media (hover: none), (pointer: coarse) {
   .px-field-hint {
     display: none;

@@ -118,6 +118,27 @@
   outline-offset: var(--u);
 }
 
+/* телефон: iOS не раздувает шрифт лёжа, двойной тап по кнопке не зумит, серой вспышки от тапа нет */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+.px-root button,
+.px-root a,
+.px-root summary,
+.px-root label,
+.px-root input,
+.px-root select,
+.px-root textarea,
+.px-root [role='button'] {
+  touch-action: manipulation;
+}
+/* «удары» печатей (scale 1.6) на миг шире экрана — телефон после этого так и остаётся отдалённым */
+.px-root {
+  overflow-x: clip;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .px-root *,
   .px-root *::before,
