@@ -77,6 +77,17 @@ describe('предложения подтверждаются словами и�
     expect(explicitOffer(stopCase.scenario, 'Телефон — не доставать.', { phone: 3 })).toEqual({ phone: 3 })
   })
 
+  it.each(['дам', 'могу', 'можем'])('«не %s» после «и» остаётся отказом во всех режимах анализа', async (verb) => {
+    const text = `Не хочу ссориться и не ${verb} 300 рублей за вай-фай.`
+    expect(explicitOffer(dormCase.scenario, text, { wifi: 2 })).toEqual({})
+    expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ wifi: 2 })).offer).toBeUndefined()
+    for (const name of ['offline', 'yandex'] as const) {
+      const result = await analyzeMove({ name, model: `qa-refusal-${name}-${verb}`, json: async () => { throw new Error('offline') } }, dormCase.scenario, BEHAVIOR_DICT, [], text)
+      expect(result.analysis.offer).toBeUndefined()
+    }
+    expect(explicitOffer(dormCase.scenario, `Не хочу ссориться и ${verb} 300 рублей за вай-фай.`, { wifi: 2 })).toEqual({ wifi: 2 })
+  })
+
   it.each([
     ['Предлагаю тишину с одиннадцати вечера', 3],
     ['Предлагаю тишину с 23:00', 3],
