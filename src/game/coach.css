@@ -529,6 +529,15 @@
   .g-roll-table td[data-label='Очки'] small {
     display: block;
   }
+  /* раскрытая карточка участника — во всю ширину */
+  .g-roll-table tr.g-roll-card > td {
+    display: block;
+    min-width: 0;
+  }
+  /* подписи полей карточки — читаемые */
+  .g-roll-table td::before {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
 }
 
 /* ошибки и профиль */
@@ -579,7 +588,7 @@
 
 .g-roll-open {
   appearance: none;
-  min-height: 32px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: none;
@@ -620,7 +629,7 @@
 }
 .g-pcard-facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--u) calc(4 * var(--u));
   margin: 0;
 }
@@ -629,6 +638,18 @@
 }
 .g-pcard-facts dd {
   margin: 0;
+}
+/* узкий телефон: подпись над значением, иначе длинная строка выдавливает карточку за экран */
+@media (max-width: 420px) {
+  .g-pcard {
+    padding-inline: calc(3 * var(--u));
+  }
+  .g-pcard-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .g-pcard-facts dd + dt {
+    margin-top: calc(2 * var(--u));
+  }
 }
 .g-pcard-h {
   margin: calc(3 * var(--u)) 0 var(--u);

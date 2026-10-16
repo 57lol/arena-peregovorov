@@ -758,6 +758,13 @@ body {
     justify-content: center;
     padding-inline: calc(2 * var(--u));
   }
+  /* «ещё 12 реплик» переносится, а не выталкивает «Уйти» за край */
+  .g-hud > .px-clock {
+    min-width: 0;
+  }
+  .g-hud .px-clock-left {
+    white-space: normal;
+  }
   /* «Точно уйти?» на пару секунд занимает место подписи рентгена */
   .g-hud-actions:has(.g-leave.is-sure) .g-xray-btn-label {
     display: none;
