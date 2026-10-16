@@ -614,6 +614,31 @@ body {
 .g-table-opts li.is-best {
   box-shadow: inset 0 0 0 var(--u) var(--pen);
 }
+/* легенда таблицы: как читать порядок и рамку */
+.g-table-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(1 * var(--u)) calc(6 * var(--u));
+  margin: calc(2 * var(--u)) 0 0;
+  color: var(--c-steel-2);
+}
+.g-table-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2 * var(--u));
+}
+.g-table-legend-item:first-child::before {
+  content: '←→';
+  color: var(--pen);
+  font-weight: 700;
+}
+.g-table-swatch {
+  flex: none;
+  width: calc(8 * var(--u));
+  height: calc(5 * var(--u));
+  background: var(--c-paper);
+  box-shadow: inset 0 0 0 var(--u) var(--pen);
+}
 .g-goals {
   padding-block: calc(4 * var(--u));
   border-top: var(--u) dashed var(--c-mist);

@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { PixelIcon, type IconName } from './PixelIcon'
+import { worstFirst } from './order'
 
 type Variant = 'brass' | 'paper' | 'stamp' | 'ghost'
 
@@ -49,6 +50,9 @@ interface StepperProps {
 /** Строка блокнота: пункт договора и выбор варианта стрелками. */
 export function IssueStepper({ title, options, value, onChange, points }: StepperProps) {
   const p = points?.[value]
+  // стрелки листают от худшего для вас к лучшему, в каком бы порядке варианты ни лежали в деле
+  const order = points ? worstFirst(points) : options.map((_, k) => k)
+  const at = order.indexOf(value)
   return (
     <div className="px-issue">
       <span className="px-issue-title">{title}</span>
@@ -56,8 +60,8 @@ export function IssueStepper({ title, options, value, onChange, points }: Steppe
         <button
           type="button"
           className="px-step"
-          onClick={() => onChange(Math.max(0, value - 1))}
-          disabled={value === 0}
+          onClick={() => onChange(order[Math.max(0, at - 1)])}
+          disabled={at <= 0}
           aria-label={`${title}: предыдущий вариант`}
         >
           <PixelIcon name="left" px={2} />
@@ -68,8 +72,8 @@ export function IssueStepper({ title, options, value, onChange, points }: Steppe
         <button
           type="button"
           className="px-step"
-          onClick={() => onChange(Math.min(options.length - 1, value + 1))}
-          disabled={value === options.length - 1}
+          onClick={() => onChange(order[Math.min(order.length - 1, at + 1)])}
+          disabled={at >= order.length - 1}
           aria-label={`${title}: следующий вариант`}
         >
           <PixelIcon name="right" px={2} />

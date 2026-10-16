@@ -11,13 +11,17 @@ import { markTutorialDone } from './progress'
 export type TutorStep = 'talk' | 'notebook' | 'offer' | 'slip' | 'feel' | 'leave' | 'done'
 const ORDER: TutorStep[] = ['talk', 'notebook', 'offer', 'slip', 'feel', 'leave', 'done']
 
-/** Части встречи, которые открываются по ходу обучения. Остальное (собеседник, поле ответа, меню) видно сразу. */
+/**
+ * Части встречи, которые открываются по ходу обучения. Остальное (собеседник, поле ответа, меню) видно сразу.
+ * Блокнот с «Предложить» и кнопка «Стол» тоже видны с первой секунды: без них игрок не знает, о чём торгуется,
+ * а обучение только подсвечивает их, когда до них доходит очередь.
+ */
 export type Part = 'desk' | 'notebook' | 'offer' | 'slip' | 'card' | 'feel' | 'leave' | 'extras'
 
 const OPENS: Record<Part, TutorStep> = {
-  desk: 'notebook', // часы и кнопка «Стол»
-  notebook: 'notebook',
-  offer: 'offer',
+  desk: 'talk', // часы и кнопка «Стол»
+  notebook: 'talk',
+  offer: 'talk',
   slip: 'slip',
   card: 'feel',
   feel: 'feel',

@@ -6,9 +6,14 @@ const base: TutorFacts = { turns: 0, offered: false, picked: false, felt: false,
 const at = (f: Partial<TutorFacts>) => tutorStep({ ...base, ...f })
 
 describe('обучающая встреча', () => {
-  it('сначала только разговор: ни стола, ни блокнота, ни листка', () => {
+  it('сначала разговор и блокнот: листка, карточки и «уйти» ещё нет', () => {
     expect(at({})).toBe('talk')
-    for (const p of ['desk', 'notebook', 'offer', 'slip', 'card', 'feel', 'leave', 'extras'] as const) expect(shows('talk', p)).toBe(false)
+    for (const p of ['slip', 'card', 'feel', 'leave', 'extras'] as const) expect(shows('talk', p)).toBe(false)
+  })
+
+  it('блокнот, «Предложить» и кнопка «Стол» видны на любом шаге обучения и без него', () => {
+    for (const s of ['talk', 'notebook', 'offer', 'slip', 'feel', 'leave', 'done'] as const)
+      for (const p of ['notebook', 'offer', 'desk'] as const) expect(shows(s, p), `${s}/${p}`).toBe(true)
   })
 
   it('шаги идут по порядку, действие засчитывает шаг так же, как «Понятно»', () => {
@@ -32,7 +37,6 @@ describe('обучающая встреча', () => {
 
   it('каждый элемент открывается на своём шаге и дальше не прячется', () => {
     expect(shows('notebook', 'notebook')).toBe(true)
-    expect(shows('notebook', 'offer')).toBe(false)
     expect(shows('offer', 'offer')).toBe(true)
     expect(shows('offer', 'slip')).toBe(false)
     expect(shows('slip', 'slip')).toBe(true)

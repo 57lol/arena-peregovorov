@@ -6,7 +6,7 @@ import { HARDER_REVEAL } from '../../engine/policy'
 import { maxScore } from '../../engine/utility'
 import { chapterOf } from '../../content/story'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
-import { Button, Portrait } from '../ui'
+import { Button, Portrait, worstFirst } from '../ui'
 import { ShareButton } from './ShareButton'
 
 interface Props {
@@ -98,13 +98,10 @@ export function Brief({ game, onStart, onBack }: Props) {
             <details className="g-fold">
               <summary>Вся история</summary>
               <div className="g-dossier-story">
+                {/* кто напротив — уже в строке «Напротив» выше, здесь только история */}
                 {sc.player.brief.split(/\n\n+/).map((p, i) => (
                   <p key={i}>{p}</p>
                 ))}
-                <p>
-                  <b>{c.name}</b>
-                  {c.company ? `, ${c.company}` : ''}. {sc.opponent.brief}
-                </p>
               </div>
             </details>
 
@@ -112,7 +109,13 @@ export function Brief({ game, onStart, onBack }: Props) {
               <summary>Сколько вам даёт каждый вариант</summary>
               <div className="g-table">
                 <p className="g-muted">
-                  Выгода от каждого варианта, в сумме до {max}. У {g(sc, 'него', 'неё')} свой счёт, и его вы не видите.
+                  Число у варианта — сколько он даёт вам, в сумме до {max}. У {g(sc, 'него', 'неё')} свой счёт, и его вы не видите.
+                </p>
+                <p className="g-table-legend">
+                  <span className="g-table-legend-item">слева хуже для вас, справа лучше</span>
+                  <span className="g-table-legend-item">
+                    <i className="g-table-swatch" aria-hidden="true" /> в рамке — самый выгодный для вас вариант
+                  </span>
                 </p>
                 {sc.issues.map((i) => {
                   const pts = P.points[i.id]
@@ -121,9 +124,9 @@ export function Brief({ game, onStart, onBack }: Props) {
                     <div key={i.id} className="g-table-row">
                       <h3 className="g-table-title">{i.title}</h3>
                       <ol className="g-table-opts">
-                        {i.options.map((o, k) => (
-                          <li key={o} className={pts[k] === best ? 'is-best' : undefined}>
-                            <span>{o}</span>
+                        {worstFirst(pts).map((k) => (
+                          <li key={k} className={pts[k] === best ? 'is-best' : undefined}>
+                            <span>{i.options[k]}</span>
                             <b>{pts[k]}</b>
                           </li>
                         ))}
