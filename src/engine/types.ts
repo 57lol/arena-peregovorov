@@ -11,6 +11,8 @@ export interface Issue {
   // distributive — интересы противоположны, integrative — важность разная (можно разменять),
   // compatible — обе стороны хотят одного и того же (ловушка «несовместимости»).
   kind: 'distributive' | 'integrative' | 'compatible'
+  /** Явно названные генератором лучшие варианты сторон (индексы в options). */
+  preferences?: { player: number; opponent: number }
 }
 
 export interface Interest {

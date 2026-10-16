@@ -60,6 +60,7 @@ const Raw = z.object({
     options: z.array(z.string()).min(3).max(5),
     // модель путает порядок вариантов; прямой вопрос «что лучше игроку» она путает реже — по нему и выравниваем
     bestForPlayer: z.string().optional(),
+    bestForOpponent: z.string().optional(),
   })).min(4).max(5),
   interests: z.array(z.object({ issue: z.string(), text: z.string() })).min(2).max(5),
 })
@@ -81,11 +82,12 @@ export const SCHEMA = {
         minItems: 4,
         maxItems: 5,
         items: {
-          type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options', 'bestForPlayer'],
+          type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options', 'bestForPlayer', 'bestForOpponent'],
           properties: {
             id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) },
             options: { type: 'array', minItems: 3, maxItems: 5, items: str },
             bestForPlayer: str,
+            bestForOpponent: str,
           },
         },
       },
@@ -115,6 +117,8 @@ export const SYSTEM = `Ты — методист, который придумы�
 - Варианты короткие, до 5 слов, без повтора названия пункта: пункт «Предоплата» → «нет», «1 месяц», «3 месяца», а не «предоплата за 3 месяца».
 - Слово «игрок» — служебное, в тексты для людей (brief, opening, interests) его не пиши.
 - bestForPlayer — дословно тот вариант из options, который выгоднее всего игроку (для shared — нужный обоим). Подумай отдельно: например, заказчику выгоднее меньшая цена и оплата после работ, исполнителю — наоборот.
+- bestForOpponent — дословно лучший вариант оппонента. Проверь ОБЕ стороны отдельно по их целям, брифу и скрытым интересам. Для split/mine/theirs лучшие варианты противоположны; если обе стороны хотят одного, пометь shared. Нельзя жертвовать смыслом ради заданного числа ролей.
+- Явная цель из запроса важнее общих предположений: если нужен склад на год, год должен быть лучшим для арендатора. Если собственник не хочет оплачивать ремонт, лучший для него вариант — ремонт оплачивает арендатор; для арендатора наоборот. Не объявляй ремонт за свой счёт выгодным без явной причины в интересах.
 - Направление выгоды — по стороне сделки. Покупателю, заказчику, арендатору выгоднее ниже цена, больше скидка, дольше отсрочка и гарантия, больше бесплатного; продавцу, исполнителю, арендодателю — наоборот. Исключение — только пункт shared, и его интерес это объясняет. Не бывает покупателя, который сам просит «без гарантии» или «без образцов», и продавца, которому выгодно раздать больше бесплатного.
 - id пунктов — латиницей, коротко (price, payment, term...).
 - opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
@@ -187,9 +191,16 @@ function orient(i: { options: string[]; bestForPlayer?: string }): string[] {
 
 /** Ответ модели, где «лучший для игрока» вариант ни первый, ни последний, — повод переписать. */
 export function orderProblems(raw: z.infer<typeof Raw>): string[] {
-  return raw.issues
-    .filter((i) => i.bestForPlayer && !i.options.some((o, n) => (n === 0 || n === i.options.length - 1) && same(o, i.bestForPlayer!)))
-    .map((i) => `«${i.title}»: bestForPlayer должен дословно совпадать с первым вариантом, а варианты идти от лучшего для игрока к худшему`)
+  return raw.issues.flatMap((i) => {
+    const p = i.options.findIndex((o) => same(o, i.bestForPlayer ?? ''))
+    const o = i.options.findIndex((o) => same(o, i.bestForOpponent ?? ''))
+    if (p !== 0 && p !== i.options.length - 1)
+      return [`«${i.title}»: bestForPlayer должен дословно совпадать с крайним вариантом, а варианты идти от лучшего для игрока к худшему`]
+    if (o < 0) return [`«${i.title}»: укажи bestForOpponent дословно из options, согласуй с его интересами`]
+    if (o !== (i.role === 'shared' ? p : i.options.length - 1 - p))
+      return [`«${i.title}»: лучшие варианты сторон должны быть ${i.role === 'shared' ? 'одинаковыми' : 'противоположными; если обе стороны хотят одного, пометь shared'}`]
+    return []
+  })
 }
 
 /** Число в варианте для сравнения «больше/меньше»; «без предоплаты», «по факту», «нет» — ноль. */
@@ -326,7 +337,16 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     seen.set(i.role, k + 1)
     return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16))
   })
-  const issues: Issue[] = raw.issues.map((i, n) => ({ id: ids[n], title: cap(i.title), options: orient(i).map(digits), kind: ROLES[i.role].kind }))
+  const issues: Issue[] = raw.issues.map((i, n) => {
+    const options = orient(i)
+    return {
+      id: ids[n], title: cap(i.title), options: options.map(digits), kind: ROLES[i.role].kind,
+      ...(i.bestForPlayer && i.bestForOpponent ? { preferences: {
+        player: options.findIndex((o) => same(o, i.bestForPlayer!)),
+        opponent: options.findIndex((o) => same(o, i.bestForOpponent!)),
+      } } : {}),
+    }
+  })
   const mine = to100(tables.map((t) => t.player))
   const theirs = to100(tables.map((t) => t.opponent))
   const pp = Object.fromEntries(ids.map((id, n) => [id, mine[n]]))
@@ -429,13 +449,20 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   let attempts = 0
   let passable: Scenario | undefined // прошло проверки движка, но с замечаниями к тексту
   let passableSoft = Infinity
+  let consistencyFailures = 0
   while (llm.name !== 'offline' && attempts < 3) {
     attempts++
     try {
       // pro: своё дело — редкий и главный для настройки запрос, на Lite он почти всегда проваливается в папку
       const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA, pro: true }))
       const order = [...orderProblems(raw), ...sideProblems(raw, sideOf(req))]
-      const r = order.length ? { problems: order, scenario: undefined } : scenarioProblems(toScenario(raw, req))
+      // Одно повторение при противоречивых предпочтениях; затем только проверенная библиотека.
+      if (order.length) {
+        problems = order
+        if (++consistencyFailures >= 2) break
+        continue
+      }
+      const r = scenarioProblems(toScenario(raw, req))
       const soft = r.problems.length ? [] : storyProblems(raw)
       // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту
       if (!r.problems.length && soft.length < passableSoft) {

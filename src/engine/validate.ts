@@ -44,8 +44,35 @@ export function checkScenario(sc: Scenario): ScenarioCheck {
   }
   if (problems.length) return { ok: false, problems, scenario: sc }
 
-  const issues = sc.issues.map((i) => ({ ...i, kind: classifyIssue(sc.player.profile.points[i.id], sc.opponent.profile.points[i.id]) }))
-  const fixed: Scenario = { ...sc, issues }
+  // Проверяем заявленные предпочтения ДО классификации: иначе ошибочную шкалу
+  // можно незаметно превратить в «совместимый» пункт. Библиотечные дела без деклараций не меняем.
+  const player = { ...sc.player.profile.points }, opponent = { ...sc.opponent.profile.points }
+  for (const i of sc.issues) {
+    if (!i.preferences) continue
+    for (const [side, tables] of [['player', player], ['opponent', opponent]] as const) {
+      const preferred = i.preferences[side], points = tables[i.id]
+      if (!Number.isInteger(preferred) || preferred < 0 || preferred >= i.options.length) {
+        problems.push(`«${i.title}»: неизвестный желаемый вариант ${side}`)
+        continue
+      }
+      const max = Math.max(...points), min = Math.min(...points)
+      if (points[preferred] === max) continue
+      if (points[preferred] === min) tables[i.id] = points.map((p) => max + min - p)
+      else problems.push(`«${i.title}»: желаемый вариант ${side} должен давать максимум очков`)
+    }
+    const p = player[i.id], o = opponent[i.id]
+    const aligned = corr(p, o)
+    const desired = i.preferences
+    const opposite = p[desired.opponent] === Math.min(...p) && o[desired.player] === Math.min(...o)
+    if (i.kind === 'compatible' ? aligned <= 0.3 || desired.player !== desired.opponent : aligned >= -0.3 || !opposite)
+      problems.push(`«${i.title}»: предпочтения сторон должны быть ${i.kind === 'compatible' ? 'совместимыми' : 'противоположными; общий интерес пометь compatible'}`)
+  }
+  const issues = sc.issues.map((i) => ({ ...i, kind: classifyIssue(player[i.id], opponent[i.id]) }))
+  const fixed: Scenario = {
+    ...sc, issues,
+    player: { ...sc.player, profile: { ...sc.player.profile, points: player } },
+    opponent: { ...sc.opponent, profile: { ...sc.opponent.profile, points: opponent } },
+  }
   const P = fixed.player.profile, O = fixed.opponent.profile
   if (P.batna >= maxScore(P, issues)) problems.push('BATNA игрока не ниже его максимума — договариваться незачем')
   if (O.batna >= maxScore(O, issues)) problems.push('BATNA оппонента не ниже его максимума')
