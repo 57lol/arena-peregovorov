@@ -128,6 +128,7 @@ export default function App() {
   // вид встречи: 3D за столом или классический; «не тянет» — переключаемся сами и говорим об этом
   const [view, setView] = useState<View>(loadView)
   const [viewNote, setViewNote] = useState('')
+  const navigation = useRef(0)
   useEffect(() => {
     if (view === '3d' && (screen === 'brief' || screen === 'report')) loadPlay3D().catch(() => {})
   }, [view, screen])
@@ -168,6 +169,7 @@ export default function App() {
               ? 'Не получилось открыть дело по ссылке: сервер не отвечает или дело удалено. Выберите другое.'
               : 'Дела по этой ссылке нет в библиотеке. Выберите другое.',
           )
+        navigation.current++
         setCurrent({ scenario: sc, fromLibrary: !!lib })
         setInvited(true)
         setScreen('title')
@@ -202,6 +204,7 @@ export default function App() {
   // из хаба жюри «Настроить» ведёт сразу в раскрытую форму своего дела, а не в папку
   const [customOpen, setCustomOpen] = useState(false)
   const go = useCallback((s: Screen) => {
+    navigation.current++
     if (s === 'title' || s === 'map' || s === 'jury') setSetupBack(s)
     if (s === 'title' || s === 'map') setCustomOpen(false)
     setScreen(s)
@@ -227,11 +230,13 @@ export default function App() {
   }
   useEffect(() => {
     const back = async (e: PopStateEvent) => {
+      const nav = ++navigation.current
       const s = (e.state?.screen as Screen | undefined) ?? 'title'
       // «вперёд» в переговоры возвращает ту же встречу, пока дело открыто; без дела — к списку дел
       if (s === 'play' && currentRef.current && sent === attemptId) {
         const id = newAttemptId()
         if (!(await admit(currentRef.current, id))) return
+        if (nav !== navigation.current) return
         setAttemptId(id)
         setStartedAt(Date.now())
         setPlayKey((k) => k + 1)
@@ -246,7 +251,9 @@ export default function App() {
     const id = newAttemptId()
     // Сюжет всегда самостоятелен, в том числе при вызове из старого callback катсцены.
     const activeRoom = origin === 'story' ? null : room
+    const nav = ++navigation.current
     if (!(await admit(c, id, activeRoom))) return false
+    if (nav !== navigation.current) return false
     setRoom(activeRoom)
     setRoomError(null)
     clearLink()
@@ -264,7 +271,9 @@ export default function App() {
     if (admitting || !current) return
     if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
     const id = screen === 'brief' && sent !== attemptId ? attemptId : newAttemptId()
+    const nav = ++navigation.current
     if (!(await admit(current, id))) return
+    if (nav !== navigation.current) return
     setAttemptId(id)
     setHistory([])
     setRedo('')
@@ -290,11 +299,16 @@ export default function App() {
   const follow = async (n: Next) => {
     const sc = n.to === 'brief' ? getScenario(n.caseId) : undefined
     if (sc) {
+      let nav = navigation.current
       try {
-        if (await open({ scenario: sc, fromLibrary: true }, 'story')) return
+        const opening = open({ scenario: sc, fromLibrary: true }, 'story')
+        nav = navigation.current
+        if (await opening) return
       } catch {
+        if (nav !== navigation.current) return
         setNotice('Не получилось открыть главу. Попробуйте начать сюжет ещё раз.')
       }
+      if (nav !== navigation.current) return
       // Катсцена уже завершена и не может повторно вызвать onDone.
       go('title')
     } else go(n.to === 'map' ? 'map' : 'title')
@@ -328,7 +342,9 @@ export default function App() {
   const rewindTo = async (turn: number) => {
     if (!current || admitting) return
     const id = newAttemptId()
+    const nav = ++navigation.current
     if (!(await admit(current, id))) return
+    if (nav !== navigation.current) return
     setAttemptId(id)
     // turn — номер хода (с 1); оставляем всё, что было до него
     const before = history.slice(0, Math.max(0, turn - 1))

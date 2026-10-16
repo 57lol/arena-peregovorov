@@ -132,6 +132,22 @@ const backTo = async (screen: string) => {
 }
 
 describe('повтор отправленной командной попытки', () => {
+  it.each(['brief', 'setup'])('запоздалый допуск не отменяет новый переход к %s', async (target) => {
+    const { sendPulse } = await import('./game/rooms')
+    let admit!: () => void
+    vi.mocked(sendPulse).mockImplementationOnce(() => new Promise((resolve) => { admit = () => resolve({ ok: true }) }))
+    window.dispatchEvent(Object.assign(new Event('popstate'), { state: { screen: 'play' } }))
+    render()
+    await backTo('brief')
+    if (target === 'setup') await act('Brief', 'onBack')
+    admit()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    render()
+    expect(savedState().screen).toBe(target)
+    expect(savedState().attemptId).toBe('submitted001')
+    expect(savedState().sent).toBe('submitted001')
+  })
+
   it('«Назад» к брифу и новый старт получают новый ID и отправляют новый результат', async () => {
     await backTo('brief')
     await act('Brief', 'onStart')
