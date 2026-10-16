@@ -98,6 +98,8 @@ export interface Shot {
   guide?: Guide
   /** плавный вход из чёрного, секунды (по умолчанию 0.35, у первого плана 0.6) */
   fadeIn?: number
+  /** уход в чёрное в конце плана, секунды (по умолчанию 0.3, у последнего 0.4; 0 — резкая склейка) */
+  fadeOut?: number
 }
 
 export interface Cutscene {

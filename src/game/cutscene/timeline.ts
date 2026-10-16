@@ -40,20 +40,52 @@ export function sample(track: Track | undefined, t: number, def = 0): number {
   return track[track.length - 1][1]
 }
 
-/** Путь, пройденный по дорожке к моменту t (для шага: ноги не скользят), и идёт ли сейчас человек. */
-export function travelled(track: Track | undefined, t: number): { dist: number; moving: boolean; dir: -1 | 0 | 1 } {
+/** Разгон и торможение шага, секунды: короче, чем smoothstep, — человек идёт ровно, а не «плывёт» и не тормозит весь план. */
+export const RAMP = 0.3
+
+/**
+ * Положение идущего (и едущего) по дорожке: ровная скорость, короткий разгон в начале пути и торможение только
+ * у последнего ключа. С smoothstep человек замедлялся к концу каждого плана, и склейка выглядела как рывок.
+ */
+export function glide(track: Track | undefined, t: number, def = 0): number {
+  if (track === undefined || typeof track === 'number' || !track.length) return sample(track, t, def)
+  if (t <= track[0][0]) return track[0][1]
+  const last = track.length - 1
+  for (let k = 1; k <= last; k++) {
+    const [t1, v1] = track[k]
+    if (t > t1) continue
+    const [t0, v0] = track[k - 1]
+    const T = t1 - t0
+    if (T <= 0) return v1
+    // разгон — только если до ключа стояли (первый отрезок или после паузы), торможение — если дальше стоим
+    const still = (j: number) => j <= 0 || j > last || track[j][1] === track[j - 1][1]
+    const rin = still(k - 1) ? Math.min(RAMP, T / 3) : 0
+    const rout = still(k + 1) ? Math.min(RAMP, T / 3) : 0
+    const vmax = 1 / (T - rin / 2 - rout / 2)
+    const u = t - t0
+    let f: number
+    if (u < rin) f = (vmax * u * u) / (2 * rin)
+    else if (u <= T - rout) f = vmax * (rin / 2 + (u - rin))
+    else f = 1 - (vmax * (T - u) * (T - u)) / (2 * rout)
+    return v0 + (v1 - v0) * f
+  }
+  return track[last][1]
+}
+
+/** Путь, пройденный по дорожке к моменту t (для шага: ноги не скользят), и идёт ли сейчас человек. Автобус — с at = sample. */
+export function travelled(track: Track | undefined, t: number, at: (track: Track | undefined, t: number) => number = glide): { dist: number; moving: boolean; dir: -1 | 0 | 1 } {
   if (track === undefined || typeof track === 'number') return { dist: 0, moving: false, dir: 0 }
   let dist = 0
-  let prev = sample(track, 0)
+  let prev = at(track, 0)
   // интеграл модуля скорости: дорожка может идти туда и обратно
   const n = Math.max(1, Math.ceil(t / 0.02))
   for (let k = 1; k <= n; k++) {
-    const x = sample(track, (t * k) / n)
+    const x = at(track, (t * k) / n)
     dist += Math.abs(x - prev)
     prev = x
   }
-  const a = sample(track, Math.max(0, t - 0.04))
-  const b = sample(track, t + 0.04)
+  const a = at(track, Math.max(0, t - 0.04))
+  const b = at(track, t + 0.04)
   const v = (b - a) / 0.08
   return { dist, moving: Math.abs(v) > 4, dir: v > 4 ? 1 : v < -4 ? -1 : 0 }
 }

@@ -70,8 +70,8 @@ export const BUS_IN = {
   view: -4,
 }
 
-/** Салон от первого лица (телефон в руках в автобусе): стёкла прозрачные, за ними едет трасса. */
-export const BUS_POV = { src: file(P.busPov.src), w: P.busPov.w, view: -4 }
+/** Салон от первого лица (телефон в руках в автобусе): сидим у окна, за стеклом та же трасса, что снаружи; view — сдвиг пейзажа вверх, чтобы в стекло попали Кама и отбойник. */
+export const BUS_POV = { src: file(P.busPov.src), w: P.busPov.w, view: -28 }
 
 export const PHONE = {
   src: file(P.phone.src),

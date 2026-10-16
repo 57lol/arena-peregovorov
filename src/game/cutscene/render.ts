@@ -4,7 +4,7 @@
 import { MAP } from '../map.gen'
 import { BUS, BUS_IN, BUS_POV, DIR, H, PHONE, SHEETS, SPOTS, type Sheet } from './art'
 import { dither, recolor, rgb } from './mood'
-import { sample, swiping, travelled, walkFrame } from './timeline'
+import { glide, sample, swiping, travelled, walkFrame } from './timeline'
 import type { Actor, Mood, SetId, Shot } from './types'
 
 interface Layer {
@@ -180,6 +180,15 @@ export class Painter {
       return { vw, left: 0, phone: [px + x0, py + y0, x1 - x0 + 1, y1 - y0 + 1] }
     }
     const cam = this.camera(shot, t)
+    if (shot.set === 'bus') {
+      // салон на кочках подпрыгивает целиком — вместе с пассажирами и новеньким, а не он один в кресле
+      const bump = Math.sin(t * 7.3) > 0.85 ? 1 : 0
+      if (bump) this.drawSet('bus', shot, t, cam)
+      ctx.setTransform(1, 0, 0, 1, 0, bump)
+      const info = this.drawSet('bus', shot, t, cam)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      return info
+    }
     return this.drawSet(shot.set, shot, t, cam)
   }
 
@@ -188,7 +197,7 @@ export class Painter {
     const set = shot.set as keyof typeof SETS
     const w = SETS[set].w
     const lead = shot.actors?.find((a) => a.who !== 'bus')
-    let c = shot.cam !== undefined ? sample(shot.cam, t) : lead ? sample(lead.x, t) : set === 'bus' ? BUS_IN.focus : 160
+    let c = shot.cam !== undefined ? sample(shot.cam, t) : lead ? glide(lead.x, t) : set === 'bus' ? BUS_IN.focus : 160
     if (Number.isFinite(w)) c = Math.max(this.vw / 2, Math.min(w - this.vw / 2, c))
     return c
   }
@@ -257,14 +266,13 @@ export class Painter {
     }
   }
 
-  /** Новенький в кресле автобуса: листает, смотрит в окно, покачивается на кочках. */
+  /** Новенький в кресле автобуса: листает или смотрит в окно; на кочках подпрыгивает весь салон (draw). */
   private drawSitter(shot: Shot, t: number, left: number) {
     const s = BUS_IN.sit
     const im = this.img(DIR + s.src, shot.mood ?? 'day')
     if (!im) return
     const f = shot.sit === 'look' || !shot.sit ? (Math.floor(t * 1.2) % 4 === 3 ? s.scroll : s.look) : shot.sit === 'doze' ? s.doze : s.window
-    const bump = Math.sin(t * 7.3) > 0.85 ? 1 : 0
-    this.ctx.drawImage(im, f * s.fw, 0, s.fw, s.fh, s.x - left, s.y + bump, s.fw, s.fh)
+    this.ctx.drawImage(im, f * s.fw, 0, s.fw, s.fh, s.x - left, s.y, s.fw, s.fh)
   }
 
   private drawActor(a: Actor, shot: Shot, t: number, left: number, mood: Mood) {
@@ -272,12 +280,13 @@ export class Painter {
     const y = a.y ?? SPOTS.ground
     if (a.who === 'bus') {
       if (shot.set === 'bus') return // в салоне автобус — это сам салон
+      // автобус трогается и тормозит плавно (smoothstep), люди идут ровно (glide)
       const x = Math.round(sample(a.x, t) - left - BUS.w / 2)
       const bob = Math.sin(t * 9) > 0.7 ? -1 : 0
       const top = y - BUS.bottom + bob
       const body = this.img(DIR + BUS.src, mood)
       const wheel = this.img(DIR + BUS.wheel.src, mood)
-      const moved = (shot.drive ?? 0) * t + travelled(a.x, t).dist
+      const moved = (shot.drive ?? 0) * t + travelled(a.x, t, sample).dist
       const wf = Math.floor(moved / 6) % BUS.wheel.frames
       if (body) ctx.drawImage(body, x, top)
       if (mood !== 'day') {
@@ -298,7 +307,7 @@ export class Painter {
     const frame = mv.moving ? sh.walk[walkFrame(mv.dist, sh.cycle, sh.walk.length)] : ((a.pose && a.pose !== 'stand' ? sh[a.pose] : undefined) ?? sh.stand)
     const dir = mv.dir || (a.face === 'left' ? -1 : 1)
     const flip = sh.left ? dir > 0 : dir < 0
-    const x = Math.round(sample(a.x, t) - left)
+    const x = Math.round(glide(a.x, t) - left)
     ctx.save()
     if (flip) {
       ctx.translate(x, 0)

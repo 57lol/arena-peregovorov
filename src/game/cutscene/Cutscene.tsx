@@ -162,9 +162,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
         held.current = 0
       }
       const info = p.draw(shot, t, t + held.current)
-      // вход в план из чёрного — ступенями, как в старых играх
+      // склейка через затемнение: план уходит в чёрное, следующий выходит из чёрного — ступенями, как в старых играх.
+      // Камера и человек не дёргаются на стыке: смену плана не видно, видно только шторку
       const fin = shot.fadeIn ?? (i === 0 ? 0.6 : 0.35)
-      const tail = i === script.shots.length - 1 ? Math.max(0, (t - (shot.dur - 0.4)) / 0.4) : 0
+      const fout = shot.set === 'black' && i < script.shots.length - 1 ? 0 : (shot.fadeOut ?? (i === script.shots.length - 1 ? 0.4 : 0.3))
+      const tail = fout > 0 ? Math.max(0, (t - (shot.dur - fout)) / fout) : 0
       const dark = Math.max(fin > 0 ? 1 - t / fin : 0, tail)
       if (shade.current) shade.current.style.opacity = String(Math.ceil(Math.max(0, Math.min(1, dark)) * 4) / 4)
       if (bar.current) bar.current.style.transform = `scaleX(${Math.min(1, T.current / total_)})`

@@ -1,6 +1,8 @@
 // Сценарии катсцен кампании «Новенький»: пролог (автобус в Елабугу и памятка в телефоне), переходы между главами
 // и финал недели. Правило: одна мысль за раз — на экране телефона заголовок и строка, внизу одна строка субтитров.
 // Переход ведёт от главы к следующей по сюжету; тексты — по мостикам глав из src/content/story.ts.
+// Склейка планов — через затемнение (Cutscene.tsx). Кто идёт «сквозь» склейку, идёт и после конца плана (последний
+// ключ позже dur) и уже идёт в начале следующего (первый ключ раньше нуля): на стыке никто не тормозит.
 
 import { getScenario } from '../../content/scenarios'
 import { CHAPTERS } from '../../content/story'
@@ -105,7 +107,7 @@ export const PROLOGUE: Cutscene = {
       dur: 6.5,
       actors: [
         // новенький стоит на остановке, автобус отъезжает и открывает его — потом пошёл
-        { who: 'case', x: [[0, S.stop + 6], [1.5, S.stop + 6], [6.5, S.stop + 196]] },
+        { who: 'case', x: [[0, S.stop + 6], [1.5, S.stop + 6], [7.2, S.stop + 222]] },
         { who: 'bus', x: [[0, S.stop + 50], [0.5, S.stop + 58], [2.6, S.stop + 470]], y: 179 },
       ],
       lines: [{ at: 0.3, text: 'Елабуга. До общаги — пять минут пешком.' }],
@@ -114,7 +116,7 @@ export const PROLOGUE: Cutscene = {
       set: 'street',
       mood: 'dusk',
       dur: 5.1,
-      actors: [{ who: 'case', x: [[0, S.dorm - 180], [4.6, S.dorm - 4]] }],
+      actors: [{ who: 'case', x: [[-0.5, S.dorm - 200], [4.6, S.dorm - 4]] }],
       lines: [{ at: 0.3, text: 'Общага, комната 214. Там уже кто-то живёт.' }],
     },
     card('dorm'),
@@ -135,7 +137,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'street',
         mood: 'morning',
         dur: 5.5,
-        actors: [{ who: 'newbie', x: [[0, S.dorm], [5.2, S.dorm - 210]] }],
+        actors: [{ who: 'newbie', x: [[0, S.dorm], [6, S.dorm - 242]] }],
         lines: [
           { at: 0.3, text: 'Утром новый чайник потёк прямо на стол.' },
           { at: 2.8, who: 'Тимур', text: 'Неси обратно. По закону обязаны вернуть.' },
@@ -145,7 +147,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'street',
         mood: 'morning',
         dur: 5,
-        actors: [{ who: 'newbie', x: [[0, S.stop + 200], [4.6, S.stop + 14]] }],
+        actors: [{ who: 'newbie', x: [[-0.5, S.stop + 220], [4.6, S.stop + 14]] }],
         lines: [{ at: 0.3, text: 'Это вечером. А сейчас — на остановку.' }],
       },
       {
@@ -192,7 +194,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       {
         set: 'oez',
         dur: 5.2,
-        actors: [{ who: 'newbie', x: [[0, O.vodogrey - 190], [4.8, O.vodogrey - 4]] }],
+        actors: [{ who: 'newbie', x: [[-0.5, O.vodogrey - 210], [4.8, O.vodogrey - 4]] }],
         lines: [{ at: 0.3, text: '«Водогрей». Работа начинается с папки.' }],
       },
       card('tara'),
@@ -207,7 +209,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'street',
         mood: 'dusk',
         dur: 4.6,
-        actors: [{ who: 'box', x: [[0, S.dorm], [4.6, S.dorm - 180]] }],
+        actors: [{ who: 'box', x: [[0, S.dorm], [5.2, S.dorm - 204]] }],
         lines: [{ at: 0.3, text: 'Чек выброшен. Зато коробка цела.' }],
       },
       {
@@ -223,7 +225,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'street',
         mood: 'dusk',
         dur: 4.2,
-        actors: [{ who: 'box', x: [[0, S.shop + 150], [3.8, S.shop + 2]] }],
+        actors: [{ who: 'box', x: [[-0.5, S.shop + 170], [3.8, S.shop + 2]] }],
         lines: [{ at: 0.3, text: '«Семёрочка». Администратор уже смотрит.' }],
       },
       card('shop'),
@@ -293,7 +295,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       {
         set: 'oez',
         dur: 4.6,
-        actors: [{ who: 'newbie', x: [[0, O.inei - 170], [4.4, O.inei - 4]] }],
+        actors: [{ who: 'newbie', x: [[-0.5, O.inei - 190], [4.4, O.inei - 4]] }],
         lines: [{ at: 0.3, text: 'На столе у Розы — письмо из Нинбо.' }],
       },
       card('client'),
@@ -323,7 +325,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'oez',
         mood: 'night',
         dur: 5,
-        actors: [{ who: 'newbie', x: [[0, O.vodogrey + 170], [4.6, O.vodogrey + 4]] }],
+        actors: [{ who: 'newbie', x: [[-0.5, O.vodogrey + 190], [4.6, O.vodogrey + 4]] }],
         lines: [{ at: 0.3, text: 'Бытовка нового цеха. Внутри — бригада.' }],
       },
       card('launch'),
@@ -336,7 +338,7 @@ export const BRIDGES: Record<string, Cutscene> = {
       {
         set: 'oez',
         dur: 5,
-        actors: [{ who: 'newbie', x: [[0, O.vodogrey], [4.8, O.vodogrey + 180]] }],
+        actors: [{ who: 'newbie', x: [[0, O.vodogrey], [5.6, O.vodogrey + 210]] }],
         lines: [{ at: 0.3, text: 'Понедельник. Новая линия запущена.' }],
       },
       {
