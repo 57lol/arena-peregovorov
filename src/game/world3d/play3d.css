@@ -1067,8 +1067,16 @@
 /* клавиатура открыта: на экране только собеседник и поле ввода */
 @media (max-width: 699px), (max-height: 500px) {
   .w3-play[data-kb] .w3-toasts,
-  .w3-play[data-kb] .w3-toast-chip {
+  .w3-play[data-kb] .w3-toast-chip,
+  .w3-play[data-kb] .w3-rotate {
     display: none;
+  }
+}
+
+@keyframes w3-rotate-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
   }
 }
 
@@ -1078,18 +1086,20 @@
 }
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
   .w3-rotate {
+    /* справа под «Меню»: слева сверху стоят реплика собеседника и плашки разбора */
     position: absolute;
     z-index: 6;
-    left: 50%;
-    top: 12px;
+    right: 12px;
+    top: 64px;
     display: flex;
     align-items: center;
     gap: calc(3 * var(--u));
-    max-width: calc(100% - 140px);
     margin: 0;
     padding: var(--u) var(--u) var(--u) calc(4 * var(--u));
-    transform: translateX(-50%);
+    white-space: nowrap;
     background: var(--c-brass-hi);
+    /* сказали один раз — и хватит: через десять секунд плашка уходит сама */
+    animation: w3-rotate-out 0.3s 10s steps(3) forwards;
     color: var(--c-ink);
     box-shadow: 0 0 0 var(--u) var(--c-ink);
   }
@@ -1098,6 +1108,10 @@
     margin: 0;
   }
   .w3-them {
+    width: min(560px, calc(100% - 290px));
+  }
+  /* подсказку закрыли — реплике снова можно во всю ширину */
+  .w3-play:not(:has(.w3-rotate)) .w3-them {
     width: min(560px, calc(100% - 24px));
   }
   .w3-them .px-dialog-text {
@@ -1119,8 +1133,12 @@
     min-height: 44px;
     max-height: 88px;
   }
-  /* к столу: поле ввода уходит, лист на столе открыт целиком */
+  /* к столу: поле ввода и реплика уходят, лист на столе открыт целиком */
   .w3-play[data-pose='desk'] .w3-say {
     display: none;
+  }
+  .w3-play[data-pose='desk'] .w3-them {
+    opacity: 0;
+    pointer-events: none;
   }
 }

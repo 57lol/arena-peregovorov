@@ -911,7 +911,7 @@ function RotateHint() {
   if (off) return null
   return (
     <p className="w3-rotate" role="status">
-      За столом удобнее держать телефон вертикально
+      Удобнее вертикально
       <Button
         variant="ghost"
         icon="cross"
