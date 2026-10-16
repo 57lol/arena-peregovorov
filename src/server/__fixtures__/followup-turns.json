@@ -1,0 +1,186 @@
+[
+  {
+    "label": "recheck-no-money",
+    "request": {
+      "scenarioId": "stop",
+      "history": [],
+      "playerText": "Я не отдаю телефон в руки. Могу включить громкую связь, деньги не предлагаю."
+    },
+    "analysis": {
+      "behaviors": [
+        {
+          "id": "signpost",
+          "quote": "Я не отдаю телефон в руки. Могу включить громкую связь, деньги не предлагаю."
+        },
+        {
+          "id": "anchor",
+          "quote": ""
+        },
+        {
+          "id": "instant_counter",
+          "quote": ""
+        }
+      ],
+      "offer": {
+        "phone": 1,
+        "money": 0,
+        "sorry": 0
+      }
+    }
+  },
+  {
+    "label": "recheck-vague-discount",
+    "request": {
+      "scenarioId": "client",
+      "history": [
+        {
+          "turn": 1,
+          "playerText": "Роза, хочу понять причину ухода: что сейчас сильнее всего не устраивает — цена, сроки или качество сервиса?",
+          "analysis": {
+            "behaviors": [
+              {
+                "id": "ask_interest",
+                "quote": "Роза, хочу понять причину ухода: что сейчас сильнее всего не устраивает — цена, сроки…"
+              }
+            ],
+            "asksAbout": [
+              "price",
+              "term",
+              "payment",
+              "stock"
+            ]
+          },
+          "deltas": [
+            {
+              "field": "trust",
+              "by": 4,
+              "because": "Вопрос об интересах: «Роза, хочу понять причину ухода: что сейчас сильнее всего не устраивает — цена, сроки…»"
+            },
+            {
+              "field": "tension",
+              "by": -2,
+              "because": "Вопрос об интересах: «Роза, хочу понять причину ухода: что сейчас сильнее всего не устраивает — цена, сроки…»"
+            },
+            {
+              "field": "tension",
+              "by": -3,
+              "because": "Спокойный ход, напряжение спадает"
+            }
+          ],
+          "decision": {
+            "kind": "reveal",
+            "interestId": "r_formula"
+          },
+          "opponentLine": "Формула по сырью нужна мне самой, не только вам. В прошлом году два поставщика посреди года пришли с «плюс пятнадцать процентов или стоп отгрузки». С формулой таких сюрпризов нет, и аудиторы группы её требуют.",
+          "emotion": "thinking",
+          "stateAfter": {
+            "trust": 34,
+            "tension": 30,
+            "revealed": [
+              "r_formula"
+            ],
+            "tableOffer": {
+              "price": 4,
+              "term": 0,
+              "payment": 4,
+              "stock": 3
+            },
+            "lastOpponentOffer": {
+              "price": 4,
+              "term": 0,
+              "payment": 4,
+              "stock": 3
+            },
+            "turn": 1,
+            "status": "open",
+            "playerStance": {},
+            "toneStrikes": 0,
+            "lastCall": false
+          }
+        },
+        {
+          "turn": 2,
+          "playerText": "Давайте сравним условия по одинаковым критериям: стоимость, срок оплаты и предсказуемость поставок. Какая гарантия помогла бы вам остаться?",
+          "analysis": {
+            "behaviors": [
+              {
+                "id": "ask_interest",
+                "quote": "Давайте сравним условия по одинаковым критериям: стоимость, срок оплаты и…"
+              }
+            ],
+            "asksAbout": [
+              "price",
+              "term",
+              "index"
+            ]
+          },
+          "deltas": [
+            {
+              "field": "trust",
+              "by": 4,
+              "because": "Вопрос об интересах: «Давайте сравним условия по одинаковым критериям: стоимость, срок оплаты и…»"
+            },
+            {
+              "field": "tension",
+              "by": -2,
+              "because": "Вопрос об интересах: «Давайте сравним условия по одинаковым критериям: стоимость, срок оплаты и…»"
+            },
+            {
+              "field": "tension",
+              "by": -3,
+              "because": "Спокойный ход, напряжение спадает"
+            }
+          ],
+          "decision": {
+            "kind": "hold",
+            "reason": "not_ready_to_reveal"
+          },
+          "opponentLine": "Пока оставлю это при себе.",
+          "emotion": "thinking",
+          "stateAfter": {
+            "trust": 38,
+            "tension": 25,
+            "revealed": [
+              "r_formula"
+            ],
+            "tableOffer": {
+              "price": 4,
+              "term": 0,
+              "payment": 4,
+              "stock": 3
+            },
+            "lastOpponentOffer": {
+              "price": 4,
+              "term": 0,
+              "payment": 4,
+              "stock": 3
+            },
+            "turn": 2,
+            "status": "open",
+            "playerStance": {},
+            "toneStrikes": 0,
+            "lastCall": false
+          }
+        }
+      ],
+      "playerText": "Предлагаю обмен: вы подтверждаете годовой объём закупок, а мы обсуждаем скидку и резерв товара. Какие конкретные условия вы готовы зафиксировать?"
+    },
+    "analysis": {
+      "behaviors": [
+        {
+          "id": "package",
+          "quote": "вы подтверждаете годовой объём закупок, а мы обсуждаем скидку и резерв товара"
+        },
+        {
+          "id": "anchor",
+          "quote": ""
+        }
+      ],
+      "offer": {
+        "term": 1,
+        "price": 4,
+        "stock": 3
+      }
+    }
+  }
+]

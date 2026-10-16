@@ -4,12 +4,13 @@ import { z } from 'zod'
 import { BEHAVIOR_DICT, behaviorGuide, guardBehaviors } from '../engine/behaviors'
 import type { BehaviorDict } from '../engine/dictionary'
 import { analyzeOffline, isRude } from '../engine/offline'
+import { groundAnalysis } from '../engine/offerEvidence'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const PROMPT_VERSION = 'a10'
+export const PROMPT_VERSION = 'a11'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -80,6 +81,7 @@ ${behaviors}
 Правила:
 - behaviors: только явные; quote — дословный кусок реплики, 3–12 слов. На фразу обычно один индикатор, самый точный.
 - offer: что игрок сам предлагает сейчас (не отвергаемое, не слова оппонента); option — ближайший номер.
+- Каждый пункт offer требует явно названного значения: числа с единицей, срока («на год») или слов конкретного варианта. «Обсуждаем скидку и резерв» не задаёт ни процента скидки, ни размера резерва. Годовой объём закупок не задаёт срок договора. «Деньги не предлагаю» — пустое предложение по деньгам, а не ноль и не извинение.
 - accepts: только явное «договорились», «по рукам» на всё предложение оппонента. Вопрос или условие — false.
 - walksAway: только безусловный уход; «не нравится — до свидания» — ultimatum.
 - asksAbout: пункты, о причинах которых игрок спрашивает («зачем», «почему», «что тебе важно»); общий вопрос «зачем тебе всё это», «что главное» — все пункты. Своё предложение с «идёт?» — не вопрос о причинах.
@@ -132,7 +134,7 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   if (asks.length) out.asksAbout = [...new Set(asks)]
   // Модерация не доверяется одной модели: стоп-слова проверяются всегда.
   if (r.toneViolation || isRude(text)) out.toneViolation = true
-  return out
+  return groundAnalysis(sc, text, out)
 }
 
 /** Служебные реплики интерфейса: «Предлагаю так: …» из блокнота и «Согласен. Принимаю…» с кнопки. */
@@ -158,10 +160,11 @@ export async function analyzeMove(
   text: string,
   lastOpponentOffer?: Offer,
 ): Promise<AnalyzeResult> {
-  if (llm.name === 'offline') return { analysis: analyzeOffline(sc, text, dict), source: 'offline' }
+  const offline = () => groundAnalysis(sc, text, analyzeOffline(sc, text, dict))
+  if (llm.name === 'offline') return { analysis: offline(), source: 'offline' }
   // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
   // один и тот же разбор, без капризов модели.
-  if (isNotebookLine(sc, text)) return { analysis: analyzeOffline(sc, text, dict), source: 'offline' }
+  if (isNotebookLine(sc, text)) return { analysis: offline(), source: 'offline' }
   const key = {
     v: PROMPT_VERSION,
     llm: `${llm.name}:${llm.model}`,
@@ -182,8 +185,8 @@ export async function analyzeMove(
         schema: schemaFor(sc, dict),
       })),
     )
-    return { analysis: { ...value, behaviors: guardBehaviors(text, value.behaviors) }, source: hit ? 'cache' : 'llm' }
+    return { analysis: groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }), source: hit ? 'cache' : 'llm' }
   } catch (e) {
-    return { analysis: analyzeOffline(sc, text, dict), source: 'offline', error: (e as Error).message }
+    return { analysis: offline(), source: 'offline', error: (e as Error).message }
   }
 }
