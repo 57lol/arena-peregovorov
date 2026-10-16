@@ -174,7 +174,7 @@ async function play(kase: string, phone: boolean) {
     await page.locator('.mp-card').getByRole('button', { name: /Войти|Сыграть/ }).click()
     await page.waitForTimeout(600)
     await shot(page, '01-бриф', true)
-    await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).last().click()
+    await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).filter({ visible: true }).last().click()
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
     await page.waitForTimeout(2800)
     await shot(page, '02-вход')

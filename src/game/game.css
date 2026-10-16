@@ -745,6 +745,8 @@ body {
     gap: calc(3 * var(--u));
   }
   .g-hud-actions .g-leave {
+    min-width: 44px;
+    justify-content: center;
     padding-inline: calc(2 * var(--u));
   }
   /* «Точно уйти?» на пару секунд занимает место подписи рентгена */
@@ -1052,6 +1054,8 @@ body {
 }
 .g-report-top {
   display: grid;
+  /* одна колонка без minmax растягивалась по самой широкой строке цифр — на 375 лист вылезал за экран */
+  grid-template-columns: minmax(0, 1fr);
   gap: calc(10 * var(--u));
   align-items: start;
 }
@@ -1208,6 +1212,21 @@ body {
 .g-row.is-bad dd {
   color: var(--c-stamp);
 }
+/* телефон: подпись с пояснением в скобках внутри flex рвалась по слову в столбик и налезала на число —
+   подпись обычным текстом, точки-лидер заменяет пунктир под строкой */
+@media (max-width: 599px) {
+  .g-row {
+    align-items: flex-end;
+    padding: calc(2 * var(--u)) 0;
+    border-bottom: var(--u) dotted var(--c-mist);
+  }
+  .g-row dt {
+    display: block;
+  }
+  .g-row dt::after {
+    display: none;
+  }
+}
 .g-ledger-new {
   margin: calc(5 * var(--u)) 0 0;
   padding: calc(2 * var(--u)) calc(4 * var(--u));
@@ -1302,6 +1321,11 @@ body {
 .g-ending-hint {
   font: 400 var(--fs-small) / 1.5 var(--f-read);
   color: var(--c-steel-2);
+}
+@media (max-width: 599px) {
+  .g-ending-hint {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
 }
 .g-ending.is-open .g-ending-title {
   color: var(--c-stamp);
@@ -1724,6 +1748,29 @@ body {
     display: none;
   }
 }
+/* телефон: «Войти» — полосой внизу экрана, под большим пальцем, как «Войти» на карте недели */
+@media (max-width: 599px) {
+  .g-brief {
+    padding-bottom: calc(48 * var(--u) + env(safe-area-inset-bottom));
+  }
+  .g-brief .g-bar-go {
+    position: fixed;
+    z-index: 5;
+    left: 16px;
+    right: 16px;
+    bottom: max(calc(6 * var(--u)), env(safe-area-inset-bottom));
+    justify-content: center;
+    min-height: 56px;
+    margin: 0;
+    box-shadow:
+      0 0 0 var(--u) var(--c-ink),
+      0 calc(3 * var(--u)) 0 var(--u) var(--c-wood-3),
+      0 0 0 calc(5 * var(--u)) color-mix(in srgb, var(--c-wood-4) 70%, transparent);
+  }
+  .g-brief .g-dossier-foot > .g-big {
+    display: none;
+  }
+}
 @media (max-width: 599px) {
   .g-report > .g-report-top > .g-map-panel {
     margin-inline: -12px;
@@ -1746,6 +1793,20 @@ body {
 }
 [data-desk='office'] .g-report-actions {
   --desk-lo: var(--c-steel-2);
+}
+/* телефон: кнопки после разбора — столбиком во всю ширину, главная сверху */
+@media (max-width: 599px) {
+  .g-report-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: calc(3 * var(--u));
+  }
+  .g-report-actions > .px-btn,
+  .g-report-actions > * > .px-btn {
+    justify-content: center;
+    width: 100%;
+    margin-inline: 0;
+  }
 }
 
 /* листок «на столе»: на телефоне под репликой, на ноутбуке — рядом с блокнотом */

@@ -30,7 +30,7 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам' }: Pr
             {backLabel}
           </Button>
           <Button variant="brass" icon="send" className="g-bar-go" onClick={onStart}>
-            Войти
+            {chapterOf(sc.id)?.kind === 'life' ? 'Начать разговор' : 'Войти в переговорку'}
           </Button>
         </header>
 
