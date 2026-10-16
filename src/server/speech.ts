@@ -35,6 +35,8 @@ const TtsBody = z.object({
   natural: z.boolean().optional(),
   /** заменить голос на парный голос livetts */
   live: z.boolean().optional(),
+  /** тест по ссылке ?tts=eleven: ElevenLabs через воркер вместо основного голоса */
+  test: z.enum(['eleven']).optional(),
   /** амплуа лица (PERSONAS.role): livetts берёт его, если голос его умеет */
   role: z.string().max(20).optional(),
   /** кто говорит (портрет): по нему внешний провайдер (TTS_PROVIDER) выбирает свой голос и манеру */
@@ -111,6 +113,16 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     return alt.chars + n <= altCap
   }
 
+  let elevenDay = { day: '', chars: 0 }
+  const elevenCap = Number(env.ELEVEN_DAILY_CHARS ?? 20000)
+  const elevenAllowed = (n: number) => {
+    const today = new Date().toISOString().slice(0, 10)
+    if (elevenDay.day !== today) elevenDay = { day: today, chars: 0 }
+    if (elevenDay.chars + n > elevenCap) return false
+    elevenDay.chars += n
+    return true
+  }
+
   // внешний провайдер сбоит — после трёх ошибок подряд даём ему паузу, игра тем временем говорит SpeechKit
   const outage = { fails: 0, until: 0 }
 
@@ -161,7 +173,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   app.post('/api/tts', async (c) => {
     const b = TtsBody.parse(await c.req.json())
     const yandexOnly = b.provider === 'yandex'
-    const main = yandexOnly && b.api === undefined && b.natural === undefined && b.live === undefined ? primaryTts() : undefined
+    const asIs = yandexOnly && b.api === undefined && b.natural === undefined && b.live === undefined
+    // тест ElevenLabs — только по ссылке и в пределах суточного потолка символов (ELEVEN_DAILY_CHARS)
+    const eleven = asIs && b.test === 'eleven' && env.SPEECH !== 'off' && ttsStatus(env).elevenlabs.ready && elevenAllowed(b.text.length)
+    const main = eleven ? 'elevenlabs' as const : asIs ? primaryTts() : undefined
     const ready = yandexOnly ? yandexTtsReady() : ttsStatus(env)[b.provider].ready
     if (!ready && !main) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)

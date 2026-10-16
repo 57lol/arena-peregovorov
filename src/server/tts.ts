@@ -27,10 +27,21 @@ export const OPENAI_VOICES: VoiceInfo[] = [
 /** Готовые голоса ElevenLabs (id из их библиотеки, многоязычные). Свои — через ELEVENLABS_VOICES="Имя:id:m,Имя:id:f". */
 const ELEVEN_DEFAULT: VoiceInfo[] = [
   { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', female: false },
+  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', female: false },
+  { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', female: false },
+  { id: 'pqHfZKP75CvOlQylNhV4', name: 'Bill', female: false },
+  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', female: false },
+  { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', female: false },
+  { id: 'bIHbv24MWmeRgasZH58o', name: 'Will', female: false },
+  { id: 'iP95p4xoKVk53GoZ742B', name: 'Chris', female: false },
   { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', female: false },
+  { id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger', female: false },
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', female: true },
-  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', female: true },
+  { id: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura', female: true },
   { id: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice', female: true },
+  { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', female: true },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', female: true },
+  { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', female: true },
 ]
 export function elevenVoices(env = process.env): VoiceInfo[] {
   const own = (env.ELEVENLABS_VOICES ?? '')
@@ -86,7 +97,7 @@ export function ttsStatus(env = process.env) {
   return {
     yandex: { ready: yandex, need: 'YANDEX_API_KEY', model: 'SpeechKit v3 (v1 — запасной)' },
     openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts' },
-    elevenlabs: { ready: !!env.ELEVENLABS_API_KEY, need: 'ELEVENLABS_API_KEY', model: env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2' },
+    elevenlabs: { ready: !!env.ELEVENLABS_API_KEY || !!(env.ELEVEN_RELAY_URL && env.ELEVEN_RELAY_SECRET), need: 'ELEVENLABS_API_KEY', model: env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2' },
     salute: { ready: !!env.SALUTE_AUTH_KEY, need: 'SALUTE_AUTH_KEY', model: 'SaluteSpeech' },
     aitunnel: { ready: !!env.AITUNNEL_API_KEY, need: 'AITUNNEL_API_KEY', model: aitunnelModel(env) },
   } satisfies Record<TtsProvider, { ready: boolean; need: string; model: string }>
@@ -202,6 +213,20 @@ export async function openaiTts(key: string, q: TtsRequest, f: Fetch = fetch, en
 }
 
 export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Audio> {
+  // из России ElevenLabs закрыт: сервер ходит к нему через свой воркер Cloudflare, ключ живёт только там
+  if (env.ELEVEN_RELAY_URL) {
+    const r = await ok(
+      await f(env.ELEVEN_RELAY_URL, {
+        method: 'POST',
+        headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET ?? '', 'content-type': 'application/json' },
+        body: JSON.stringify({ text: q.text.slice(0, 1000), voice_id: q.voice, model_id: env.ELEVENLABS_MODEL ?? 'eleven_flash_v2_5' }),
+        signal: AbortSignal.timeout(8_000),
+      }),
+      'ElevenLabs (воркер)',
+    )
+    const audio = new Uint8Array(await r.arrayBuffer())
+    return { audio, type: 'audio/mpeg', ms: Math.round((audio.length * 8) / 64) }
+  }
   const model = env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2'
   const r = await ok(
     await f(`${env.ELEVENLABS_BASE_URL ?? 'https://api.elevenlabs.io/v1'}/text-to-speech/${encodeURIComponent(q.voice)}?output_format=mp3_44100_128`, {
@@ -321,7 +346,9 @@ export function mainTts(env = process.env): MainTts | undefined {
  * Кто кем говорит у внешнего провайдера: лицо (PERSONAS) → голос. Подобрано на слух по сэмплам
  * ~/Arena-materials/voice-test/ (index.html). Своё — TTS_CAST="sosed:Puck,gopnik:Fenrir" в .env.
  */
-export const CAST: Record<'eleven' | 'gemini' | 'openai', Record<string, string>> = {
+export const CAST: Record<'eleven' | 'elevenId' | 'gemini' | 'openai', Record<string, string>> = {
+  // ElevenLabs напрямую (через воркер): стандартные голоса по id — библиотечные на бесплатном тарифе API не отдаёт
+  elevenId: { sosed: 'TX3LPaxmHKxFdv7VOQHJ', gopnik: 'N2lVS1w4EtoT3dr4eOWO', rinat: 'nPczCjzI2devNBz1zQrb', admin: 'XrExE9yKIg1WjnnlVkGX', olga: 'FGY2WhTYpPnrIDTdsKH5', buyer: 'Xb7hH8MSUJpSbSDYk0k2', palych: 'pqHfZKP75CvOlQylNhV4', hr: 'EXAVITQu4vr4xnSDxMaL', official: 'JBFqnCBsd6RMkjVDRZzb', foreman: 'CwhRBWXzGAHq8TQ4Fs17', dev: 'bIHbv24MWmeRgasZH58o', realtor: 'cgSgspJ2msm6clMCkdW9', pacan: 'IKne3meq5aSn9XLyUdCD', guard: 'onwK4e9ZLuTAKqWW03F9', worker: 'iP95p4xoKVk53GoZ742B', student: 'pFZP5JQG7iQjIQuC4Bku', cashier: 'Xb7hH8MSUJpSbSDYk0k2' },
   // ElevenLabs: имена стоковых голосов в AITunnel; свои русские голоса из Voice Library — по id через TTS_CAST
   eleven: { sosed: 'liam', gopnik: 'callum', rinat: 'brian', admin: 'matilda', olga: 'sarah', buyer: 'lily', palych: 'bill', hr: 'bella', official: 'george', foreman: 'adam', dev: 'will', realtor: 'jessica', pacan: 'harry', guard: 'roger', worker: 'chris', student: 'laura', cashier: 'alice' },
   // Gemini: описания голосов Google — Puck бодрый, Fenrir возбуждённый, Charon деловой, Algenib с хрипотцой, Kore твёрдый, Sulafat тёплый
@@ -332,7 +359,7 @@ export const CAST: Record<'eleven' | 'gemini' | 'openai', Record<string, string>
 export function castFor(p: MainTts, who: string | undefined, yandexVoice: string, env = process.env): string {
   const own = Object.fromEntries((env.TTS_CAST ?? '').split(',').map((s) => s.trim().split(':')).filter((x) => x.length === 2))
   const pool = voicesOf(p, env)
-  const table = CAST[p === 'aitunnel' ? familyOf(aitunnelModel(env)) : p === 'elevenlabs' ? 'eleven' : 'openai']
+  const table = CAST[p === 'aitunnel' ? familyOf(aitunnelModel(env)) : p === 'elevenlabs' ? 'elevenId' : 'openai']
   // своё из TTS_CAST — как есть (у ElevenLabs это может быть id из библиотеки), из таблицы — только если голос есть у модели
   if (who && own[who]) return own[who]
   const known = who ? table[who] : undefined
@@ -374,7 +401,7 @@ export async function synthesize(p: TtsProvider, q: TtsRequest, f: Fetch = fetch
     case 'openai':
       return openaiTts(env.OPENAI_API_KEY!, q, f, env)
     case 'elevenlabs':
-      return elevenTts(env.ELEVENLABS_API_KEY!, q, f, env)
+      return elevenTts(env.ELEVENLABS_API_KEY ?? '', q, f, env)
     case 'salute':
       return saluteTts(env.SALUTE_AUTH_KEY!, q, env)
     case 'aitunnel':

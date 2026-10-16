@@ -330,6 +330,18 @@ export interface LineOptions {
   instructions?: string
 }
 
+/** Тест голоса ElevenLabs по ссылке: ?tts=eleven включает до конца вкладки, ?tts=off выключает. */
+export function elevenTest(): boolean {
+  try {
+    const q = new URLSearchParams(location.search).get('tts')
+    if (q === 'eleven') sessionStorage.setItem('peregovorka.tts', 'eleven')
+    if (q === 'off') sessionStorage.removeItem('peregovorka.tts')
+    return sessionStorage.getItem('peregovorka.tts') === 'eleven'
+  } catch {
+    return false
+  }
+}
+
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
   if (classicVoice() && !o.provider) return { voice, natural: false, live: false, api: 'v1' as const }
@@ -343,7 +355,8 @@ export function ttsVoice(voice: string, o: LineOptions = {}) {
   const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
   // лицо: его амплуа livetts и кто говорит (по нему сервер выбирает голос у внешнего провайдера, TTS_PROVIDER)
   const who = provider === 'yandex' && !own && speaker.persona?.voice === voice ? { who: speaker.id, ...(speaker.persona.role ? { role: speaker.persona.role } : {}) } : {}
-  return { voice: own ?? v, ...who, ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
+  const test = provider === 'yandex' && !api && !Object.keys(nat).length && typeof window !== 'undefined' && elevenTest() ? { test: 'eleven' as const } : {}
+  return { voice: own ?? v, ...who, ...nat, ...test, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
 }
 
 /** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
