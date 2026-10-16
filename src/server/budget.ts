@@ -167,9 +167,9 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       const [d] = await both()
       return modeNow() !== 'offline' && d.ttsChars + chars <= limits(env).ttsChars
     },
-    async addTts(chars: number, live = false) {
+    /** rub — готовая цена (внешний TTS), иначе считаем по тарифу SpeechKit */
+    async addTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {
       const [d, t] = await both()
-      const rub = ttsPrice(chars, live, env)
       d.ttsChars += chars
       t.ttsChars += chars
       t.ttsRub = r4(t.ttsRub + rub)

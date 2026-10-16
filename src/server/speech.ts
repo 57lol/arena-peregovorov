@@ -9,8 +9,9 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spokenOf } from './direct'
-import { styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type TtsProvider } from './tts'
+import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
+import { unstress } from './stress'
+import { castFor, mainTts, mannerOf, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -108,6 +109,46 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     return alt.chars + n <= altCap
   }
 
+  // внешний провайдер сбоит — после трёх ошибок подряд даём ему паузу, игра тем временем говорит SpeechKit
+  const outage = { fails: 0, until: 0 }
+
+  /** Реплика у внешнего провайдера: свой кэш, свои лимиты, цена в общий бюджет (price1k). null — лимит. */
+  async function external(c: Context, p: MainTts, b: z.infer<typeof TtsBody>): Promise<Response | null> {
+    const st = ttsStatus(env)[p]
+    const voice = castFor(p, b.who, b.voice, env)
+    const instructions = mannerOf(b.who, b.emotion)
+    // ударения «+» — разметка SpeechKit, чужим моделям она не нужна; рубли и проценты словами помогают всем
+    const text = spellOut(unstress(spokenOf(b.text))).replace(/[«»"]/g, '')
+    const ext = /^gemini/.test(st.model) && p === 'aitunnel' ? 'wav' : 'mp3'
+    const file = join(CACHE_DIR, 'tts', `${hashOf({ p, m: st.model, text, voice, i: instructions, e: b.emotion })}.${ext}`)
+    const headers = { 'content-type': ext === 'wav' ? 'audio/wav' : 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice, 'x-tts-api': p }
+    const send = (audio: Uint8Array<ArrayBuffer>, ms: number, cache: string) => c.body(audio, 200, { ...headers, 'x-cache': cache, ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
+    const running = inflight.get(file)
+    if (running) {
+      const r = await running.catch(() => null)
+      if (r) return send(r.audio, r.ms, 'warm')
+    }
+    try {
+      const audio = new Uint8Array(await readFile(file))
+      return send(audio, ext === 'wav' ? wavMs(audio) : mp3Ms(audio), 'hit')
+    } catch {
+      // нет в кэше
+    }
+    if (!allow('tts', ipOf(c)) || !(await quota.ttsAllowed(text.length))) return null
+    const job = synthesize(p, { text, voice, emotion: b.emotion, instructions }, f, env).then((r) => ({ audio: r.audio, ms: r.ms ?? 0 }))
+    job.catch(() => {})
+    inflight.set(file, job)
+    try {
+      const r = await job
+      await quota.addTts(text.length, false, (text.length / 1000) * price1k(st.model, env))
+      await mkdir(join(CACHE_DIR, 'tts'), { recursive: true })
+      await writeFile(file, r.audio)
+      return send(r.audio, r.ms, 'miss')
+    } finally {
+      inflight.delete(file)
+    }
+  }
+
   /** Каталог голосов и какие провайдеры готовы — для страниц сравнения и лаборатории. Ключей наружу не отдаём. */
   app.get('/api/voices', (c) => {
     const st = ttsStatus({ ...env, YANDEX_API_KEY: key })
@@ -121,6 +162,23 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const ready = yandexOnly ? status().tts : ttsStatus(env)[b.provider].ready
     if (!ready) return c.json({ error: yandexOnly ? 'Озвучка выключена' : `Нужен ключ ${ttsStatus(env)[b.provider].need}` }, 503)
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
+    // основной внешний голос (TTS_PROVIDER): игра шлёт голос SpeechKit и лицо, сервер берёт голос этого лица у провайдера.
+    // Лаборатория и ?voice=classic (явные api/natural/live) его не трогают. Не вышло — дальше обычный SpeechKit.
+    const main = mainTts(env)
+    if (main && b.provider === 'yandex' && b.api === undefined && b.natural === undefined && b.live === undefined && Date.now() > outage.until) {
+      const r = await external(c, main, b).catch((e: Error) => {
+        if (++outage.fails >= 3) {
+          outage.until = Date.now() + 5 * 60_000
+          outage.fails = 0
+          console.warn(`[speech] ${main}: три сбоя подряд, 5 минут говорим SpeechKit (${e.message})`)
+        }
+        return null
+      })
+      if (r) {
+        outage.fails = 0
+        return r
+      }
+    }
     const mode = naturalMode(env)
     const natural = yandexOnly && (b.natural ?? (mode === 'on' || mode === 'live'))
     const voice = yandexOnly && (b.live ?? liveMode(mode)) ? liveVoiceFor(b.voice) : b.voice

@@ -202,3 +202,69 @@ describe('лица и их подача', () => {
     expect(spellOut('ОЭЗ «Алабуга»')).toBe('О-Э-З «Алабуга»')
   })
 })
+
+describe('внешний голос (TTS_PROVIDER)', () => {
+  const withEnv = async (vars: Record<string, string>, fn: () => Promise<void>) => {
+    const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]))
+    Object.assign(process.env, vars)
+    try {
+      await fn()
+    } finally {
+      for (const [k, v] of Object.entries(old)) if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  }
+  // mp3 из двух кадров MPEG-1 Layer III 128 кбит/с 44,1 кГц: по 417 байт, ~26 мс каждый
+  const frame = Uint8Array.from({ length: 417 }, (_, i) => (i === 0 ? 0xff : i === 1 ? 0xfb : i === 2 ? 0x90 : 0))
+  const mp3Frames = new Uint8Array([...frame, ...frame])
+
+  it('ElevenLabs через AITunnel: голос лица, эмоция тегом; повтор — из кэша; сбой — говорит SpeechKit', async () => {
+    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'eleven-v4-turbo' }, async () => {
+      let down = false
+      const f = vi.fn(async (url: string | URL | Request) => {
+        if (String(url).includes('aitunnel')) return down ? new Response('{}', { status: 500 }) : new Response(mp3Frames, { status: 200 })
+        return fakeYandex()(url)
+      })
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+      const text = `Не пойдёт ${Math.random()}`
+      const r = await tts(app, { text, voice: 'sergey', who: 'palych', role: 'support', emotion: 'annoyed' })
+      expect(r.status).toBe(200)
+      expect(r.headers.get('x-tts-api')).toBe('aitunnel')
+      expect(r.headers.get('x-tts-voice')).toBe('bill')
+      expect(Number(r.headers.get('x-audio-ms'))).toBeGreaterThan(40)
+      const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+      expect(body).toMatchObject({ model: 'eleven-v4-turbo', voice: 'bill', response_format: 'mp3' })
+      expect(body.input).toBe(`[annoyed] ${text}`)
+      expect((await tts(app, { text, voice: 'sergey', who: 'palych', emotion: 'annoyed' })).headers.get('x-cache')).toBe('hit')
+      down = true
+      const fb = await tts(app, { text: `Годится ${Math.random()}`, voice: 'sergey', who: 'palych' })
+      expect(fb.status).toBe(200)
+      expect(fb.headers.get('x-tts-voice')).toBe('sergey')
+      // лаборатория с явным api — всегда SpeechKit
+      expect((await tts(app, { text: `Ещё ${Math.random()}`, voice: 'sergey', api: 'v3' })).headers.get('x-tts-voice')).toBe('sergey')
+    })
+  })
+
+  it('Gemini через AITunnel: манера словами в instructions, pcm → wav', async () => {
+    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'gemini-3.8-flash-tts' }, async () => {
+      const f = vi.fn(async (url: string | URL | Request) => (String(url).includes('aitunnel') ? new Response(new Uint8Array(48000), { status: 200 }) : fakeYandex()(url)))
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+      const r = await tts(app, { text: `Слушай, братан ${Math.random()}`, voice: 'vasily', who: 'sosed', emotion: 'happy' })
+      expect(r.headers.get('content-type')).toBe('audio/wav')
+      expect(r.headers.get('x-audio-ms')).toBe('1000')
+      const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+      expect(body).toMatchObject({ model: 'gemini-3.8-flash-tts', voice: 'Puck', response_format: 'pcm' })
+      expect(body.instructions).toContain('студент')
+      expect(body.input).not.toContain('[')
+    })
+  })
+
+  it('без ключа TTS_PROVIDER ничего не меняет', async () => {
+    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: '' }, async () => {
+      const f = fakeYandex()
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+      expect((await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', who: 'sosed' })).headers.get('x-tts-voice')).toBe('vasily')
+      expect(String(f.mock.calls[0][0])).toContain('yandex')
+    })
+  })
+})
