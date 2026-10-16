@@ -1,3 +1,4 @@
+import { importChunk } from './game/chunkRecovery'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
@@ -33,12 +34,12 @@ import './game/coach.css'
 import './game/career.css'
 
 // 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
-const loadPlay3D = () => import('./game/screens/Play3D')
+const loadPlay3D = () => importChunk(() => import('./game/screens/Play3D'))
 const Play3D = lazy(loadPlay3D)
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
-const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
-const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
-const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ default: m.Gallery })))
+const CutscenePlayer = lazy(() => importChunk(() => import('./game/cutscene/Cutscene')).then((m) => ({ default: m.CutscenePlayer })))
+const Jury = lazy(() => importChunk(() => import('./game/story/Jury')).then((m) => ({ default: m.Jury })))
+const Gallery = lazy(() => importChunk(() => import('./game/cutscene/Gallery')).then((m) => ({ default: m.Gallery })))
 
 /** Откуда открыли дело. «Сюжет» возвращает на титул: карты в нём нет. */
 type Origin = 'story' | 'map' | 'setup' | 'jury'
