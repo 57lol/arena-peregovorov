@@ -371,6 +371,20 @@
   font: 400 var(--fs-small) / 1.5 var(--f-read);
   overflow-wrap: break-word;
 }
+/* телефон: название финала строкой во всю ширину и читаемым шрифтом, столбик и число под ним */
+@media (max-width: 599px) {
+  .g-endbars {
+    gap: calc(3 * var(--u));
+  }
+  .g-endbars li {
+    grid-template-columns: minmax(0, 1fr) 2.5em;
+    gap: var(--u) calc(4 * var(--u));
+  }
+  .g-endbars-title {
+    grid-column: 1 / -1;
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+}
 .g-endbars-bar {
   height: calc(6 * var(--u));
   background: var(--c-night-2);

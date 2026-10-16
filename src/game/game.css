@@ -722,6 +722,15 @@ body {
   gap: calc(2 * var(--u));
   --desk-lo: transparent;
 }
+/* совсем узкий телефон: у «Что чувствует» без глаза — иначе «Уйти» размером под палец не влезает */
+@media (max-width: 380px) {
+  .g-hud {
+    gap: calc(2 * var(--u));
+  }
+  .g-xray-btn > svg {
+    display: none;
+  }
+}
 .g-hud-actions .px-btn {
   margin-bottom: var(--u);
 }
@@ -737,8 +746,8 @@ body {
   --face: var(--c-stamp);
   --label: var(--c-paper);
 }
-@media (max-width: 420px) {
-  /* часы, «Рентген» и «Уйти» должны влезть в 358 px без горизонтальной прокрутки */
+@media (max-width: 480px) {
+  /* часы, «Рентген» и «Уйти» должны влезть в 358 px без горизонтальной прокрутки (и в 430 — без обрезки «Уйти») */
   .g-hud-actions .px-btn {
     padding-inline: calc(3 * var(--u));
     margin-inline: 0;
