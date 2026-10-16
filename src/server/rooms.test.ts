@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Board } from '../engine/team'
 import { summarize } from '../engine/team'
 import type { TurnRecord } from '../engine/types'
@@ -45,6 +45,7 @@ async function room() {
 }
 const send = (id: string, body: object) => app.request(`/api/rooms/${id}/results`, json(body))
 const board = (id: string, key: string) => app.request(`/api/rooms/${id}/board`, { headers: { 'x-room-key': key } })
+afterEach(() => vi.restoreAllMocks())
 
 describe('комнаты тренировок', () => {
   it('согласие из нового клиента открывает сохранённую переписку старого формата без восстановления', async () => {
@@ -66,6 +67,40 @@ describe('комнаты тренировок', () => {
     const talk = await app.request(`/api/rooms/${id}/players/${row.pid}/talk?at=${row.first.at}`, { headers: { 'x-room-key': key } })
     expect(talk.status).toBe(200)
     expect(await talk.json()).toEqual({ talk: stored.byClient[clientId].talks[String(row.first.at)] })
+  })
+
+  it('попытки одной миллисекунды сохраняют разные переписки, в том числе после восстановления', async () => {
+    const { id, key } = await room()
+    const clientId = 'sametime01'
+    const first = await play(polite)
+    const last = await play(rude)
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+    const results = await Promise.all([
+      send(id, { clientId, attemptId: 'attempt001', name: 'Аня', history: first }),
+      send(id, { clientId, attemptId: 'attempt002', name: 'Аня', history: last }),
+    ])
+    expect(results.map((r) => r.status)).toEqual([200, 200])
+    const row = (await (await board(id, key)).json() as Board).players[0]
+    expect(row.first.at).not.toBe(row.last.at)
+    const stored = JSON.parse(readFileSync(join(dir, `${id}.json`), 'utf8'))
+    const submissions = stored.byClient[clientId].submissions as Record<string, { at: number }>
+    expect(new Set(Object.values(submissions).map((s) => s.at)).size).toBe(2)
+    const consent = (allow: boolean, transcript = {}) => app.request(`/api/rooms/${id}/consent`, json({ clientId, allow, ...transcript }))
+    const checkTalks = async () => {
+      for (const [attemptId, h] of [['attempt001', first], ['attempt002', last]] as const) {
+        const at = submissions[attemptId].at
+        const talk = await app.request(`/api/rooms/${id}/players/${row.pid}/talk?at=${at}`, { headers: { 'x-room-key': key } })
+        expect(talk.status).toBe(200)
+        expect(await talk.json()).toEqual({ talk: h.map((r) => ({ turn: r.turn, player: r.playerText, opponent: r.opponentLine })) })
+      }
+    }
+    expect((await consent(true)).status).toBe(200)
+    await checkTalks()
+    expect((await consent(false)).status).toBe(200)
+    for (const [attemptId, history] of [['attempt001', first], ['attempt002', last]] as const)
+      expect((await consent(true, { attemptId, history })).status).toBe(200)
+    await checkTalks()
+    expect((await (await board(id, key)).json() as Board).players[0].attempts).toBe(2)
   })
 
   it('руководитель открывает комнату, участник видит только название и дело', async () => {

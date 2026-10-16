@@ -151,7 +151,6 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     const history = normalize(sc, body.history)
     if (!history.length || history[history.length - 1].stateAfter.status === 'open')
       return c.json({ error: 'Встреча не закончена' }, 400)
-    const a = attemptOf(sc, history, dict, body.seconds)
     return locked(id, async () => {
       const room = (await load(id))!
       const prev = room.byClient[body.clientId]
@@ -166,6 +165,13 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       if (!prev && !pulse && memberCount(room) >= ROOM_LIMITS.players)
         return c.json({ error: 'В тренировке уже максимум участников' }, 409)
       if (prev && prev.attempts >= ROOM_LIMITS.attemptsPerPlayer) return c.json({ error: 'Слишком много попыток' }, 429)
+      // at служит ключом переписки. Выделяем его после чтения комнаты под блокировкой,
+      // чтобы даже одновременные результаты и откат часов не получили один ключ.
+      const at = Math.max(Date.now(), ...Object.values(room.byClient).flatMap((r) => [
+        r.first.at + 1, r.best.at + 1, r.last.at + 1,
+        ...Object.values(r.submissions ?? {}).map((s) => s.at + 1),
+      ]))
+      const a = attemptOf(sc, history, dict, body.seconds, at)
       const row = prev
         ? { ...prev, pid: prev.pid ?? randomBytes(6).toString('base64url'), share: prev.share ?? 'none', name: body.name, attempts: prev.attempts + 1, best: better(a, prev.best), last: a }
         : { pid: randomBytes(6).toString('base64url'), share: 'none' as ShareState, name: body.name, attempts: 1, first: a, best: a, last: a }
