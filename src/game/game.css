@@ -1676,37 +1676,16 @@ body {
   text-wrap: pretty;
 }
 .g-bench {
+  display: grid;
+  gap: var(--u);
   margin: 0 0 calc(2 * var(--u));
+  padding: 0;
+  list-style: none;
 }
-.g-bench-bar {
-  position: relative;
-  height: calc(5 * var(--u));
-  background: var(--c-paper-2);
-}
-.g-bench-you {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--pen);
-}
-.g-bench-mark {
-  position: absolute;
-  top: calc(-2 * var(--u));
-  bottom: calc(-2 * var(--u));
-  width: var(--u);
-}
-.g-bench-mark--skilled {
-  background: var(--c-leaf);
-}
-.g-bench-mark--average {
-  background: var(--c-coral);
-}
-.g-bench-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 calc(5 * var(--u));
-  margin: calc(2 * var(--u)) 0 0;
-  font: 400 var(--fs-small) / 1.5 var(--f-read);
-  color: var(--c-steel-2);
+.g-beh .g-bench li,
+.g-bench li {
+  padding: 0;
+  border: 0;
 }
 .g-bench-l-you {
   color: var(--pen);

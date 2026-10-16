@@ -525,7 +525,7 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-const VERDICT: Record<string, string> = { skilled: 'как у сильных', between: 'между', average: 'как у средних' }
+const VERDICT: Record<string, string> = { skilled: 'как у сильных', between: 'между сильными и средними', average: 'как у средних' }
 /** «как у средних» при результате хуже среднего — неправда. «Как у средних» — только если почти вровень. */
 function verdictRu(r: ProfileRow) {
   const b = r.benchmark
@@ -550,8 +550,8 @@ function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[
         Как вы вели разговор
       </h2>
       <p className="g-muted">
-        Приёмы из ваших реплик в сравнении с тем, как ведут себя сильные переговорщики (Rackham & Carlisle, 103 реальные
-        переговорные сессии). Доля — от ваших {n} {plural(n, 'реплики', 'реплик', 'реплик')}.
+        Сколько раз за {n} {plural(n, 'реплику', 'реплики', 'реплик')} вы использовали каждый приём и как часто его используют сильные
+        и средние переговорщики. Частоты взяты из наблюдений за 103 настоящими переговорами (Rackham & Carlisle).
       </p>
       <Fold
         wide={wide}
@@ -584,11 +584,10 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
               <p className="g-beh-head">
                 <b>{r.title}</b>
                 <span className="g-beh-count">
-                  {kind === 'missing' ? 'ни разу' : `${r.count} из ${n}`}
-                  {r.verdict && kind !== 'missing' ? `, ${verdictRu(r)}` : ''}
+                  {kind === 'missing' ? 'ни разу' : r.verdict && r.benchmark?.unit !== 'reasons' ? verdictRu(r) : `${r.count} из ${n}`}
                 </span>
               </p>
-              {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} />}
+              {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} n={n} />}
               {q && <blockquote className="g-quote g-quote--small">{censor(q)}</blockquote>}
               {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{plainWords(def.advice)}</p>}
             </li>
@@ -599,30 +598,32 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
   )
 }
 
-/** Мини-шкала: ваша частота против сильных и средних. */
-export function Bench({ row, who = 'вы' }: { row: ProfileRow; who?: string }) {
+/**
+ * Как часто вы использовали приём и как часто — сильные и средние переговорщики. Простыми словами,
+ * без шкал: «вы: 0 раз из 2 реплик · сильные: примерно раз в 5 реплик».
+ */
+export function Bench({ row, who = 'вы', n }: { row: ProfileRow; who?: string; n?: number }) {
   const b = row.benchmark!
   const v = row.value ?? 0
-  const max = Math.max(v, b.skilled, b.average) * 1.15 || 1
-  const pct = (x: number) => `${Math.min(100, (x / max) * 100)}%`
-  // «в час» на встрече из десяти реплик звучит странно: у Rackham час, у нас — те же 12 реплик по 5 минут
-  const perTurns = `на ${60 / MINUTES_PER_TURN} реплик`
-  const unit = b.unit === 'share' ? '%' : ` ${perTurns}`
-  const short = b.unit === 'share' ? '%' : ''
+  const you = n !== undefined
+    ? `${row.count ? `${row.count} ${plural(row.count, 'раз', 'раза', 'раз')}` : 'ни разу'} из ${n} ${plural(n, 'реплики', 'реплик', 'реплик')}`
+    : often(v, b.unit)
   return (
-    <div className="g-bench" aria-label={`${who}: ${v}${unit}; сильные: ${b.skilled}${unit}; средние: ${b.average}${unit}`}>
-      <div className="g-bench-bar">
-        <span className="g-bench-you" style={{ width: pct(v) }} />
-        <i className="g-bench-mark g-bench-mark--skilled" style={{ left: pct(b.skilled) }} />
-        <i className="g-bench-mark g-bench-mark--average" style={{ left: pct(b.average) }} />
-      </div>
-      <p className="g-bench-legend">
-        <span className="g-bench-l-you">{who} {fmt(v)}{unit}</span>
-        <span className="g-bench-l-skilled">сильные {fmt(b.skilled)}{short}</span>
-        <span className="g-bench-l-average">средние {fmt(b.average)}{short}</span>
-      </p>
-    </div>
+    <ul className="g-bench" aria-label={`${who}: ${you}; сильные переговорщики: ${often(b.skilled, b.unit)}; средние: ${often(b.average, b.unit)}`}>
+      <li className="g-bench-l-you"><b>{who.charAt(0).toUpperCase() + who.slice(1)}:</b> {you}</li>
+      <li className="g-bench-l-skilled">Сильные переговорщики: {often(b.skilled, b.unit)}</li>
+      <li className="g-bench-l-average">Средние: {often(b.average, b.unit)}</li>
+    </ul>
   )
 }
 
-const fmt = (x: number) => String(x).replace('.', ',')
+/** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */
+export function often(x: number, unit: 'share' | 'per_hour' | 'reasons'): string {
+  const perTurn = unit === 'share' ? x / 100 : (x * MINUTES_PER_TURN) / 60
+  if (perTurn <= 0) return 'ни разу'
+  if (perTurn >= 0.75) return 'почти в каждой реплике'
+  if (perTurn >= 0.4) return 'примерно в каждой второй реплике'
+  const k = Math.round(1 / perTurn)
+  return `примерно раз в ${k} ${plural(k, 'реплику', 'реплики', 'реплик')}`
+}
+

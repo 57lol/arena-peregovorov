@@ -44,6 +44,8 @@ export function DealMap({ sc, report, history, name }: Props) {
   const { batna } = report
   const o = report.outcome
   const deal = o.status === 'deal' ? { x: o.playerPoints, y: o.opponentPoints } : null
+  // где оказались вы: точка сделки или, если сделки нет, точка «без сделки» (у обоих запасные варианты)
+  const mine = { x: o.playerPoints, y: o.opponentPoints }
   const better = report.betterDeal ? { x: report.betterDeal.player, y: report.betterDeal.opponent } : null
 
   // путь встречных предложений собеседника и ваших предложений по ходам
@@ -158,7 +160,8 @@ export function DealMap({ sc, report, history, name }: Props) {
               <rect key={`y${p.turn}`} x={X(p.x) - k} y={Y(p.y) - k} width={k * 2} height={k * 2} fill="var(--c-paper)" stroke="var(--c-ink)" strokeWidth={1} />
             ))}
             {better && <Marker x={X(better.x)} y={Y(better.y)} k={k} color="var(--c-leaf-hi)" hollow />}
-            {deal && <Marker x={X(deal.x)} y={Y(deal.y)} k={k} color="var(--c-coral)" />}
+            <Marker x={X(mine.x)} y={Y(mine.y)} k={k} color={deal ? 'var(--c-coral)' : 'var(--c-paper)'} cross={!deal} />
+            <MineLabel x={X(mine.x)} y={Y(mine.y)} k={k} W={W} text={deal ? `ваша сделка: вам ${mine.x}` : `вы здесь: без сделки, вам ${mine.x}`} />
             {pick && (
               <rect x={X(pick.x) - k - 1} y={Y(pick.y) - k - 1} width={k * 2 + 2} height={k * 2 + 2} fill="none" stroke="var(--c-paper)" strokeWidth={2} />
             )}
@@ -203,11 +206,9 @@ export function DealMap({ sc, report, history, name }: Props) {
             <i className="g-sw g-sw--yours" /> ваши предложения
           </span>
         )}
-        {deal && (
-          <span>
-            <i className="g-sw g-sw--deal" /> ваша сделка
-          </span>
-        )}
+        <span>
+          <i className="g-sw g-sw--deal" style={deal ? undefined : { background: 'var(--c-paper)' }} /> {deal ? 'ваша сделка' : 'ваш итог: сделки нет'}
+        </span>
         {better && (
           <span>
             <i className="g-sw g-sw--better" /> {deal ? 'лучше обоим' : 'можно было так'}
@@ -218,14 +219,36 @@ export function DealMap({ sc, report, history, name }: Props) {
   )
 }
 
-function Marker({ x, y, k, color, hollow }: { x: number; y: number; k: number; color: string; hollow?: boolean }) {
+function Marker({ x, y, k, color, hollow, cross }: { x: number; y: number; k: number; color: string; hollow?: boolean; cross?: boolean }) {
   const r = Math.max(3, k * 2)
   return (
     <g>
       <rect x={x - r - 2} y={y - r - 2} width={(r + 2) * 2} height={(r + 2) * 2} fill="none" stroke="var(--c-ink)" strokeWidth={2} />
       <rect x={x - r} y={y - r} width={r * 2} height={r * 2} fill={hollow ? 'none' : color} stroke={color} strokeWidth={2} />
-      {!hollow && <rect x={x - 1} y={y - 1} width={2} height={2} fill="var(--c-ink)" />}
+      {cross ? (
+        <path d={`M${x - r + 2} ${y - r + 2} L${x + r - 2} ${y + r - 2} M${x + r - 2} ${y - r + 2} L${x - r + 2} ${y + r - 2}`} stroke="var(--c-coral)" strokeWidth={2} shapeRendering="auto" />
+      ) : (
+        !hollow && <rect x={x - 1} y={y - 1} width={2} height={2} fill="var(--c-ink)" />
+      )}
     </g>
+  )
+}
+
+/** Подпись «где вы» рядом с точкой: справа, а у правого края — слева; с тёмной обводкой, чтобы читалась поверх точек. */
+function MineLabel({ x, y, k, W, text }: { x: number; y: number; k: number; W: number; text: string }) {
+  const r = Math.max(3, k * 2) + 6
+  const left = x + r + text.length * 7 > W
+  // под точкой: над ней обычно подпись чужого запасного варианта
+  return (
+    <text
+      x={left ? x - r : x + r}
+      y={y + r + 8}
+      textAnchor={left ? 'end' : 'start'}
+      className="g-map-note"
+      style={{ fill: 'var(--c-paper)', fontWeight: 700, paintOrder: 'stroke', stroke: 'var(--c-night)', strokeWidth: 4, strokeLinejoin: 'round' }}
+    >
+      {text}
+    </text>
   )
 }
 
@@ -240,6 +263,6 @@ function mapLabel(r: Report, name: string) {
   const o = r.outcome
   return (
     `Карта сделок: ${r.space.length} разных исходов, на границе Парето ${r.frontier.length}. ` +
-    (o.status === 'deal' ? `Ваша сделка: вам ${o.playerPoints}, ${name} ${o.opponentPoints}.` : 'Сделки нет.')
+    (o.status === 'deal' ? `Ваша сделка: вам ${o.playerPoints}, ${name} ${o.opponentPoints}.` : `Сделки нет: вам ${o.playerPoints}, ${name} ${o.opponentPoints}.`)
   )
 }
