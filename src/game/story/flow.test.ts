@@ -4,7 +4,7 @@ import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { buildReport } from '../../engine/report'
 import { countStars, starsOf, type Progress } from '../progress'
 import { demoHistory } from './demo'
-import { nextChapter, storyAfter, storyEnter, storyStart } from './flow'
+import { nextChapter, storyAfter, storyStart } from './flow'
 import { chapterCard } from '../cutscene/scripts'
 
 const rec = { title: '', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }
@@ -27,8 +27,10 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
     expect(storyStart(prog('dorm', 'stop'), ['prologue', 'to-stop', 'to-tara']).cutscene?.id).toBe('to-tara')
   })
-  it('неделя пройдена — карта', () => {
-    expect(storyStart(prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch'), ['prologue'])).toEqual({ then: { to: 'map' } })
+  it('неделя пройдена — неделя заново с пролога, без карты', () => {
+    const s = storyStart(prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch'), ['prologue'])
+    expect(s.cutscene?.id).toBe('prologue')
+    expect(s.then).toEqual({ to: 'brief', caseId: 'dorm' })
   })
   it('пролог не видели, но главы сыграны — пролог и всё равно глава 1: титр пролога обещает общагу', () => {
     // баг 29.09: общагу сыграли из хаба жюри, пролог не видели — после автобуса открывалась «Остановка у ларька»
@@ -46,14 +48,6 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(s.cutscene?.id).toBe('to-stop')
     expect(s.then).toEqual({ to: 'brief', caseId: 'stop' })
   })
-  it('глава с карты: сначала непросмотренный переход к ней, для первой — пролог', () => {
-    // баг 29.09: «Остановку» открывали с карты, а переход «на остановку» так и не показывался
-    expect(storyEnter('stop', ['prologue'])?.id).toBe('to-stop')
-    expect(storyEnter('stop-hard', ['prologue'])?.id).toBe('to-stop')
-    expect(storyEnter('dorm', [])?.id).toBe('prologue')
-    expect(storyEnter('stop', ['prologue', 'to-stop'])).toBeNull()
-    expect(storyEnter('not-a-chapter', [])).toBeNull()
-  })
   it('жёсткая версия главы — тот же переход', () => {
     expect(storyAfter('stop-hard').cutscene?.id).toBe('to-tara')
   })
@@ -63,13 +57,23 @@ describe('«Сюжет»: что показать дальше', () => {
     expect(s.cutscene?.id).toBe('to-shop')
     expect(s.then).toEqual({ to: 'brief', caseId: 'shop' })
   })
-  it('финал недели — катсцена финала и карта', () => {
+  it('между любыми двумя главами подряд — катсцена, в том числе от бытовых дел к рабочим', () => {
+    const ids = ['dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch']
+    for (let k = 0; k < ids.length - 1; k++) {
+      const s = storyAfter(ids[k])
+      expect(s.cutscene, ids[k]).toBeDefined()
+      expect(s.then).toEqual({ to: 'brief', caseId: ids[k + 1] })
+      // катсцена кончается титром именно той главы, куда ведёт
+      expect(s.cutscene!.shots.at(-1)!.card?.title).toBe(chapterCard(ids[k + 1]).title)
+    }
+  })
+  it('финал недели — катсцена финала и титул, не карта', () => {
     const s = storyAfter('launch')
     expect(s.cutscene?.id).toBe('finale')
-    expect(s.then).toEqual({ to: 'map' })
+    expect(s.then).toEqual({ to: 'title' })
   })
-  it('дело не из кампании — на карту без катсцены', () => {
-    expect(storyAfter('gen-abc')).toEqual({ then: { to: 'map' } })
+  it('дело не из кампании — на титул без катсцены', () => {
+    expect(storyAfter('gen-abc')).toEqual({ then: { to: 'title' } })
   })
 })
 

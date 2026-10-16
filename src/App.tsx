@@ -22,7 +22,7 @@ import { RoomReceipt } from './game/screens/RoomReceipt'
 import { Career } from './game/screens/Career'
 import { MapScreen } from './game/screens/Map'
 import { nextStory } from './game/story'
-import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscenes, seenForStory, storyAfter, storyEnter, storyStart, type Next, type Step } from './game/story/flow'
+import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscenes, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
 import { chapterOf } from './content/story'
@@ -39,6 +39,10 @@ const Play3D = lazy(loadPlay3D)
 const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
 const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
 const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ default: m.Gallery })))
+
+/** Откуда открыли дело. «Сюжет» возвращает на титул: карты в нём нет. */
+type Origin = 'story' | 'map' | 'setup' | 'jury'
+const home = (o: Origin): Screen => (o === 'story' ? 'title' : o)
 
 export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films'
 
@@ -58,8 +62,8 @@ interface Saved {
   room?: RoomRef | null
   startedAt?: number
   sent?: string
-  /** откуда открыли дело: с карты кампании («Сюжет»), из папки или из хаба жюри — туда и возвращаемся */
-  from?: 'map' | 'setup' | 'jury'
+  /** откуда открыли дело: «Сюжет» (линейно, без карты), карта недели жюри, папка или хаб жюри — туда и возвращаемся */
+  from?: Origin
 }
 function loadSession(): Saved | null {
   try {
@@ -85,7 +89,7 @@ const firstScreen = (): Screen => {
   if (boardRef) return 'board'
   if (filmLink && cutsceneById(filmLink.id)) return 'cutscene'
   // перезагрузка возвращает на тот же экран (и во встречу), даже если в адресе ?jury
-  if (saved) return saved.screen === 'cutscene' ? 'map' : saved.screen
+  if (saved) return saved.screen === 'cutscene' ? 'title' : saved.screen
   return juryLink() ? 'jury' : 'title'
 }
 
@@ -100,7 +104,7 @@ export default function App() {
   const [player, setPlayer] = useState(loadPlayer)
   const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
   const [sent, setSent] = useState(saved?.sent ?? '')
-  const [from, setFrom] = useState<'map' | 'setup' | 'jury'>(saved?.from ?? 'setup')
+  const [from, setFrom] = useState<Origin>(saved?.from ?? 'setup')
   // катсцена на экране и что после неё
   const [film, setFilm] = useState<{ id: string; at?: number; then: () => void } | null>(() =>
     filmLink ? { id: filmLink.id, at: filmLink.at, then: () => setScreen('title') } : null,
@@ -206,7 +210,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', back)
   }, [])
 
-  const open = (c: Case, origin: 'map' | 'setup' | 'jury' = 'setup') => {
+  const open = (c: Case, origin: Origin = 'setup') => {
     setFrom(origin)
     setCurrent(c)
     setHistory([])
@@ -230,13 +234,13 @@ export default function App() {
     if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
   }
   // «Сюжет» с титула или из хаба: пролог и глава 1 для нового игрока, дальше — переход к следующей главе и её бриф.
-  // Прогоны из scripts/ (navigator.webdriver) по-прежнему сразу на карту
+  // Карты в «Сюжете» нет. Прогоны из scripts/ (navigator.webdriver) идут без катсцен на карту недели, как жюри
   const story = () => run(cutscenesAllowed() ? storyStart(progress, seenCutscenes()) : { then: { to: 'map' } })
-  // «Сюжет»: катсцена (если есть), потом бриф следующей главы или карта недели
+  // «Сюжет»: катсцена (если есть), потом бриф следующей главы; неделя пройдена — титул
   const follow = (n: Next) => {
     const sc = n.to === 'brief' ? getScenario(n.caseId) : undefined
-    if (sc) open({ scenario: sc, fromLibrary: true }, 'map')
-    else go('map')
+    if (sc) open({ scenario: sc, fromLibrary: true }, 'story')
+    else go(n.to === 'map' ? 'map' : 'title')
   }
   const run = (step: Step) => {
     const cs = step.cutscene
@@ -261,7 +265,7 @@ export default function App() {
     go('cutscene')
   }
   useEffect(() => {
-    if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('map')
+    if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
   }, [screen, film])
 
   const rewindTo = (turn: number) => {
@@ -319,6 +323,7 @@ export default function App() {
           }}
           onCoach={() => go('coach')}
           onCareer={() => toCareer('jury')}
+          onMap={() => go('map')}
           onCutscene={(id) => watch(id, 'jury')}
           onFilms={() => films('jury')}
           onStory={() => {
@@ -354,20 +359,9 @@ export default function App() {
       <MapScreen
         progress={progress}
         onProgress={setProgress}
-        onOpen={(c) => {
-          // глава с карты: сначала переход к ней, если его ещё не видели
-          const cs = storyEnter(c.scenario.id, seenForStory())
-          if (!cs) return open(c, 'map')
-          setFilm({
-            id: cs.id,
-            then: () => {
-              markCutsceneSeen(cs.id)
-              open(c, 'map')
-            },
-          })
-          go('cutscene')
-        }}
-        onBack={() => go('title')}
+        // карта недели — у жюри: любая глава сразу, без катсцен; назад — в хаб
+        onOpen={(c) => open(c, 'map')}
+        onBack={() => go('jury')}
         onFree={() => go('setup')}
         onCareer={() => toCareer('map')}
       />
@@ -436,7 +430,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(from)} />
+  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(home(from))} />
 
   if (screen === 'play') {
     const meeting = {
@@ -448,7 +442,7 @@ export default function App() {
       tutorial: !progress.tutorialDone && tutorialAllowed(),
       onTutorialOff: () => setProgress(loadProgress()),
       onFinish: () => go('report'),
-      onQuit: () => go(from),
+      onQuit: () => go(home(from)),
     }
     if (view === '3d')
       return (
@@ -501,15 +495,20 @@ export default function App() {
       }}
       onReplayFrom={rewindTo}
       onAgain={start}
-      onHarder={current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id) ? () => open({ scenario: harder(current.scenario), fromLibrary: true }) : undefined}
-      onOther={() => go(from)}
-      otherLabel={from === 'map' ? 'К карте недели' : from === 'jury' ? 'К жюри' : undefined}
-      // «Сюжет»: главная кнопка — «Дальше»: катсцена-переход и следующая глава; мостик на карте уже не нужен
+      // «Сыграть жёстче» (та же история, собеседник упрямее) — только вне «Сюжета»: в сюжете главная кнопка — «Дальше»
+      onHarder={
+        from !== 'story' && current.fromLibrary && !current.scenario.harder && getScenario(current.scenario.id)
+          ? () => open({ scenario: harder(current.scenario), fromLibrary: true }, from)
+          : undefined
+      }
+      onOther={() => go(home(from))}
+      otherLabel={from === 'story' ? 'В меню' : from === 'map' ? 'К карте недели' : from === 'jury' ? 'К жюри' : undefined}
+      // «Сюжет»: главная кнопка — «Дальше»: катсцена-переход и следующая глава
       onNext={
-        from === 'map' && chapterOf(current.scenario.id)
+        from === 'story' && chapterOf(current.scenario.id)
           ? () => {
               setProgress(markStorySeen(chapterOf(current.scenario.id)!.id))
-              run(cutscenesAllowed() ? storyAfter(current.scenario.id) : { then: { to: 'map' } })
+              run(cutscenesAllowed() ? storyAfter(current.scenario.id) : { then: storyAfter(current.scenario.id).then })
             }
           : undefined
       }

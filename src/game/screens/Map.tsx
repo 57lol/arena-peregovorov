@@ -95,7 +95,7 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
       <main className="px-desk g-desk mp-page">
         <header className="g-bar mp-bar">
           <Button variant="ghost" icon="left" onClick={onBack}>
-            Назад
+            К жюри
           </Button>
           <span className="mp-bar-right">
             {onCareer && (
@@ -254,7 +254,7 @@ function ChapterCard({ row, intro, next, weekDone, docked, onOpen, ref }: CardPr
             </Button>
           )}
           {row.dealt && (
-            <Button variant="stamp" onClick={() => onOpen(harder(sc))}>
+            <Button variant="stamp" title="То же дело, но собеседник упрямее и реже раскрывается" onClick={() => onOpen(harder(sc))}>
               Жёстче
             </Button>
           )}

@@ -33,6 +33,8 @@ interface Props {
   onSetup: () => void
   onCoach: () => void
   onCareer: () => void
+  /** карта недели: все главы сразу, без катсцен — она есть только у жюри */
+  onMap: () => void
   onCutscene: (id: string) => void
   /** галерея катсцен отдельным экраном */
   onFilms: () => void
@@ -54,6 +56,9 @@ export function Jury(p: Props) {
             Титул
           </Button>
           <span className="jr-bar-right">
+            <Button variant="ghost" icon="right" onClick={p.onMap}>
+              Карта недели
+            </Button>
             <Button variant="ghost" icon="right" onClick={p.onFilms}>
               Катсцены
             </Button>
@@ -105,6 +110,7 @@ export function Jury(p: Props) {
             <h2 id="jr-cases" className="jr-h2">
               Деловые дела
             </h2>
+            <p className="g-muted">«Жёстче» — то же дело, но собеседник упрямее и реже говорит, что ему на самом деле важно.</p>
             <ul className="jr-cases">
               {SCENARIOS.map((sc) => (
                 <li key={sc.id}>
@@ -113,7 +119,7 @@ export function Jury(p: Props) {
                     <span className="jr-case-name">{sc.title}</span>
                     <span className="jr-case-sphere">{sc.sphere}</span>
                   </button>
-                  <Button variant="stamp" className="jr-hard" onClick={() => p.onOpen(lib(harder(sc)))}>
+                  <Button variant="stamp" className="jr-hard" title="То же дело, но собеседник упрямее и реже раскрывается" onClick={() => p.onOpen(lib(harder(sc)))}>
                     Жёстче
                   </Button>
                 </li>
@@ -160,6 +166,11 @@ export function Jury(p: Props) {
                 )
               })}
             </ul>
+            <div className="jr-row">
+              <Button icon="right" onClick={p.onMap}>
+                Карта недели
+              </Button>
+            </div>
           </section>
 
           <Settings {...p} />
