@@ -6,7 +6,7 @@
 ровно с шагом, поэтому при движении тела на CYCLE/8 точек за кадр ноги не скользят.
 
 Запуск: ~/Arena-materials/.venv/bin/python tools/art/cutscene_people.py
-Пишет public/assets/cutscene/{newbie_walk,newbie_case,newbie_box,newbie_sit,bus_in,bus_fg,bus_pov,phone,timur}.png,
+Пишет public/assets/cutscene/{newbie_walk,newbie_case,newbie_box,newbie_sit,bus_in,bus_fg,bus_pov,bus_pov_sun,pov_pass,phone,timur}.png,
 src/game/cutscene/people.gen.ts и превью tools/art/out/cs_*.
 """
 import json
@@ -804,175 +804,10 @@ def build_bus_fg():
 
 
 # ---------------------------------------------------------------------------------------------------
-# телефон в руках крупно: 2 кадра 160×180
+# салон от первого лица и телефон в руке — в cutscene_pov.py
 # ---------------------------------------------------------------------------------------------------
-PW, PH = 160, 180
-SCREEN = (38, 20, 121, 159)          # x0, y0, x1, y1 включительно — 84×140
-
-
-def rounded(t, x0, y0, x1, y1, r, c):
-    t.rect(x0 + r, y0, x1 - r, y1, c)
-    t.rect(x0, y0 + r, x1, y1 - r, c)
-    t.ellipse(x0 + r, y0 + r, r + 0.3, r + 0.3, c)
-    t.ellipse(x1 - r + 1, y0 + r, r + 0.3, r + 0.3, c)
-    t.ellipse(x0 + r, y1 - r + 1, r + 0.3, r + 0.3, c)
-    t.ellipse(x1 - r + 1, y1 - r + 1, r + 0.3, r + 0.3, c)
-
-
-def capsule_mask(t, p0, p1, r0, r1):
-    """Пиксели в пределах радиуса от отрезка; радиус плавно меняется от r0 к r1."""
-    xs, ys = t.grid()
-    (x0, y0), (x1, y1) = p0, p1
-    dx, dy = x1 - x0, y1 - y0
-    L2 = dx * dx + dy * dy
-    u = np.clip(((xs - x0) * dx + (ys - y0) * dy) / L2, 0, 1)
-    d = np.hypot(xs - (x0 + u * dx), ys - (y0 + u * dy))
-    return d <= r0 + (r1 - r0) * u, u, (xs - x0) * dy - (ys - y0) * dx
-
-
-def thumb(t, base, tip, r0=6.5, r1=4.6, light_side=1):
-    """Большой палец: капсула, тень по одной стороне, ноготь у кончика."""
-    m, u, side = capsule_mask(t, base, tip, r0, r1)
-    t.a[m] = SKIN
-    # тень — по стороне, противоположной свету, и у основания
-    L = math.hypot(tip[0] - base[0], tip[1] - base[1])
-    sd = side / L
-    t.a[m & (sd * light_side > r0 * 0.3)] = SKIN_S
-    t.a[m & (sd * light_side < -r0 * 0.62) & (u > 0.45) & (u < 0.85)] = 17
-    # ноготь
-    nm, nu, nside = capsule_mask(t, (tip[0] - (tip[0] - base[0]) * 2.6 / L, tip[1] - (tip[1] - base[1]) * 2.6 / L), tip, 2.0, 1.6)
-    t.a[nm & m] = 17
-    t.a[nm & m & (nside / L * light_side > 0.9)] = SKIN
-    return m
-
-
-def build_phone(frame):
-    """Телефон в правой руке: ладонь снизу справа, большой палец лежит на правой грани корпуса (не на экране),
-    кончики пальцев выглядывают из-за левой грани. Кадр 1 — палец чуть выше: листает."""
-    t = Tex(PW, PH)
-    x0, y0, x1, y1 = SCREEN
-    bx0, by0, bx1, by1 = x0 - 6, y0 - 9, x1 + 6, y1 + 10
-    xs, ys = t.grid()
-    # ладонь за телефоном: снизу справа
-    palm = ((xs - (bx1 + 2)) / 22) ** 2 + ((ys - (by1 + 4)) / 24) ** 2 <= 1
-    t.a[palm] = SKIN
-    t.a[palm & (xs > bx1 + 13)] = SKIN_S
-    # пальцы той же руки обхватывают корпус сзади: кончики у левой грани
-    for k, yy in enumerate((112, 124, 136, 147)):
-        w = [4, 5, 5, 4][k]
-        rounded(t, bx0 - w, yy, bx0 + 3, yy + 9, 3, SKIN)
-        t.rect(bx0 - w + 1, yy + 8, bx0 + 2, yy + 9, SKIN_S)
-        t.rect(bx0 - w, yy + 2, bx0 - w, yy + 6, SKIN_S)
-    # корпус
-    rounded(t, bx0, by0, bx1, by1, 6, 37)
-    rounded(t, bx0 + 1, by0 + 1, bx1 - 1, by1 - 1, 5, 38)
-    t.rect(bx0 + 1, by0 + 7, bx0 + 1, by1 - 7, 40)                               # блик по левой грани
-    t.rect(bx0 + 7, by0 + 1, bx1 - 9, by0 + 1, 39)
-    t.rect(x0 + 34, by0 + 4, x0 + 49, by0 + 5, 36)                               # динамик
-    t.ellipse(x0 + 56, by0 + 5, 1.6, 1.6, 36)                                    # камера
-    t.px(x0 + 56, by0 + 4, 40)
-    t.rect(x0 + 30, by1 - 5, x0 + 53, by1 - 4, 39)                               # полоска «домой»
-    t.rect(x0, y0, x1, y1, 36)
-    # рукав ветровки из правого нижнего угла, у манжеты светлая кромка
-    cx, cy = bx1 + 22, PH + 6
-    sl = ((xs - cx) / 22) ** 2 + ((ys - cy) / 20) ** 2 <= 1
-    t.a[sl] = JACK
-    t.a[sl & (((xs - cx - 6) / 16) ** 2 + ((ys - cy - 4) / 12) ** 2 <= 1)] = JACK_S
-    t.a[sl & ~(((xs - cx) / 22) ** 2 + ((ys - cy - 1.5) / 20) ** 2 <= 1)] = 44
-    # большой палец вдоль правой грани корпуса: кончик на рамке, до экрана не достаёт
-    tip_y = by1 - 40 if frame == 0 else by1 - 48
-    thumb(t, (bx1 + 17, by1 + 2), (bx1 + 1, tip_y), r0=7, r1=4, light_side=1)
-    # складка у основания пальца
-    t.line([(bx1 + 9, by1 - 6), (bx1 + 13, by1 - 1)], SKIN_S)
-    outline(t)
-    # экран — ровный прямоугольник, поверх него ничего
-    t.a[y0:y1 + 1, x0:x1 + 1] = 36
-    return t
-
-
-# ---------------------------------------------------------------------------------------------------
-# салон от первого лица: 320×180. Сидим у окна и смотрим в него — за стеклом та же трасса вдоль Камы, что и в кадре
-# снаружи (те же слои, едут в ту же сторону). Перспективы почти нет: окно во всю ширину, слева край спинки
-# переднего кресла, справа — своя шторка; телефон в руках рисуется поверх (phone.png).
-# ---------------------------------------------------------------------------------------------------
-POV_WIN = (14, 24, 305, 124)        # стекло: x0, y0, x1, y1 включительно
-POV_POST = (150, 169)               # простенок между двумя стёклами
-
-
-def build_bus_pov():
-    t = Tex(BW, BH, 42)
-    x0, y0, x1, y1 = POV_WIN
-    # потолок и край багажной полки над окном
-    t.rect(0, 0, BW - 1, 5, 43)
-    t.checker(0, 1, BW - 1, 2, 45)
-    t.rect(0, 6, BW - 1, 15, 41)
-    t.rect(0, 6, BW - 1, 6, 40)
-    t.rect(0, 15, BW - 1, 15, 39)
-    plaid(t, 196, 7, 222, 14)
-    t.rect(250, 9, 266, 14, BOX)
-    t.rect(250, 9, 266, 9, BOX_T)
-    # панель над окном: обдув и лампочка
-    t.rect(0, 16, BW - 1, y0 - 3, 42)
-    t.rect(0, 16, BW - 1, 16, 43)
-    for cx in (70, 240):
-        t.rect(cx - 7, 18, cx + 7, 21, 40)
-        t.rect(cx - 6, 19, cx + 6, 20, 41)
-        t.rect(cx + 3, 19, cx + 5, 20, 23 if cx == 240 else 43)
-    # рама окна: резиновый уплотнитель и металлический кант
-    t.rect(x0 - 4, y0 - 3, x1 + 4, y1 + 3, 39)
-    t.rect(x0 - 3, y0 - 2, x1 + 3, y1 + 2, 38)
-    t.rect(x0 - 3, y0 - 2, x1 + 3, y0 - 2, 37)
-    t.rect(x0, y0, x1, y1, T)
-    # форточка сверху: перекладина
-    t.rect(x0, y0 + 16, x1, y0 + 18, 39)
-    t.rect(x0, y0 + 16, x1, y0 + 16, 40)
-    # простенок между стёклами
-    px0, px1 = POV_POST
-    t.rect(px0, y0 - 2, px1, y1 + 2, 41)
-    t.rect(px0, y0 - 2, px0, y1 + 2, 39)
-    t.rect(px1, y0 - 2, px1, y1 + 2, 39)
-    t.rect(px0 + 2, y0, px0 + 3, y1, 43)
-    # блики на стекле — косые полоски
-    for bx, by in ((40, y0 + 24), (196, y0 + 26), (262, y0 + 30)):
-        for k in range(8):
-            t.px(bx + k, by + k * 2, 45)
-            t.px(bx + k + 1, by + k * 2, 44)
-        for k in range(4):
-            t.px(bx + 9 + k, by + 2 + k * 2, 44)
-    # шторки, собранные у простенка и по краям окна
-    for xs, w in ((x0 - 2, 10), (px0 - 8, 8), (px1 + 1, 8), (x1 - 8, 11)):
-        t.rect(xs, y0 - 2, xs + w, y1 - 18, 26)
-        for k in range(0, w + 1, 2):
-            t.rect(xs + k, y0 - 2, xs + k, y1 - 18, 25)
-        t.rect(xs, y0 - 2, xs + w, y0 - 1, 27)
-        t.rect(xs - 1, y0 + 40, xs + w + 1, y0 + 41, 22)
-        t.poly([(xs, y1 - 18), (xs + w, y1 - 18), (xs + w + 1, y1 - 10), (xs - 1, y1 - 10)], 26)
-    # подоконник и стенка под окном с решёткой отопителя
-    t.rect(0, y1 + 4, BW - 1, y1 + 9, 43)
-    t.rect(0, y1 + 4, BW - 1, y1 + 4, 44)
-    t.rect(0, y1 + 9, BW - 1, y1 + 9, 41)
-    t.rect(0, y1 + 10, BW - 1, BH - 1, 40)
-    t.rect(0, y1 + 10, BW - 1, y1 + 10, 39)
-    for x in range(4, BW, 4):
-        t.rect(x, y1 + 24, x + 1, y1 + 34, 39)
-    t.rect(0, y1 + 23, BW - 1, y1 + 23, 41)
-    t.rect(0, y1 + 35, BW - 1, y1 + 35, 41)
-    # слева — край спинки переднего кресла с белым чехлом
-    t.poly([(0, 58), (22, 54), (30, 60), (34, BH), (0, BH)], 2)
-    t.poly([(0, 58), (22, 54), (26, 57), (0, 62)], 3)
-    t.poly([(26, 60), (30, 60), (34, BH), (30, BH)], 1)
-    t.poly([(0, 52), (20, 48), (26, 54), (26, 84), (0, 86)], 44)
-    t.rect(0, 50, 22, 50, 45)
-    t.rect(24, 54, 25, 84, 42)
-    t.rect(0, 85, 25, 86, 42)
-    # ручка на спинке
-    t.rect(28, 44, 31, 60, 41)
-    t.rect(28, 44, 31, 44, 43)
-    # справа — подлокотник своего кресла
-    t.poly([(262, BH), (BW, BH), (BW, 150), (282, 150)], 39)
-    t.rect(282, 148, BW - 1, 150, 41)
-    t.rect(282, 148, BW - 1, 148, 43)
-    return t
+import cutscene_pov as pov_art  # noqa: E402
+PW, PH, SCREEN = pov_art.PW, pov_art.PH, pov_art.SCREEN
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -1112,8 +947,9 @@ def main():
     sit = build_sit()
     bus = build_bus_in()
     fg = build_bus_fg()
-    phone = [build_phone(0), build_phone(1)]
-    pov = build_bus_pov()
+    phone = [pov_art.build_phone(0), pov_art.build_phone(1)]
+    pov, sun = pov_art.build_bus_pov()
+    passing = pov_art.build_pass()
     tim = [timur(0), timur(1)]
     save(sheet(walk), 'newbie_walk.png')
     save(sheet(case), 'newbie_case.png')
@@ -1123,6 +959,9 @@ def main():
     save(fg, 'bus_fg.png')
     save(sheet(phone), 'phone.png')
     save(pov, 'bus_pov.png')
+    save(sun, 'bus_pov_sun.png')
+    save(passing, 'pov_pass.png')
+    pov_art.dusk_preview(os.path.join(PREV, 'cs_bus_pov_x4.png'), OUT, pov, sun, passing, phone[0], pov_art.VIEW)
     save(sheet(tim), 'timur.png')
     preview_strip(walk, 'cs_people_walk_x4.png')
     preview_strip(case, 'cs_people_case_x4.png')
@@ -1146,7 +985,9 @@ def main():
                 'phone': 0, 'scroll': 1, 'window': 2, 'doze': 3, 'at': list(SIT_AT)},
         'busIn': {'src': '/assets/cutscene/bus_in.png', 'fg': '/assets/cutscene/bus_fg.png', 'w': BW, 'h': BH,
                   'windows': [[x0, WIN_Y0 + 2, x1, WIN_Y1 - 2] for x0, x1 in WINDOWS], 'floor': FLOOR},
-        'busPov': {'src': '/assets/cutscene/bus_pov.png', 'w': BW, 'h': BH, 'window': list(POV_WIN)},
+        'busPov': {'src': '/assets/cutscene/bus_pov.png', 'sun': '/assets/cutscene/bus_pov_sun.png',
+                   'pass': '/assets/cutscene/pov_pass.png', 'w': BW, 'h': BH, 'view': pov_art.VIEW,
+                   'passPar': pov_art.PASS_PAR, 'ground': pov_art.GROUND_FILL},
         'phone': {'src': '/assets/cutscene/phone.png', 'w': PW, 'h': PH, 'frames': 2, 'rest': 0, 'swipe': 1,
                   'screen': list(SCREEN)},
         'timur': {'src': '/assets/cutscene/timur.png', 'w': FW, 'h': FH, 'frames': 2, 'idle': 0, 'sip': 1,

@@ -70,8 +70,20 @@ export const BUS_IN = {
   view: -4,
 }
 
-/** Салон от первого лица (телефон в руках в автобусе): сидим у окна, за стеклом та же трасса, что снаружи; view — сдвиг пейзажа вверх, чтобы в стекло попали Кама и отбойник. */
-export const BUS_POV = { src: file(P.busPov.src), w: P.busPov.w, view: -28 }
+/**
+ * Салон от первого лица (телефон в руках в автобусе): сидим у левого окна, за стеклом та же трасса, что снаружи.
+ * view — сдвиг пейзажа вверх (горизонт на уровне глаз), pass — столбы у обочины, едут быстрее трассы (par),
+ * sun — закатные пятна из окон на спинках: их режут тени столбов; ground — чем залить низ окна под пейзажем.
+ */
+export const BUS_POV = {
+  src: file(P.busPov.src),
+  sun: file(P.busPov.sun),
+  pass: file(P.busPov.pass),
+  par: P.busPov.passPar,
+  w: P.busPov.w,
+  view: P.busPov.view,
+  ground: P.busPov.ground,
+}
 
 export const PHONE = {
   src: file(P.phone.src),

@@ -3,7 +3,7 @@
 
 import { MAP } from '../map.gen'
 import { BUS, BUS_IN, BUS_POV, DIR, H, PHONE, SHEETS, SPOTS, type Sheet } from './art'
-import { dither, recolor, rgb } from './mood'
+import { dither, lut, recolor, rgb } from './mood'
 import { glide, sample, swiping, travelled, walkFrame } from './timeline'
 import type { Actor, Mood, SetId, Shot } from './types'
 
@@ -22,6 +22,10 @@ interface Layer {
   sky?: boolean
   /** после слоя — туман такой плотности (только утром) */
   fog?: number
+  /** не картинка, а заливка цветом палитры от dy + H до низа кадра (низ окна под лентами пейзажа) */
+  fill?: number
+  /** закатные пятна в салоне: их пересекают тени столбов за окном */
+  sun?: boolean
 }
 
 interface SetDef {
@@ -50,8 +54,17 @@ const town = (name: 'street' | 'oez'): Layer[] => [
 
 export const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'> | 'pov', SetDef> = {
   road: { w: Infinity, back: outside() },
-  /** салон от первого лица: за телефоном в автобусе */
-  pov: { w: BUS_POV.w, back: [...outside(BUS_POV.view), { src: BUS_POV.src, par: 1 }] },
+  /** салон от первого лица: за телефоном в автобусе. Ближе всего за стеклом — столбы у обочины, быстрее трассы */
+  pov: {
+    w: BUS_POV.w,
+    back: [
+      { src: '', par: 0, fill: BUS_POV.ground, dy: BUS_POV.view },
+      ...outside(BUS_POV.view),
+      { src: BUS_POV.pass, par: BUS_POV.par, tile: true, drive: true, dy: BUS_POV.view },
+      { src: BUS_POV.src, par: 1 },
+      { src: BUS_POV.sun, par: 1, sun: true },
+    ],
+  },
   bus: { w: 320, back: [...outside(BUS_IN.view), { src: BUS_IN.bg, par: 1 }], front: [{ src: BUS_IN.fg, par: 1 }] },
   street: { w: SPOTS.street.w, back: town('street') },
   oez: { w: SPOTS.oez.w, back: town('oez') },
@@ -68,7 +81,7 @@ export function imagesOf(shot: Shot): string[] {
   if (set === 'map') out.push('/assets/map/elabuga.png')
   else if (set !== 'black') {
     const def = SETS[set]
-    for (const l of [...def.back, ...(def.front ?? [])]) out.push(l.sky ? `${DIR}sky_${mood}.png` : DIR + l.src)
+    for (const l of [...def.back, ...(def.front ?? [])]) if (l.fill === undefined) out.push(l.sky ? `${DIR}sky_${mood}.png` : DIR + l.src)
     if (set === 'bus') out.push(DIR + BUS_IN.sit.src)
   }
   if (shot.set === 'phone') out.push(DIR + PHONE.src)
@@ -157,24 +170,30 @@ export class Painter {
     if (shot.set === 'black') return { vw, left: 0 }
     if (shot.set === 'map') return this.drawMap(shot, t)
     if (shot.set === 'phone') {
-      // телефон в руках: мир за ним притухает, но едет дальше; в автобусе салон покачивается на кочках
+      // телефон в руках: в автобусе за ним живой салон и закат в окне, на улице мир притухает; мир едет дальше,
+      // салон покачивается на кочках
       const behind = behindOf(shot)
       const w = SETS[behind].w
       const want = behind === 'pov' ? w / 2 : sample(shot.cam, t, w / 2)
       const cam = Math.max(vw / 2, Math.min(w - vw / 2, want))
-      const sway = behind === 'pov' ? [Math.round(Math.sin(anim * 1.1)), Math.sin(anim * 7.3) > 0.8 ? 1 : 0] : [0, 0]
+      const sway = behind === 'pov' ? [Math.round(Math.sin(anim * 1.1)), bumpAt(anim)] : [0, 0]
       const world: Shot = { ...shot, set: behind === 'pov' ? 'bus' : behind, actors: shot.actors ?? [] }
-      this.dim = true
+      this.dim = behind !== 'pov'
       // сдвинутый кадр оголил бы край — под ним тот же кадр без сдвига
       if (sway[0] || sway[1]) this.drawSet(behind, world, anim, cam)
       ctx.setTransform(1, 0, 0, 1, sway[0], sway[1])
       this.drawSet(behind, world, anim, cam)
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       this.dim = false
-      const px = Math.round(vw / 2 - PHONE.fw / 2)
-      const py = H - PHONE.fh
+      // телефон поднимается в руке к глазам и дальше чуть отстаёт от кочек салона; на широком кадре — правее центра,
+      // чтобы окно с закатом осталось на виду
+      const rise = Math.max(0, 1 - t / PHONE_RISE)
+      const lift = Math.round(rise * rise * (3 - 2 * rise) * 110)
+      const px = Math.round(vw / 2 - PHONE.fw / 2 + (vw >= 280 ? 12 : 0))
+      // узкий кадр (смартфон стоя) — телефон чуть ниже, чтобы верх корпуса не прятался под «Пропустить»
+      const py = H - PHONE.fh + lift + (vw < 160 ? 4 : 0) + (behind === 'pov' ? bumpAt(anim - 0.09) : 0)
       const sheet = this.imgs.get(DIR + PHONE.src)
-      const f = swiping(shot, t) ? PHONE.swipe : PHONE.rest
+      const f = swiping(shot, t) || performance.now() < this.flickUntil ? PHONE.swipe : PHONE.rest
       if (sheet) ctx.drawImage(sheet, f * PHONE.fw, 0, PHONE.fw, PHONE.fh, px, py, PHONE.fw, PHONE.fh)
       const [x0, y0, x1, y1] = PHONE.screen
       return { vw, left: 0, phone: [px + x0, py + y0, x1 - x0 + 1, y1 - y0 + 1] }
@@ -182,7 +201,7 @@ export class Painter {
     const cam = this.camera(shot, t)
     if (shot.set === 'bus') {
       // салон на кочках подпрыгивает целиком — вместе с пассажирами и новеньким, а не он один в кресле
-      const bump = Math.sin(t * 7.3) > 0.85 ? 1 : 0
+      const bump = bumpAt(t)
       if (bump) this.drawSet('bus', shot, t, cam)
       ctx.setTransform(1, 0, 0, 1, 0, bump)
       const info = this.drawSet('bus', shot, t, cam)
@@ -190,6 +209,12 @@ export class Painter {
       return info
     }
     return this.drawSet(shot.set, shot, t, cam)
+  }
+
+  /** Палец на телефоне листает: игрок перевернул страницу памятки — большой палец на миг поднимается. */
+  private flickUntil = 0
+  flick() {
+    this.flickUntil = performance.now() + 220
   }
 
   /** Центр камеры: дорожка плана, иначе — за первым человеком; у краёв сцены упирается. */
@@ -211,6 +236,15 @@ export class Painter {
     const layer = (l: Layer) => {
       if (l.lights && mood === 'day') return
       const dy = l.dy ?? 0
+      if (l.fill !== undefined) {
+        ctx.fillStyle = rgb(lut(mood, this.dim)[l.fill])
+        ctx.fillRect(0, H + dy, vw, -dy)
+        return
+      }
+      if (l.sun) {
+        if (mood === 'dusk' || mood === 'day') this.sunlight(DIR + l.src, mood, run * BUS_POV.par, left)
+        return
+      }
       if (l.sky) {
         const sky = this.img(`${DIR}sky_${mood}.png`, mood, true)
         if (sky) ctx.drawImage(sky, Math.round((vw - sky.width) / 2), dy)
@@ -233,6 +267,29 @@ export class Painter {
     for (const a of actors) this.drawActor(a, shot, t, left, mood)
     for (const l of def.front ?? []) layer(l)
     return { vw, left }
+  }
+
+  /**
+   * Закатные пятна на спинках: слой рисуется полосами по 3 строки, а тени столбов у обочины (те же, что за окном,
+   * лента pov_pass) вырезают из них косые просветы — тень пробегает по салону, когда столб проносится мимо окна.
+   */
+  private sunlight(src: string, mood: Mood, run: number, left: number) {
+    const im = this.img(src, mood)
+    if (!im) return
+    const { ctx, vw } = this
+    const off = left * BUS_POV.par + run
+    const shades: number[] = []
+    for (const p of POLES) for (let k = -1; k <= 1; k++) shades.push(p + k * 640 - off)
+    for (let y = 0; y < H; y += 3) {
+      // тень падает наискось и отстаёт от столба: чем ниже, тем правее
+      const cuts = shades.map((x) => Math.round(x * 0.9 + 150 + y * 0.55)).filter((x) => x > -12 && x < vw).sort((a, b) => a - b)
+      let x0 = 0
+      for (const c of [...cuts, vw + 20]) {
+        const x1 = Math.min(vw, c)
+        if (x1 > x0) ctx.drawImage(im, x0 + left, y, x1 - x0, 3, x0, y, x1 - x0, 3)
+        x0 = Math.max(x0, c + 9)
+      }
+    }
   }
 
   /** Птицы над городом: несколько «галочек» машут крыльями и медленно летят через кадр. */
@@ -347,6 +404,15 @@ export class Painter {
     return { vw, left, pin: end ? [end[0] - left + 1, end[1] - top] : undefined }
   }
 }
+
+/** Кочка: салон (и чуть позже телефон в руке) подпрыгивает на точку. */
+const bumpAt = (t: number) => (Math.sin(t * 7.3) > 0.85 ? 1 : 0)
+
+/** Телефон поднимается к глазам в начале плана, секунды. */
+const PHONE_RISE = 0.45
+
+/** Столбы на ленте pov_pass.png (tools/art/cutscene_pov.py, build_pass): x в ленте 640 точек. */
+const POLES = [40, 250, 470]
 
 /** Стая: x, y, скорость, фаза взмаха. */
 const FLOCK = [

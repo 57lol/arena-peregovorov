@@ -353,7 +353,76 @@
   display: none;
 }
 
-/* ——— телефон-памятка, который листает игрок (пролог) ——— */
+/* ——— строка состояния телефона: время, связь, батарея ——— */
+
+.cs-ph-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 12px 2px;
+  background: var(--c-night);
+  color: var(--c-paper);
+  font: 400 var(--fs-small) / 16px var(--f-read);
+}
+.cs-ph-status b {
+  margin-right: auto;
+  font-weight: 400;
+}
+.cs-ph-net {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.cs-ph-net i {
+  width: 2px;
+  background: var(--c-paper);
+}
+.cs-ph-net i:nth-child(1) {
+  height: 4px;
+}
+.cs-ph-net i:nth-child(2) {
+  height: 6px;
+}
+.cs-ph-net i:nth-child(3) {
+  height: 8px;
+}
+.cs-ph-net i:nth-child(4) {
+  height: 10px;
+  opacity: 0.35;
+}
+.cs-ph-bat {
+  position: relative;
+  width: 18px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 2px solid var(--c-paper);
+}
+.cs-ph-bat::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 2px;
+  width: 2px;
+  height: 2px;
+  background: var(--c-paper);
+}
+.cs-ph-bat i {
+  position: absolute;
+  inset: 0 6px 0 0;
+  background: var(--c-leaf-hi);
+}
+/* на памятке мостов строка состояния — во всю ширину экрана, поверх полей карточки */
+.cs-phone > .cs-ph-status {
+  margin: calc(var(--s) * -4px) calc(var(--s) * -4px) 0;
+}
+.cs-phone > .cs-phone-head {
+  margin-top: 0;
+}
+
+/* ——— телефон-памятка, который листает игрок (пролог): мессенджер ——— */
 
 .cs-guide {
   position: absolute;
@@ -365,9 +434,8 @@
   color: var(--c-ink);
   cursor: default;
   touch-action: pan-y;
-  animation: cs-swipe 0.3s steps(4) both;
 }
-/* нарисованный телефон мелкий (телефон, узкое окно) — большая карточка поверх кадра */
+/* нарисованный телефон мелкий (телефон боком, низкое окно) — большой телефон поверх кадра */
 .cs-guide-over {
   position: absolute;
   inset: 0;
@@ -379,20 +447,31 @@
 }
 .cs-guide.is-big {
   position: relative;
-  width: min(420px, 100%);
-  height: min(640px, 100%);
+  width: min(400px, 100%);
+  height: min(680px, 100%);
+  border: 10px solid var(--c-ink);
+  border-radius: 24px;
   box-shadow:
-    0 0 0 6px var(--c-ink),
-    0 0 0 8px var(--c-steel-2);
+    0 0 0 4px #de9e41,
+    0 0 0 6px #be772b;
 }
 
 .cs-guide-head {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 8px 12px 8px 6px;
   background: var(--c-denim);
   color: var(--c-paper);
+  box-shadow: 0 var(--u) 0 var(--c-night-2);
+}
+.cs-guide-back-ico {
+  font: 700 var(--fs-ui-big) / 1 var(--f-ui);
+  color: var(--c-grid);
+}
+.cs-guide-who {
+  min-width: 0;
 }
 .cs-guide-head b {
   display: block;
@@ -400,9 +479,16 @@
 }
 .cs-guide-head small {
   display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font: 400 var(--fs-small) / 16px var(--f-read);
   color: var(--c-grid);
 }
+.cs-guide-head small.is-typing {
+  color: var(--c-brass-hi);
+}
+/* аватар — пиксельный кружок */
 .cs-guide-face {
   flex: none;
   width: 48px;
@@ -412,86 +498,151 @@
   background-position: -12px -8px;
   background-color: var(--c-sky);
   image-rendering: pixelated;
-  box-shadow: 0 0 0 var(--u) var(--c-paper);
+  clip-path: polygon(30% 0, 70% 0, 70% 4%, 84% 4%, 84% 10%, 92% 10%, 92% 18%, 96% 18%, 96% 30%, 100% 30%, 100% 70%,
+      96% 70%, 96% 82%, 92% 82%, 92% 90%, 84% 90%, 84% 96%, 70% 96%, 70% 100%, 30% 100%, 30% 96%, 16% 96%, 16% 90%, 8% 90%,
+      8% 82%, 4% 82%, 4% 70%, 0 70%, 0 30%, 4% 30%, 4% 18%, 8% 18%, 8% 10%, 16% 10%, 16% 4%, 30% 4%);
 }
 
-/* приветствие: пузыри чата по одному */
+/* приветствие: пузыри чата по одному, с хвостиком и временем */
 .cs-guide-chat {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px 12px 12px;
   overflow: auto;
-  background: var(--c-paper-2);
+  background-color: var(--c-paper-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='4' y='6' width='2' height='2' fill='%23a8b5b2'/%3E%3Crect x='16' y='18' width='2' height='2' fill='%23a8b5b2'/%3E%3C/svg%3E");
+  scrollbar-width: none;
+}
+.cs-guide-chat > :first-child {
+  margin-top: auto;
+}
+.cs-guide-date {
+  align-self: center;
+  margin: 0 0 2px;
+  padding: 0 10px;
+  background: var(--c-mist);
+  color: var(--c-steel-3);
+  font: 400 var(--fs-small) / 18px var(--f-read);
 }
 .cs-guide-msg {
-  margin: 0;
-  max-width: 92%;
-  padding: 8px 12px;
+  position: relative;
+  align-self: flex-start;
+  margin: 0 0 0 8px;
+  max-width: 88%;
+  padding: 8px 12px 6px;
   background: #fff;
-  box-shadow: 0 0 0 var(--u) var(--c-mist);
-  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  box-shadow:
+    0 var(--u) 0 var(--c-mist),
+    0 0 0 var(--u) var(--c-mist);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-ink);
-  animation: cs-in 0.3s steps(3) both;
+  animation: cs-pop 0.28s steps(3) both;
+}
+/* хвостик у первого пузыря — ступеньками */
+.cs-guide-msg.is-first::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 80% 100%, 80% 80%, 60% 80%, 60% 60%, 40% 60%, 40% 40%, 20% 40%, 20% 20%, 0 20%);
+}
+.cs-guide-msg time {
+  float: right;
+  margin: 8px 0 0 10px;
+  font: 400 var(--fs-small) / 12px var(--f-read);
+  color: var(--c-fog);
+}
+.cs-guide-msg.is-typing {
+  display: flex;
+  gap: 5px;
+  padding: 12px 14px;
+}
+.cs-guide-msg.is-typing i {
+  width: 6px;
+  height: 6px;
+  background: var(--c-fog);
+  animation: cs-dot 0.9s steps(2) infinite;
+}
+.cs-guide-msg.is-typing i:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.cs-guide-msg.is-typing i:nth-child(3) {
+  animation-delay: 0.6s;
 }
 
-/* приём: полоса «1 из 4», крупный заголовок, одна мысль, где пригодится */
+/* приём: полоски «как в историях», крупный заголовок, одна мысль, где пригодится */
 .cs-guide-tip {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 16px 8px;
+  padding: 12px 16px 8px;
   overflow: auto;
-  animation: cs-in 0.25s steps(3) both;
-}
-.cs-guide-step {
-  margin: 0;
-  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
-  color: var(--c-wood);
+  cursor: pointer;
+  background: var(--c-paper);
+  animation: cs-slide 0.24s steps(3) both;
 }
 .cs-guide-dots {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .cs-guide-dots b {
   flex: 1;
-  height: 8px;
+  height: 4px;
   background: var(--c-mist);
 }
 .cs-guide-dots b.is-on {
   background: var(--c-brass);
 }
+.cs-guide-step {
+  margin: 0;
+  font: 400 var(--fs-small) / 16px var(--f-read);
+  color: var(--c-wood);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 .cs-guide-tip h2 {
   margin: auto 0 0;
-  font: 700 var(--fs-ui-big) / 1.25 var(--f-ui);
+  font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
   color: var(--c-stamp-2);
+  text-wrap: balance;
 }
 .cs-guide-text {
   margin: 0;
-  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-ink);
 }
 .cs-guide-when {
-  margin: 0 0 auto;
-  padding: 6px 10px;
+  margin: 4px 0 auto;
+  padding: 8px 10px;
   background: var(--c-grid);
-  font: 400 var(--fs-read) / var(--lh-read) var(--f-read);
+  box-shadow: inset calc(var(--u) * 2) 0 0 var(--c-denim);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-night);
 }
 .cs-guide-when span {
+  display: block;
+  font: 400 var(--fs-small) / 16px var(--f-read);
   color: var(--c-denim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .cs-guide-foot {
+  flex: none;
   display: flex;
   gap: 8px;
-  padding: 10px 12px 12px;
+  padding: 8px 12px 12px;
+  background: var(--c-paper);
+  box-shadow: 0 calc(var(--u) * -1) 0 var(--c-mist);
 }
 .cs-guide-foot button {
-  min-height: 56px;
+  min-height: 52px;
   border: 0;
   cursor: pointer;
   font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
@@ -502,14 +653,27 @@
   background: var(--c-brass);
   color: var(--c-ink);
 }
+.cs-guide-foot.is-wait .cs-guide-go {
+  background: var(--c-mist);
+}
+.cs-guide-go.is-done {
+  background: var(--c-leaf);
+  color: var(--c-paper);
+  animation: cs-ready 1.2s steps(2) 0.4s infinite;
+}
 .cs-guide-go:hover,
 .cs-guide-go:focus-visible {
   background: var(--c-brass-hi);
   outline: var(--u) solid var(--c-ink);
   outline-offset: calc(var(--u) * -3);
 }
+.cs-guide-go.is-done:hover,
+.cs-guide-go.is-done:focus-visible {
+  background: var(--c-leaf-hi);
+  color: var(--c-ink);
+}
 .cs-guide-back {
-  padding: 0 14px;
+  width: 56px;
   background: var(--c-mist);
   color: var(--c-ink);
 }
@@ -518,33 +682,43 @@
   background: var(--c-paper-2);
 }
 
-/* в нарисованном телефоне места меньше: сообщения — шрифтом интерфейса */
-.cs-guide:not(.is-big) .cs-guide-msg {
-  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+@keyframes cs-pop {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+@keyframes cs-slide {
+  from {
+    transform: translateX(12%);
+    opacity: 0;
+  }
+}
+@keyframes cs-ready {
+  50% {
+    box-shadow:
+      inset 0 calc(var(--u) * -2) 0 rgba(0, 0, 0, 0.25),
+      0 0 0 var(--u) var(--c-leaf-hi);
+  }
 }
 
-/* низкий экран (телефон боком): текст шрифтом интерфейса, поля уже — кнопка остаётся на экране */
+/* низкий экран (телефон боком): поля уже — кнопка остаётся на экране */
 @media (max-height: 700px) {
   .cs-guide-over {
     padding: 8px 16px;
   }
-  .cs-guide-msg,
-  .cs-guide-text,
-  .cs-guide-when {
-    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
-  }
   .cs-guide-tip {
     gap: 6px;
-    padding-top: 10px;
+    padding-top: 8px;
   }
   .cs-guide-tip h2 {
     font-size: var(--fs-ui);
   }
   .cs-guide-head {
-    padding-block: 6px;
+    padding-block: 4px;
   }
   .cs-guide-foot button {
-    min-height: 48px;
+    min-height: 44px;
   }
 }
 

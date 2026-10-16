@@ -4,11 +4,11 @@
 
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PORTRAITS } from '../ui/assets'
-import { H } from './art'
+import { H, PHONE } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
 import { pinLabel } from './scripts'
 import { GUIDE_AT, lineAt, locate, phoneAt, starts, total } from './timeline'
-import type { Card, Cutscene as Script, Guide, PhoneCard } from './types'
+import type { Card, Cutscene as Script, Guide, Mood, PhoneCard } from './types'
 import './cutscene.css'
 
 interface Props {
@@ -23,14 +23,24 @@ interface Props {
  * Масштаб и ширина кадра: высота 180 точек целым масштабом, под кадром полоса субтитров.
  * Низкий экран (телефон боком) — субтитры поверх кадра, зато кадр крупнее.
  */
-function fit(cw: number, ch: number): { s: number; vw: number; over: boolean } {
+function fit(cw: number, ch: number, phone = false): { s: number; vw: number; over: boolean } {
   const wide = Math.floor(cw / H)
   const below = Math.max(1, Math.min(Math.floor((ch - 120) / H), wide))
   const over = Math.max(1, Math.min(Math.floor((ch - 8) / H), wide))
   const s = below < 3 && over > below ? over : below
   const vw = Math.max(160, Math.min(320, Math.floor(cw / s)))
+  // телефон в руках на узком экране (смартфон стоя): кадр крупнее и уже — нарисованный телефон почти во весь экран,
+  // по бокам видно салон, а текст на его экране читается без отдельной карточки
+  if (phone && SCREEN_W * s < GUIDE_MIN) {
+    const big = Math.min(Math.floor(cw / PHONE_BODY), Math.floor((ch - 100) / H))
+    if (big > s && SCREEN_W * big >= GUIDE_MIN) return { s: big, vw: Math.min(320, Math.floor(cw / big)), over: false }
+  }
   return { s, vw, over: s > below }
 }
+
+/** Ширина экрана и корпуса телефона в точках кадра (корпус — экран и рамка с кнопками по 6 точек). */
+const SCREEN_W = PHONE.screen[2] - PHONE.screen[0] + 1
+const PHONE_BODY = SCREEN_W + 12
 
 export function CutscenePlayer({ script, onDone, at }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -40,10 +50,12 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   const pin = useRef<HTMLSpanElement>(null)
   const T = useRef(at ?? 0)
   const done = useRef(false)
-  const [size, setSize] = useState(() => fit(window.innerWidth, window.innerHeight))
+  const [view, setView] = useState(() => [window.innerWidth, window.innerHeight])
   const [ready, setReady] = useState(false)
   // что показывает DOM поверх кадра: меняется несколько раз за план, а не каждый кадр
   const [ui, setUi] = useState<{ i: number; line: number; card: number; phone?: FrameInfo['phone'] }>({ i: 0, line: -1, card: -1 })
+  const phoneShot = script.shots[ui.i]?.set === 'phone'
+  const size = useMemo(() => fit(view[0], view[1], phoneShot), [view, phoneShot])
   const total_ = useMemo(() => total(script), [script])
   const starts_ = useMemo(() => starts(script), [script])
   // телефон, который листает игрок: страница (0 — приветствие) и дочитал ли он; пока нет — время стоит
@@ -64,6 +76,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       setPage((n) => {
         const to = Math.max(0, n + d)
         if (to > g.tips.length) guideDone.current = true
+        if (to !== n) painter.current?.flick()
         return to
       })
     },
@@ -89,7 +102,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
   }, [script, starts_, finish, turn, holding])
 
   useEffect(() => {
-    const onResize = () => setSize(fit(window.innerWidth, window.innerHeight))
+    const onResize = () => setView([window.innerWidth, window.innerHeight])
     window.addEventListener('resize', onResize)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -194,7 +207,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       <div className="cs-stage">
         <div className="cs-frame" style={{ width: vw * s, height: H * s, ['--s' as string]: s }}>
           <canvas ref={canvas} className="cs-canvas" width={vw} height={H} style={{ width: vw * s, height: H * s }} aria-hidden="true" />
-          {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} />}
+          {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} time={CLOCKS[shot.mood ?? 'day']} />}
           {shot.guide && page <= shot.guide.tips.length && ui.phone && ui.phone[2] * s >= GUIDE_MIN && (
             <GuidePhone guide={shot.guide} page={page} onTurn={turn} style={rectStyle(ui.phone, s)} />
           )}
@@ -253,7 +266,7 @@ const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)
 const sameRect = (a?: number[], b?: number[]) => (!a && !b) || (!!a && !!b && a.every((v, k) => v === b[k]))
 
 /** Экран телефона: памятка — одна мысль, или сообщение в мессенджере (сначала «печатает…»). */
-function PhoneScreen({ card, rect, s }: { card: PhoneCard; rect: [number, number, number, number]; s: number }) {
+function PhoneScreen({ card, rect, s, time }: { card: PhoneCard; rect: [number, number, number, number]; s: number; time: string }) {
   const [x, y, w, h] = rect
   const [typing, setTyping] = useState(card.kind === 'chat')
   useEffect(() => {
@@ -265,6 +278,7 @@ function PhoneScreen({ card, rect, s }: { card: PhoneCard; rect: [number, number
   if (card.kind === 'memo')
     return (
       <div className="cs-phone is-memo" style={style}>
+        <StatusBar time={time} />
         <p className="cs-phone-head">
           Памятка{card.n ? <span> · {card.n}</span> : null}
         </p>
@@ -275,6 +289,7 @@ function PhoneScreen({ card, rect, s }: { card: PhoneCard; rect: [number, number
   const face = PORTRAITS[card.face]
   return (
     <div className="cs-phone is-chat" style={style}>
+      <StatusBar time={time} />
       <p className="cs-phone-head cs-chat-head">
         <span
           className="cs-face"
@@ -315,9 +330,36 @@ const GUIDE_MIN = 300
 
 const rectStyle = ([x, y, w, h]: [number, number, number, number], s: number) => ({ left: x * s, top: y * s, width: w * s, height: h * s })
 
+/** Время в строке состояния и у сообщений — по времени суток плана; пролог — вечер воскресенья у Елабуги. */
+const CLOCKS: Record<Mood, string> = { day: '13:05', dusk: '18:47', morning: '07:41', night: '22:16' }
+const CLOCK = CLOCKS.dusk
+
+/** Строка состояния телефона: время, связь, батарея. */
+function StatusBar({ time = CLOCK }: { time?: string }) {
+  return (
+    <p className="cs-ph-status" aria-hidden="true">
+      <b>{time}</b>
+      <span className="cs-ph-net">
+        <i />
+        <i />
+        <i />
+        <i />
+      </span>
+      <span className="cs-ph-lte">LTE</span>
+      <span className="cs-ph-bat">
+        <i />
+      </span>
+    </p>
+  )
+}
+
+/** Сколько «печатает…» перед каждым сообщением приветствия, мс. */
+const TYPE_MS = [650, 1100, 1000]
+
 /**
- * Телефон-памятка, который листает игрок: чат с приветствием (кто пишет и зачем), потом приёмы по одному,
- * крупно, с полосой «1 из 4». Листать — большой кнопкой, свайпом, стрелками или кликом мимо.
+ * Телефон-памятка, который листает игрок: мессенджер — Гульнара пишет по сообщению («печатает…» в шапке и пузырём),
+ * под последним — кнопка, как у бота; дальше приёмы по одному, крупно, с полосками «1 из 4», как в историях.
+ * Листать — кнопкой, свайпом, стрелками, тапом по приёму или кликом мимо телефона.
  */
 function GuidePhone({ guide, page, onTurn, style }: { guide: Guide; page: number; onTurn: (d: 1 | -1) => void; style?: CSSProperties }) {
   const face = PORTRAITS[guide.face]
@@ -325,8 +367,37 @@ function GuidePhone({ guide, page, onTurn, style }: { guide: Guide; page: number
   const tip = page > 0 ? guide.tips[page - 1] : null
   const x0 = useRef<number | null>(null)
   const btn = useRef<HTMLButtonElement>(null)
+  const chat = useRef<HTMLDivElement>(null)
+  // приветствие приходит по одному сообщению; вернулся назад к чату — всё уже на месте
+  const [shown, setShown] = useState(0)
+  const seen = useRef(false)
+  useEffect(() => {
+    if (page !== 0) {
+      seen.current = true
+      return
+    }
+    if (seen.current) {
+      setShown(guide.hello.length)
+      return
+    }
+    let k = 0
+    let id = 0
+    const step = () => {
+      k += 1
+      setShown(k)
+      if (k < guide.hello.length) id = window.setTimeout(step, TYPE_MS[k] ?? 900)
+    }
+    id = window.setTimeout(step, TYPE_MS[0])
+    return () => clearTimeout(id)
+  }, [page, guide.hello.length])
+  const typing = page === 0 && shown < guide.hello.length
+  useEffect(() => {
+    const el = chat.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [shown])
   // кнопка в фокусе: Enter и пробел листают дальше, а у экранной читалки — понятная точка входа
   useEffect(() => btn.current?.focus({ preventScroll: true }), [page])
+  const last = page === n
   return (
     <div
       className={`cs-guide${style ? '' : ' is-big'}`}
@@ -341,46 +412,60 @@ function GuidePhone({ guide, page, onTurn, style }: { guide: Guide; page: number
         if (Math.abs(dx) > 40) onTurn(dx < 0 ? 1 : -1)
       }}
     >
+      <StatusBar />
       <header className="cs-guide-head">
+        <span className="cs-guide-back-ico" aria-hidden="true">
+          ‹
+        </span>
         <span className="cs-guide-face" style={{ backgroundImage: `url(${face.sheet})` }} aria-hidden="true" />
-        <span>
+        <span className="cs-guide-who">
           <b>{guide.from}</b>
-          <small>{guide.role}</small>
+          <small className={typing ? 'is-typing' : ''}>{typing ? 'печатает…' : guide.role}</small>
         </span>
       </header>
       {tip ? (
-        <div key={page} className="cs-guide-tip" aria-live="polite">
-          <p className="cs-guide-step">
-            Приём {page} из {n}
-          </p>
+        <div key={page} className="cs-guide-tip" aria-live="polite" onClick={() => onTurn(1)}>
           <i className="cs-guide-dots" aria-hidden="true">
             {guide.tips.map((_, k) => (
               <b key={k} className={k < page ? 'is-on' : ''} />
             ))}
           </i>
+          <p className="cs-guide-step">
+            Приём {page} из {n}
+          </p>
           <h2>{tip.title}</h2>
           <p className="cs-guide-text">{tip.text}</p>
           <p className="cs-guide-when">
-            <span>Пригодится:</span> {tip.when.charAt(0).toLowerCase() + tip.when.slice(1)}
+            <span>Пригодится</span>
+            {tip.when}
           </p>
         </div>
       ) : (
-        <div className="cs-guide-chat">
-          {guide.hello.map((m, k) => (
-            <p key={k} className="cs-guide-msg" style={{ animationDelay: `${k * 0.35}s` }}>
+        <div ref={chat} className="cs-guide-chat">
+          <p className="cs-guide-date">Сегодня</p>
+          {guide.hello.slice(0, shown).map((m, k) => (
+            <p key={k} className={`cs-guide-msg${k === 0 ? ' is-first' : ''}`}>
               {m}
+              <time>{CLOCK}</time>
             </p>
           ))}
+          {typing && (
+            <p className="cs-guide-msg is-typing" aria-label="печатает">
+              <i />
+              <i />
+              <i />
+            </p>
+          )}
         </div>
       )}
-      <footer className="cs-guide-foot">
+      <footer className={`cs-guide-foot${typing ? ' is-wait' : ''}`}>
         {page > 0 && (
-          <button type="button" className="cs-guide-back" onClick={() => onTurn(-1)}>
-            Назад
+          <button type="button" className="cs-guide-back" onClick={() => onTurn(-1)} aria-label="Назад">
+            ←
           </button>
         )}
-        <button ref={btn} type="button" className="cs-guide-go" onClick={() => onTurn(1)}>
-          {page === 0 ? guide.open : page === n ? guide.done : 'Дальше →'}
+        <button ref={btn} type="button" className={`cs-guide-go${last ? ' is-done' : ''}`} onClick={() => onTurn(1)}>
+          {page === 0 ? guide.open : last ? guide.done : 'Дальше →'}
         </button>
       </footer>
     </div>
