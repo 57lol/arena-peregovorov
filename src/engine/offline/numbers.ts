@@ -80,6 +80,7 @@ export function quantities(text: string): Quantity[] {
     if (hour < 24) out.push({ value: hour * 60 + Number(m[2]), dim: 'time', at: m.index!, end: m.index! + m[0].length })
   }
   for (const m of text.matchAll(WORD_CLOCK)) {
+    if (out.some((q) => m.index! < q.end && m.index! + m[0].length > q.at)) continue
     let hour = num(m[1])
     const period = m[2].toLowerCase()
     if (hour < 1 || hour > 24) continue

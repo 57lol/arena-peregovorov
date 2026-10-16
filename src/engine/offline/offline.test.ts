@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { testDict, testScenario as sc } from '../__fixtures__/fixtures'
 import { analyzeOffline, offlineTurn, parseOffer } from './index'
 import type { TurnRecord } from '../types'
+import { quantities } from './numbers'
+import { dormCase } from '../../content/scenarios/story/dorm'
+
+describe('время с минутами и периодом суток', () => {
+  it.each(['23:01 ночи', '23:11 вечера', '01:23 ночи', '07:01 утра'])('%s разбирается как одно время', (clock) => {
+    const [hour, minute] = clock.split(/[ :]/).map(Number)
+    expect(quantities(`Тишина с ${clock}`).filter((q) => q.dim === 'time').map((q) => q.value)).toEqual([hour * 60 + minute])
+  })
+
+  it('минуты не меняют время начала тишины в предложении', () => {
+    expect(parseOffer(dormCase.scenario, 'Тишина с 23:01 ночи')).toEqual({ quiet: 3 })
+    expect(quantities('23:01 ночи и с часу ночи').filter((q) => q.dim === 'time').map((q) => q.value)).toEqual([1381, 60])
+  })
+})
 
 describe('офлайн-разметчик', () => {
   it('вытаскивает предложения из текста', () => {
