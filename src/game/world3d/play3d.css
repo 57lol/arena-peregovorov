@@ -1038,3 +1038,89 @@
     width: calc(100% - 84px);
   }
 }
+
+/* ---------- телефон: доводка ---------- */
+
+/* стрелки блокнота под палец: на телефоне 44 точки, как остальные кнопки */
+@media (hover: none) and (pointer: coarse) {
+  .w3-note .px-step {
+    width: 44px;
+    height: 44px;
+  }
+}
+@media (max-width: 699px) {
+  /* «Сказать» — справа, под большим пальцем; микрофон — рядом слева */
+  .w3-say-row {
+    flex-direction: row-reverse;
+  }
+  /* лист в руках: поле ввода уходит, лист встаёт крупнее; «На стол» остаётся, вернуться к разговору — один тап */
+  .w3-play:not([data-held='']) .w3-say {
+    display: none;
+  }
+  /* в блокноте пунктов больше, чем влезает: нижний край тает — видно, что лист листается */
+  .w3-note-body {
+    padding-bottom: calc(10 * var(--u));
+    mask-image: linear-gradient(180deg, #000 calc(100% - 12 * var(--u)), transparent);
+  }
+}
+
+/* клавиатура открыта: на экране только собеседник и поле ввода */
+@media (max-width: 699px), (max-height: 500px) {
+  .w3-play[data-kb] .w3-toasts,
+  .w3-play[data-kb] .w3-toast-chip {
+    display: none;
+  }
+}
+
+/* телефон боком: экран низкий — панели компактнее, а лист предлагаем держать вертикально */
+.w3-rotate {
+  display: none;
+}
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  .w3-rotate {
+    position: absolute;
+    z-index: 6;
+    left: 50%;
+    top: 12px;
+    display: flex;
+    align-items: center;
+    gap: calc(3 * var(--u));
+    max-width: calc(100% - 140px);
+    margin: 0;
+    padding: var(--u) var(--u) var(--u) calc(4 * var(--u));
+    transform: translateX(-50%);
+    background: var(--c-brass-hi);
+    color: var(--c-ink);
+    box-shadow: 0 0 0 var(--u) var(--c-ink);
+  }
+  .w3-rotate .px-btn {
+    flex: none;
+    margin: 0;
+  }
+  .w3-them {
+    width: min(560px, calc(100% - 24px));
+  }
+  .w3-them .px-dialog-text {
+    min-height: 0;
+    max-height: calc(2 * var(--lh-read));
+  }
+  .w3-tray {
+    width: min(640px, calc(100% - 24px));
+    bottom: calc(6px + var(--kb, 0px));
+  }
+  .w3-you,
+  .w3-hint,
+  .w3-toasts .w3-toast:nth-child(n + 2),
+  .w3-toast--tip,
+  .w3-toast .w3-toast-effect {
+    display: none;
+  }
+  .w3-say .px-field-input {
+    min-height: 44px;
+    max-height: 88px;
+  }
+  /* к столу: поле ввода уходит, лист на столе открыт целиком */
+  .w3-play[data-pose='desk'] .w3-say {
+    display: none;
+  }
+}

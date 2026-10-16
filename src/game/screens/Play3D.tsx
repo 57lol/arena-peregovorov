@@ -461,6 +461,8 @@ export default function Play3D(props: Props) {
         )}
       </div>
 
+      <RotateHint />
+
       {menu && (
         <Menu
           m={m}
@@ -896,6 +898,37 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
   )
 }
 
+/** Телефон боком: стол и блокнот в высоту не помещаются — предлагаем повернуть. CSS показывает только лёжа. */
+function RotateHint() {
+  const KEY = 'peregovorka.rotate.v1'
+  const [off, setOff] = useState(() => {
+    try {
+      return sessionStorage.getItem(KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  if (off) return null
+  return (
+    <p className="w3-rotate" role="status">
+      За столом удобнее держать телефон вертикально
+      <Button
+        variant="ghost"
+        icon="cross"
+        aria-label="Понятно"
+        onClick={() => {
+          setOff(true)
+          try {
+            sessionStorage.setItem(KEY, '1')
+          } catch {
+            // до перезагрузки
+          }
+        }}
+      />
+    </p>
+  )
+}
+
 /** Клавиатура телефона закрывает низ экрана — поднимаем поле ввода над ней. */
 function useVisualViewport(ref: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
@@ -903,7 +936,10 @@ function useVisualViewport(ref: RefObject<HTMLDivElement | null>) {
     if (!vv) return
     const on = () => {
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      ref.current?.parentElement?.style.setProperty('--kb', `${Math.round(kb)}px`)
+      const play = ref.current?.parentElement
+      play?.style.setProperty('--kb', `${Math.round(kb)}px`)
+      // клавиатура открыта: плашки разбора хода прячем, иначе реплика собеседника упирается в них
+      play?.toggleAttribute('data-kb', kb > 80)
     }
     vv.addEventListener('resize', on)
     vv.addEventListener('scroll', on)
