@@ -208,15 +208,6 @@ export default function App() {
     window.history.pushState({ screen: s }, '')
     window.scrollTo({ top: 0 })
   }, [])
-  useEffect(() => {
-    const back = (e: PopStateEvent) => {
-      const s = (e.state?.screen as Screen | undefined) ?? 'title'
-      // «вперёд» в переговоры возвращает ту же встречу, пока дело открыто; без дела — к списку дел
-      setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
-    }
-    window.addEventListener('popstate', back)
-    return () => window.removeEventListener('popstate', back)
-  }, [])
 
   const admit = async (c: Case, id: string) => {
     if (!room || room.caseId !== c.scenario.id) return true
@@ -234,6 +225,22 @@ export default function App() {
       return false
     } finally { setAdmitting(false) }
   }
+  useEffect(() => {
+    const back = async (e: PopStateEvent) => {
+      const s = (e.state?.screen as Screen | undefined) ?? 'title'
+      // «вперёд» в переговоры возвращает ту же встречу, пока дело открыто; без дела — к списку дел
+      if (s === 'play' && currentRef.current && sent === attemptId) {
+        const id = newAttemptId()
+        if (!(await admit(currentRef.current, id))) return
+        setAttemptId(id)
+        setStartedAt(Date.now())
+        setPlayKey((k) => k + 1)
+      }
+      setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
+    }
+    window.addEventListener('popstate', back)
+    return () => window.removeEventListener('popstate', back)
+  })
   const open = async (c: Case, origin: Origin = 'setup') => {
     if (admitting) return
     const id = newAttemptId()
@@ -251,7 +258,7 @@ export default function App() {
   const start = async () => {
     if (admitting || !current) return
     if (server?.speech?.tts !== false && loadVoiceOn()) unlockAudio()
-    const id = screen === 'brief' ? attemptId : newAttemptId()
+    const id = screen === 'brief' && sent !== attemptId ? attemptId : newAttemptId()
     if (!(await admit(current, id))) return
     setAttemptId(id)
     setHistory([])
@@ -551,7 +558,7 @@ export default function App() {
       receipt={
         room && room.caseId === current.scenario.id && history.length ? (
           <RoomReceipt
-            key={runKey(current, history)}
+            key={attemptId}
             room={room}
             name={player.name.trim() || 'Без имени'}
             clientId={player.clientId}
