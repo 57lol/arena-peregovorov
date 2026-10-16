@@ -34,6 +34,10 @@ const TtsBody = z.object({
   natural: z.boolean().optional(),
   /** заменить голос на парный голос livetts */
   live: z.boolean().optional(),
+  /** амплуа лица (PERSONAS.role): livetts берёт его, если голос его умеет */
+  role: z.string().max(20).optional(),
+  /** кто говорит (портрет): по нему внешний провайдер (TTS_PROVIDER) выбирает свой голос и манеру */
+  who: z.string().max(40).optional(),
 })
 
 export interface SpeechOptions {
@@ -127,7 +131,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const text = natural ? direct(plain, b.emotion) : neat ? polish(spokenOf(b.text).replace(/[«»"]/g, ''), b.emotion) : plain
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
-    const role = isLive(voice) ? liveRole(voice, b.emotion) : undefined
+    const role = isLive(voice) ? liveRole(voice, b.emotion, b.role) : undefined
     const nat = natural ? { n: DIRECT_VERSION, ...(role ? { r: role } : {}) } : neat ? { p: POLISH_VERSION, ...(role ? { r: role } : {}) } : role ? { r: role } : {}
     const v3only = YANDEX_VOICES.find((v) => v.id === voice)?.v3only
     // SpeechKit по умолчанию — v3; TTS_YANDEX_API=v1 возвращает старую озвучку для голосов, которые её знают

@@ -171,3 +171,34 @@ describe('фразы-паузы', () => {
     for (const v of FILLER_VOICES) for (const id of ids) expect(existsSync(`public/assets/voice-fillers/${v}/${id}.mp3`), `${v}/${id}`).toBe(true)
   })
 })
+
+describe('лица и их подача', () => {
+  it('амплуа лица уходит в livetts, раздражённый — formal, где голос его умеет; чужое амплуа не проходит', async () => {
+    const f = fakeYandex()
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+    const hints = () => JSON.parse(String((f.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body)).hints
+    await tts(app, { text: `Слышь, братан ${Math.random()}`, voice: 'sergey', role: 'sales', who: 'gopnik' })
+    expect(hints()).toEqual([{ voice: 'sergey' }, { role: 'sales' }])
+    await tts(app, { text: `Не пойдёт ${Math.random()}`, voice: 'denis', role: 'neutral', emotion: 'angry' })
+    expect(hints()).toEqual([{ voice: 'denis' }, { role: 'formal' }])
+    await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', role: 'formal' })
+    expect(hints()).toEqual([{ voice: 'vasily' }, { role: 'support' }])
+  })
+
+  it('у каждого лица голос livetts и амплуа, которое этот голос умеет', async () => {
+    const { PERSONAS, YANDEX_VOICES } = await import('../content/voices')
+    for (const [id, p] of Object.entries(PERSONAS)) {
+      const v = YANDEX_VOICES.find((x) => x.id === p.voice)
+      expect(v?.model, id).toBe('livetts')
+      if (p.role) expect(v?.roles, id).toContain(p.role)
+      if (p.rate) expect(p.rate > 0.85 && p.rate < 1.1, id).toBe(true)
+    }
+  })
+
+  it('время, «кг» и «ОЭЗ» — как говорят люди', async () => {
+    const { spellOut } = await import('./direct')
+    expect(spellOut('гости до 22:00, а в 7:52 автобус')).toBe('гости до 22, а в 7:52 автобус')
+    expect(spellOut('1100 ₽ за кг, 50 кг')).toBe('1100 рублей за килограмм, 50 кг')
+    expect(spellOut('ОЭЗ «Алабуга»')).toBe('О-Э-З «Алабуга»')
+  })
+})

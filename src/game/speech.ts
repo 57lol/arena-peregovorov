@@ -5,6 +5,7 @@ import type { Emotion, Scenario } from '../engine/types'
 import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 import { FILLER_VOICES, fillerIds } from '../content/fillers'
+import { PERSONAS, type Persona } from '../content/voices'
 
 export interface SpeechCaps {
   tts: boolean
@@ -56,9 +57,21 @@ export function loadVolume(): number {
 
 let volume = typeof window === 'undefined' ? DEFAULT_VOLUME : loadVolume()
 
+/**
+ * Выравнивание громкости по записи: у SpeechKit речь около −17 дБ, но короткие фразы-паузы гуляют на ±2 дБ,
+ * а внешние провайдеры (TTS_PROVIDER) отдают кто громче, кто тише. Меряем уровень речи при разборе огибающей
+ * и подтягиваем к −17 дБ громкостью плеера — без скачков между репликами.
+ */
+const TARGET_DB = -17
+const gains = new WeakMap<Float32Array, number>()
+let gain = 1
+const applyVolume = () => {
+  if (audio) audio.volume = Math.min(1, volume * gain)
+}
+
 export function setVolume(v: number) {
   volume = Math.max(0, Math.min(1, v))
-  if (audio) audio.volume = volume
+  applyVolume()
   try {
     localStorage.setItem(VOL_KEY, String(volume))
   } catch {
@@ -69,44 +82,20 @@ export function setVolume(v: number) {
 /** Наш единственный <audio>, сразу с нужной громкостью. На iPhone volume не меняется — там громкость только кнопками. */
 function player(): HTMLAudioElement {
   audio ??= new Audio()
-  audio.volume = volume
+  applyVolume()
   return audio
 }
 
 // ---------- озвучка ----------
 
 /**
- * У каждого лица свой голос. С 29.09 все говорят живыми голосами SpeechKit livetts: их всего шесть, три мужских
- * и три женских. Тон мерили по фразам-паузам (медиана F0): sergey 108 Гц — самый низкий, солидный; denis 116 Гц —
- * средний, разговорный; vasily 134 Гц — самый высокий, молодой; vera 205 Гц — ниже и мягче; sofia 216 Гц — молодой;
- * irina 232 Гц — деловой, умеет «formal». Женщин в главах трое — голоса не повторяются; мужчин четверо, поэтому
- * один голос делят Серый (вторая глава) и Палыч (последняя), они дальше всех друг от друга.
- * Амплуа под эмоцию (casual, formal, support) подбирает сервер — liveRole в src/server/direct.ts.
+ * У каждого лица свой голос (PERSONAS в src/content/voices.ts): все говорят живыми голосами SpeechKit livetts.
+ * Их всего шесть — три мужских и три женских. Тон по медиане F0: sergey 108 Гц — самый низкий, denis 116 Гц —
+ * средний, разговорный; vasily 134 Гц — молодой; vera 205 Гц — ниже и мягче; sofia 216 Гц — молодой; irina 232 Гц —
+ * деловой. Серый и Палыч делят sergey, но звучат по-разному: у Серого напористое амплуа sales и темп чуть выше,
+ * Палыч говорит медленнее и ниже (rate + deeper). Амплуа под эмоцию подбирает сервер — liveRole в src/server/direct.ts.
  */
-const VOICE_OF: Record<string, string> = {
-  // кампания «Новенький» и дела из папки, по порядку глав
-  sosed: 'vasily', // Тимур, 19 — самый молодой мужской
-  gopnik: 'sergey', // Серый, 21 — низкий, басит «слышь, братан»
-  rinat: 'denis', // Марат, поставщик — разговорный, этот голос капитан уже слышал и одобрил
-  admin: 'vera', // Лариса Петровна — усталая, пониже
-  olga: 'sofia', // Дарина, молодой инженер
-  buyer: 'irina', // Роза Сафина, 52 — деловая, раздражаясь, говорит «formal»
-  palych: 'sergey', // Палыч, 56 — самый низкий
-  // остальные лица: свои дела и массовка
-  official: 'sergey', // госзаказчик, 60
-  foreman: 'denis', // прораб, 50 — умеет «formal»
-  dev: 'vasily', // айтишник, 28
-  hr: 'vera', // кадровик, 42
-  realtor: 'sofia', // арендодатель, 34
-  pacan: 'vasily',
-  guard: 'sergey',
-  worker: 'denis',
-  workerf: 'vera',
-  student: 'sofia',
-  cashier: 'sofia',
-  babka: 'vera',
-  vahter: 'irina',
-}
+const VOICE_OF: Record<string, string> = Object.fromEntries(Object.entries(PERSONAS).map(([id, p]) => [id, p.voice]))
 export const MALE_VOICES = ['denis', 'sergey', 'vasily']
 export const FEMALE_VOICES = ['sofia', 'vera', 'irina']
 
@@ -148,7 +137,29 @@ function classicVoiceOf(portrait: string, female: boolean): string {
   return pool[h % pool.length]
 }
 
-export const voiceFor = (sc: Scenario) => (classicVoice() ? classicVoiceOf : voiceOf)(portraitFor(sc), isFemale(sc))
+/**
+ * Кто сейчас говорит: voiceFor(sc) запоминает лицо, а озвучка (ttsVoice, prepareLine, фразы-паузы) берёт у него
+ * амплуа и темп. Голос у Серого и Палыча один — различает их только это.
+ */
+let speaker: { id: string; persona?: Persona } = { id: '' }
+
+export function voiceFor(sc: Scenario): string {
+  const id = portraitFor(sc)
+  const voice = (classicVoice() ? classicVoiceOf : voiceOf)(id, isFemale(sc))
+  speaker = { id, persona: !classicVoice() && PERSONAS[id]?.voice === voice ? PERSONAS[id] : undefined }
+  return voice
+}
+
+/** Темп и тон лица в браузере: livetts темпа не принимает, поэтому замедляем плеером (без сдвига тона, если не deeper). */
+function pace(a: HTMLAudioElement, voice: string) {
+  const p = speaker.persona?.voice === voice ? speaker.persona : undefined
+  const keep = !p?.deeper
+  // смена src сбрасывает playbackRate к defaultPlaybackRate — ставим оба
+  a.defaultPlaybackRate = a.playbackRate = p?.rate ?? 1
+  a.preservesPitch = keep
+  ;(a as { webkitPreservesPitch?: boolean }).webkitPreservesPitch = keep
+}
+const rateOf = (voice: string) => (speaker.persona?.voice === voice ? (speaker.persona.rate ?? 1) : 1)
 
 // Один <audio> на всю игру: iOS разрешает ему звучать и позже, если первый play() был внутри клика.
 let audio: HTMLAudioElement | null = null
@@ -178,6 +189,8 @@ export interface Prepared {
   duration: number
   /** огибающая громкости для губ — считается сразу после скачивания */
   env?: Promise<Float32Array | null>
+  /** голос SpeechKit, которым просили озвучить, — по нему темп лица */
+  voice?: string
 }
 
 // ---------- губы по звуку ----------
@@ -201,22 +214,45 @@ async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null
     const ch = ab.getChannelData(0)
     const w = Math.max(1, Math.floor(ab.sampleRate * ENV_STEP))
     const env = new Float32Array(Math.ceil(ch.length / w))
+    const power = new Float32Array(env.length)
     let prev = 0
     for (let k = 0; k < env.length; k++) {
       let e = 0
       const end = Math.min(ch.length, (k + 1) * w)
       for (let i = k * w; i < end; i++) e += ch[i] * ch[i]
-      const rms = Math.sqrt(e / Math.max(1, end - k * w))
+      power[k] = e / Math.max(1, end - k * w)
+      const rms = Math.sqrt(power[k])
       prev = rms > prev ? rms : prev * 0.35 + rms * 0.65
       env[k] = prev
     }
     const sorted = Array.from(env).sort((a, b) => a - b)
     const top = sorted[Math.floor(sorted.length * 0.95)] || 1
     for (let k = 0; k < env.length; k++) env[k] = Math.min(1, env[k] / top)
+    gains.set(env, gainFor(power))
     return env
   } catch {
     return null
   }
+}
+
+/** Уровень речи (средняя мощность окон громче −50 дБ и не тише среднего на 10 дБ) → множитель громкости, 0,5–2. */
+export function gainFor(power: Float32Array): number {
+  const loud = power.filter((p) => p > 1e-5)
+  if (!loud.length) return 1
+  const mean = loud.reduce((a, b) => a + b, 0) / loud.length
+  const voiced = loud.filter((p) => p > mean * 0.1)
+  const db = 10 * Math.log10(voiced.reduce((a, b) => a + b, 0) / voiced.length)
+  return Math.max(0.5, Math.min(2, 10 ** ((TARGET_DB - db) / 20)))
+}
+
+/** Множитель громкости записи, если огибающая готова не дольше чем за ms (иначе 1): громкость известна до первого звука. */
+async function levelOf(env: Promise<Float32Array | null>, ms = 200): Promise<number> {
+  const e = await Promise.race([env, new Promise<null>((r) => setTimeout(() => r(null), ms))])
+  return (e && gains.get(e)) || 1
+}
+const setGain = (g: number) => {
+  gain = g
+  applyVolume()
 }
 
 function envelopeOf(src: string): Promise<Float32Array | null> {
@@ -305,7 +341,9 @@ export function ttsVoice(voice: string, o: LineOptions = {}) {
   // лаборатория: естественная речь и голоса livetts (свой на пол или пара, которую подберёт сервер)
   const own = provider === 'yandex' && lab.live ? (female ? lab.liveFemale : lab.liveMale) : undefined
   const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
-  return { voice: own ?? v, ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
+  // лицо: его амплуа livetts и кто говорит (по нему сервер выбирает голос у внешнего провайдера, TTS_PROVIDER)
+  const who = provider === 'yandex' && !own && speaker.persona?.voice === voice ? { who: speaker.id, ...(speaker.persona.role ? { role: speaker.persona.role } : {}) } : {}
+  return { voice: own ?? v, ...who, ...nat, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
 }
 
 /** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
@@ -328,8 +366,9 @@ export async function prepareLine(text: string, voice: string, emotion?: string,
     const env = typeof window === 'undefined' ? undefined : envelope(blob.arrayBuffer())
     const header = Number(r.headers.get('x-audio-ms')) / 1000
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
-    const duration = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
-    return { url, duration, env }
+    const raw = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
+    // плеер играет в темпе лица — печать текста идёт в тот же такт
+    return { url, duration: raw / rateOf(voice), env, voice }
   } catch {
     return null
   }
@@ -341,7 +380,13 @@ export async function playPrepared(p: Prepared): Promise<boolean> {
   stopAudio()
   url = p.url
   a.src = p.url
-  trackLip(a, p.env ?? envelopeOf(p.url), true)
+  const env = p.env ?? envelopeOf(p.url)
+  trackLip(a, env, true)
+  if (p.voice) pace(a, p.voice)
+  const g = await levelOf(env)
+  // пока мерили громкость, реплику оборвали (игрок взял микрофон, пришла другая) — не играем
+  if (url !== p.url) return false
+  setGain(g)
   try {
     await a.play()
     return true
@@ -396,8 +441,12 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     const guard = setTimeout(end, 2500)
     for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
     a.src = `/assets/voice-fillers/${voice}/${id}.mp3`
-    trackLip(a, envelopeOf(a.src), false)
-    a.play().catch(end)
+    const env = envelopeOf(a.src)
+    trackLip(a, env, false)
+    pace(a, voice)
+    // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
+    const me = lip
+    void levelOf(env, 120).then((g) => (lip === me ? (setGain(g), a.play().catch(end)) : end()))
   }, delay)
   return {
     cancel: () => {

@@ -36,6 +36,12 @@ export function spellOut(t: string): string {
       .replace(/(\d+(?:,\d+)?)\s*(₽|руб\.?(?!\p{L}))/gu, (_, a: string) => `${a} ${plural(a, 'рубль', 'рубля', 'рублей')}`)
       .replace(/(\d+(?:,\d+)?)\s*%/g, (_, a: string) => `${a} ${plural(a, 'процент', 'процента', 'процентов')}`)
       .replace(/\+(?=\s*\d)/g, 'плюс ')
+      // «до 22:00» SpeechKit читает «до двадцати двух часов ровно» — ровные часы говорим числом: «до двадцати двух»
+      .replace(/(?<![\d:])(\d{1,2}):00(?![\d:])/g, '$1')
+      // «за кг» без числа он читает буквами; после числа («50 кг») склоняет сам
+      .replace(/(?<!\d\s?)(?<!\p{L})кг\.?(?!\p{L})/gu, 'килограмм')
+      // «ОЭЗ» распознавание слышало как «у вас»: по буквам
+      .replace(/(?<!\p{L})ОЭЗ(?!\p{L})/gu, 'О-Э-З')
   )
 }
 
@@ -114,12 +120,15 @@ export function liveVoiceFor(voice: string): string {
   return LIVE_OF[voice] ?? (YANDEX_VOICES.find((v) => v.id === voice)?.female ? 'sofia' : 'denis')
 }
 
-/** Амплуа livetts под эмоцию: по делу — «casual» (разговорно), раздражён — «formal» (суше), где голос это умеет. */
-export function liveRole(voice: string, emotion: Emotion | undefined): string | undefined {
+/**
+ * Амплуа livetts под эмоцию: по делу — своё амплуа лица (PERSONAS.role), иначе «casual» (разговорно);
+ * раздражён — «formal» (суше), где голос это умеет, а нет — своё амплуа лица.
+ */
+export function liveRole(voice: string, emotion: Emotion | undefined, own?: string): string | undefined {
   const roles = YANDEX_VOICES.find((v) => v.id === voice)?.roles ?? []
   const hard = emotion === 'annoyed' || emotion === 'angry'
-  const want = hard ? ['formal', 'neutral', 'support'] : ['casual', 'support', 'neutral']
-  return want.find((r) => roles.includes(r))
+  const want = hard ? ['formal', own, 'neutral', 'support'] : [own, 'casual', 'support', 'neutral']
+  return want.find((r) => r && roles.includes(r))
 }
 
 /**

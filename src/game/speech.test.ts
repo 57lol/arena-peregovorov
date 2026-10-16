@@ -72,3 +72,16 @@ describe('фразы-паузы', () => {
   })
 })
 
+
+describe('громкость по записи', () => {
+  it('речь на −17 дБ играет как есть, тихую подтягиваем, громкую убавляем, но не больше чем вдвое', async () => {
+    const { gainFor } = await import('./speech')
+    const at = (db: number, n = 50) => new Float32Array(n).fill(10 ** (db / 10))
+    const withPauses = (db: number) => Float32Array.from([...at(db), ...new Float32Array(30)])
+    expect(gainFor(withPauses(-17))).toBeCloseTo(1, 2)
+    expect(gainFor(at(-23))).toBeCloseTo(2, 1)
+    expect(gainFor(at(-11))).toBeCloseTo(0.5, 1)
+    expect(gainFor(at(-40))).toBe(2)
+    expect(gainFor(new Float32Array(10))).toBe(1)
+  })
+})
