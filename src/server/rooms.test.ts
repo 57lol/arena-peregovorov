@@ -7,6 +7,7 @@ import { summarize } from '../engine/team'
 import type { TurnRecord } from '../engine/types'
 import { createApp } from './app'
 import { makeLLM } from './llm'
+import { getScenario } from '../content/scenarios'
 import { ROOM_LIMITS } from './rooms'
 
 const dir = mkdtempSync(join(tmpdir(), 'rooms-'))
@@ -124,6 +125,43 @@ describe('комнаты тренировок', () => {
     await Promise.all(Array.from({ length: 8 }, (_, n) => send(id, { clientId: `parallel${n}`, name: `П${n}`, history: h })))
     const b = (await (await board(id, key)).json()) as Board
     expect(b.players).toHaveLength(8)
+  })
+
+  it.each([false, true])('повторное согласие восстанавливает текущую попытку без нового результата (запрос руководителя: %s)', async (askAgain) => {
+    const { id, key } = await room()
+    const clientId = 'restore001'
+    const h = await play(polite)
+    const other = await play(rude)
+    const result = { clientId, attemptId: 'attempt001', name: 'Аня', history: h }
+    for (const [attemptId, history] of [['attempt001', h], ['attempt002', other]] as const) {
+      expect((await app.request(`/api/rooms/${id}/pulse`, json({
+        clientId, attemptId, name: 'Аня', seq: 1, turn: 0, total: getScenario('tara')!.turnLimit,
+        trust: 50, tension: 20, phase: 'brief',
+      }))).status).toBe(200)
+      expect((await send(id, { ...result, attemptId, history })).status).toBe(200)
+    }
+    const b = await (await board(id, key)).json() as Board
+    const row = b.players[0]
+    const talk = () => app.request(`/api/rooms/${id}/players/${row.pid}/talk?at=${row.first.at}`, { headers: { 'x-room-key': key } })
+    const consent = (allow: boolean, transcript?: object) => app.request(`/api/rooms/${id}/consent`, json({ clientId, allow, ...transcript }))
+    expect(JSON.stringify(b)).not.toContain('attempt001')
+    expect((await consent(false)).status).toBe(200)
+    expect(readFileSync(join(dir, `${id}.json`), 'utf8')).not.toContain(h[0].playerText)
+    // Повтор результата не снимает запрет и не увеличивает число попыток.
+    expect((await send(id, result)).status).toBe(200)
+    expect((await talk()).status).toBe(403)
+    if (askAgain) await app.request(`/api/rooms/${id}/players/${row.pid}/ask`, { method: 'POST', headers: { 'x-room-key': key } })
+    expect((await consent(true, { attemptId: 'unknown001', history: h })).status).toBe(409)
+    expect((await consent(true, { attemptId: 'attempt001', history: other })).status).toBe(409)
+    expect((await talk()).status).toBe(403)
+    expect((await consent(true, { attemptId: 'attempt001', history: h })).status).toBe(200)
+    const restored = await talk()
+    expect(restored.status).toBe(200)
+    expect(await restored.json()).toEqual({ talk: h.map((r) => ({ turn: r.turn, player: r.playerText, opponent: r.opponentLine })) })
+    expect((await (await board(id, key)).json() as Board).players[0].attempts).toBe(2)
+    expect((await consent(false)).status).toBe(200)
+    expect((await talk()).status).toBe(403)
+    expect(readFileSync(join(dir, `${id}.json`), 'utf8')).not.toContain(h[0].playerText)
   })
 
   it('переписку руководитель видит только с согласия участника', async () => {

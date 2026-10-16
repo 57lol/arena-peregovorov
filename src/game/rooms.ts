@@ -63,7 +63,8 @@ export const askTalk = (id: string, key: string, pid: string) =>
 export const loadTalk = (id: string, key: string, pid: string, at: number) =>
   call<{ talk: TalkLine[] }>(`${room$(id)}/players/${encodeURIComponent(pid)}/talk?at=${at}`, { headers: { 'x-room-key': key } })
 export const myShare = (id: string, clientId: string) => call<{ share: ShareState }>(`${room$(id)}/me`, post({ clientId }))
-export const setConsent = (id: string, clientId: string, allow: boolean) => call<{ share: ShareState }>(`${room$(id)}/consent`, post({ clientId, allow }))
+export const setConsent = (id: string, clientId: string, allow: boolean, transcript?: { attemptId: string; history: TurnRecord[] }) =>
+  call<{ share: ShareState }>(`${room$(id)}/consent`, post({ clientId, allow, ...(allow ? transcript : {}) }), 20_000)
 
 // ——— что помним в браузере ———
 

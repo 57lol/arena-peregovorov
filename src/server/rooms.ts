@@ -23,7 +23,7 @@ interface RoomFile extends Omit<Board, 'players' | 'live'> {
   pulses?: Record<string, StoredPulse>
   keyHash: string
   /** по id браузера участника; наружу id не отдаём */
-  byClient: Record<string, PlayerRow & { pid: string; share: ShareState; talks?: Record<string, TalkLine[]> }>
+  byClient: Record<string, PlayerRow & { pid: string; share: ShareState; talks?: Record<string, TalkLine[]>; submissions?: Record<string, { at: number; talkHash: string }> }>
 }
 
 const pulseKey = (clientId: string, attemptId: string) => `${clientId}:${attemptId}`
@@ -155,6 +155,8 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     return locked(id, async () => {
       const room = (await load(id))!
       const prev = room.byClient[body.clientId]
+      if (body.attemptId && prev?.submissions?.[body.attemptId])
+        return c.json({ ok: true, attempts: prev.attempts, share: prev.share })
       const clientPulses = Object.values(room.pulses ?? {}).filter((p) => p.clientId === body.clientId)
       const pulse = body.attemptId ? room.pulses?.[pulseKey(body.clientId, body.attemptId)] : clientPulses.at(-1)
       const admitted = !!body.attemptId && !!pulse
@@ -173,6 +175,7 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
         const keep = new Set([row.first.at, row.best.at, row.last.at].map(String))
         row.talks = Object.fromEntries(Object.entries(talks).filter(([at]) => keep.has(at)))
       }
+      if (body.attemptId) row.submissions = { ...prev?.submissions, [body.attemptId]: { at: a.at, talkHash: sha(JSON.stringify(talkOf(history))).toString('hex') } }
       room.byClient[body.clientId] = row
       if (pulse && (!body.attemptId || admitted)) pulse.submitted = true
       await save(room)
@@ -182,7 +185,7 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
 
   // ——— согласие на просмотр переписки ———
 
-  const Me = z.object({ clientId: z.string().regex(/^[\w-]{8,64}$/) })
+  const Me = z.object({ clientId: ClientId })
 
   // участник: что сейчас с доступом к его переписке (есть ли запрос руководителя)
   app.post('/api/rooms/:id/me', bodyLimit({ maxSize: 1024 }), async (c) => {
@@ -194,13 +197,26 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
   })
 
   // участник: разрешить или запретить. Запрет стирает сохранённую переписку.
-  app.post('/api/rooms/:id/consent', bodyLimit({ maxSize: 1024 }), async (c) => {
+  app.post('/api/rooms/:id/consent', bodyLimit({ maxSize: 400 * 1024 }), async (c) => {
     const id = c.req.param('id')
-    const { clientId, allow } = Me.extend({ allow: z.boolean() }).parse(await c.req.json())
+    const { clientId, allow, attemptId, history: raw } = Me.extend({
+      allow: z.boolean(), attemptId: ClientId.optional(), history: z.array(z.any()).min(1).max(40).optional(),
+    }).refine((b) => !!b.attemptId === !!b.history, { message: 'Нужны ID попытки и её история' }).parse(await c.req.json())
     return locked(id, async () => {
       const room = await load(id)
       const row = room?.byClient[clientId]
       if (!room || !row) return c.json({ error: 'Нет результата в этой тренировке' }, 404)
+      if (allow && attemptId && raw) {
+        const submitted = row.submissions?.[attemptId]
+        if (!submitted || ![row.first.at, row.best.at, row.last.at].includes(submitted.at))
+          return c.json({ error: 'Этой попытки больше нет на доске' }, 409)
+        const sc = await resolve(room.caseId).catch(() => null)
+        if (!sc) return c.json({ error: 'Дело тренировки больше недоступно' }, 410)
+        const talk = talkOf(normalize(sc, raw))
+        if (sha(JSON.stringify(talk)).toString('hex') !== submitted.talkHash)
+          return c.json({ error: 'Переписка не совпадает с записанной попыткой' }, 409)
+        row.talks = { ...row.talks, [String(submitted.at)]: talk }
+      }
       row.share = allow ? 'granted' : 'denied'
       if (!allow) delete row.talks
       await save(room)
@@ -275,7 +291,7 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       })),
       // переписку на доску не кладём: её отдаёт отдельный запрос и только с согласия
       players: Object.values(room.byClient)
-        .map(({ talks: _t, ...row }) => ({ ...row, share: row.share ?? 'none' }))
+        .map(({ talks: _t, submissions: _s, ...row }) => ({ ...row, share: row.share ?? 'none' }))
         .sort((a, b) => a.first.at - b.first.at),
     }
     return c.json(board)

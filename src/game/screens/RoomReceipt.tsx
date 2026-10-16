@@ -21,6 +21,7 @@ export function RoomReceipt({ room, name, clientId, attemptId, history, seconds,
   const [state, setState] = useState<'sending' | 'ok' | { error: string }>(sent ? 'ok' : 'sending')
   const [attempts, setAttempts] = useState<number | null>(null)
   const [share, setShare] = useState<ShareState | null>(null)
+  const [consentError, setConsentError] = useState<string | null>(null)
   const started = useRef(false)
 
   // запрос руководителя на переписку: проверяем, пока разбор открыт
@@ -35,7 +36,11 @@ export function RoomReceipt({ room, name, clientId, attemptId, history, seconds,
       clearInterval(t)
     }
   }, [state, room.id, clientId])
-  const answer = (allow: boolean) => setConsent(room.id, clientId, allow).then((r) => setShare(r.share)).catch(() => {})
+  const answer = (allow: boolean) => {
+    setConsentError(null)
+    return setConsent(room.id, clientId, allow, { attemptId, history }).then((r) => setShare(r.share))
+      .catch((e) => setConsentError(e instanceof Error ? e.message : 'Не удалось изменить доступ. Попробуйте ещё раз.'))
+  }
 
   const send = async () => {
     setState('sending')
@@ -66,6 +71,7 @@ export function RoomReceipt({ room, name, clientId, attemptId, history, seconds,
           {attempts && attempts > 1 ? `, это ваша ${attempts}-я попытка` : ''}. Руководитель увидит ваш итог на доске.
         </p>
       )}
+      {consentError && <p role="alert">{consentError}</p>}
       {state === 'ok' && share && <Consent share={share} onAnswer={answer} />}
       {typeof state === 'object' && (
         <>
