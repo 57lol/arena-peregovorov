@@ -361,6 +361,12 @@ export default function App() {
     go('play')
   }
 
+  // «Личное дело» зовут и из хаба жюри, который возвращается раньше остальных экранов
+  const toCareer = (from: Screen) => {
+    setCareerFrom(from)
+    go('career')
+  }
+
   if (screen === 'cutscene') {
     const cs = film && cutsceneById(film.id)
     return cs ? (
@@ -431,10 +437,6 @@ export default function App() {
       />
     )
 
-  const toCareer = (from: Screen) => {
-    setCareerFrom(from)
-    go('career')
-  }
   if (screen === 'career') return <Career progress={progress} onOpen={(c) => open(c)} onBack={() => go(careerFrom)} />
 
   if (screen === 'map')
