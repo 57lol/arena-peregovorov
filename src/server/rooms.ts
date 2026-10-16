@@ -206,7 +206,10 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       const room = await load(id)
       const row = room?.byClient[clientId]
       if (!room || !row) return c.json({ error: 'Нет результата в этой тренировке' }, 404)
-      if (allow && attemptId && raw) {
+      // Старые результаты не знают attemptId: сохранённую переписку достаточно открыть.
+      // Загружать её заново можно только по проверяемым метаданным новой попытки.
+      const legacyTalks = !row.submissions && Object.keys(row.talks ?? {}).length > 0
+      if (allow && attemptId && raw && !legacyTalks) {
         const submitted = row.submissions?.[attemptId]
         if (!submitted || ![row.first.at, row.best.at, row.last.at].includes(submitted.at))
           return c.json({ error: 'Этой попытки больше нет на доске' }, 409)

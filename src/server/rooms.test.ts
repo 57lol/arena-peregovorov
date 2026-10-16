@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -47,6 +47,27 @@ const send = (id: string, body: object) => app.request(`/api/rooms/${id}/results
 const board = (id: string, key: string) => app.request(`/api/rooms/${id}/board`, { headers: { 'x-room-key': key } })
 
 describe('комнаты тренировок', () => {
+  it('согласие из нового клиента открывает сохранённую переписку старого формата без восстановления', async () => {
+    const { id, key } = await room()
+    const clientId = 'legacy001'
+    const h = await play(polite)
+    await send(id, { clientId, name: 'Аня', history: h })
+    const path = join(dir, `${id}.json`)
+    const stored = JSON.parse(readFileSync(path, 'utf8'))
+    delete stored.byClient[clientId].submissions
+    stored.byClient[clientId].share = 'asked'
+    writeFileSync(path, JSON.stringify(stored))
+    // Даже присланная история другой партии не должна заменять старую переписку.
+    const other = await play(rude)
+    const response = await app.request(`/api/rooms/${id}/consent`, json({ clientId, allow: true, attemptId: 'oldattempt1', history: other }))
+    expect(response.status).toBe(200)
+    const row = (await (await board(id, key)).json() as Board).players[0]
+    expect(row).toMatchObject({ share: 'granted', attempts: 1 })
+    const talk = await app.request(`/api/rooms/${id}/players/${row.pid}/talk?at=${row.first.at}`, { headers: { 'x-room-key': key } })
+    expect(talk.status).toBe(200)
+    expect(await talk.json()).toEqual({ talk: stored.byClient[clientId].talks[String(row.first.at)] })
+  })
+
   it('руководитель открывает комнату, участник видит только название и дело', async () => {
     const { id, key } = await room()
     expect(key.length).toBeGreaterThan(20)
