@@ -430,7 +430,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(home(from))} />
+  if (screen === 'brief') return <Brief game={current} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} />
 
   if (screen === 'play') {
     const meeting = {

@@ -13,10 +13,11 @@ interface Props {
   game: Case
   onStart: () => void
   onBack: () => void
+  backLabel?: string
 }
 
 /** Бриф: папка дела открыта. Здесь игрок узнаёт всё, что знает его персонаж, — и только это. */
-export function Brief({ game, onStart, onBack }: Props) {
+export function Brief({ game, onStart, onBack, backLabel = 'К делам' }: Props) {
   const sc = game.scenario
   const P = sc.player.profile
   const c = sc.opponent.character
@@ -26,7 +27,7 @@ export function Brief({ game, onStart, onBack }: Props) {
       <main className="px-desk g-desk g-brief">
         <header className="g-bar">
           <Button variant="ghost" icon="left" onClick={onBack}>
-            К делам
+            {backLabel}
           </Button>
           <Button variant="brass" icon="send" className="g-bar-go" onClick={onStart}>
             Войти
