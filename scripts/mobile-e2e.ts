@@ -188,6 +188,8 @@ function auditPage(opts: { phone: boolean; scope?: string }): Finding[] {
   )
   for (const el of taps) {
     if ((el as HTMLButtonElement).disabled) continue
+    // спрятанное до поры (pointer-events: none) пальцем и не нажать
+    if (getComputedStyle(el).pointerEvents === 'none') continue
     const r = el.getBoundingClientRect()
     // iOS приближает страницу, когда фокус попадает в поле со шрифтом мельче 16 px
     if (opts.phone && el.matches('input, textarea, select') && parseFloat(getComputedStyle(el).fontSize) < 16)
