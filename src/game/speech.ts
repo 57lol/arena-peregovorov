@@ -342,6 +342,9 @@ export function elevenTest(): boolean {
   }
 }
 
+// запомнить ?tts= сразу при загрузке: игра потом чистит адрес от параметров (share.ts)
+if (typeof window !== 'undefined') elevenTest()
+
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
   if (classicVoice() && !o.provider) return { voice, natural: false, live: false, api: 'v1' as const }
