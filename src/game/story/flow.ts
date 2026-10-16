@@ -18,8 +18,10 @@ export interface Step {
 
 const played = (p: Progress, id: string) => !!(p.cases[id] || p.cases[`${id}-hard`])
 
-/** Первая несыгранная глава по порядку недели. */
-export const nextChapter = (p: Progress) => CHAPTERS.find((c) => !played(p, c.id))?.id
+/** Позиция текущей недели; у старого прогресса — первая несыгранная глава. */
+export const nextChapter = (p: Progress) => p.story?.chapter !== undefined
+  ? CHAPTERS[p.story.chapter]?.id
+  : CHAPTERS.find((c) => !played(p, c.id))?.id
 
 const brief = (caseId: string): Next => ({ to: 'brief', caseId })
 

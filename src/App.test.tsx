@@ -3,6 +3,7 @@ import { isValidElement, type ReactNode } from 'react'
 import { getScenario } from './content/scenarios'
 import { initialState } from './engine/turn'
 import type { TurnRecord } from './engine/types'
+import type { Progress } from './game/progress'
 
 // Неглубокий рендер проверяет переходы App через настоящие callbacks экранов.
 // Экраны не монтируются: сеть, звук и WebGL не нужны для проверки жизненного цикла партии.
@@ -91,7 +92,7 @@ function props(name: string, node: ReactNode = tree): Record<string, unknown> {
   }
   return {}
 }
-const savedState = () => JSON.parse(sessionStorage.getItem(SESSION)!) as { screen: string; attemptId: string; sent: string; room: unknown }
+const savedState = () => JSON.parse(sessionStorage.getItem(SESSION)!) as { screen: string; attemptId: string; sent: string; room: unknown; current: { scenario: { id: string } } }
 const act = async (name: string, callback: string, ...args: unknown[]) => {
   const fn = props(name)[callback]
   expect(fn, `${name}.${callback}`).toBeTypeOf('function')
@@ -179,6 +180,40 @@ describe('повтор отправленной командной попытк�
 })
 
 describe('самостоятельный сюжет после командной тренировки', () => {
+  it('повторная неделя запоминает следующую главу после общаги, меню и перезагрузки', async () => {
+    const { CHAPTERS } = await import('./content/story')
+    const p: Progress = {
+      cases: Object.fromEntries(CHAPTERS.map(({ id }) => [id, { title: id, plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }])),
+      tutorialDone: true, endings: {}, runs: [], story: { seen: ['dorm'] },
+    }
+    localStorage.setItem('peregovorka.progress.v2', JSON.stringify(p))
+    localStorage.setItem('peregovorka.cutscenes.v1', JSON.stringify(['prologue']))
+    await act('Debrief', 'onRecorded', p)
+    await act('Debrief', 'onOther')
+    await act('Setup', 'onBack')
+    await act('Title', 'onPlay')
+    await act('CutscenePlayer', 'onDone')
+    expect(savedState().current.scenario.id).toBe('dorm')
+    await act('Brief', 'onStart')
+    await act('Play', 'setHistory', history)
+    await act('Play', 'onFinish')
+    await act('Debrief', 'onOther')
+    expect(savedState().screen).toBe('title')
+    // Новый экземпляр приложения читает сохранённую позицию текущей недели.
+    hooks.cleanups.forEach((cleanup) => cleanup?.())
+    hooks.slots = []; hooks.effects = []; hooks.cleanups = []; hooks.cursor = 0
+    vi.resetModules()
+    App = (await import('./App')).default
+    render()
+    await act('Title', 'onPlay')
+    await act('CutscenePlayer', 'onDone')
+    expect(savedState().screen).toBe('brief')
+    expect(savedState().current.scenario.id).toBe('stop')
+    const restored = JSON.parse(localStorage.getItem('peregovorka.progress.v2')!) as Progress
+    expect(restored.cases).toEqual(p.cases)
+    expect(restored.story?.seen).toEqual(['dorm'])
+  })
+
   it('после меню и пролога открывает общагу без допуска в закрытую комнату', async () => {
     const { sendPulse } = await import('./game/rooms')
     vi.mocked(sendPulse).mockRejectedValue(new Error('Тренировка завершена'))

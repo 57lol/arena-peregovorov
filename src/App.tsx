@@ -4,7 +4,7 @@ import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { BudgetNote } from './game/BudgetNote'
-import { loadProgress, type Progress } from './game/progress'
+import { loadProgress, setStoryChapter, type Progress } from './game/progress'
 import { nextCase } from './game/career'
 import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
@@ -28,7 +28,7 @@ import { nextStory } from './game/story'
 import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscenes, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
-import { chapterOf } from './content/story'
+import { chapterOf, CHAPTERS } from './content/story'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
@@ -293,7 +293,13 @@ export default function App() {
     setInvited(false)
     setRoom(null)
     setRoomError(null)
-    return run(cutscenesAllowed() ? storyStart(progress, seenCutscenes()) : { then: { to: 'map' } })
+    if (!cutscenesAllowed()) return run({ then: { to: 'map' } })
+    const step = storyStart(progress, seenCutscenes())
+    if (step.then.to === 'brief') {
+      const caseId = step.then.caseId
+      setProgress(setStoryChapter(progress, CHAPTERS.findIndex((ch) => ch.id === caseId)))
+    }
+    return run(step)
   }
   // «Сюжет»: катсцена (если есть), потом бриф следующей главы; неделя пройдена — титул
   const follow = async (n: Next) => {
@@ -516,7 +522,14 @@ export default function App() {
       speech: server?.speech,
       tutorial: !progress.tutorialDone && tutorialAllowed(),
       onTutorialOff: () => setProgress(loadProgress()),
-      onFinish: () => go('report'),
+      onFinish: () => {
+        const ch = from === 'story' ? chapterOf(current.scenario.id) : undefined
+        if (ch) {
+          const p = loadProgress()
+          setProgress(setStoryChapter(p, Math.max(p.story?.chapter ?? 0, CHAPTERS.findIndex((c) => c.id === ch.id) + 1)))
+        }
+        go('report')
+      },
       onQuit: () => go(home(from)),
     }
     if (view === '3d')

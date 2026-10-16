@@ -1,16 +1,36 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getScenario } from '../../content/scenarios'
 import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { buildReport } from '../../engine/report'
-import { countStars, starsOf, type Progress } from '../progress'
+import { countStars, loadProgress, markStorySeen, migrate, setStoryChapter, starsOf, type Progress } from '../progress'
 import { demoHistory } from './demo'
 import { nextChapter, storyAfter, storyStart } from './flow'
 import { chapterCard } from '../cutscene/scripts'
 
 const rec = { title: '', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' }
 const prog = (...ids: string[]): Progress => ({ cases: Object.fromEntries(ids.map((id) => [id, rec])), tutorialDone: true, endings: {}, runs: [] })
+afterEach(() => vi.unstubAllGlobals())
 
 describe('«Сюжет»: что показать дальше', () => {
+  it('позиция текущей недели важнее пожизненных результатов и сохраняется вместе с мостиками', () => {
+    const data = new Map<string, string>()
+    vi.stubGlobal('localStorage', { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => data.set(k, v) })
+    const p = prog('dorm', 'stop', 'tara', 'shop', 'offer', 'client', 'launch')
+    setStoryChapter(p, 0)
+    expect(nextChapter(loadProgress())).toBe('dorm')
+    setStoryChapter(loadProgress(), 1)
+    markStorySeen('dorm')
+    expect(nextChapter(loadProgress())).toBe('stop')
+    expect(loadProgress().story).toEqual({ seen: ['dorm'], chapter: 1 })
+    expect(storyStart(loadProgress(), ['prologue']).then).toEqual({ to: 'brief', caseId: 'stop' })
+    setStoryChapter(loadProgress(), 7)
+    expect(nextChapter(loadProgress())).toBeUndefined()
+    expect(storyStart(loadProgress(), ['prologue']).cutscene?.id).toBe('prologue')
+    expect(loadProgress().cases).toEqual(p.cases)
+    for (const chapter of [-1, 8, 0.5, '1', null])
+      expect(migrate({ story: { seen: ['dorm'], chapter } }).story).toEqual({ seen: ['dorm'] })
+  })
+
   it('первый запуск — пролог и сразу первая глава', () => {
     const s = storyStart(prog(), [])
     expect(s.cutscene?.id).toBe('prologue')

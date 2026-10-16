@@ -5,6 +5,7 @@ import type { EndingId } from '../engine/endings'
 import type { Report } from '../engine/report'
 import type { Scenario } from '../engine/types'
 import { baseCaseId } from '../content/scenarios/harder'
+import { CHAPTERS } from '../content/story'
 
 /** Три счёта методики — три звезды: сделка лучше запасного варианта, ничего не осталось на столе, доверие. */
 export interface Stars {
@@ -44,7 +45,7 @@ export interface Progress {
   /** история партий, новые в конце */
   runs: RunLog[]
   /** кампания «Новенький»: главы, чей мостик к следующей главе игрок уже прочитал на карте */
-  story?: { seen: string[] }
+  story?: { seen: string[]; /** индекс следующей главы текущей недели; CHAPTERS.length — неделя завершена */ chapter?: number }
 }
 
 const KEY = 'peregovorka.progress.v2'
@@ -58,17 +59,19 @@ const obj = <T>(x: unknown): Record<string, T> => (x && typeof x === 'object' &&
 /** Что угодно из хранилища — в целый прогресс: старый формат, битые поля, чужой мусор. */
 export function migrate(raw: unknown): Progress {
   const p = obj<unknown>(raw)
+  const campaign = obj<unknown>(p.story)
+  const seen = strings(campaign.seen)
+  const chapter = typeof campaign.chapter === 'number' && Number.isInteger(campaign.chapter) && campaign.chapter >= 0 && campaign.chapter <= CHAPTERS.length
+    ? campaign.chapter : undefined
   return {
     cases: obj<CaseRecord>(p.cases),
     tutorialDone: !!p.tutorialDone,
     endings: obj<EndingId[]>(p.endings),
     runs: Array.isArray(p.runs) ? (p.runs as RunLog[]).filter((r) => r && typeof r.caseId === 'string' && r.stars && r.beh) : [],
     // кампания: пустое не храним, чтобы старые прогрессы оставались ровно такими, как были
-    ...story(strings(obj<unknown>(p.story).seen)),
+    ...(seen.length || chapter !== undefined ? { story: { seen, ...(chapter !== undefined ? { chapter } : {}) } } : {}),
   }
 }
-
-const story = (seen: string[]) => (seen.length ? { story: { seen } } : {})
 
 const strings = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [])
 
@@ -172,7 +175,14 @@ export function markStorySeen(chapterId: string): Progress {
   const p = loadProgress()
   const seen = p.story?.seen ?? []
   if (seen.includes(chapterId)) return p
-  const next = { ...p, story: { seen: [...seen, chapterId] } }
+  const next = { ...p, story: { ...p.story, seen: [...seen, chapterId] } }
+  save(next)
+  return next
+}
+
+/** Позиция этой недели хранится независимо от пожизненных результатов и мостиков карты. */
+export function setStoryChapter(p: Progress, chapter: number): Progress {
+  const next = { ...p, story: { seen: [], ...p.story, chapter } }
   save(next)
   return next
 }
