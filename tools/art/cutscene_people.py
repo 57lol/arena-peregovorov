@@ -990,6 +990,7 @@ def main():
         'busPov': {'src': '/assets/cutscene/bus_pov.png', 'sun': '/assets/cutscene/bus_pov_sun.png',
                    'field': '/assets/cutscene/pov_field.png', 'near': '/assets/cutscene/pov_near.png',
                    'w': BW, 'h': BH, 'view': pov_art.VIEW, 'fieldPar': pov_art.FIELD_PAR, 'nearPar': pov_art.NEAR_PAR,
+                   'fieldDy': pov_art.FIELD_DY, 'nearDy': pov_art.NEAR_DY, 'farPar': pov_art.FAR_PAR, 'riverPar': pov_art.RIVER_PAR,
                    'bushes': pov_art.NEAR_BUSHES, 'nearW': 960},
         'phone': {'src': '/assets/cutscene/phone.png', 'w': PW, 'h': PH, 'frames': 2, 'rest': 0, 'swipe': 1,
                   'screen': list(SCREEN)},

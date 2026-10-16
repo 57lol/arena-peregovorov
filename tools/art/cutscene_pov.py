@@ -15,13 +15,13 @@ from PIL import Image, ImageDraw
 from room3d import FONT, T, Tex, darker, lighter
 
 BW, BH = 320, 180
-VIEW = -48            # сдвиг дальних лент (небо, берег, Кама) вверх: горизонт — на уровне глаз
+VIEW = -29            # сдвиг дальних лент (небо, берег, Кама) вверх: горизонт — на уровне глаз
 # боковое окно: смотрим перпендикулярно ходу, дороги не видно. Ленты пейзажа и их параллакс (доля скорости автобуса)
 FAR_PAR, RIVER_PAR = 0.12, 0.3   # дальний берег с заводами ОЭЗ и Кама
+FIELD_DY, NEAR_DY = 15, 9   # поля и обочина ниже: горизонт — в нижней трети стекла
 FIELD_PAR = 0.8       # поля и опушка на нашем берегу
 NEAR_PAR = 3.2        # кусты и трава у самой обочины — проносятся смазанно
 NEAR_BUSHES = [(90, 30), (420, 18), (700, 36)]   # центр и полуширина кустов на ленте 960
-WIN = (8, 22, 146, 116)                       # стекло ближнего окна в кадре, x0, y0, x1, y1 включительно
 rng = np.random.default_rng(1610)    # свой генератор: остальные листы не меняются
 
 SKIN, SKIN_S, SKIN_D, SKIN_L = 16, 15, 14, 17
@@ -33,17 +33,17 @@ GLYPH = dict(FONT, **{'У': ['#.#', '#.#', '.##', '..#', '##.'], 'Г': ['###', '
 
 # --- камера: глаз в начале координат, x вправо, y вверх, z вперёд по ходу; метры -----------------------------
 # Сидим у левого окна; голова чуть повёрнута к окну (точка схода правее центра) и опущена к телефону.
-F = 138.0
+F = 128.0
 CX, CY = 160.0, 92.0
-YAW = math.radians(21)
+YAW = math.radians(64)
 PITCH = math.radians(7)
 ZN = 0.12
 FLOOR, CEIL = -1.15, 0.92
 WALL_L, WALL_R = -0.34, 1.96
-SILL, WTOP = -0.22, 0.50              # низ и верх стёкол
+SILL, WTOP = -0.24, 0.36              # низ и верх стёкол
 RACK_Y, RACK_IN = 0.50, 0.06          # низ багажной полки и её кромка (x)
 FRONT = 9.5
-PANES = [(-0.6, 1.25), (1.39, 3.0), (3.14, 4.75), (4.89, 6.5), (6.64, 8.25)]
+PANES = [(-0.8, 1.02), (1.42, 3.0), (3.14, 4.75), (4.89, 6.5), (6.64, 8.25)]
 ROW_Z = [0.92 + 0.8 * i for i in range(11)]
 LEFT_PAIR = [(-0.31, 0.14), (0.17, 0.62)]
 RIGHT_PAIR = [(1.04, 1.49), (1.51, 1.95)]
@@ -52,8 +52,11 @@ SUN = np.array([0.9, -0.28, 0.42])   # куда летит свет заката
 SUN = SUN / np.linalg.norm(SUN)
 
 
+EYE = (0.50, 0.0, -0.2)   # глаз: чуть дальше от стены и сзади — окно видно целиком, трапецией
+
+
 def cam(p):
-    x, y, z = p
+    x, y, z = p[0] - EYE[0], p[1] - EYE[1], p[2] - EYE[2]
     xc = x * math.cos(YAW) + z * math.sin(YAW)
     zc = -x * math.sin(YAW) + z * math.cos(YAW)
     yc = y * math.cos(PITCH) + zc * math.sin(PITCH)
@@ -136,6 +139,16 @@ def wall_l(x0z, x1z, y0, y1, x=WALL_L):
     return [(x, y1, x0z), (x, y1, x1z), (x, y0, x1z), (x, y0, x0z)]
 
 
+def wall_rr(z0, z1, y0, y1, r, n=4, x=WALL_L):
+    """Скруглённый прямоугольник на левой стене (в плоскости y–z)."""
+    pts = []
+    for cz, cy, a0 in ((z1 - r, y1 - r, 0), (z0 + r, y1 - r, 90), (z0 + r, y0 + r, 180), (z1 - r, y0 + r, 270)):
+        for k in range(n + 1):
+            ang = math.radians(a0 + 90 * k / n)
+            pts.append((x, cy + r * math.sin(ang), cz + r * math.cos(ang)))
+    return pts
+
+
 def build_bus_pov():
     s = Scene()
     t = s.t
@@ -189,45 +202,38 @@ def build_bus_pov():
                 if c == '#':
                     t.px(x + dx, int(by) + 1 + dy, 22)
         x += len(rows[0]) + 1
-    # --- левая стена: простенки, стёкла прозрачные, форточки, подоконник, отопитель
+    # --- левая стена (как на фото с места у окна): окно в перспективе — трапеция, толстая светлая рама со
+    # скруглёнными углами и тёмный уплотнитель, под окном вдоль стены горизонтальная решётка обдува, ниже — столик
     s.quad([(WALL_L, CEIL, -1), (WALL_L, CEIL, FRONT), (WALL_L, FLOOR, FRONT), (WALL_L, FLOOR, -1)], 41)
-    s.quad(wall_l(-1, FRONT, FLOOR, SILL - 0.06), 40)
-    for z in np.arange(-0.9, FRONT, 0.07):
-        s.line((WALL_L + 0.01, -0.62, z), (WALL_L + 0.01, -0.82, z), 39)
-    s.line((WALL_L + 0.01, -0.6, -1), (WALL_L + 0.01, -0.6, FRONT), 41)
-    s.line((WALL_L + 0.01, -0.84, -1), (WALL_L + 0.01, -0.84, FRONT), 41)
-    for z0, z1 in PANES:
-        s.quad(wall_l(z0 - 0.04, z1 + 0.04, SILL - 0.03, WTOP + 0.03), 38)           # уплотнитель
-        s.quad(wall_l(z0, z1, SILL, WTOP), 29)                                       # дальние стёкла вскользь — закатный отблеск
-        s.quad(wall_l(z0, z1, SILL, (SILL + WTOP) / 2), 28)
-        s.quad(wall_l(z0, z1, WTOP - 0.17, WTOP - 0.14), 39)                          # перекладина форточки
-        s.line((WALL_L, WTOP - 0.14, z0), (WALL_L, WTOP - 0.14, z1), 41)
-        # блики на стекле — косые полоски, не едут вместе с пейзажем
-        for u, h in ((0.22, 0.34), (0.3, 0.16), (0.7, 0.26)):
-            z = z0 + (z1 - z0) * u
-            a, b = s.pt((WALL_L, 0.3, z)), s.pt((WALL_L, 0.3 - h, z + h * 0.6))
-            n = int(max(abs(b[0] - a[0]), abs(b[1] - a[1])))
-            for j in range(n):
-                xx, yy = a[0] + (b[0] - a[0]) * j / max(1, n), a[1] + (b[1] - a[1]) * j / max(1, n)
-                t.px(xx, yy, 45 if j % 6 else 44)
-                if h > 0.3:
-                    t.px(xx + 1, yy, 44 if j % 4 else T)
-    # подоконник — полочка
-    s.quad([(WALL_L, SILL - 0.02, -1), (WALL_L + 0.07, SILL - 0.02, -1), (WALL_L + 0.07, SILL - 0.02, FRONT),
-            (WALL_L, SILL - 0.02, FRONT)], 43)
-    s.quad([(WALL_L + 0.07, SILL - 0.02, -1), (WALL_L + 0.07, SILL - 0.06, -1), (WALL_L + 0.07, SILL - 0.06, FRONT),
-            (WALL_L + 0.07, SILL - 0.02, FRONT)], 41)
-    s.line((WALL_L + 0.07, SILL - 0.02, -1), (WALL_L + 0.07, SILL - 0.02, FRONT), 44)
-    # шторки, собранные у простенков, с подхватом
-    for z0, z1 in PANES:
-        for zc, w in ((z0 - 0.02, 0.16), (z1 - 0.12, 0.16)):
-            zs = np.linspace(zc, zc + w, 5)
-            for j, (a, b) in enumerate(zip(zs, zs[1:])):
-                s.quad([(WALL_L + 0.03, WTOP + 0.04, a), (WALL_L + 0.03, WTOP + 0.04, b), (WALL_L + 0.03, SILL + 0.06, b),
-                        (WALL_L + 0.03, SILL + 0.06, a)], CURT_L if j == 0 else CURT if j % 2 else CURT_S)
-            s.quad([(WALL_L + 0.035, 0.08, zc - 0.01), (WALL_L + 0.035, 0.08, zc + w + 0.01), (WALL_L + 0.035, 0.05, zc + w + 0.01),
-                    (WALL_L + 0.035, 0.05, zc - 0.01)], 23)
-    s.line((WALL_L + 0.03, WTOP + 0.05, -1), (WALL_L + 0.03, WTOP + 0.05, FRONT), 44)   # карниз
+    s.quad(wall_l(-1, FRONT, FLOOR, SILL - 0.1), 40)
+    for y in np.arange(SILL - 0.11, SILL - 0.27, -0.026):                         # решётка обдува
+        s.line((WALL_L + 0.005, y, -1), (WALL_L + 0.005, y, FRONT), 38)
+        s.line((WALL_L + 0.005, y - 0.009, -1), (WALL_L + 0.005, y - 0.009, FRONT), 42)
+    for k, (z0, z1) in enumerate(PANES):
+        s.quad(wall_rr(z0 - 0.09, z1 + 0.09, SILL - 0.08, WTOP + 0.08, 0.14), 43)   # рама
+        s.quad(wall_rr(z0 - 0.09, z1 + 0.09, SILL - 0.08, SILL - 0.04, 0.0), 42)
+        s.quad(wall_rr(z0 - 0.03, z1 + 0.03, SILL - 0.025, WTOP + 0.025, 0.1), 38)  # уплотнитель
+        s.quad(wall_rr(z0 - 0.015, z1 + 0.015, SILL - 0.012, WTOP + 0.012, 0.09), 39)
+        s.quad(wall_rr(z0, z1, SILL, WTOP, 0.08), T if k < 2 else 29)             # стекло; дальние вскользь — отблеск
+        if k >= 2:
+            s.quad(wall_l(z0 + 0.05, z1 - 0.05, SILL, (SILL + WTOP) / 2), 28)
+        # блики на стекле — косые полоски, стоят на месте, пока пейзаж едет
+        if k < 2:
+            for u, h in ((0.6, 0.22), (0.66, 0.12)):
+                z = z0 + (z1 - z0) * u
+                a_, b_ = s.pt((WALL_L, 0.36, z)), s.pt((WALL_L, 0.36 - h, z + h * 0.8))
+                n = int(max(abs(b_[0] - a_[0]), abs(b_[1] - a_[1])))
+                for j in range(n):
+                    xx = a_[0] + (b_[0] - a_[0]) * j / max(1, n)
+                    yy = a_[1] + (b_[1] - a_[1]) * j / max(1, n)
+                    t.px(xx, yy, 44 if j % 4 == 0 else T)
+    # столик у окна: столешница и кромка — ниже решётки, коротким выступом у нашего места
+    ty, tx, tz = SILL - 0.32, WALL_L + 0.16, 0.25
+    s.quad([(WALL_L, ty, -1), (tx, ty, -1), (tx, ty, tz), (WALL_L, ty, tz)], 13)
+    s.quad([(tx, ty, -1), (tx, ty - 0.035, -1), (tx, ty - 0.035, tz), (tx, ty, tz)], 12)
+    s.quad([(WALL_L, ty, tz), (tx, ty, tz), (tx, ty - 0.035, tz), (WALL_L, ty - 0.035, tz)], 12)
+    s.line((tx, ty, -1), (tx, ty, tz), 14)
+    s.line((WALL_L, ty, tz), (tx, ty, tz), 14)
     # --- багажная полка слева: низ, кромка, лампочки и обдув над рядами
     s.quad([(WALL_L, RACK_Y, -1), (RACK_IN, RACK_Y, -1), (RACK_IN, RACK_Y, FRONT), (WALL_L, RACK_Y, FRONT)], 39)
     s.quad([(RACK_IN, RACK_Y, -1), (RACK_IN, RACK_Y + 0.12, -1), (RACK_IN, RACK_Y + 0.12, FRONT), (RACK_IN, RACK_Y, FRONT)], 41)
@@ -257,8 +263,6 @@ def build_bus_pov():
     # поручень над проходом справа
     s.line((1.0, 0.68, -1), (1.0, 0.68, FRONT), 43)
     s.line((1.0, 0.665, -1), (1.0, 0.665, FRONT), 40)
-    window_panel(t)
-    s.kind[:, :WIN[2] + 11] = 0
     # --- свои колени в джинсах внизу
     xs, ys = t.grid()
     knee = ((xs - 150) / 70) ** 2 + ((ys - 204) / 32) ** 2 <= 1
@@ -402,8 +406,9 @@ def sunlight(s):
         if not m.any():
             continue
         den = n[0] * dx + n[1] * dy + n[2] * dz
-        tt = np.where(np.abs(den) > 1e-6, c / np.where(np.abs(den) > 1e-6, den, 1), 0)
-        px, py, pz = dx * tt, dy * tt, dz * tt
+        c0 = c - (n[0] * EYE[0] + n[1] * EYE[1] + n[2] * EYE[2])
+        tt = np.where(np.abs(den) > 1e-6, c0 / np.where(np.abs(den) > 1e-6, den, 1), 0)
+        px, py, pz = EYE[0] + dx * tt, EYE[1] + dy * tt, EYE[2] + dz * tt
         # к солнцу: p - u*SUN, до левой стены
         u = (px - WALL_L) / SUN[0]
         wy, wz = py - u * SUN[1], pz - u * SUN[2]
@@ -437,61 +442,6 @@ def rounded(t, x0, y0, x1, y1, r, c):
     if r:
         for cx, cy in ((x0 + r, y0 + r), (x1 - r + 1, y0 + r), (x0 + r, y1 - r + 1), (x1 - r + 1, y1 - r + 1)):
             t.ellipse(cx, cy, r + 0.3, r + 0.3, c)
-
-
-def window_panel(t):
-    """Ближнее окно слева — как его видит сидящий рядом: прямоугольник стекла в резиновом уплотнителе, форточка,
-    шторка у края, внизу подоконник и стенка с решёткой отопителя, сверху кромка багажной полки. Пейзаж — только
-    в стекле (прозрачные пиксели), ни одной диагонали: автобус едет прямо, окно смотрит вбок."""
-    x0, y0, x1, y1 = WIN
-    R = x1 + 10                                     # правый край панели — простенок
-    t.rect(0, 0, R, BH - 1, 41)
-    # кромка полки и стенка над окном
-    t.rect(0, 0, R, 8, 39)
-    t.rect(0, 9, R, 11, 40)
-    t.rect(0, 11, R, 11, 43)
-    t.rect(0, 15, R, 15, 44)                        # карниз шторки
-    # уплотнитель и стекло со скруглёнными углами
-    rounded(t, x0 - 4, y0 - 4, x1 + 4, y1 + 4, 5, 37)
-    rounded(t, x0 - 3, y0 - 3, x1 + 3, y1 + 3, 4, 38)
-    t.rect(x0 - 1, y0 - 3, x1 - 1, y0 - 3, 39)
-    rounded(t, x0, y0, x1, y1, 3, T)
-    # форточка: верхняя створка с перекладиной и стыком
-    t.rect(x0, y0 + 17, x1, y0 + 19, 38)
-    t.rect(x0, y0 + 17, x1, y0 + 17, 40)
-    t.rect(x0 + 66, y0, x0 + 67, y0 + 17, 38)
-    t.rect(x0 + 60, y0 + 15, x0 + 72, y0 + 16, 40)    # защёлка
-    # блики на стекле: короткие косые полосы в углах — стоят на месте, пока пейзаж едет
-    for bx, by, n in ((x0 + 8, y0 + 24, 9), (x0 + 12, y0 + 24, 5), (x1 - 30, y1 - 18, 7)):
-        for j in range(n):
-            t.px(bx + j, by + j, 44 if j % 3 else T)
-    for j in range(10):
-        t.px(x0 + 70 + j, y0 + 2 + j // 2, 44 if j % 3 else T)
-    # подоконник и стенка под окном
-    t.rect(0, y1 + 5, R, y1 + 9, 43)
-    t.rect(0, y1 + 5, R, y1 + 5, 44)
-    t.rect(0, y1 + 10, R, y1 + 11, 39)
-    t.rect(0, y1 + 12, R, BH - 1, 40)
-    for yy in range(y1 + 22, BH - 8, 5):              # решётка отопителя
-        t.rect(6, yy, R - 6, yy + 1, 39)
-        t.rect(6, yy + 2, R - 6, yy + 2, 41)
-    t.rect(0, BH - 6, R, BH - 1, 39)
-    # простенок справа: металлическая стойка
-    t.rect(x1 + 5, 0, R, BH - 1, 40)
-    t.rect(x1 + 5, 0, x1 + 5, BH - 1, 42)
-    t.rect(R, 0, R, BH - 1, 38)
-    # шторки, собранные у краёв окна: складки, подхват, кисточка внизу
-    for cx, w in ((0, 13), (x1 - 9, 15)):
-        top, bot = 14, y1 - 22
-        t.rect(cx, top, cx + w, bot, CURT)
-        for k in range(cx + 1, cx + w, 3):
-            t.rect(k, top, k, bot, CURT_S)
-        t.rect(cx + 2, top, cx + 2, bot, CURT_L)
-        t.rect(cx, top, cx + w, top + 1, CURT_L)
-        t.rect(cx - 1, 60, cx + w + 1, 62, 23)       # подхват
-        t.rect(cx - 1, 60, cx + w + 1, 60, 22)
-        t.poly([(cx, bot), (cx + w, bot), (cx + w - 2, bot + 9), (cx + 2, bot + 9)], CURT_S)
-        t.rect(cx + 2, bot + 9, cx + w - 2, bot + 9, CURT)
 
 
 def build_field():
@@ -688,7 +638,7 @@ def dusk_preview(out_path, assets, pov, sun, field, near, phone, view, shift=0):
     canvas = Image.new('RGBA', (BW, BH), (9, 10, 20, 255))
     canvas.alpha_composite(Image.open(f'{assets}/sky_dusk.png').convert('RGBA'), (0, view))
     for name, par, img, dy in (('road_far', FAR_PAR, None, view), ('road_river', RIVER_PAR, None, view),
-                               (None, FIELD_PAR, field, 0), (None, NEAR_PAR, near, 0)):
+                               (None, FIELD_PAR, field, FIELD_DY), (None, NEAR_PAR, near, NEAR_DY)):
         im = tone(Image.open(f'{assets}/{name}.png')) if name else tone(img.image())
         layer = Image.new('RGBA', (BW, BH))
         off = int(shift * par) % im.width
