@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import type { Case } from '../../App'
 import { getScenario, harder, SCENARIOS } from '../../content/scenarios'
+import { isEn } from '../../engine/lang'
 import { CHAPTERS } from '../../content/story'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import type { Health } from '../api'
@@ -43,10 +44,13 @@ interface Props {
 }
 
 const DEMO = 'tara'
+/** Дело на английском: переговоры с иностранным поставщиком, разбор — по-русски. */
+const ENGLISH = 'istanbul'
 const PROVIDER: Record<string, string> = { yandex: 'YandexGPT', anthropic: 'Claude', openai: 'GPT', 'claude-cli': 'Claude' }
 
 export function Jury(p: Props) {
   const demo = getScenario(DEMO)!
+  const english = getScenario(ENGLISH)!
   const lib = (sc: Scenario) => ({ scenario: sc, fromLibrary: true })
   return (
     <div className="px-root g-page" data-desk="factory">
@@ -105,6 +109,15 @@ export function Jury(p: Props) {
           </li>
         </ol>
 
+        <button type="button" className="jr-step jr-en" onClick={() => p.onOpen(lib(english))}>
+          <Face sc={english} />
+          <span className="jr-step-name">🇬🇧 English: поставщик из Стамбула</span>
+          <span className="jr-step-note">
+            переговоры на английском с экспорт-менеджером {english.opponent.character.name}, {english.turnLimit} реплик; разбор и подсказки —
+            по-русски
+          </span>
+        </button>
+
         <div className="jr-grid">
           <section className="g-sheet jr-sheet" aria-labelledby="jr-cases">
             <h2 id="jr-cases" className="jr-h2">
@@ -116,7 +129,7 @@ export function Jury(p: Props) {
                 <li key={sc.id}>
                   <button type="button" className="jr-case" onClick={() => p.onOpen(lib(sc))}>
                     <Face sc={sc} />
-                    <span className="jr-case-name">{sc.title}</span>
+                    <span className="jr-case-name">{isEn(sc) ? `🇬🇧 ${sc.title}` : sc.title}</span>
                     <span className="jr-case-sphere">{sc.sphere}</span>
                   </button>
                   <Button variant="stamp" className="jr-hard" title="То же дело, но собеседник упрямее и реже раскрывается" onClick={() => p.onOpen(lib(harder(sc)))}>

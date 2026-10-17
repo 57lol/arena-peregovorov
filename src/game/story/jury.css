@@ -102,6 +102,15 @@
   color: var(--c-wood-3);
 }
 
+/* дело на английском — отдельной карточкой под путём */
+.jr-en {
+  height: auto;
+  margin: calc(-6 * var(--u)) 0 calc(12 * var(--u));
+}
+.jr-en .jr-face {
+  grid-row: 1 / 3;
+}
+
 /* ——— листы ——— */
 
 .jr-grid {
