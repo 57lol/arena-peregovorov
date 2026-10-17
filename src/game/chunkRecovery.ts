@@ -22,14 +22,6 @@ export function createChunkRecovery(storage: Pick<Storage, 'getItem' | 'setItem'
       return false
     }
   }
-  const importChunk = async <T>(load: () => Promise<T>): Promise<T> => {
-    try {
-      return await load()
-    } catch (error) {
-      if (isChunkError(error)) reloadOnce()
-      throw error
-    }
-  }
   const install = (target: Window) => {
     const preload = (event: Event) => { if (reloadOnce()) event.preventDefault() }
     const rejection = (event: PromiseRejectionEvent) => {
@@ -42,7 +34,7 @@ export function createChunkRecovery(storage: Pick<Storage, 'getItem' | 'setItem'
       target.removeEventListener('unhandledrejection', rejection)
     }
   }
-  return { importChunk, install, reloadOnce }
+  return { install, reloadOnce }
 }
 
 const recovery = createChunkRecovery({
@@ -50,7 +42,6 @@ const recovery = createChunkRecovery({
   setItem: (key, value) => window.sessionStorage.setItem(key, value),
 }, () => window.location.reload())
 
-export const importChunk = recovery.importChunk
 export const installChunkRecovery = () => recovery.install(window)
-/** Ошибка отрисовки оказалась битым чанком — перезагрузиться (не чаще раза в минуту). */
+/** Ошибка отрисовки оказалась битым чанком (React.lazy, ErrorBoundary) — перезагрузиться (не чаще раза в минуту). */
 export const reloadForChunk = recovery.reloadOnce
