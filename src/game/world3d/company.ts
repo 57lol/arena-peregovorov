@@ -3,6 +3,7 @@
 import type { Camera, Group } from 'three'
 import { PORTRAITS, type PortraitEmotion, type PortraitId } from '../ui/assets'
 import { chapterOf } from '../../content/story'
+import type { ExitPlan } from './exit'
 import { SEATS } from './layout'
 import { Person } from './people'
 
@@ -45,8 +46,8 @@ export class Company {
   private stirGaze: 'you' | 'table' = 'you'
   private t = 0
 
-  constructor(root: Group, caseId: string, opponent: PortraitId) {
-    this.lead = new Person({ id: opponent, x: SEATS.opponent.x, z: SEATS.opponent.z, lead: true })
+  constructor(root: Group, caseId: string, opponent: PortraitId, exit?: { plan: ExitPlan; door?: (open: number) => void }) {
+    this.lead = new Person({ id: opponent, x: SEATS.opponent.x, z: SEATS.opponent.z, lead: true, exit: exit?.plan, door: exit?.door })
     root.add(this.lead.group)
     const ids = extrasFor(caseId, opponent)
     const seats = ids.length === 3 ? [SEATS.extras[0], SEATS.extras[1], SEATS.extras[(seedOf(caseId) >> 3) % 2 ? 2 : 3]] : SEATS.extras

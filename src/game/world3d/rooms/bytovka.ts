@@ -8,7 +8,7 @@
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, CylinderGeometry, DirectionalLight, Group, type MeshBasicMaterial, Object3D, PlaneGeometry, SphereGeometry } from 'three'
 import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
-import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads } from '../roomkit'
+import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads, SwingDoor } from '../roomkit'
 import type { StoryRoom } from './index'
 import { ATLAS, PLACE } from './bytovka.gen'
 
@@ -251,7 +251,8 @@ function buildBytovka(): RoomBuild {
   box(0.2, 0.02, 0.28, 'c38', -HW + 0.14, hy + 0.03, hz0 + 0.45)
   const [dz0, dz1, dh] = P.door
   const dm = (dz0 + dz1) / 2
-  box(dz1 - dz0, dh, 0.05, F('door_m', 'c39'), -HW + 0.025, 0, dm, PI / 2)
+  const door = new SwingDoor(soup, -HW, dz0, dz1, dh)
+  door.tools.box(dz1 - dz0, dh, 0.05, F('door_m', 'c39'), -HW + 0.025, 0, dm, PI / 2)
   box(dz1 - dz0 + 0.14, 0.06, 0.025, 'c40', -HW + 0.013, dh, dm, PI / 2)
   for (const zz of [dz0 - 0.035, dz1 + 0.035]) box(0.06, dh, 0.025, 'c40', -HW + 0.013, 0, zz, PI / 2)
   art(0.08, 0.08, 'switch', -HW + 0.003, 1.35, dz0 - 0.18, PI / 2, 1)
@@ -346,6 +347,7 @@ function buildBytovka(): RoomBuild {
 
   // ------------------------------------------------------------------ собрать суп
   for (const m of soup.build(kit, maps)) g.add(m)
+  g.add(door.build(kit, maps))
 
   // свет — для Lambert-материалов людей и рук, как в room.ts
   g.add(new AmbientLight(0xffffff, 2.4))
@@ -371,7 +373,7 @@ function buildBytovka(): RoomBuild {
     const c = blink ? 0.9 : 1
     for (const m of surfMats) m.color.setScalar(c)
   }
-  return { group: g, clock: { hour, minute }, update, dispose: () => kit.dispose() }
+  return { group: g, clock: { hour, minute }, update, door: (k) => door.open(k), dispose: () => kit.dispose() }
 }
 
 export const ROOM: StoryRoom = { kind: 'bytovka', build: buildBytovka }

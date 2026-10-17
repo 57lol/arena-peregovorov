@@ -66,8 +66,13 @@ function buildShop(): RoomBuild {
   box(d1 - d0, 0.08, 0.07, 'alu', -HW - 0.01, 2.08, (d0 + d1) / 2) // над дверью
   box(0.05, 0.05, 0.05, 'c27', -HW + 0.03, 2.2, (d0 + d1) / 2) // датчик двери
   // стекло изнутри: блики ламп, фирменная полоса, режим работы на двери
-  for (const [za, zb] of [[g0, d0], [d0, d1], [d1, g1]]) art(zb - za, gy1 - gy0, 'glass_in', -HW + 0.005, (gy0 + gy1) / 2, (za + zb) / 2, PI / 2, 0)
-  art(0.34, 0.22, 'hours', -HW + 0.01, 1.35, d1 - 0.25, PI / 2, 0)
+  for (const [za, zb] of [[g0, d0], [d1, g1]]) art(zb - za, gy1 - gy0, 'glass_in', -HW + 0.005, (gy0 + gy1) / 2, (za + zb) / 2, PI / 2, 0)
+  // створка автоматической двери — своим мешем: отъезжает влево за стекло, когда собеседник уходит на улицу
+  const leafSoup = new Soup(ATLAS.w, ATLAS.h, rects)
+  const leafTools = leafSoup.tools()
+  leafTools.art(d1 - d0, gy1 - gy0, 'glass_in', -HW + 0.012, (gy0 + gy1) / 2, (d0 + d1) / 2, PI / 2, 0)
+  leafTools.art(0.34, 0.22, 'hours', -HW + 0.017, 1.35, d1 - 0.25, PI / 2, 0)
+  for (const z of [d0 + 0.02, d1 - 0.02]) leafTools.box(0.04, gy1 - gy0, 0.03, 'alu', -HW + 0.012, gy0, z, PI / 2)
 
   // ------------------------------------------------------------------ стеллажи, холодильники
   for (const [wall, a0, n, hh, d, v0] of P.shelves) {
@@ -172,6 +177,9 @@ function buildShop(): RoomBuild {
   const atlas0 = kit.tex('shop_atlas0')
   const maps = [kit.mat(atlas0, true), kit.mat(kit.tex('shop_atlas1'), true), kit.mat(kit.tex('shop_atlas2'), true)]
   for (const m of soup.build(kit, maps)) g.add(m)
+  const leaf = new Group()
+  for (const m of leafSoup.build(kit, maps)) leaf.add(m)
+  g.add(leaf)
 
   // машина за витриной: рисуем её на плоскости перед видом — точно там, где её видно из глаз
   const carSoup = new Soup(ATLAS.w, ATLAS.h, rects)
@@ -204,7 +212,9 @@ function buildShop(): RoomBuild {
   }
 
   const dispose = () => kit.dispose()
-  return { group: g, clock: { hour, minute }, update, dispose }
+  // дверь открывается, отъезжая за неподвижное стекло слева
+  const door = (k: number) => void (leaf.position.z = -Math.max(0, Math.min(1, k)) * (d1 - d0) * 0.92)
+  return { group: g, clock: { hour, minute }, update, door, dispose }
 }
 
 export const ROOM: StoryRoom = { kind: 'shop', build: buildShop }

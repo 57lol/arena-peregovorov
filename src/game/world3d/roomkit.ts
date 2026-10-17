@@ -8,11 +8,13 @@ import {
   CylinderGeometry,
   DoubleSide,
   Euler,
+  Group,
   LinearMipmapLinearFilter,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
+  Object3D,
   PlaneGeometry,
   Quaternion,
   RepeatWrapping,
@@ -155,6 +157,53 @@ export class Soup {
       if (cross) this.add(new PlaneGeometry(w * cross, h).translate(0, h / 2, 0), at(x, y0, z, ry + 1.2), name, 0)
     }
     return { box, cyl, art, sprite }
+  }
+}
+
+/**
+ * Дверь в левой стене, через которую уходит собеседник. Полотно — свой меш на петлях у ближнего к игроку края (z1)
+ * и открывается наружу, в коридор: из комнаты это видно как сужение полотна к петлям, за ним — тёмный проём.
+ * Так полотно не задевает фикусы и вешалки у двери и не закрывает проём от игрока. Всё, что висит на полотне
+ * (номер комнаты, график дежурств), кладут через tools — в координатах мира, как у soup.tools().
+ */
+export class SwingDoor {
+  private readonly soup: Soup
+  private readonly pivot = new Object3D()
+  readonly tools: ReturnType<Soup['tools']>
+  private readonly wallX: number
+  private readonly z0: number
+  private readonly z1: number
+  private readonly h: number
+  constructor(like: Soup, wallX: number, z0: number, z1: number, h: number) {
+    this.wallX = wallX
+    this.z0 = z0
+    this.z1 = z1
+    this.h = h
+    this.soup = new Soup(like.w, like.h, like.rects)
+    const hx = wallX + 0.025
+    this.pivot.position.set(hx, 0, z1)
+    const t = this.soup.tools()
+    this.tools = {
+      box: (w, h, d, f, x, y0, z, ...r) => t.box(w, h, d, f, x - hx, y0, z - z1, ...r),
+      cyl: (rt, rb, h, seg, f, x, y0, z, ...r) => t.cyl(rt, rb, h, seg, f, x - hx, y0, z - z1, ...r),
+      art: (w, h, name, x, yc, z, ...r) => t.art(w, h, name, x - hx, yc, z - z1, ...r),
+      sprite: (w, h, name, x, y0, z, ...r) => t.sprite(w, h, name, x - hx, y0, z - z1, ...r),
+    }
+  }
+
+  /** Меши полотна и тёмный проём за ним — когда у комнаты готовы материалы атласа. */
+  build(kit: Kit, maps: MeshBasicMaterial[]) {
+    const g = new Group()
+    for (const m of this.soup.build(kit, maps)) this.pivot.add(m)
+    const { wallX: x, z0, z1, h } = this
+    const dark = kit.mesh(quads([{ p: [x + 0.004, 0, z1, x + 0.004, 0, z0, x + 0.004, h, z0, x + 0.004, h, z1], uv: [0, 0, 1, 0, 1, 1, 0, 1] }]), kit.mat(null, false, 0x151d28))
+    g.add(dark, this.pivot)
+    return g
+  }
+
+  /** 0 — закрыта, 1 — распахнута наружу (от полотна видна узкая полоска у петель). */
+  open(k: number) {
+    this.pivot.scale.z = Math.max(0.001, Math.cos(Math.max(0, Math.min(1, k)) * 1.38))
   }
 }
 

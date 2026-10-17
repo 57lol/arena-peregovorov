@@ -2,6 +2,7 @@
 // Пока у места нет своей комнаты, встреча идёт в ближайшей по духу переговорной.
 
 import { buildRoom, type RoomBuild, type RoomKind } from '../room'
+import { EXITS, type ExitPlan } from '../exit'
 
 /** Места кампании: комната в общаге, остановка у ларька, магазин у дома, бытовка цеха, кабинет закупок «Инея». */
 export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka', 'inei'] as const
@@ -23,8 +24,9 @@ const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office'
 
 export const isStoryKind = (k: string): k is StoryKind => (STORY_KINDS as readonly string[]).includes(k)
 
-export function buildAnyRoom(kind: WorldKind): RoomBuild {
-  if (!isStoryKind(kind)) return buildRoom(kind)
+/** Комната и путь, которым из неё уходит собеседник (у запасной переговорной — её путь). */
+export function buildAnyRoom(kind: WorldKind): RoomBuild & { exit: ExitPlan } {
+  if (!isStoryKind(kind)) return { ...buildRoom(kind), exit: EXITS[kind] }
   const b = BUILDERS[kind]
-  return b ? b() : buildRoom(FALLBACK[kind])
+  return b ? { ...b(), exit: EXITS[kind] } : { ...buildRoom(FALLBACK[kind]), exit: EXITS[FALLBACK[kind]] }
 }

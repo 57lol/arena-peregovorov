@@ -5,10 +5,11 @@ import { DefaultLoadingManager, MathUtils, PerspectiveCamera, Raycaster, Scene, 
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import type { PortraitId } from '../ui/assets'
 import { Company } from './company'
-import { Head, type Pose } from './head'
+import { Head, YAW_MAX, type Pose } from './head'
 import { EYE, SEATS, SPRITE_M_PER_PX } from './layout'
 import { Desk, type PaperId } from './papers'
 import { PixelPipeline } from './post'
+import type { ExitPlan } from './exit'
 import type { RoomBuild } from './room'
 import { buildAnyRoom, type WorldKind } from './rooms'
 
@@ -43,7 +44,7 @@ export class World {
   readonly css: CSS3DRenderer
   readonly desk = new Desk()
   readonly company: Company | null = null
-  room: RoomBuild
+  room: RoomBuild & { exit: ExitPlan }
   /** CSS-пикселей на одну игровую точку */
   px = 4
   cw = 0
@@ -95,7 +96,7 @@ export class World {
     this.room = buildAnyRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
-    if (o.opponent) this.company = new Company(this.room.group, o.caseId ?? '', o.opponent)
+    if (o.opponent) this.company = new Company(this.room.group, o.caseId ?? '', o.opponent, { plan: this.room.exit, door: this.room.door })
     this.camera.rotation.order = 'YXZ'
     if (o.reducedMotion) this.head.stiffness = 30
     this.ro = new ResizeObserver(() => this.resize())
@@ -176,6 +177,7 @@ export class World {
       this.fpsT = 0
       this.fpsN = 0
     }
+    this.followExit()
     const h = this.head
     h.update(dt)
     this.xray += (this.xrayTarget - this.xray) * (1 - Math.exp(-dt * 6))
@@ -210,6 +212,21 @@ export class World {
 
   look(p: Pose) {
     this.head.look(p)
+  }
+
+  /** Собеседник уходит — игрок провожает его взглядом до двери, а когда дверь за ним закрылась, смотрит на стол переговоров. */
+  private following = false
+  private followExit() {
+    const lead = this.company?.lead
+    if (lead?.walking) {
+      const p = lead.exitAt
+      this.head.ty = MathUtils.clamp(Math.atan2(EYE.x - p.x, EYE.z - p.z), -YAW_MAX, YAW_MAX)
+      this.head.tp = this.head.poses.face.pitch
+      this.following = true
+    } else if (this.following && (lead?.exited || !lead?.leaving)) {
+      this.following = false
+      this.look('face')
+    }
   }
 
   /** Точка мира → CSS-пиксели относительно контейнера; behind — за спиной камеры. */
