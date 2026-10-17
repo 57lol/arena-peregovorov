@@ -6,8 +6,9 @@
   v1 — короткая стрижка с сединой на висках, аккуратные усы, тёмно-синий костюм, бордовый галстук
   v2 — залысины, короткая седеющая щетина-борода, очки-полуоправа, графитовый костюм без галстука
   v3 — тёмные волосы зачёсаны назад, чисто выбрит, прищур, почти чёрный костюм, тёмно-синий галстук
+  v3y — v3 моложе, ~45: почти без седины, кожа ровнее, лицо чуть уже (выбор капитана, DEFAULT)
 
-Выбор варианта для игры: tools/art/portraits.py --rinat v2 (без флага rinat.png рисуется старым лицом).
+Выбор варианта для игры: tools/art/portraits.py rinat --rinat v2 (без флага — DEFAULT, old — прежнее лицо).
 Все варианты и превью: tools/art/portraits.py --rinat-variants
 """
 import os
@@ -252,7 +253,47 @@ def v3():
     return P
 
 
-VARIANTS = {'v1': v1, 'v2': v2, 'v3': v3}
+def v3y():
+    """v3 моложе, ~45: те же зачёс назад, прищур и чёрный костюм, но волосы почти без седины,
+    кожа ровнее, лицо чуть уже, морщин минимум."""
+    P = v3()
+    f = Face(**{**FACE, 'rx': 19, 'cheek': 2.6, 'jaw_w': 16.5, 'chin_w': 8.5, 'jaw_p': 2.8})
+    HAIR = [36, 37, 38, 39]
+    ey = P['ey']
+    frame_of = P['_frame']
+
+    def hair(c, P, emotion):
+        xs, ys = grid()
+        u = (xs - CX) / f.rx
+        vol = ellipse_mask(CX, f.cy - 3, f.rx + 2.4, 25.8)
+        # зачёс назад, линия волос ровная и чуть ниже, без залысин
+        hl = 22.5 + 2.2 * u ** 2 + 1.0 * np.exp(-((np.abs(u) - 0.62) / 0.15) ** 2)
+        top = vol & (ys < hl)
+        sides = vol & (np.abs(xs - CX) > f.rx - 2.5) & (ys < ey)
+        h = top | sides
+        hair_paint(c, h, HAIR, f)
+        # пряди назад — тёмные дуги и блики, одна-две седые нити у виска
+        for pts in ([(37, 23), (42, 15), (49, 12)], [(52, 22), (56, 16), (60, 15)], [(31, 27), (34, 20)]):
+            line(c, pts, 36)
+        for pts in ([(41, 21), (45, 15), (50, 13)], [(58, 22), (61, 18)]):
+            line(c, pts, 39)
+        line(c, [(47, 21), (51, 16)], 40)
+        c[30, 30] = 40
+        c[31, 66] = 39
+
+    def extra(c, P, emotion):
+        S = P['skin']
+        face = f.mask()
+        # скулы мягче, чем у v3: только блик и лёгкая тень
+        paint(c, face & ellipse_mask(CX - f.rx + 6, ey + 6, 3.0, 1.2), S[3])
+        v3_squint(c, P, emotion, frame_of.get('f', 'idle'))
+
+    P.update(face=f, hair=hair, extra=extra, age=44, neck=11, cuts=[0.07, 0.28, 0.86], brow=(36, 2))
+    return P
+
+
+VARIANTS = {'v1': v1, 'v2': v2, 'v3': v3, 'v3y': v3y}
+DEFAULT = 'v3y'
 
 
 def builder(name):
