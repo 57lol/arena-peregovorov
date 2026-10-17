@@ -88,7 +88,8 @@ if (cmd === 'turn') {
   const { llm } = makeLLM('yandex')
   const r0 = await rubNow()
   const t0 = Date.now()
-  const a = await analyzeMove(llm.analyzer ?? llm, sc, dict, history, text, before.lastOpponentOffer)
+  // дело на английском размечает своя модель (ANALYZE_LLM_EN, по умолчанию Sonnet), как в /api/turn
+  const a = await analyzeMove((sc.lang === 'en' && llm.analyzerEn) || llm.analyzer || llm, sc, dict, history, text, before.lastOpponentOffer)
   const msA = Date.now() - t0
   const rubA = (await rubNow()) - r0
   const analysis = withContext(a.analysis, before, history, dict)
