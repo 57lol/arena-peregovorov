@@ -149,7 +149,15 @@ describe('безопасный вариант: согласие и причин�
 describe('пометки для голоса', () => {
   it('на экране и у голосов без ElevenLabs их нет; знакомые остаются, чужие и лишние — убираем', () => {
     expect(stripTags('[laughs] Ну ты даёшь. [sighs] Ладно.')).toBe('Ну ты даёшь. Ладно.')
-    expect(normalizeTags('[Laughs] Ну [с усмешкой] ты [sighs] даёшь [whispers] ладно')).toBe('[laughs] Ну ты [sighs] даёшь ладно')
+    expect(normalizeTags('[Laughs] Ну [с усмешкой] ты [sighs] даёшь [whispers] ладно')).toBe('[laughs] Ну ты даёшь ладно')
+    // одна пометка; подача и шёпот — только в начале; звук — только между фразами; шёпот — только в короткой реплике
+    expect(normalizeTags('Ну ты даёшь. [sighs] Ладно, давай.')).toBe('Ну ты даёшь. [sighs] Ладно, давай.')
+    expect(normalizeTags('Ну ты, [sighs] даёшь.')).toBe('Ну ты, даёшь.')
+    expect(normalizeTags('Камера красивая. [sarcastic] Пока пустая.')).toBe('Камера красивая. Пока пустая.')
+    expect(normalizeTags('[sarcastic] Камера красивая. Пока пустая.')).toBe('[sarcastic] Камера красивая. Пока пустая.')
+    expect(normalizeTags('Ориентир — двести десять. [whispers] Если честно, Казань предлагает сто девяносто пять.')).toBe('Ориентир — двести десять. Если честно, Казань предлагает сто девяносто пять.')
+    expect(normalizeTags('[whispers] Только пацанам не говори.')).toBe('[whispers] Только пацанам не говори.')
+    expect(normalizeTags('[whispers] И по выходным до двух ночи у меня пацаны с приставкой, так что ты привыкай.')).not.toContain('[whispers]')
     expect(stripTags('Ну, sil<[220]> смотрите: <[small]> 204')).toBe('Ну, sil<[220]> смотрите: <[small]> 204')
   })
 })
