@@ -16,7 +16,7 @@ import { WAIT } from './timeouts'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-const VOICE_VERSION = 'v12'
+const VOICE_VERSION = 'v13'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({
@@ -604,7 +604,9 @@ export interface VoiceOptions {
   trace?: (t: { model: string; attempt: number; line: string; hard: string[]; soft: string[]; ms: number }) => void
 }
 
-const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(/\s{2,}/g, ' ').trim())
+// ремарки, которые модели иногда пишут вместо пометок для голоса: [[laughs]], *вздыхает*, (смеётся), длинное [в квадратных скобках]
+const STAGE = /\[\[[^\]\n]{1,60}\]\]|\*[^*\n]{1,40}\*|\([^()\n]{1,40}\)|\[[^\]\n]{41,200}\]/gu
+const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 export async function voice(
   llm: LLM,

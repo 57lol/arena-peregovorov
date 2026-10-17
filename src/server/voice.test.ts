@@ -304,3 +304,15 @@ describe('проверка реплики: аудит 17.10', () => {
     expect(ok(tara, d, s, 'Есть у нас обязательства перед банком, вот и всё.', { reveals: ['m_leasing'] })).toBe(true)
   })
 })
+
+describe('ремарки модели не доходят ни до экрана, ни до голоса (аудит C, 17.10)', () => {
+  it('[[laughs]], *вздыхает*, (смеётся), длинная пометка — вырезаются; [chuckles] остаётся', async () => {
+    const s = { ...initialState(dorm), turn: 1, playerStance: { wifi: 2 } }
+    const offer = { wifi: 1, quiet: 0, cleaning: 0, guests: 3, kitty: 2 }
+    const line = '[[laughs]] Триста? *вздыхает* Не, давай четыреста пятьдесят (смеётся). [this is a very long stage direction that should not be read aloud] [chuckles] Ладно.'
+    const m: LLM = { name: 'aitunnel', model: `fake-${Math.random()}`, json: async () => ({ line, emotion: 'neutral', terms: [{ issue: 'wifi', option: 1 }], agrees: false, reveals: [] }) }
+    const v = await voice(m, dorm, [], 'Давай 300 за вай-фай', { kind: 'counter', offer }, s)
+    expect(v.line).not.toMatch(/laughs|вздыхает|смеётся|stage/)
+    expect(v.line).toContain('[chuckles]')
+  })
+})
