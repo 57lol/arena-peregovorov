@@ -204,11 +204,41 @@ export function llmFromSpec(spec: string, env = process.env): LLM {
   const [kind, ...rest] = spec.trim().split(':')
   const model = rest.join(':') || undefined
   switch (kind) {
-    case 'aitunnel': return aitunnel(model, undefined, env)
-    case 'yandex': return yandex(undefined, undefined, model)
-    case 'yandex-lite': return yandex(undefined, undefined, env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite')
+    case 'aitunnel': return patient(aitunnel(model, undefined, env))
+    case 'yandex': return patient(yandex(undefined, undefined, model))
+    case 'yandex-lite': return patient(yandex(undefined, undefined, env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite'))
     case 'offline': return offline
     default: throw new Error(`Не знаю модель «${spec}»`)
+  }
+}
+
+/**
+ * Модель зависла три раза подряд (таймаут) — две минуты её не ждём: ход сразу идёт запасным путём (другая модель,
+ * правила, заготовка), а не висит по 30 с на каждой реплике.
+ */
+export function patient(m: LLM, pauseMs = 120_000): LLM {
+  let fails = 0
+  let until = 0
+  return {
+    name: m.name,
+    get model() {
+      return m.model
+    },
+    async json(req) {
+      if (Date.now() < until) throw new Error(`${m.model} не отвечает, пробуем позже`)
+      try {
+        const r = await m.json(req)
+        fails = 0
+        return r
+      } catch (e) {
+        if ((e as Error).name === 'TimeoutError' && ++fails >= 3) {
+          until = Date.now() + pauseMs
+          fails = 0
+          console.warn(`[llm] ${m.model}: три таймаута подряд, ${pauseMs / 1000} с идём запасным путём`)
+        }
+        throw e
+      }
+    },
   }
 }
 
@@ -246,7 +276,7 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
     llm = llmFromSpec(kind, env)
     // у Яндекса разметка — своей моделью (YANDEX_ANALYZE_MODEL), бюджет общий
     const am = env.YANDEX_ANALYZE_MODEL
-    if (kind === 'yandex' && am && am !== (env.YANDEX_MODEL ?? 'yandexgpt-5.1')) llm.analyzer = yandex(undefined, undefined, undefined, am)
+    if (kind === 'yandex' && am && am !== (env.YANDEX_MODEL ?? 'yandexgpt-5.1')) llm.analyzer = patient(yandex(undefined, undefined, undefined, am))
   } catch (e) {
     return { llm: offline, error: (e as Error).message }
   }

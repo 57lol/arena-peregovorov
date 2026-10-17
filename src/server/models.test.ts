@@ -74,3 +74,15 @@ describe('/api/turn: реплика своей моделью', () => {
     expect(r.sources.errors?.join()).toMatch(/не в списке/)
   })
 })
+
+describe('зависшая модель (аудит 17.10)', () => {
+  it('три таймаута подряд — модель отдыхает, ход сразу идёт запасным путём', async () => {
+    const { patient } = await import('./llm')
+    let calls = 0
+    const slow: LLM = { name: 'aitunnel', model: 'slow', json: async () => (calls++, Promise.reject(Object.assign(new Error('timeout'), { name: 'TimeoutError' }))) }
+    const m = patient(slow)
+    for (let i = 0; i < 3; i++) await expect(m.json({ system: '', user: '', temperature: 0 })).rejects.toThrow('timeout')
+    await expect(m.json({ system: '', user: '', temperature: 0 })).rejects.toThrow(/не отвечает/)
+    expect(calls).toBe(3)
+  })
+})
