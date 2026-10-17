@@ -109,7 +109,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
         role={waiting ? 'status' : 'button'}
         tabIndex={waiting ? undefined : 0}
         aria-busy={waiting || undefined}
-        className="px-dialog-box"
+        className={`px-dialog-box${above && done && !waiting ? ' is-up' : ''}`}
         onClick={click}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

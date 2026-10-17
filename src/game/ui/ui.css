@@ -249,6 +249,10 @@
 .px-dialog-text.is-clipped {
   mask-image: linear-gradient(#000 calc(100% - var(--lh-read)), rgb(0 0 0 / 0.35) calc(100% - var(--lh-read)));
 }
+/* «↑ ещё» встаёт в свою строку над текстом, а не поверх его первой строки */
+.px-dialog-box.is-up {
+  padding-top: calc(3 * var(--u) + var(--lh-ui));
+}
 .px-dialog-up {
   position: absolute;
   right: calc(4 * var(--u));
