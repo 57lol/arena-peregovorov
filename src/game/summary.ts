@@ -5,7 +5,7 @@ import { behaviorById } from '../engine/behaviors'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { isComplete, maxScore, score } from '../engine/utility'
-import { firstName, g } from './cast'
+import { firstName, g, plural } from './cast'
 import { fragment, plainWords } from './instant'
 import { worseWithout } from '../content/scenarios/story'
 
@@ -74,7 +74,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   else if (weak) next = behaviorById(weak.id)?.advice ?? weak.title
   else if (!asked) next = `Спросите, что для ${his} главное и почему. Вопрос ничего не стоит, а узнать можно много.`
   else if (deal && r.leftOnTable > 0)
-    next = `Можно было получить больше обоим — ещё ${r.leftOnTable} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
+    next = `Можно было получить больше обоим — на столе осталось ещё ${r.leftOnTable} ${plural(r.leftOnTable, 'очко', 'очка', 'очков')} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
   else if (!deal && r.zopa) next = `Предложите условия по всем пунктам сразу: так ${him} проще согласиться, а вам — обменять одно на другое.`
   else next = sc.lessons?.[0] ?? sc.goals?.[0] ?? 'Попробуйте сыграть это дело жёстче.'
   return { result, good: plainWords(good), quote, next: plainWords(next) }

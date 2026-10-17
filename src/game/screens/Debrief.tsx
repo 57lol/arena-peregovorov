@@ -78,6 +78,8 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
 
   const stars = starsOf(report)
   const wide = useWide()
+  // жёстче — только после сделки лучше, чем без неё: в убыточной сначала стоит научиться не соглашаться
+  const harder = onHarder && report.outcome.status === 'deal' && report.outcome.playerPoints >= report.batna.player
   const [more, setMore] = useState(false)
   const moreRef = useRef<HTMLDetailsElement>(null)
   const openMore = () => {
@@ -96,7 +98,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
           {history.length > 0 && (
             <SkillGain run={run} before={career?.before} after={career?.after}>
-              {onHarder && report.outcome.status === 'deal' && (
+              {harder && (
                 <div className="g-gain-harder">
                   <p>
                     Сделка есть. Та же история, но {name} упрямее и откровенничает реже.
@@ -154,7 +156,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <Button variant="brass" icon="rewind" onClick={onAgain}>
             Сыграть это дело заново
           </Button>
-          {onHarder && report.outcome.status === 'deal' && (
+          {harder && (
             <Button variant="stamp" onClick={onHarder}>
               Сыграть жёстче
             </Button>
