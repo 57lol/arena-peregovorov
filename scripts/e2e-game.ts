@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { webkit, type Page } from 'playwright'
 import { SCENARIOS } from '../src/content/scenarios'
 import type { Offer, Scenario } from '../src/engine/types'
+import { worstFirst } from '../src/game/ui/order'
 import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
@@ -106,6 +107,13 @@ async function waitReply(page: Page) {
   await page.waitForTimeout(150)
 }
 
+/** Папка «Все дела»: с титула — через хаб жюри и карту недели. */
+async function allCases(page: Page) {
+  await page.getByRole('button', { name: /Для жюри/ }).click()
+  await page.getByRole('button', { name: 'Карта недели' }).first().click()
+  await page.getByRole('button', { name: 'Все дела', exact: true }).click()
+}
+
 const ended = (page: Page) => page.getByRole('button', { name: 'Разбор встречи' }).isVisible()
 
 async function setNotebook(page: Page, sc: Scenario, offer: Offer, mobile: boolean) {
@@ -116,9 +124,12 @@ async function setNotebook(page: Page, sc: Scenario, offer: Offer, mobile: boole
     const row = page.locator('.px-issue').filter({ has: page.locator('.px-issue-title', { hasText: i.title }) })
     for (let guard = 0; guard < 8; guard++) {
       const now = (await row.locator('.px-issue-value').textContent())?.trim() ?? ''
-      const at = i.options.indexOf(now)
-      if (at === want) break
-      await row.getByRole('button', { name: at < want ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
+      // стрелки листают от худшего для игрока к лучшему
+      const ord = worstFirst(sc.player.profile.points[i.id])
+      const at = ord.indexOf(i.options.indexOf(now))
+      const to = ord.indexOf(want)
+      if (at === to) break
+      await row.getByRole('button', { name: at < to ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
     }
   }
 }
@@ -133,7 +144,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   await page.waitForSelector('.tt-sign')
   await page.waitForTimeout(400)
   await shot(page, `01-title-${size}`)
-  await page.getByRole('button', { name: 'Все дела' }).click()
+  await allCases(page)
   await page.waitForSelector('.g-folders')
   await shot(page, `02-setup-${size}`, true)
 
@@ -148,7 +159,7 @@ async function playCase(page: Page, sc: Scenario, size: number) {
   for (let n = 0; n < sc.turnLimit + 2; n++) {
     if (await ended(page)) break
     const lastCall = (await page.locator('.g-slip.is-last >> visible=true').count()) > 0
-    const accept = page.getByRole('button', { name: 'Согласиться' })
+    const accept = page.getByRole('button', { name: 'Согласиться' }).filter({ visible: true }).first()
     const mineText = await page.locator('.g-slip-foot b >> visible=true').first().textContent({ timeout: 500 }).catch(() => null)
     const mine = mineText ? Number(mineText) : -1
     if ((lastCall || n >= s.acceptFrom) && (await accept.isVisible()) && mine >= sc.player.profile.batna) {
@@ -198,8 +209,9 @@ async function playCase(page: Page, sc: Scenario, size: number) {
 async function generateCase(page: Page, size: number) {
   console.log(`\nСвоё дело, ${size}px`)
   await page.goto(URL)
-  await page.getByRole('button', { name: 'Все дела' }).click()
-  await page.getByRole('button', { name: 'Заполнить бриф' }).click()
+  // «Для жюри» → «Своё дело» открывает форму сразу
+  await page.getByRole('button', { name: /Для жюри/ }).click()
+  await page.getByRole('button', { name: 'Своё дело', exact: true }).click()
   await page.getByRole('button', { name: 'Аренда' }).click()
   await page.getByLabel('О чём договариваемся').fill('аренда склада под интернет-магазин')
   await page.getByLabel('Кто вы').fill('владелец интернет-магазина')
@@ -223,7 +235,7 @@ async function generateCase(page: Page, size: number) {
     await waitReply(page)
   }
   for (let n = 0; n < 14 && !(await ended(page)); n++) {
-    const accept = page.getByRole('button', { name: 'Согласиться' })
+    const accept = page.getByRole('button', { name: 'Согласиться' }).filter({ visible: true }).first()
     if (n > 0 && (await accept.isVisible())) await accept.click()
     else if (n < 3) {
       if (size < 900 && !(await page.locator('.g-notebook-wrap[data-open="true"]').count())) await page.getByRole('button', { name: 'Блокнот' }).click()
@@ -250,7 +262,8 @@ async function generateCase(page: Page, size: number) {
 async function links(page: Page, size: number) {
   console.log(`\nСсылки, ${size}px`)
   await page.goto(`${URL}/?case=offer`)
-  await page.waitForSelector('.g-invite')
+  const invite = page.getByRole('region', { name: 'Приглашение' })
+  await invite.waitFor()
   await shot(page, `11-invite-${size}`)
   await page.getByRole('button', { name: /К делу/ }).click()
   await page.waitForSelector('.g-dossier')
@@ -262,8 +275,8 @@ async function links(page: Page, size: number) {
   })
   console.log('  длина ссылки', link.length)
   await page.goto(link)
-  await page.waitForSelector('.g-invite')
-  const text = await page.locator('.g-invite').textContent()
+  await invite.waitFor()
+  const text = await invite.textContent()
   if (!text?.includes('Тара по ссылке')) throw new Error('Дело из ссылки не открылось')
   await page.getByRole('button', { name: /К делу/ }).click()
   await page.waitForSelector('.g-dossier')
