@@ -199,6 +199,14 @@ export default function Play3D(props: Props) {
   useEffect(() => {
     if (pose === 'face') setHeld(null)
   }, [pose])
+  // телефон повернули боком: в альбомной раскладке листов в руках нет — кладём на стол, иначе поле ввода так и не покажется
+  useEffect(() => {
+    if (!world || !held) return
+    return world.on(() => {
+      if (!world.portrait) setHeld(null)
+    })
+  }, [world, held])
+
   // ---------- оверлеи, привязанные к миру ----------
   const lineRef = useRef<HTMLDivElement>(null)
   const xrayRef = useRef<HTMLDivElement>(null)
