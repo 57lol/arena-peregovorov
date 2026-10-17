@@ -7,7 +7,7 @@
 
 import type { Emotion } from '../engine/types'
 import { YANDEX_VOICES } from '../content/voices'
-import { stress } from './stress'
+import { forSpeechKit, stress } from './stress'
 
 export const DIRECT_VERSION = 1
 
@@ -40,8 +40,6 @@ export function spellOut(t: string): string {
       .replace(/(?<![\d:])(\d{1,2}):00(?![\d:])/g, '$1')
       // «за кг» без числа он читает буквами; после числа («50 кг») склоняет сам
       .replace(/(?<!\d\s?)(?<!\p{L})кг\.?(?!\p{L})/gu, 'килограмм')
-      // «ОЭЗ» распознавание слышало как «у вас»: по буквам
-      .replace(/(?<!\p{L})ОЭЗ(?!\p{L})/gu, 'О-Э-З')
   )
 }
 
@@ -54,14 +52,14 @@ const OPENER = new RegExp(`(^|[.!?…]\\s+)(${OPENERS})(,|:|\\s—)\\s+`, 'giu')
 export function direct(text: string, emotion: Emotion = 'neutral'): string {
   const k = PACE[emotion] ?? 1
   const ms = (base: number) => `sil<[${Math.round((base * k) / 10) * 10}]>`
-  let t = spellOut(
+  let t = forSpeechKit(spellOut(
     text
       .replace(/…/g, '...')
       .replace(/sil<\[\d*\]>|<\[\w*\]>|\[\[[^\]]*\]\]|\[\[|\]\]/g, ' ')
       .replace(/[*]/g, '')
       .replace(/\s+/g, ' ')
       .trim(),
-  ).replace(/\+/g, '')
+  ).replace(/\+/g, ''))
 
   // вступительное слово: «Ну, …», «Смотрите: …», «Хорошо — …» — короткий вдох
   t = t.replace(OPENER, (_, pre: string, w: string, p: string) => `${pre}${w}${p.trim() === '—' ? ' —' : p} ${ms(p === ':' ? 260 : 180)} `)
@@ -139,6 +137,12 @@ export function liveRole(voice: string, emotion: Emotion | undefined, own?: stri
  */
 export const POLISH_VERSION = 1
 
+/** «но|а|…» с возможным «+» перед любой гласной: «, +если», «, зат+о». */
+const LINKS = new RegExp(
+  `,\\s+(${['но', 'а', 'зато', 'однако', 'хотя', 'если', 'потому что'].map((w) => w.replace(/([аеёиоуыэюя])/g, '\\+?$1')).join('|')})(?=\\s)`,
+  'giu',
+)
+
 export function polish(text: string, emotion: Emotion = 'neutral'): string {
   const hurry = emotion === 'annoyed' || emotion === 'angry'
   let t = stress(
@@ -150,12 +154,12 @@ export function polish(text: string, emotion: Emotion = 'neutral'): string {
         .trim(),
     ),
   )
-  // противопоставление и условие после запятой — короткий вдох (livetts запятую почти не слышит)
-  t = t.replace(/,\s+(но|а|зато|однако|хотя|если|потому что)(?=\s)/giu, ', <[tiny]> $1')
+  // противопоставление и условие после запятой — короткий вдох (livetts запятую почти не слышит); в словах уже могут быть «+»
+  t = t.replace(LINKS, ', <[tiny]> $1')
   // раздумье: многоточие посреди реплики
-  t = t.replace(/\.\.\.\s+(?=[\p{L}\d])/gu, '... <[tiny]> ')
+  t = t.replace(/\.\.\.\s+(?=\+?[\p{L}\d])/gu, '... <[tiny]> ')
   // между предложениями — чуть дольше, чем livetts делает сам; раздражённый говорит без передышек
-  if (!hurry) t = t.replace(/(?<!(?:^|\s)\p{Ll}{1,2}|\.\.)\.\s+(?=[\p{Lu}\d])/gu, '. <[tiny]> ')
+  if (!hurry) t = t.replace(/(?<!(?:^|\s)\p{Ll}{1,2}|\.\.)\.\s+(?=\+?[\p{Lu}\d])/gu, '. <[tiny]> ')
   return t.replace(/\s+/g, ' ').trim()
 }
 

@@ -9,9 +9,10 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
-import { unstress } from './stress'
-import { castFor, mainTts, mannerOf, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
+import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut } from './direct'
+import { yandex } from './llm'
+import { accent, render, resolveStress, unstress, type AskJson, type StressEngine } from './stress'
+import { aitunnelModel, castFor, familyOf, mainTts, mannerOf, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -53,6 +54,27 @@ export interface SpeechOptions {
   perDay?: number
   /** общий бюджет в рублях (LLM_TOTAL_RUB): на 100% голос молчит */
   budget?: Budget
+  /** быстрая модель для омографов, которые не решили правила (stress.ts); null — без неё */
+  stressAsk?: AskJson | null
+}
+
+/**
+ * Омографы в незнакомой реплике решает YandexGPT Lite (выбор из вариантов: ~0,25 с, на тесте 50 из 60 верно —
+ * ~/Arena-materials/final/stress/data/llm_latency.json). STRESS_LLM=off — без неё, тогда вариант по умолчанию.
+ */
+export function stressAsk(env = process.env): AskJson | undefined {
+  if (env.STRESS_LLM === 'off' || env.LLM_PROVIDER !== 'yandex' || !env.YANDEX_API_KEY || !env.YANDEX_FOLDER_ID) return undefined
+  const llm = yandex(undefined, undefined, env.STRESS_LLM_MODEL ?? env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite')
+  const schema = { type: 'object', additionalProperties: false, required: ['a'], properties: { a: { type: 'array', items: { type: 'integer' } } } }
+  return (system, user, ms) => llm.json({ system, user, temperature: 0, maxTokens: 40, timeoutMs: ms, schema: { name: 'stress', schema } })
+}
+
+/** Как ударение понимает движок: SpeechKit — «+», OpenAI и ElevenLabs — U+0301, Gemini — без разметки. */
+export function stressEngine(p: TtsProvider, env = process.env): StressEngine {
+  if (p === 'yandex') return 'speechkit'
+  if (p === 'elevenlabs') return 'eleven'
+  if (p === 'aitunnel') return familyOf(aitunnelModel(env)) === 'gemini' ? 'gemini' : familyOf(aitunnelModel(env))
+  return p === 'openai' ? 'openai' : 'gemini'
 }
 
 export function makeSpeech(opts: SpeechOptions = {}) {
@@ -100,6 +122,22 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   const primaryTts = () => env.SPEECH === 'off' ? undefined : mainTts(env)
   const status = () => ({ tts: yandexTtsReady() || !!primaryTts(), stt: !!key && !denied.stt })
 
+  const ask = opts.stressAsk === undefined ? stressAsk(env) : opts.stressAsk ?? undefined
+  const stressMs = Number(env.STRESS_LLM_MS ?? 450)
+  // реплика → она же с ударениями «+» (словарь, правила, нейросеть для омографов); прогрев и запрос клиента ждут одно и то же
+  const accents = new Map<string, Promise<string>>()
+  const speakable = (text: string): Promise<string> => {
+    // ударения, которые модель поставила в реплике сама, не берём: ошибается чаще, чем словарь и выбор из вариантов
+    const plain = unstress(text)
+    let p = accents.get(plain)
+    if (!p) {
+      p = resolveStress(accent(plain), ask, stressMs)
+      accents.set(plain, p)
+      if (accents.size > 2000) accents.delete(accents.keys().next().value!)
+    }
+    return p
+  }
+
   const app = new Hono()
   // синтезы, которые идут прямо сейчас: файл кэша → звук
   const inflight = new Map<string, Promise<{ audio: Uint8Array<ArrayBuffer>; ms: number }>>()
@@ -131,8 +169,11 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const st = ttsStatus(env)[p]
     const voice = castFor(p, b.who, b.voice, env)
     const instructions = mannerOf(b.who, b.emotion)
-    // ударения «+» — разметка SpeechKit, чужим моделям она не нужна; рубли и проценты словами помогают всем
-    const text = spellOut(unstress(spokenOf(b.text))).replace(/[«»"]/g, '')
+    // ударения — как понимает этот движок (stress.ts: render); OpenAI и Gemini разметку не слушаются — им без неё и без
+    // ожидания нейросети для омографов. Рубли и проценты словами помогают всем
+    const engine = stressEngine(p, env)
+    const marked = engine === 'speechkit' || engine === 'eleven' ? await speakable(b.text) : unstress(b.text)
+    const text = render(spellOut(marked), engine).replace(/[«»"]/g, '')
     const ext = /^gemini/.test(st.model) && p === 'aitunnel' ? 'wav' : 'mp3'
     const file = join(CACHE_DIR, 'tts', `${hashOf({ p, m: st.model, text, voice, i: instructions, e: b.emotion })}.${ext}`)
     const headers = { 'content-type': ext === 'wav' ? 'audio/wav' : 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice, 'x-tts-api': p }
@@ -202,9 +243,11 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const voice = yandexOnly && (b.live ?? liveMode(mode)) ? liveVoiceFor(b.voice) : b.voice
     // аккуратная разметка (voices+): ударения и редкие паузы; лаборатория с явным natural её не получает
     const neat = yandexOnly && !natural && b.natural === undefined && mode === 'voices+'
-    // на экране реплика остаётся как есть, размечаем только текст для синтеза
+    // на экране реплика остаётся как есть, размечаем только текст для синтеза; ударения «+» — везде, кроме
+    // режиссёра речи и явных настроек лаборатории (там сравнивают голос как есть)
     const plain = b.text.replace(/[«»"]/g, '')
-    const text = natural ? direct(plain, b.emotion) : neat ? polish(spokenOf(b.text).replace(/[«»"]/g, ''), b.emotion) : plain
+    const marked = yandexOnly && !natural && b.natural === undefined ? (await speakable(b.text)).replace(/[«»"]/g, '') : plain
+    const text = natural ? direct(plain, b.emotion) : neat ? polish(marked, b.emotion) : marked
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
     const role = isLive(voice) ? liveRole(voice, b.emotion, b.role) : undefined
