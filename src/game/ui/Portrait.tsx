@@ -104,7 +104,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
   )
 }
 
-export const EMOTION_RU: Record<PortraitEmotion, string> = {
+const EMOTION_RU: Record<PortraitEmotion, string> = {
   neutral: 'спокойствие',
   pleased: 'удовольствие',
   happy: 'радость',

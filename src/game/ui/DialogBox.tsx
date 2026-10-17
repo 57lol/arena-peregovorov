@@ -17,7 +17,7 @@ export function cpsFor(text: string, sec: number): number {
 }
 
 /** Печатает текст по буквам. skip() — показать сразу весь. */
-export function useTypewriter(text: string, cps = 42) {
+function useTypewriter(text: string, cps = 42) {
   const [n, setN] = useState(0)
   const done = n >= text.length
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)

@@ -157,7 +157,7 @@ export function skillsOf(runs: RunLog[]): Record<Axis, Skill> {
 
 // ——— сильное и слабое ———
 
-export interface Habit {
+interface Habit {
   id: string
   title: string
   count: number

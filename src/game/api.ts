@@ -24,7 +24,7 @@ const LLM_ALIAS: Record<string, string> = {
   main: 'yandex:yandexgpt-5.1',
   yandex: 'yandex:yandexgpt-5.1',
 }
-export function voiceLlmTest(): string | undefined {
+function voiceLlmTest(): string | undefined {
   try {
     const q = new URLSearchParams(location.search).get('llm')
     if (q === 'off') sessionStorage.removeItem('peregovorka.llm')
