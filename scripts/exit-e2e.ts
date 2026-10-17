@@ -85,6 +85,11 @@ try {
       await page.waitForTimeout(400)
     }
     const samples = (await page.evaluate('window.__exit')) as Sample[]
+    // «Отменить последний ход» — снова сидит за столом, дверь закрыта
+    await page.getByRole('button', { name: 'Отменить последний ход' }).click()
+    await page.waitForTimeout(800)
+    const back = (await page.evaluate(`(() => { const l = window.__world.company.lead; return { leaving: l.leaving, walking: l.walking, door: l.doorOpen, yaw: window.__world.head.yaw } })()`)) as { leaving: boolean; walking: boolean; door: number; yaw: number }
+    await page.screenshot({ path: join(dir, 'undo.png') })
     await ctx.close()
     const walked = samples.filter((s) => s.walking)
     const maxYaw = Math.max(...samples.map((s) => s.yaw)) * (180 / Math.PI)
@@ -99,6 +104,7 @@ try {
       last && last.door > 0.01 && 'дверь не закрылась',
       maxYaw < 30 && `не проводили взглядом (${maxYaw.toFixed(0)}°)`,
       last && Math.abs(last.yaw) > 0.05 && 'взгляд не вернулся к столу',
+      (back.leaving || back.walking || back.door > 0 || Math.abs(back.yaw) > 0.2) && `после отмены хода не сел обратно: ${JSON.stringify(back)}`,
       errors.length && `ошибки: ${errors.join('; ')}`,
     ].filter(Boolean)
     if (problems.length) failed = true
