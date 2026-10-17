@@ -79,7 +79,7 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
   const playerPoints = deal ? all.find((p) => sameFull(p.offer, deal))!.player : P.batna
   const opponentPoints = deal ? all.find((p) => sameFull(p.offer, deal))!.opponent : O.batna
   const joint = playerPoints + opponentPoints
-  const minJoint = Math.min(...all.map((p) => p.player + p.opponent))
+  const minJoint = all.reduce((m, p) => Math.min(m, p.player + p.opponent), Infinity)
 
   // Лучшая сделка, которая никому не хуже нашей. При срыве — точка Нэша (максимум произведения выигрышей
   // над BATNA): честный ориентир «как можно было договориться».

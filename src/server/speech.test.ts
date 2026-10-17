@@ -288,7 +288,7 @@ describe('внешний голос (TTS_PROVIDER)', () => {
   it('вступление, записанное заранее, отдаётся из assets без синтеза', async () => {
     const { ELEVEN_KNOWN } = await import('./eleven-known.data')
     const k = ELEVEN_KNOWN[0]
-    if (!k) return
+    expect(k).toBeDefined()
     await withEnv(relay, async () => {
       const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
       const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
