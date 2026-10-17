@@ -11,13 +11,11 @@ import { Margin, MarginOff } from './Margin'
 import { Mentor } from './Mentor'
 import { Notes, Slip, XRay } from './meetingParts'
 
-type Props = MeetingProps & {
-  /** переключиться на 3D-вид (кнопки нет, если 3D недоступно) */
-  on3d?: () => void
-}
+/** Запасной 2D-вид: сам, когда нет WebGL или 3D не тянет; выбора у игрока нет (капитан 18.10: «зачем нам 2D»). */
+type Props = MeetingProps
 
 export function Play(props: Props) {
-  const { history, onFinish, on3d } = props
+  const { history, onFinish } = props
   const [notebook, setNotebook] = useState(false)
   const [marginOpen, setMarginOpen] = useState(false)
   const notebookRef = useRef<HTMLDivElement>(null)
@@ -344,11 +342,6 @@ export function Play(props: Props) {
                   ))}
                 </ol>
               </details>
-            )}
-            {on3d && (
-              <button type="button" className="g-link g-link--quiet g-view-3d" onClick={on3d}>
-                Сесть за стол в 3D
-              </button>
             )}
           </aside>
         </div>

@@ -16,7 +16,7 @@ import { Title } from './game/screens/Title'
 import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
 import { Play } from './game/screens/Play'
-import { can3d, loadView, saveView, type View } from './game/view'
+import { loadView, type View } from './game/view'
 import { Debrief } from './game/screens/Debrief'
 import { Coach } from './game/screens/Coach'
 import { Board } from './game/screens/Board'
@@ -392,12 +392,6 @@ export default function App() {
         <Jury
           progress={progress}
           server={server}
-          view={view}
-          onView={(v) => {
-            saveView(v)
-            setView(v)
-            setViewNote('')
-          }}
           onProgress={setProgress}
           onOpen={(c) => open(c, 'jury')}
           onDemo={(c, h) => {
@@ -544,10 +538,9 @@ export default function App() {
           <Play3D
             key={playKey}
             {...meeting}
-            onClassic={(why) => {
+            onClassic={() => {
               setView('classic')
-              if (why === 'choice') saveView('classic')
-              else setViewNote('Устройство не тянет 3D, поэтому встреча продолжается в классическом виде.')
+              setViewNote('Устройство не тянет 3D, поэтому встреча продолжается в упрощённом виде.')
             }}
           />
         </Suspense>
@@ -560,19 +553,7 @@ export default function App() {
           </p>
         )}
         <BudgetNote />
-        <Play
-          key={playKey}
-          {...meeting}
-          on3d={
-            can3d()
-              ? () => {
-                  setViewNote('')
-                  saveView('3d')
-                  setView('3d')
-                }
-              : undefined
-          }
-        />
+        <Play key={playKey} {...meeting} />
       </>
     )
   }

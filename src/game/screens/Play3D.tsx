@@ -28,8 +28,8 @@ import '../world3d/world3d.css'
 import '../world3d/play3d.css'
 
 type Props = MeetingProps & {
-  /** в классический 2D-вид: выбор игрока или устройство не тянет */
-  onClassic: (why: 'choice' | 'slow') => void
+  /** в запасной 2D-вид: WebGL отвалился или устройство не тянет (сам игрок вид не выбирает) */
+  onClassic: (why: 'slow') => void
 }
 
 const reduced = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -483,7 +483,6 @@ export default function Play3D(props: Props) {
         <Menu
           m={m}
           onClose={() => setMenu(false)}
-          onClassic={() => onClassic('choice')}
           onQuit={onQuit}
           onXray={toggleXray}
         />
@@ -828,8 +827,8 @@ function TurnToasts({ fb, tip, dim, onMore, onExample }: { fb: TurnFeedback | nu
   )
 }
 
-/** Меню по Esc: протокол с перемоткой, настройки, классический вид, выход. */
-function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: () => void; onClassic: () => void; onQuit: () => void; onXray: () => void }) {
+/** Меню по Esc: протокол с перемоткой, настройки, выход. */
+function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void; onQuit: () => void; onXray: () => void }) {
   const [quit, setQuit] = useState(false)
   const card = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => card.current?.querySelector('button')?.focus(), [])
@@ -867,11 +866,6 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
               <VolumeSlider />
             </li>
           )}
-          <li>
-            <button type="button" className="w3-menu-item" onClick={onClassic}>
-              <PixelIcon name="notebook" px={2} /> Классический вид
-            </button>
-          </li>
           <li>
             <button type="button" className={`w3-menu-item is-stamp${quit ? ' is-sure' : ''}`} onClick={() => (quit ? onQuit() : setQuit(true))}>
               <PixelIcon name="leave" px={2} /> {quit ? 'Точно? Встреча не сохранится' : 'Выйти к папке дел'}

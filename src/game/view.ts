@@ -1,9 +1,8 @@
-// Какой вид встречи показывать: 3D за столом или классический 2D. По умолчанию 3D, если браузер умеет WebGL
-// и устройство не совсем слабое; выбор игрока (меню → «Классический вид») запоминается.
+// Вид встречи — всегда 3D за столом (капитан 18.10: «зачем нам 2D, убери» — выбора у игрока нет).
+// Запасной 2D-вид включается сам: нет WebGL, совсем слабое устройство или 3D упал посреди встречи (Play3D → onClassic).
+// ?view=classic / ?view=3d и прогоны Playwright (navigator.webdriver → 2D) — только для проверок.
 
 export type View = '3d' | 'classic'
-
-const KEY = 'peregovorka.view.v1'
 
 let webgl: boolean | undefined
 export function can3d(): boolean {
@@ -27,24 +26,9 @@ function weak(): boolean {
 
 export function loadView(): View {
   if (!can3d()) return 'classic'
-  // ?view=classic или ?view=3d в адресе — для проверок и для тех, кому так удобнее
   const q = /[?&]view=(classic|3d)/.exec(location.search)?.[1] as View | undefined
   if (q) return q
-  try {
-    const v = localStorage.getItem(KEY)
-    if (v === 'classic' || v === '3d') return v
-  } catch {
-    // нет хранилища — решаем по устройству
-  }
-  // автотесты (Playwright) писались под классический вид: без явного выбора им отдаём его
+  // автотесты (Playwright) писались под 2D-вид: без явного выбора им отдаём его
   if (navigator.webdriver) return 'classic'
   return weak() ? 'classic' : '3d'
-}
-
-export function saveView(v: View) {
-  try {
-    localStorage.setItem(KEY, v)
-  } catch {
-    // живёт до перезагрузки
-  }
 }

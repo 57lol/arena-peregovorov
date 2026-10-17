@@ -15,7 +15,6 @@ import { loadInstantOn, saveInstantOn } from '../instant'
 import { loadProgress, markTutorialDone, resetTutorial, type Progress } from '../progress'
 import { loadVoiceOn, saveVoiceOn } from '../speech'
 import { PORTRAITS, Button, PixelIcon } from '../ui'
-import { can3d, type View } from '../view'
 import { Method } from '../screens/Method'
 import { demoHistory } from './demo'
 import './jury.css'
@@ -23,8 +22,6 @@ import './jury.css'
 interface Props {
   progress: Progress
   server: Health | null | undefined
-  view: View
-  onView: (v: View) => void
   onProgress: (p: Progress) => void
   /** бриф дела */
   onOpen: (c: Case) => void
@@ -198,7 +195,7 @@ function Face({ sc }: { sc: Scenario }) {
   return <span className="jr-face" style={sheet ? { backgroundImage: `url(${sheet})` } : undefined} aria-hidden="true" />
 }
 
-function Settings({ progress, server, view, onView, onProgress }: Props) {
+function Settings({ progress, server, onProgress }: Props) {
   const [hints, setHints] = useState(loadInstantOn)
   const [voice, setVoice] = useState(loadVoiceOn)
   const tts = !!server?.speech?.tts
@@ -211,17 +208,6 @@ function Settings({ progress, server, view, onView, onProgress }: Props) {
         Настройки
       </h2>
       <dl className="jr-set">
-        <div>
-          <dt>Вид встречи</dt>
-          <dd className="jr-seg">
-            <Toggle on={view === '3d'} disabled={!can3d()} onClick={() => onView('3d')}>
-              3D за столом
-            </Toggle>
-            <Toggle on={view === 'classic'} onClick={() => onView('classic')}>
-              Классический
-            </Toggle>
-          </dd>
-        </div>
         <div>
           <dt>Наставник в первой встрече</dt>
           <dd className="jr-seg">
