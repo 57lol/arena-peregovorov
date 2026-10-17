@@ -373,7 +373,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     if (lab && !elevenReady()) return c.json({ error: `Нужен ${ttsStatus(env).elevenlabs.need}` }, 503)
     if (!voicesOf(b.provider).some((v) => v.id === b.voice)) return c.json({ error: 'Нет такого голоса' }, 400)
     // основной голос ElevenLabs (или тест ?tts=eleven): игра шлёт голос SpeechKit и лицо, сервер берёт голос лица.
-    // Лаборатория и ?voice=classic (явные api/natural/live) его не трогают. Не вышло — говорит SpeechKit.
+    // Лаборатория (явные api/natural/live) его не трогают. Не вышло — говорит SpeechKit.
     const asIs = !lab && b.api === undefined && b.natural === undefined && b.live === undefined
     const wants = lab || (asIs && (elevenOn() || (b.test === 'eleven' && elevenReady())))
     let fallback = ''
