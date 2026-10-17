@@ -595,7 +595,94 @@ def buyer():
                 forehead=False)
 
 
-SPECS = {'foreman': foreman, 'dev': dev, 'official': official, 'hr': hr, 'realtor': realtor, 'buyer': buyer}
+def emre():
+    """Эмре Кая, ~42, экспорт из Стамбула: оливковая кожа, короткие тёмные волосы с сединой на висках,
+    аккуратная короткая борода, голубая рубашка с расстёгнутым воротом, тёмно-синий пиджак."""
+    f = Face(top=17, cy=38, rx=18, jaw_y=56, jaw_w=15, chin_y=64, chin_w=7, jaw_p=2.0, cheek=2.2)
+    HAIR = [36, 37, 38, 18]
+    BEARD = [37, 18, 18]
+
+    def body(c, P, m):
+        xs, ys = grid()
+        paint_cloth(c, m, [0, 1, 1, 2])
+        # голубая рубашка клином, ворот расстёгнут: в вырезе видна кожа
+        shirt = poly_mask([(38, 70), (58, 70), (55, 84), (48, 96), (41, 84)])
+        paint(c, shirt, 5)
+        paint(c, shirt & (xs > 49), 4)
+        skin = poly_mask([(43, 70), (53, 70), (51, 77), (48, 81), (45, 77)])
+        paint(c, skin, P['skin'][1])
+        paint(c, skin & (xs > 49), P['skin'][0])
+        line(c, [(48, 82), (48, 96)], 4)
+        c[86, 47] = 45
+        c[92, 47] = 45
+        # лацканы
+        lap_l = poly_mask([(38, 71), (41, 84), (47, 96), (41, 96), (32, 86), (29, 77)])
+        lap_r = poly_mask([(58, 71), (55, 84), (49, 96), (55, 96), (64, 86), (67, 77)])
+        paint(c, lap_l, 2)
+        paint(c, lap_r, 0)
+        line(c, [(38, 71), (41, 84), (46, 95)], 0)
+        line(c, [(58, 71), (55, 84), (50, 95)], 0)
+        # нагрудный карман
+        line(c, [(58, 84), (63, 84)], 0)
+
+    def collar(c, P):
+        # уголки воротника лежат поверх лацканов, ворот раскрыт
+        put(c, 35, 69, ['aaa.....', 'aaaaa...', 'aaaaaa..', '.aaaaab.', '..aaab..', '...ab...', '....b...'], {'a': 5, 'b': 4})
+        put(c, 53, 69, ['.....aaa', '...aaaaa', '..aaaaaa', '.baaaaa.', '..baaa..', '...ba...', '...b....'], {'a': 4, 'b': 3})
+
+    def hair(c, P, emotion):
+        xs, ys = grid()
+        vol = ellipse_mask(CX, f.cy - 1, f.rx + 1.8, 22.5)
+        u = (xs - CX) / f.rx
+        # короткая стрижка, пробор слева, лоб открыт
+        hl = 24.5 + 3 * u ** 2 - 1.2 * (u > -0.35) * (u < -0.2)
+        top = vol & (ys < hl)
+        sides = vol & (np.abs(xs - CX) > f.rx - 2) & (ys < P['ey'] + 1)
+        h = top | sides
+        paint(c, h, band(shade_ellipsoid(CX - 5, f.cy - 12, f.rx + 2, 22), [0.25, 0.55, 0.85], HAIR))
+        # пробор и пряди назад
+        line(c, [(41, 17), (40, 23)], 36)
+        for pts in ([(43, 18), (52, 17)], [(44, 21), (55, 20)], [(34, 22), (38, 18)]):
+            line(c, pts, 18)
+        # седина на висках: светлее со стороны света, сверху переход точками
+        temple = h & (np.abs(xs - CX) > f.rx - 3) & (ys >= 30)
+        paint(c, temple & (xs < CX), 41)
+        paint(c, temple & (xs > CX), 40)
+        for y, x in ((28, 31), (29, 30), (28, 65), (29, 66)):
+            if h[y, x]:
+                c[y, x] = 40
+
+    def beard(c, P, emotion):
+        xs, ys = grid()
+        face = f.mask()
+        ey = P['ey']
+        # короткая ухоженная борода по линии челюсти, щёки чистые
+        b = face & (ys > ey + 14) & ((np.abs(xs - CX) > f.hw(ys) - 2.5) | (ys > ey + 21))
+        b &= ~((ys < ey + 21) & (np.abs(xs - CX) < 6))
+        paint(c, b, band(shade_ellipsoid(CX - 4, 58, 18, 10), [0.4, 0.75], BEARD))
+        # верхний край бороды — щетина, не жёсткая линия
+        edge = b & ~shift(b, 0, 1)
+        paint(c, edge & ((xs + ys) % 2 == 0), 13)
+        # щетина точками на щеке
+        for x, y in ((32, ey + 13), (34, ey + 14), (62, ey + 13), (60, ey + 14), (36, ey + 16), (59, ey + 16)):
+            if face[y, x]:
+                c[y, x] = 13
+        # чуть седины в бороде
+        for x, y in ((39, 59), (56, 58), (46, 62)):
+            if b[y, x]:
+                c[y, x] = 40
+
+    def moustache(c, P, emotion):
+        ey = P['ey']
+        put(c, CX - 5, ey + 13, ['.gggggggg.', 'G........G'], {'g': 37, 'G': 18})
+
+    return dict(face=f, skin=SKIN_MID, ey=38, age=42, female=False, neck=9, nose='straight', shoulders=40,
+                brow=(36, 2), pupil=19, body=body, collar=collar, hair=hair, beard=beard, moustache=moustache,
+                blush=28, mouth_y=38 + 16, cuts=[0.1, 0.32, 0.88])
+
+
+SPECS = {'foreman': foreman, 'dev': dev, 'official': official, 'hr': hr, 'realtor': realtor, 'buyer': buyer,
+         'emre': emre}
 
 
 def builder(spec_fn):

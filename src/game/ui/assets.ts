@@ -38,6 +38,8 @@ export const PORTRAITS = {
   student: { sheet: '/assets/portraits/student.png', label: 'Аня, соседка из 215-й', female: true },
   vahter: { sheet: '/assets/portraits/vahter.png', label: 'Галина Ивановна, комендант', female: true },
   palych: { sheet: '/assets/portraits/palych.png', label: 'Палыч, бригадир', female: false },
+  // дело на английском (src/content/scenarios/istanbul.ts), рисует tools/art/people.py; в пул своих дел не входит
+  emre: { sheet: '/assets/portraits/emre.png', label: 'Эмре Кая', female: false },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
 
