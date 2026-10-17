@@ -182,6 +182,13 @@ const INIT = (mode: string) => `
   requestAnimationFrame(tick)
 `
 
+/** Секунда ролика, где впервые виден розовый квадрат-метка в левом верхнем углу (кадры пересчитаны в 50 в секунду). */
+function markAt(webm: string) {
+  const px = execFileSync('ffmpeg', ['-v', 'error', '-i', webm, '-vf', 'fps=50,crop=64:64:16:16,scale=1:1,format=rgb24', '-f', 'rawvideo', '-'], { maxBuffer: 1 << 26 })
+  for (let i = 0; i + 2 < px.length; i += 3) if (px[i] > 200 && px[i + 1] < 90 && px[i + 2] > 200) return i / 3 / 50
+  throw new Error('в ролике нет метки синхронизации')
+}
+
 /** Наложить на немой ролик Playwright те mp3, что звучали, — с того момента записи, где плеер их начал. */
 function withSound(webm: string, samples: Sample[], fileOf: (s: Sample) => string | undefined, sec: (t: number) => number, from: number, out: string) {
   const starts = new Map<string, { file: string; at: number }>()
@@ -210,8 +217,6 @@ try {
     await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
     await ctx.addInitScript(INIT(mode))
     const page = await ctx.newPage()
-    // запись видео идёт с открытия страницы: по этому времени кладём звук на дорожку
-    const videoStart = Date.now()
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
     await page.route('**/api/**', async (r) => {
@@ -240,7 +245,13 @@ try {
     await page.waitForFunction(() => { const a = (window as unknown as { __a?: HTMLAudioElement }).__a; return !!a && a.ended }, undefined, { timeout: 30_000 })
     await page.waitForTimeout(500)
     await field.fill(SAY)
-    const sentAt = (await page.evaluate('performance.now()')) as number
+    // метка синхронизации для ролика: розовый квадрат в левом верхнем углу на 1 с — по нему звук кладётся точно в кадр
+    const mark = (await page.evaluate(`new Promise((ok) => {
+      const d = document.createElement('div')
+      d.style.cssText = 'position:fixed;left:0;top:0;width:96px;height:96px;background:#f0f;z-index:2147483647'
+      document.body.appendChild(d)
+      requestAnimationFrame(() => { const t = performance.now(); setTimeout(() => d.remove(), 1000); ok(t) })
+    })`)) as number
     await field.press('Enter')
     // ответ: реакция или фраза-пауза, затем реплика (потоком или обычным звуком) — ждём её конца
     await page.waitForFunction(() => {
@@ -270,10 +281,13 @@ try {
       console.log(`  ${ok ? 'ок  ' : 'ПЛОХО'} ${s.kind.padEnd(8)} ${s.file.split('/').slice(-2).join('/').padEnd(28)} кадров ${String(s.frames).padStart(4)}  рот открыт ${(s.moving * 100).toFixed(0).padStart(3)}%  смен ${String(s.flips).padStart(3)}  r=${s.r.toFixed(2)}  лучший сдвиг ${s.lagMs} мс (r=${s.rLag.toFixed(2)})  первые 3 с: смен ${s.head.flips}, r=${s.head.r.toFixed(2)}`)
     }
     if (OUT) writeFileSync(OUT.replace(/\.json$/, `-${name}-samples.json`), JSON.stringify(samples.map((s) => ({ ...s, file: fileOf(s) }))))
-    const origin = (await page.evaluate('performance.timeOrigin')) as number
     const video = page.video()
     await ctx.close()
-    if (video) withSound(await video.path(), samples, fileOf, (t) => (origin + t - videoStart) / 1000, (origin + sentAt - videoStart) / 1000 - 0.8, join(VIDEO, `${name}.mp4`))
+    if (video) {
+      const webm = await video.path()
+      const at = markAt(webm)
+      withSound(webm, samples, fileOf, (t) => at + (t - mark) / 1000, at - 0.8, join(VIDEO, `${name}.mp4`))
+    }
   }
 } finally {
   await browser.close()
