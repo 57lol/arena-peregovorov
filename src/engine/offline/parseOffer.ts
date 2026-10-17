@@ -102,7 +102,7 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
 }
 
 /** side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника. */
-export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Set<IssueId>): Offer {
+export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Map<IssueId, number>): Offer {
   const infos = issueInfo(sc)
   const offer: Offer = {}
   const lower = text.toLowerCase()
@@ -167,7 +167,7 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
     if (n >= 0) offer[c.info.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
     // число между вариантами («200» при 204 и 196) — такого варианта нет, модель такое условие часто пропускает
     const v = c.info.values[n]
-    if (n >= 0 && v && Math.abs(v.value - c.value) > Math.abs(c.value) * 0.01) rounded?.add(c.info.issue.id)
+    if (n >= 0 && v && Math.abs(v.value - c.value) > Math.abs(c.value) * 0.01) rounded?.set(c.info.issue.id, q.at)
     else rounded?.delete(c.info.issue.id)
   }
 

@@ -120,9 +120,11 @@ export function makeCounter(
   stance: Offer,
   previous: FullOffer | undefined,
   trust = 100,
+  /** позиция игрока до этого хода: уступкой считается только то, что он сдвинул сейчас */
+  stanceBefore?: Offer,
 ): FullOffer {
   const opp = sc.opponent.profile
-  const ref = previous ? withConcessions(sc, previous, stance) : undefined
+  const ref = previous ? withConcessions(sc, previous, stance, stanceBefore) : undefined
   const prevU = ref ? score(opp, ref) : Infinity
   const given = ref ? score(sc.player.profile, ref) : -Infinity
   const need = Math.min(target, prevU)
@@ -144,11 +146,11 @@ export function makeCounter(
 }
 
 /** Прошлое встречное, где по пунктам, в которых игрок сам отдал больше, стоит его позиция. */
-export function withConcessions(sc: Scenario, previous: FullOffer, stance: Offer): FullOffer {
+export function withConcessions(sc: Scenario, previous: FullOffer, stance: Offer, stanceBefore?: Offer): FullOffer {
   const out: FullOffer = { ...previous }
   for (const i of sc.issues) {
     const s = stance[i.id]
-    if (typeof s !== 'number') continue
+    if (typeof s !== 'number' || (stanceBefore && stanceBefore[i.id] === s)) continue
     const pl = sc.player.profile.points[i.id], op = sc.opponent.profile.points[i.id]
     if (pl[s] < pl[previous[i.id]] && op[s] > op[previous[i.id]]) out[i.id] = s
   }

@@ -219,12 +219,14 @@ describe('собеседник не откатывает уступки', () => 
       })
       const h = playAnalyses(s, moves, dict)
       let last: Offer | undefined
-      for (const r of h) {
+      let before: Offer | undefined
+      for (const [n, r] of h.entries()) {
+        before = n ? h[n - 1].stateAfter.playerStance : {}
         if (r.decision.kind !== 'counter' && !(r.decision.kind === 'reveal' && r.decision.offer)) continue
         const o = (r.decision as { offer: Offer }).offer
         const u = score(s.player.profile, o as never)
         // точка отсчёта — прошлое встречное, где игрок сам отдал больше: это собеседник берёт без отдарка
-        const floor = last ? score(s.player.profile, withConcessions(s, last as never, r.stateAfter.playerStance ?? {}) as never) : -Infinity
+        const floor = last ? score(s.player.profile, withConcessions(s, last as never, r.stateAfter.playerStance ?? {}, before) as never) : -Infinity
         if (u < floor) bad.push(`${s.id}/${d}/${m.join('+') || '—'}: ход ${r.turn}, ${floor} → ${u}`)
         last = o
       }
@@ -293,6 +295,21 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     expect(groundAnalysis(tara, text, { behaviors: [], offer: { payment: 0, rush: 4, term: 2, schedule: 2 } }).offer?.price).toBe(1)
     // а отвергнутое точное число не добавляется
     expect(groundAnalysis(tara, 'Ваши 212 — не вариант, давайте 48 часов и год.', { behaviors: [], offer: { rush: 4, term: 2 } }).offer?.price).toBeUndefined()
+    // и жалоба на число или чужая цена — тоже не предложение
+    expect(groundAnalysis(tara, 'Двести за короб не потянем. Давай за 48 часов и на год.', { behaviors: [], offer: { rush: 4, term: 2 } }).offer?.price).toBeUndefined()
+    expect(groundAnalysis(tara, 'У Казани 200 за короб, давайте за 48 часов и на год.', { behaviors: [], offer: { rush: 4, term: 2 } }).offer?.price).toBeUndefined()
+    // своё точное число правила не подменяют чужим, названным позже (засчитать 204 вместо 196 нельзя)
+    expect(groundAnalysis(tara, 'Давай 196 за короб. 204 за короб — дорого.', { behaviors: [], offer: { price: 2 } }).offer?.price).not.toBe(1)
+  })
+
+  it('пункт, о котором игрок в этот ход промолчал, с листка не дописывается, если названо меньше всех-кроме-одного', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const h = playAnalyses(tara, [
+      { text: '', analysis: { behaviors: [], offer: { price: 0, payment: 0, rush: 4, schedule: 2 } } },
+      { text: 'Срок договора ваш — нет, не подходит. Но за 48 часов — обязательно', analysis: { behaviors: [], offer: { rush: 4 } } },
+    ], BEHAVIOR_DICT)
+    expect(h.map((r) => r.decision.kind)).not.toContain('accept')
   })
 
   it('предложение без одного пункта принимается: недостающее берётся с его листка', async () => {

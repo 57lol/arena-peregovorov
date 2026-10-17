@@ -98,9 +98,18 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // Модель реплики на запрос (страница сравнения моделей): только из разрешённого списка и не при LAB=off.
   // Разметка и решения движка при этом те же — меняются только слова собеседника.
   const voiceLlms = new Map<string, LLM>()
-  function voiceLLM(want: string | undefined): { llm?: LLM; note?: string } {
+  function voiceLLM(want: string | undefined, ip: string): { llm?: LLM; note?: string } {
     if (!want || process.env.LAB === 'off' || llm.name === 'offline') return {}
     if (!voiceChoices().includes(want)) return { note: `модель ${want} не в списке` }
+    // тот же суточный лимит на IP, что у лаборатории: чужая модель — это чужие деньги
+    const today = new Date().toISOString().slice(0, 10)
+    if (today !== labDay) {
+      labCount.clear()
+      labDay = today
+    }
+    const n = labCount.get(ip) ?? 0
+    if (n >= labLimit) return { note: 'лимит лаборатории на сегодня' }
+    labCount.set(ip, n + 1)
     let m = voiceLlms.get(want)
     if (!m) {
       try {
@@ -205,7 +214,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
     const marks = !nh && naturalMode() === 'voices+'
     // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
-    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'))
+    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), ip)
     const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
     const said = await voice(speaker, sc, history, body.playerText, r.decision, r.state, { natural, marks, fallback: llm })
     // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт

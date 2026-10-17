@@ -11,7 +11,7 @@ const REFUSAL = new RegExp(String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отка�
  * Отказ предлагать/платить и отвергнутые условия не служат доказательством.
  */
 export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Offer {
-  const rounded = new Set<string>()
+  const rounded = new Map<string, number>()
   const positive = text
     // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
     // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
@@ -25,12 +25,23 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
     if (e === undefined || option === undefined) continue
     // Число между двумя вариантами («200» при 204 и 196) модель округляет как придётся, правила — в пользу собеседника.
     // Соседний вариант по числу из слов игрока — это то же условие, берём округление правил.
-    if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id))) out[id] = e
+    if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id) && rounded.has(id))) out[id] = e
   }
   // «Давайте 200 ровно, по факту, 48 часов, год»: варианта «200» нет, и модель цену пропустила — а в предложении
   // из нескольких пунктов это главное. Число между вариантами берём по правилам (округление в пользу собеседника).
-  if (Object.keys(out).length >= 2) for (const id of rounded) if (out[id] === undefined && offer[id] === undefined && evidence[id] !== undefined) out[id] = evidence[id]
+  if (Object.keys(out).length >= 2)
+    for (const [id, at] of rounded) if (out[id] === undefined && offer[id] === undefined && evidence[id] !== undefined && proposes(positive, at)) out[id] = evidence[id]
   return out
+}
+
+/** Число стоит в собственном предложении: перед ним в том же предложении «давай/предлагаю/готов», и нет отрицания
+ * («двести не потянем», «у конкурента 200» — не предложение). */
+function proposes(text: string, at: number): boolean {
+  const start = Math.max(text.lastIndexOf('.', at - 1), text.lastIndexOf('!', at - 1), text.lastIndexOf('?', at - 1), text.lastIndexOf('\n', at - 1)) + 1
+  const rest = text.slice(at).search(/[.!?\n]/)
+  const sentence = text.slice(start, rest < 0 ? text.length : at + rest)
+  const before = text.slice(start, at)
+  return /(давай|давайте|предлага|готов|сойд[её]мся|сходимся|можем|могу|возьм[её]м|берём|берем|согласн)/iu.test(before) && !/(?<!\p{L})(не|нет|ни)(?!\p{L})/iu.test(sentence)
 }
 
 const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))

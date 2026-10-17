@@ -474,40 +474,50 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
 // ——— безопасный вариант ———
 
 /** Как условие звучит в тексте: число варианта или его собственные слова. */
-function optionMarks(sc: Scenario, id: IssueId, option: number): RegExp[] {
+type Mark = (text: string) => boolean
+function optionMarks(sc: Scenario, id: IssueId, option: number): Mark[] {
   const i = sc.issues.find((x) => x.id === id)
   if (!i) return []
   const o = i.options[option]
   const q = optionQuantity(o)
-  if (q && q.dim !== 'plain') return [new RegExp(`(?<![\\d])${o.match(/\d+/)?.[0] ?? '\\d+'}(?![\\d])`)]
+  // число узнаём и цифрами, и словами («двести четыре», «ста девяноста шести»)
+  if (q && q.dim !== 'plain') return [(t) => quantities(t).some((x) => Math.abs(x.value - q.value) <= Math.abs(q.value) * 0.01 + 1e-9)]
   const own = (o.toLowerCase().match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 5))
     .filter((w) => !i.options.some((x, n) => n !== option && x.toLowerCase().includes(w)))
-  return own.map((w) => new RegExp(`(?<!\\p{L})${w}`, 'iu'))
+  return own.map((w) => (t) => new RegExp(`(?<!\\p{L})${w}`, 'iu').test(t))
 }
 
 /** Убрать из реплики предложения, где нарушение; если ничего не осталось — undefined. */
 export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): string | undefined {
-  const bad: RegExp[] = []
+  const bad: Mark[] = []
   for (const t of out.terms) if (frame.position[t.issue] !== t.option) bad.push(...optionMarks(sc, t.issue, t.option))
   const d = frame.decision
   const keep = sentences(out.line).filter((s) => {
     const clean = stripTags(unstress(s))
     if (d.kind !== 'accept' && saysYes(clean)) return false
-    if (bad.some((re) => re.test(clean))) return false
+    if (bad.some((has) => has(clean))) return false
     if (strayNumbers(sc, frame, clean, ctx.said).length) return false
     if (leaks(sc, frame, clean, ctx.said).length) return false
     if (claimsFinal(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
     return !isRude(clean) && !mixesSides(sc, clean)
   })
-  const text = keep.join(' ').trim()
+  let text = keep.join(' ').trim()
   if (stripTags(text).split(/\s+/).filter(Boolean).length < 2) return undefined
+  if (d.kind === 'accept' && !saysYes(stripTags(text))) text = `${text} Договорились: ${terms(sc, frame.position)}.`
+  if (d.kind === 'reveal') {
+    const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
+    const own = it ? stems(it.text) : []
+    if (it && !stems(text).some((w) => own.includes(w))) text = `${text} Скажу как есть: ${lowerFirst(tame(it.text))}.`
+  }
   // во встречном главное — что изменилось: если это выпало вместе с нарушением, договариваем коротко
   if (frame.changed.length && (d.kind === 'counter' || (d.kind === 'reveal' && d.offer))) {
-    const named = frame.changed.some((id) => optionMarks(sc, id, frame.position[id]!).some((re) => re.test(text)))
+    const named = frame.changed.some((id) => optionMarks(sc, id, frame.position[id]!).some((has) => has(text)))
     if (!named) return `${text} Давай так: ${terms(sc, Object.fromEntries(frame.changed.map((id) => [id, frame.position[id]])))}.`
   }
   return text
 }
+
+const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)
 
 // ——— эмоция ———
 
@@ -575,6 +585,9 @@ export async function voice(
   }
 
   const run = async (m: LLM) => {
+    const spare = !!opts.fallback && opts.fallback !== m && opts.fallback.name !== 'offline'
+    // короткое ожидание — только когда есть кому подхватить; одна модель ждёт как раньше (12 с)
+    const wait = spare ? VOICE_MS : 12_000
     const key = { v: VOICE_VERSION, llm: `${m.name}:${m.model}`, sc: sc.id, sys, user }
     const { value, hit } = await cached('voice', key, async () => {
       const started = Date.now()
@@ -588,12 +601,16 @@ export async function voice(
         let out: Raw
         try {
           // зависшую модель долго не ждём: игрок смотрит на «…», а запасная модель ответит за секунду
-          out = Raw.parse(await m.json({ system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? VOICE_MS * 0.75 : VOICE_MS, schema: schema(sc) }))
+          out = Raw.parse(await m.json({ system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? wait * 0.75 : wait, schema: schema(sc) }))
         } catch (e) {
           if (!attempt) throw e
-          break // переписка не удалась — берём лучшее из того, что уже есть
+          // переписка не удалась: живой вариант первой попытки берём, а с нарушением — пусть пишет запасная модель (не в кэш)
+          if (tries[0].check.hard.length && spare) throw e
+          break
         }
         out.line = clean(out.line)
+        // пункт не из дела или номер варианта вне диапазона — не условие, а ошибка модели
+        out.terms = out.terms.filter((t) => sc.issues.find((i) => i.id === t.issue)?.options[t.option] !== undefined)
         const check = checkLine(sc, frame, out, ctx)
         tries.push({ out, check })
         opts.trace?.({ model: m.model, attempt, line: out.line, ...check, ms: Date.now() - t0 })

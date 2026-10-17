@@ -127,6 +127,25 @@ describe('безопасный вариант: убираем только пр�
   })
 })
 
+describe('безопасный вариант: согласие и причина не теряются', () => {
+  it('при «согласиться» в урезанной реплике остаётся «договорились»', () => {
+    const deal = { price: 1, payment: 0, rush: 4, term: 2, schedule: 2 }
+    const s = { ...initialState(tara), deal, status: 'deal' as const }
+    const frame = frameFor(tara, { kind: 'accept' }, s, deal)
+    const safe = prune(tara, frame, { line: 'Ну вы и жук. По рукам на ста девяноста шести.', emotion: 'happy', terms: [{ issue: 'price', option: 2 }], agrees: true, reveals: [] }, { said: tara.opening, mine: [] })!
+    expect(safe).toMatch(/^Ну вы и жук\./)
+    expect(safe).toMatch(/Договорились: цена за короб — 204/)
+  })
+
+  it('номер варианта вне диапазона из ответа модели не роняет ход', async () => {
+    const m = { name: 'aitunnel' as const, model: `x-${Math.random()}`, json: async () => ({ line: 'Ладно, по рукам!', emotion: 'happy', terms: [{ issue: 'wifi', option: 9 }], agrees: true, reveals: [] }) }
+    const s = { ...initialState(dorm), turn: 1 }
+    const v = await voice(m, dorm, [], 'Давай 300', { kind: 'counter', offer: { wifi: 1, quiet: 0, cleaning: 0, guests: 3, kitty: 2 } }, s)
+    expect(['safe', 'template']).toContain(v.source)
+    expect(v.line).not.toMatch(/по рукам/i)
+  })
+})
+
 describe('пометки для голоса', () => {
   it('на экране и у голосов без ElevenLabs их нет; знакомые остаются, чужие и лишние — убираем', () => {
     expect(stripTags('[laughs] Ну ты даёшь. [sighs] Ладно.')).toBe('Ну ты даёшь. Ладно.')

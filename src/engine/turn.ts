@@ -238,15 +238,18 @@ export function step(
   const prevCounter = isComplete(sc, theirs) ? theirs : undefined
   const stance = s.playerStance ?? {}
 
-  const whole = completeProposal(sc, proposal, theirs)
+  // дополнять с его листка можно, только если в этой реплике названо всё, кроме одного пункта: иначе игрок мог
+  // отказаться от этого пункта словами («ваш срок не подходит»), а разметка отказ не видит
+  const nearlyAll = !!newOffer && Object.keys(newOffer).length >= sc.issues.length - 1
+  const whole = proposal && (isComplete(sc, proposal) || nearlyAll || analysis.accepts) ? completeProposal(sc, proposal, theirs) : undefined
   if (whole) {
-    const next = makeCounter(sc, target, stance, prevCounter, s.trust)
+    const next = makeCounter(sc, target, stance, prevCounter, s.trust, before.playerStance)
     if (wouldAccept(sc, whole, target, next))
       return end({ kind: 'accept' }, { status: 'deal', deal: whole, tableOffer: whole })
   }
 
   const isLast = turn >= sc.turnLimit
-  const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter, s.trust)
+  const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter, s.trust, before.playerStance)
 
   if (asksInterest(analysis, dict)) {
     const { ready, told, offTopic, general } = pickInterest(sc, s, analysis)
@@ -266,7 +269,8 @@ export function step(
   // Игрок шутит, извиняется, спрашивает о деле или о жизни — собеседник отвечает человеку, сделка стоит на месте.
   // Два таких хода подряд или под конец встречи — после ответа он сам возвращает разговор к делу.
   // С выпадом или ультиматумом это не разговор, а давление: «Вы что, издеваетесь?» — не вопрос, на него не отвечают шуткой.
-  const pressing = analysis.behaviors.some((b) => dict[b.id]?.kind === 'bad')
+  // (давление — приём, который сильно поднимает напряжение: выпад, ультиматум; «давай пополам» сюда не относится)
+  const pressing = analysis.behaviors.some((b) => dict[b.id]?.kind === 'bad' && (dict[b.id]?.tension ?? 0) >= 8)
   const talk = analysis.talk?.length && !newOffer && !analysis.accepts && !isLast && !pressing ? analysis.talk : undefined
   const respond = (): StepResult => {
     const back = chatOnly(past[past.length - 1]) || turn >= sc.turnLimit - 2

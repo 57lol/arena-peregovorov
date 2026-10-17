@@ -298,7 +298,8 @@ export function aitunnel(model = process.env.AITUNNEL_MODEL ?? 'gpt-6.1-sol', b:
       const text = r.choices?.[0]?.message?.content
       const u = r.usage ?? {}
       const tin = Number(u.prompt_tokens ?? 0), tout = Number(u.completion_tokens ?? 0)
-      await b.addLlm(`aitunnel/${model}`, tin, tout, u.cost_rub !== undefined ? Number(u.cost_rub) : undefined)
+      const rub = u.cost_rub != null && Number.isFinite(Number(u.cost_rub)) ? Number(u.cost_rub) : undefined
+      await b.addLlm(`aitunnel/${model}`, tin, tout, rub)
       if (typeof text !== 'string' || !text.trim()) throw new Error('Пустой ответ')
       return extractJson(text)
     },
