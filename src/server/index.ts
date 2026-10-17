@@ -12,13 +12,19 @@ try {
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
 const { makeSpeech } = await import('./speech')
+const { makeSttStream } = await import('./sttStream')
 const { logBudgetHourly } = await import('./budget')
 
 const { llm, error } = makeLLM()
 const speech = makeSpeech()
+const sttStream = makeSttStream()
 const port = Number(process.env.PORT ?? 8787)
-serve({ fetch: createApp(llm, error, speech).fetch, port }, () => {
+const app = createApp(llm, error, speech)
+app.route('/', sttStream.app)
+const server = serve({ fetch: app.fetch, port }, () => {
   console.log(`Сервер: http://localhost:${port} · провайдер ${llm.name} (${llm.model})${error ? ` — ${error}, работаю офлайн` : ''}`)
   void speech.prewarm()
 })
 if (llm.name !== 'offline') logBudgetHourly()
+
+sttStream.attach(server as import('node:http').Server)

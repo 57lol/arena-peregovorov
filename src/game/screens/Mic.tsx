@@ -27,6 +27,7 @@ const clock = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2,
  */
 export function MicButton(props: Props) {
   const [state, setState] = useState<MicState>('idle')
+  const [partial, setPartial] = useState('')
   const [sec, setSec] = useState(0)
   const [failed, setFailed] = useState(false)
   const autoTried = useRef<string | undefined>(undefined)
@@ -38,7 +39,7 @@ export function MicButton(props: Props) {
 
   useEffect(() => {
     const m = createMic({
-      start: () => startRecording(cb.current.voiceOnly ? { onSilence: () => void mic.current?.finish(), maxMs: 30_000 } : undefined),
+      start: () => startRecording({ onPartial: setPartial, ...(cb.current.voiceOnly || cb.current.autoKey ? { onSilence: () => void mic.current?.finish(), maxMs: 30_000 } : {}) }),
       toPcm: toPcm16k,
       recognize,
       onStart: () => {
@@ -48,6 +49,7 @@ export function MicButton(props: Props) {
       },
       onState: (s) => {
         setState(s)
+        if (s !== 'rec' && s !== 'busy') setPartial('')
         setSec(0)
       },
       onText: (t) => cb.current.onText(t),
@@ -96,6 +98,7 @@ export function MicButton(props: Props) {
   if (!canRecord()) return null
   if (state === 'rec')
     return (
+      <>
       <Button
         className="g-mic is-rec"
         variant="stamp"
@@ -116,6 +119,8 @@ export function MicButton(props: Props) {
           </>
         )}
       </Button>
+      {partial && <span className="g-mic-transcript" role="status" aria-live="polite">{partial}</span>}
+      </>
     )
 
   if (state === 'busy')

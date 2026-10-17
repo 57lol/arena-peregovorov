@@ -1,7 +1,7 @@
 // Голосовой ввод без вёрстки: состояния кнопки «Голосом», запись и распознавание.
 // Запись не теряется при сбое распознавания: её можно отправить ещё раз, не перезаписывая.
 
-import { micError, SttError, type Recording } from './speech'
+import { micError, SttError, type Recording } from './recording'
 
 /**
  * idle — можно записывать; starting — ждём микрофон (окно разрешения); rec — пишем;
@@ -26,6 +26,7 @@ export function createMic(io: MicIO) {
   let state: MicState = 'idle'
   let rec: Recording | null = null
   let pcm: ArrayBuffer | null = null
+  let finishing: Recording | null = null
   let job: AbortController | null = null
   let dead = false
   let generation = 0
@@ -59,16 +60,30 @@ export function createMic(io: MicIO) {
     const r = rec
     if (!is('rec') || !r) return
     rec = null
+    finishing = r
+    const ctl = (job = new AbortController())
     set('busy')
     const g = generation
     try {
-      const data = await io.toPcm(await r.stop())
+      const blob = await r.stop()
+      const streamed = await r.transcript?.()
+      if (dead || g !== generation) return
+      if (streamed?.trim() && !ctl.signal.aborted) {
+        set('idle')
+        io.onText(streamed.trim())
+        return
+      }
+      const data = await io.toPcm(blob)
       if (dead || g !== generation) return
       pcm = data
+      if (ctl.signal.aborted) { set('failed'); return }
     } catch (e) {
-      if (dead || g !== generation || !is('busy')) return
+      if (dead || g !== generation) return
       set('idle')
       return io.onError(micError(e))
+    } finally {
+      if (finishing === r) finishing = null
+      if (job === ctl) job = null
     }
     if (is('busy')) await send()
   }
@@ -104,6 +119,7 @@ export function createMic(io: MicIO) {
     cancel() {
       if (!is('busy') || !job) return
       job.abort()
+      finishing?.cancel()
       job = null
       set('failed')
     },
@@ -112,6 +128,8 @@ export function createMic(io: MicIO) {
       generation++
       job?.abort()
       job = null
+      finishing?.cancel()
+      finishing = null
       rec?.cancel()
       rec = null
       pcm = null
@@ -123,6 +141,8 @@ export function createMic(io: MicIO) {
       generation++
       job?.abort()
       job = null
+      finishing?.cancel()
+      finishing = null
       rec?.cancel()
       rec = null
     },
