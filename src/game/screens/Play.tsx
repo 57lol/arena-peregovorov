@@ -331,6 +331,7 @@ export function Play(props: Props) {
                       <button
                         type="button"
                         className="g-link"
+                        disabled={!!pending}
                         onClick={() => m.rewind(h.turn)}
                       >
                         <PixelIcon name="rewind" px={2} /> Переиграть с этого хода

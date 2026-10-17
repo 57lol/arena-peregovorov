@@ -880,6 +880,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
                   <button
                     type="button"
                     className="g-link"
+                    disabled={!!m.pending}
                     onClick={() => {
                       m.rewind(x.turn)
                       onClose()
