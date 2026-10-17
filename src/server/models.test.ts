@@ -26,6 +26,8 @@ describe('AITunnel: модель реплики', () => {
     expect(await m.json({ system: 'кто ты', user: 'реплика', temperature: 0.8, maxTokens: 300, schema: { name: 'x', schema: {} } })).toEqual({ line: 'Ну' })
     expect(sent[0]).toMatchObject({ model: 'claude-sonnet-5.5', reasoning_effort: 'minimal', max_tokens: 800, response_format: { type: 'json_schema' } })
     expect(sent[0].messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' })
+    // Claude — через Google Vertex (быстрее начинает), другой поставщик — если Vertex не ответил
+    expect(sent[0].provider).toEqual({ order: ['google-vertex'], allow_fallbacks: true })
     expect((await b.total()).llmRub).toBeCloseTo(0.42)
   })
 

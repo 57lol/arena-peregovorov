@@ -237,6 +237,16 @@ export function aitunnelFlags(model: string, env = process.env): Record<string, 
   return {}
 }
 
+/**
+ * У кого AITunnel (через OpenRouter) берёт Claude: замер 17.10 на настоящем промпте хода — через Google Vertex реплика
+ * начинается за ~1,0–1,25 с против ~1,05–1,8 с по умолчанию, и кэш промпта живёт у одного поставщика. Не ответил —
+ * OpenRouter сам идёт к другому. AITUNNEL_PROVIDER — свой список через запятую, off — как решит OpenRouter.
+ */
+export function aitunnelRoute(model: string, env = process.env): Record<string, unknown> {
+  const order = env.AITUNNEL_PROVIDER ?? (/^claude/.test(model) ? 'google-vertex' : 'off')
+  return order === 'off' ? {} : { provider: { order: order.split(',').map((x) => x.trim()), allow_fallbacks: true } }
+}
+
 /** Модель реплики по умолчанию: живее всех держит рамку, ~2 с на ответ (~/Arena-materials/final/models/PROVIDERS_REPORT.md). */
 export const DEFAULT_VOICE_MODEL = 'claude-sonnet-5.5'
 
@@ -265,6 +275,7 @@ export function aitunnel(model?: string, b: Budget = sharedBudget(), env = proce
       ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
       : { type: 'json_object' },
     ...aitunnelFlags(m, env),
+    ...aitunnelRoute(m, env),
   })
   // цена оборванного потока неизвестна (AITunnel пишет её только в конце): считаем по прошлым ходам — ₽ за символ промпта
   let rubPerChar = 0.00025
