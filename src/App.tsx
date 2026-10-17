@@ -9,7 +9,7 @@ import { nextCase } from './game/career'
 import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
 import { newAttemptId, nextPulseSeq, sendPulse, loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
-import { loadVoiceOn, unlockAudio } from './game/speech'
+import { loadVoiceOn, setElevenMain, unlockAudio } from './game/speech'
 import { useSoundScene } from './game/audio/scene'
 import { initialState } from './engine/turn'
 import { useRoomPulse } from './game/useRoomPulse'
@@ -153,6 +153,7 @@ export default function App() {
     const ask = (n: number) =>
       health().then((h) => {
         if (!alive) return
+        if (h?.speech?.eleven) setElevenMain(true)
         if (h || n >= 4) return setServer(h)
         setTimeout(() => ask(n + 1), 2000)
       })

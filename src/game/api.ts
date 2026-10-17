@@ -120,8 +120,8 @@ export interface Health {
   mode?: 'pro' | 'lite' | 'offline'
   model?: string
   providerError?: string
-  /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ */
-  speech?: { tts: boolean; stt: boolean }
+  /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ; eleven — говорит ElevenLabs */
+  speech?: { tts: boolean; stt: boolean; eleven?: boolean }
 }
 
 export async function health(): Promise<Health | null> {

@@ -9,11 +9,12 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
+import { direct, DIRECT_VERSION, forEleven, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
 import { yandex } from './llm'
 import { accent, render, resolveStress, unstress, type AskJson, type StressEngine } from './stress'
 import { stripTags } from './tags'
-import { aitunnelModel, castFor, familyOf, mainTts, mannerOf, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
+import { knownAudio } from './eleven-known'
+import { aitunnelModel, castFor, elevenBody, familyOf, MAIN_TTS, mainTts, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -123,7 +124,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
 
   const yandexTtsReady = () => !!key && !denied.tts
   const primaryTts = () => env.SPEECH === 'off' ? undefined : mainTts(env)
-  const status = () => ({ tts: yandexTtsReady() || !!primaryTts(), stt: !!key && !denied.stt })
+  if (env.TTS_PROVIDER && !(MAIN_TTS as readonly string[]).includes(env.TTS_PROVIDER))
+    console.warn(`[speech] TTS_PROVIDER=${env.TTS_PROVIDER} игра не берёт (голос OpenAI на проде запрещён): говорит SpeechKit. Основной голос — TTS_PROVIDER=elevenlabs`)
+  // eleven — игра говорит голосами ElevenLabs: браузер берёт их фразы-паузы и не меняет темп голоса
+  const status = () => ({ tts: yandexTtsReady() || !!primaryTts(), stt: !!key && !denied.stt, ...(primaryTts() === 'elevenlabs' ? { eleven: true } : {}) })
 
   const ask = opts.stressAsk === undefined ? stressAsk(env) : opts.stressAsk ?? undefined
   const stressMs = Number(env.STRESS_LLM_MS ?? 500)
@@ -167,22 +171,23 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   // внешний провайдер сбоит — после трёх ошибок подряд даём ему паузу, игра тем временем говорит SpeechKit
   const outage = { fails: 0, until: 0 }
 
-  /** Реплика у внешнего провайдера: свой кэш, свои лимиты, цена в общий бюджет (price1k). null — лимит. */
+  /**
+   * Реплика голосом ElevenLabs (TTS_PROVIDER=elevenlabs или тест ?tts=eleven): свой кэш, цена в общий бюджет (price1k).
+   * Заранее известные тексты (вступления) лежат готовыми в assets — их отдаём сразу. null — лимит.
+   */
   async function external(c: Context, p: MainTts, b: z.infer<typeof TtsBody>): Promise<Response | null> {
     const st = ttsStatus(env)[p]
     const voice = castFor(p, b.who, b.voice, env)
-    const instructions = mannerOf(b.who, b.emotion)
-    // ударения — как понимает этот движок (stress.ts: render); OpenAI и Gemini разметку не слушаются — им без неё.
-    // Пометки для голоса от модели реплики («[laughs]») понимает только ElevenLabs, остальным их не отдаём
-    const engine = stressEngine(p, env)
-    const spoken = spokenOf(b.text)
-    const base = p === 'elevenlabs' ? spoken : stripTags(spoken)
-    const marked = engine === 'speechkit' || engine === 'eleven' ? await speakable(base) : unstress(base)
-    const text = render(spellOut(marked), engine).replace(/[«»"]/g, '')
-    const ext = /^gemini/.test(st.model) && p === 'aitunnel' ? 'wav' : 'mp3'
-    const file = join(CACHE_DIR, 'tts', `${hashOf({ p, m: st.model, text, voice, i: instructions, e: b.emotion })}.${ext}`)
-    const headers = { 'content-type': ext === 'wav' ? 'audio/wav' : 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice, 'x-tts-api': p }
+    const headers = { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice, 'x-tts-api': p }
     const send = (audio: Uint8Array<ArrayBuffer>, ms: number, cache: string) => c.body(audio, 200, { ...headers, 'x-cache': cache, ...(ms ? { 'x-audio-ms': String(ms) } : {}) })
+    const ready = await knownAudio(voice, b.text)
+    if (ready) return send(ready, mp3Ms(ready), 'known')
+    // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (stress.ts: render), пометки
+    // для голоса от модели реплики («[chuckles]») остаются
+    const marked = await speakable(forEleven(spokenOf(b.text)))
+    const text = render(spellOut(marked), 'eleven').replace(/[«»"]/g, '')
+    const q = { text, voice, who: b.who }
+    const file = join(CACHE_DIR, 'tts', `${hashOf({ p, voice, body: elevenBody(q, env) })}.mp3`)
     const running = inflight.get(file)
     if (running) {
       const r = await running.catch(() => null)
@@ -190,12 +195,12 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
     try {
       const audio = new Uint8Array(await readFile(file))
-      return send(audio, ext === 'wav' ? wavMs(audio) : mp3Ms(audio), 'hit')
+      return send(audio, mp3Ms(audio), 'hit')
     } catch {
       // нет в кэше
     }
     if (!allow('tts', ipOf(c)) || !(await quota.ttsAllowed(text.length))) return null
-    const job = synthesize(p, { text, voice, emotion: b.emotion, instructions }, f, env).then((r) => ({ audio: r.audio, ms: r.ms ?? 0 }))
+    const job = synthesize(p, q, f, env).then((r) => ({ audio: r.audio, ms: r.ms ?? 0 }))
     job.catch(() => {})
     inflight.set(file, job)
     try {

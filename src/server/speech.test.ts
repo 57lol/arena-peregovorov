@@ -8,6 +8,7 @@ process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-tts-'))
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
 const { makeSpeech, styleFor, tidyTranscript } = await import('./speech')
+const { elevenSeed } = await import('./tts')
 
 const offline = makeLLM('offline').llm
 // ответ SpeechKit: v3 — строка JSON с куском mp3 в base64, v1 — сразу mp3
@@ -203,6 +204,14 @@ describe('лица и их подача', () => {
     // «ОЭЗ» для SpeechKit — в render (stress.ts), остальные движки читают сами
     expect(spellOut('ОЭЗ «Алабуга»')).toBe('ОЭЗ «Алабуга»')
   })
+
+  it('ElevenLabs: англицизмы и сокращения — как говорят (замеры voice-fix 17.10)', async () => {
+    const { forEleven } = await import('./direct')
+    expect(forEleven('за вай-фай и без Wi-Fi, вай-фая нет')).toBe('за вайфай и без вайфай, вайфая нет')
+    expect(forEleven('в ОЭЗ «Алабуга», на КАМАЗе, КамАЗ')).toBe('в О-Э-З «Алабуга», на Камазе, Камаз')
+    expect(forEleven('в FIFA, в фифу, ФИФА')).toBe('в Фи\u0301фа, в фи\u0301фу, Фи\u0301фа')
+    expect(forEleven('EA FC, ок, в 7:52')).toBe('EA FC, ок, в 7:52')
+  })
 })
 
 describe('внешний голос (TTS_PROVIDER)', () => {
@@ -220,26 +229,31 @@ describe('внешний голос (TTS_PROVIDER)', () => {
   const frame = Uint8Array.from({ length: 417 }, (_, i) => (i === 0 ? 0xff : i === 1 ? 0xfb : i === 2 ? 0x90 : 0))
   const mp3Frames = new Uint8Array([...frame, ...frame])
 
-  it('ElevenLabs через AITunnel: голос лица, эмоция тегом; повтор — из кэша; сбой — говорит SpeechKit', async () => {
-    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'eleven-v4-turbo' }, async () => {
+  const relay = { TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: 'https://relay.test', ELEVEN_RELAY_SECRET: 's', ELEVENLABS_MODEL: 'eleven_v4_turbo' }
+  const sent = (f: ReturnType<typeof vi.fn>, i = 0) => JSON.parse(String((f.mock.calls[i] as unknown as [string, RequestInit])[1].body))
+
+  it('ElevenLabs через воркер: голос и настройки лица, без пометки эмоции движка; повтор — из кэша; сбой — говорит SpeechKit', async () => {
+    await withEnv(relay, async () => {
       let down = false
       const f = vi.fn(async (url: string | URL | Request) => {
-        if (String(url).includes('aitunnel')) return down ? new Response('{}', { status: 500 }) : new Response(mp3Frames, { status: 200 })
+        if (String(url).includes('relay.test')) return down ? new Response('{}', { status: 502 }) : new Response(mp3Frames, { status: 200 })
         return fakeYandex()(url)
       })
-      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
       const text = `Не пойдёт ${Math.random()}`
-      const r = await tts(app, { text, voice: 'sergey', who: 'palych', role: 'support', emotion: 'annoyed' })
+      const r = await tts(app, { text, voice: 'sergey', who: 'gopnik', role: 'sales', emotion: 'annoyed' })
       expect(r.status).toBe(200)
-      expect(r.headers.get('x-tts-api')).toBe('aitunnel')
-      expect(r.headers.get('x-tts-voice')).toBe('bill')
-      expect(Number(r.headers.get('x-audio-ms'))).toBeGreaterThan(40)
-      const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
-      expect(body).toMatchObject({ model: 'eleven-v4-turbo', voice: 'bill', response_format: 'mp3' })
-      expect(body.input).toBe(`[annoyed] ${text}`)
-      expect((await tts(app, { text, voice: 'sergey', who: 'palych', emotion: 'annoyed' })).headers.get('x-cache')).toBe('hit')
+      expect(r.headers.get('x-tts-api')).toBe('elevenlabs')
+      expect(r.headers.get('x-tts-voice')).toBe('o7PE01v4XYHJP2sq6EFk')
+      const body = sent(f)
+      expect(body).toMatchObject({ voice_id: 'o7PE01v4XYHJP2sq6EFk', model_id: 'eleven_v4_turbo', voice_settings: { stability: 0.6, similarity_boost: 0.8 } })
+      expect(body.seed).toBe(elevenSeed('gopnik'))
+      // постоянная подача лица — да, пометка эмоции движка ([annoyed]) — нет
+      expect(body.text.startsWith('[thick southern Russian village accent, soft fricative g] ')).toBe(true)
+      expect(body.text).not.toContain('[annoyed]')
+      expect((await tts(app, { text, voice: 'sergey', who: 'gopnik', emotion: 'neutral' })).headers.get('x-cache')).toBe('hit')
       down = true
-      const fb = await tts(app, { text: `Годится ${Math.random()}`, voice: 'sergey', who: 'palych' })
+      const fb = await tts(app, { text: `Годится ${Math.random()}`, voice: 'sergey', who: 'gopnik' })
       expect(fb.status).toBe(200)
       expect(fb.headers.get('x-tts-voice')).toBe('sergey')
       // лаборатория с явным api — всегда SpeechKit
@@ -247,61 +261,75 @@ describe('внешний голос (TTS_PROVIDER)', () => {
     })
   })
 
-  it('ударения: ElevenLabs получает U+0301 после гласной, OpenAI — текст без разметки', async () => {
-    for (const [model, want] of [['eleven-v4-turbo', 'Догово́р на кварта́л'], ['gpt-4o-mini-tts', 'Договор на квартал']]) {
-      await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: model }, async () => {
-        const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
-        const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
-        await tts(app, { text: `Договор на квартал ${Math.random()}`, voice: 'denis', who: 'rinat' })
-        const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
-        expect(body.input).toContain(want)
+  it('текст для ElevenLabs: ударения U+0301, англицизмы и сокращения — как говорят, пометки модели остаются', async () => {
+    await withEnv(relay, async () => {
+      const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
+      await tts(app, { text: `[chuckles] Договор на квартал, за вай-фай 600 ₽, в ОЭЗ ${Math.random()}`, voice: 'denis', who: 'rinat' })
+      const t = sent(f).text
+      expect(t).toContain('Догово́р на кварта́л')
+      expect(t).toContain('вайфа́й')
+      expect(t).toContain('600 рублей')
+      expect(t).toContain('О-Э-З')
+      expect(t.startsWith('[chuckles] ')).toBe(true)
+    })
+  })
+
+  it('вступление, записанное заранее, отдаётся из assets без синтеза', async () => {
+    const { ELEVEN_KNOWN } = await import('./eleven-known.data')
+    const k = ELEVEN_KNOWN[0]
+    if (!k) return
+    await withEnv(relay, async () => {
+      const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
+      const r = await tts(app, { text: k.text, voice: 'vasily', who: k.who })
+      expect(r.headers.get('x-cache')).toBe('known')
+      expect(f).not.toHaveBeenCalled()
+    })
+  })
+
+  it('голос OpenAI на проде запрещён: TTS_PROVIDER=aitunnel или openai игра не берёт — говорит SpeechKit', async () => {
+    for (const p of ['aitunnel', 'openai']) {
+      await withEnv({ TTS_PROVIDER: p, AITUNNEL_API_KEY: 'ait', OPENAI_API_KEY: 'oai', TTS_MODEL: 'gpt-4o-mini-tts' }, async () => {
+        const f = fakeYandex()
+        const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch })
+        const app = createApp(offline, undefined, speech)
+        const r = await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', who: 'sosed' })
+        expect(r.headers.get('x-tts-voice')).toBe('vasily')
+        expect(f.mock.calls.every((c) => String(c[0]).includes('yandex'))).toBe(true)
+        expect(speech.status()).toEqual({ tts: true, stt: true })
       })
     }
   })
 
-  it('Gemini через AITunnel: манера словами в instructions, pcm → wav', async () => {
-    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'gemini-3.8-flash-tts' }, async () => {
-      const f = vi.fn(async (url: string | URL | Request) => (String(url).includes('aitunnel') ? new Response(new Uint8Array(48000), { status: 200 }) : fakeYandex()(url)))
-      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
-      const r = await tts(app, { text: `Слушай, братан ${Math.random()}`, voice: 'vasily', who: 'sosed', emotion: 'happy' })
-      expect(r.headers.get('content-type')).toBe('audio/wav')
-      expect(r.headers.get('x-audio-ms')).toBe('1000')
-      const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
-      expect(body).toMatchObject({ model: 'gemini-3.8-flash-tts', voice: 'Puck', response_format: 'pcm' })
-      expect(body.instructions).toContain('студент')
-      expect(body.input).not.toContain('[')
-    })
-  })
-
-  it('основной внешний TTS работает без ключа Яндекса, STT и явный SpeechKit выключены', async () => {
-    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'eleven-v4-turbo', YANDEX_API_KEY: '' }, async () => {
+  it('ElevenLabs работает без ключа Яндекса: STT и явный SpeechKit выключены, игра знает, что голос ElevenLabs', async () => {
+    await withEnv({ ...relay, YANDEX_API_KEY: '' }, async () => {
       const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
-      const speech = makeSpeech({ key: '', fetch: f as typeof fetch })
+      const speech = makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null })
       const app = createApp(offline, undefined, speech)
       const health = await (await app.request('/api/health')).json() as { speech: object }
-      expect(health.speech).toEqual({ tts: true, stt: false })
+      expect(health.speech).toEqual({ tts: true, stt: false, eleven: true })
       const r = await tts(app, { text: `Без Яндекса ${Math.random()}`, voice: 'sergey', who: 'palych' })
       expect(r.status).toBe(200)
-      expect(r.headers.get('x-tts-api')).toBe('aitunnel')
-      expect(String(f.mock.calls[0]?.[0])).toContain('aitunnel')
+      expect(r.headers.get('x-tts-api')).toBe('elevenlabs')
       expect((await tts(app, { text: 'Явный SpeechKit', voice: 'sergey', api: 'v3' })).status).toBe(503)
       expect((await app.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })).status).toBe(503)
       expect(f).toHaveBeenCalledTimes(1)
     })
   })
 
-  it('при сбое внешнего TTS не вызывает SpeechKit без ключа', async () => {
-    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait' }, async () => {
-      const f = vi.fn(async (_url: string | URL | Request) => new Response('{}', { status: 500 }))
-      const app = createApp(offline, undefined, makeSpeech({ key: '', fetch: f as typeof fetch }))
+  it('при сбое ElevenLabs не вызывает SpeechKit без ключа', async () => {
+    await withEnv({ ...relay, YANDEX_API_KEY: '' }, async () => {
+      const f = vi.fn(async (_url: string | URL | Request) => new Response('{}', { status: 502 }))
+      const app = createApp(offline, undefined, makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null }))
       expect((await tts(app, { text: `Сбой внешнего ${Math.random()}`, voice: 'sergey' })).status).toBe(503)
       expect(f).toHaveBeenCalledTimes(1)
-      expect(String(f.mock.calls[0]?.[0])).toContain('aitunnel')
+      expect(String(f.mock.calls[0]?.[0])).toContain('relay.test')
     })
   })
 
-  it('без ключа TTS_PROVIDER ничего не меняет', async () => {
-    await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: '' }, async () => {
+  it('без воркера и ключа TTS_PROVIDER=elevenlabs ничего не меняет', async () => {
+    await withEnv({ TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: '', ELEVENLABS_API_KEY: '' }, async () => {
       const f = fakeYandex()
       const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
       expect((await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', who: 'sosed' })).headers.get('x-tts-voice')).toBe('vasily')

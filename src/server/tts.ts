@@ -2,7 +2,7 @@
 // остальные — для лаборатории и страницы сравнения голосов: OpenAI, ElevenLabs, SaluteSpeech. Каждый включается
 // своим ключом в .env; без ключа провайдер просто помечен «нужен ключ».
 
-import { hasTags, stripTags } from './tags'
+import { stripTags } from './tags'
 import type { Emotion } from '../engine/types'
 import { PERSONAS, YANDEX_VOICES, type VoiceInfo } from '../content/voices'
 import { sberFetch, sberToken } from './sber'
@@ -98,7 +98,7 @@ export function ttsStatus(env = process.env) {
   return {
     yandex: { ready: yandex, need: 'YANDEX_API_KEY', model: 'SpeechKit v3 (v1 — запасной)' },
     openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts' },
-    elevenlabs: { ready: !!env.ELEVENLABS_API_KEY || !!(env.ELEVEN_RELAY_URL && env.ELEVEN_RELAY_SECRET), need: 'ELEVENLABS_API_KEY', model: env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2' },
+    elevenlabs: { ready: !!env.ELEVENLABS_API_KEY || !!(env.ELEVEN_RELAY_URL && env.ELEVEN_RELAY_SECRET), need: 'ELEVENLABS_API_KEY', model: env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo' },
     salute: { ready: !!env.SALUTE_AUTH_KEY, need: 'SALUTE_AUTH_KEY', model: 'SaluteSpeech' },
     aitunnel: { ready: !!env.AITUNNEL_API_KEY, need: 'AITUNNEL_API_KEY', model: aitunnelModel(env) },
   } satisfies Record<TtsProvider, { ready: boolean; need: string; model: string }>
@@ -135,6 +135,8 @@ export interface TtsRequest {
   instructions?: string
   /** yandex livetts: амплуа (casual, formal…) — у livetts свои, styleFor их не знает */
   liveRole?: string
+  /** elevenlabs: кто говорит — по нему настройки и seed лица */
+  who?: string
 }
 
 export interface Audio {
@@ -213,41 +215,70 @@ export async function openaiTts(key: string, q: TtsRequest, f: Fetch = fetch, en
   return { audio: new Uint8Array(await r.arrayBuffer()), type: 'audio/mpeg' }
 }
 
-export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Audio> {
-  // из России ElevenLabs закрыт: сервер ходит к нему через свой воркер Cloudflare, ключ живёт только там
-  if (env.ELEVEN_RELAY_URL) {
-    const r = await ok(
-      await f(env.ELEVEN_RELAY_URL, {
-        method: 'POST',
-        headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET ?? '', 'content-type': 'application/json' },
-        // v4 и v3 понимают теги эмоций: «[annoyed] …» — та же эмоция движка, что и у других голосов
-        body: JSON.stringify({
-          // свои пометки модели реплики («[laughs] …») точнее эмоции движка — тогда общую не добавляем
-          text: (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') && !hasTags(q.text) ? TAG[q.emotion ?? 'neutral'] : '') + (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') ? q.text : stripTags(q.text)).slice(0, 1000),
-          voice_id: q.voice,
-          model_id: env.ELEVENLABS_MODEL ?? 'eleven_flash_v2_5',
-          voice_settings: { stability: Number(env.ELEVEN_STABILITY ?? 0.45), similarity_boost: 0.8, use_speaker_boost: true },
-        }),
-        // новый библиотечный голос ElevenLabs подгружает ~9 с, дальше отвечает за полсекунды
-        signal: AbortSignal.timeout(15_000),
-      }),
-      'ElevenLabs (воркер)',
-    )
-    const audio = new Uint8Array(await r.arrayBuffer())
-    return { audio, type: 'audio/mpeg', ms: Math.round((audio.length * 8) / 64) }
+/**
+ * Голос лица у ElevenLabs: настройки одинаковые от реплики к реплике и от партии к партии, иначе голос «плывёт».
+ * Замеры 17.10 (~/Arena-materials/final/VOICE_FIX_REPORT.md): больше всего голос уводили пометки эмоции движка в начале
+ * каждой реплики ([cheerfully], [annoyed]…) — их больше нет, пометки ставит только модель реплики и редко. Stability 0,6
+ * вместо 0,45 — тон ровнее; свой seed у лица — одна и та же реплика звучит одинаково. previous_text и
+ * previous_request_ids на v4 Turbo разницы не дали — не шлём. prefix — постоянная пометка подачи в начале реплики
+ * (Серый: говорок, как в дубле, который выбрал капитан).
+ */
+export interface ElevenTune {
+  stability?: number
+  similarity?: number
+  prefix?: string
+}
+export const ELEVEN_TUNE: Record<string, ElevenTune> = {
+  gopnik: { prefix: '[thick southern Russian village accent, soft fricative g] ' },
+}
+/** Свой seed у каждого лица: одна и та же реплика звучит одинаково, разные — в одной манере. */
+export function elevenSeed(who: string | undefined): number {
+  let h = 2166136261
+  for (const ch of who ?? '') h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0
+  return h % 4294967295
+}
+
+/** Тело запроса ElevenLabs — одно для воркера и для прямого вызова (локальная проверка). */
+export function elevenBody(q: TtsRequest, env = process.env) {
+  const model = env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
+  const tune = (q.who && ELEVEN_TUNE[q.who]) || {}
+  const tags = /v[34]/.test(model)
+  const text = (tags ? (tune.prefix ?? '') + q.text : stripTags(q.text)).slice(0, 1000)
+  return {
+    text,
+    model_id: model,
+    voice_settings: {
+      stability: tune.stability ?? Number(env.ELEVEN_STABILITY ?? 0.6),
+      similarity_boost: tune.similarity ?? Number(env.ELEVEN_SIMILARITY ?? 0.8),
+      use_speaker_boost: true,
+    },
+    seed: elevenSeed(q.who ?? q.voice),
   }
-  const model = env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2'
+}
+
+export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Audio> {
+  const body = elevenBody(q, env)
+  // из России ElevenLabs закрыт: сервер ходит к нему через свой воркер Cloudflare, ключ живёт только там.
+  // Без воркера (ELEVEN_RELAY_URL) — напрямую с ключом: только для локальной проверки с мака.
   const r = await ok(
-    await f(`${env.ELEVENLABS_BASE_URL ?? 'https://api.elevenlabs.io/v1'}/text-to-speech/${encodeURIComponent(q.voice)}?output_format=mp3_44100_128`, {
-      method: 'POST',
-      headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' },
-      body: JSON.stringify({ text: q.text, model_id: model, ...(/flash|turbo|v3/.test(model) ? { language_code: 'ru' } : {}) }),
-      signal: AbortSignal.timeout(20_000),
-    }),
-    'ElevenLabs',
+    env.ELEVEN_RELAY_URL
+      ? await f(env.ELEVEN_RELAY_URL, {
+          method: 'POST',
+          headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET ?? '', 'content-type': 'application/json' },
+          body: JSON.stringify({ ...body, voice_id: q.voice }),
+          // новый голос ElevenLabs подгружает ~9 с, дальше отвечает за полсекунды
+          signal: AbortSignal.timeout(15_000),
+        })
+      : await f(`${env.ELEVENLABS_BASE_URL ?? 'https://api.elevenlabs.io/v1'}/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=mp3_44100_64`, {
+          method: 'POST',
+          headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' },
+          body: JSON.stringify({ ...body, language_code: 'ru' }),
+          signal: AbortSignal.timeout(15_000),
+        }),
+    env.ELEVEN_RELAY_URL ? 'ElevenLabs (воркер)' : 'ElevenLabs',
   )
   const audio = new Uint8Array(await r.arrayBuffer())
-  return { audio, type: 'audio/mpeg', ms: Math.round((audio.length * 8) / 128) }
+  return { audio, type: 'audio/mpeg', ms: Math.round((audio.length * 8) / 64) }
 }
 
 export async function saluteTts(authKey: string, q: TtsRequest, env = process.env): Promise<Audio> {
@@ -331,8 +362,12 @@ export function mp3Ms(b: Uint8Array): number {
 
 // ---------- основной внешний голос (TTS_PROVIDER) ----------
 
-/** Провайдеры, которые могут озвучивать всю игру вместо SpeechKit. */
-export const MAIN_TTS = ['aitunnel', 'openai', 'elevenlabs'] as const
+/**
+ * Кто может озвучивать всю игру вместо SpeechKit: только ElevenLabs (TTS_PROVIDER=elevenlabs), цепочка
+ * ElevenLabs → SpeechKit. Голос OpenAI на проде запрещён (решение капитана 17.10): TTS_PROVIDER=aitunnel или openai
+ * игра не берёт, говорит SpeechKit. AITunnel и OpenAI остались только для лаборатории и сравнения голосов.
+ */
+export const MAIN_TTS = ['elevenlabs'] as const
 export type MainTts = (typeof MAIN_TTS)[number]
 
 /** ₽ за 1000 символов у внешней модели (каталог AITunnel, 16.10.2026); своё — TTS_PRICE_1K_RUB. */
@@ -345,7 +380,7 @@ export function price1k(model: string, env = process.env): number {
   return 3
 }
 
-/** TTS_PROVIDER, если для него есть ключ; иначе игра говорит SpeechKit. */
+/** TTS_PROVIDER=elevenlabs и есть воркер (или ключ); иначе игра говорит SpeechKit. */
 export function mainTts(env = process.env): MainTts | undefined {
   const p = env.TTS_PROVIDER as MainTts | undefined
   return p && MAIN_TTS.includes(p) && ttsStatus(env)[p].ready ? p : undefined
@@ -357,7 +392,7 @@ export function mainTts(env = process.env): MainTts | undefined {
  */
 export const CAST: Record<'eleven' | 'elevenId' | 'gemini' | 'openai', Record<string, string>> = {
   // ElevenLabs напрямую (через воркер): русские голоса из библиотеки (Voice Library) по id, подбор 17.10.2026
-  elevenId: { sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: '6A9D8WSMm4rFsg2DWFeE', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n' },
+  elevenId: { sosed: 'RHuRuXY6LScWFuyHhxzS', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n' },
   // ElevenLabs: имена стоковых голосов в AITunnel; свои русские голоса из Voice Library — по id через TTS_CAST
   eleven: { sosed: 'liam', gopnik: 'callum', rinat: 'brian', admin: 'matilda', olga: 'sarah', buyer: 'lily', palych: 'bill', hr: 'bella', official: 'george', foreman: 'adam', dev: 'will', realtor: 'jessica', pacan: 'harry', guard: 'roger', worker: 'chris', student: 'laura', cashier: 'alice' },
   // Gemini: описания голосов Google — Puck бодрый, Fenrir возбуждённый, Charon деловой, Algenib с хрипотцой, Kore твёрдый, Sulafat тёплый
@@ -365,7 +400,7 @@ export const CAST: Record<'eleven' | 'elevenId' | 'gemini' | 'openai', Record<st
   openai: { sosed: 'ash', gopnik: 'verse', rinat: 'cedar', admin: 'sage', olga: 'coral', buyer: 'marin', palych: 'onyx', hr: 'marin', official: 'onyx', foreman: 'ash', dev: 'echo', realtor: 'nova' },
 }
 
-export function castFor(p: MainTts, who: string | undefined, yandexVoice: string, env = process.env): string {
+export function castFor(p: MainTts | 'aitunnel' | 'openai', who: string | undefined, yandexVoice: string, env = process.env): string {
   const own = Object.fromEntries((env.TTS_CAST ?? '').split(',').map((s) => s.trim().split(':')).filter((x) => x.length === 2))
   const pool = voicesOf(p, env)
   const table = CAST[p === 'aitunnel' ? familyOf(aitunnelModel(env)) : p === 'elevenlabs' ? 'elevenId' : 'openai']

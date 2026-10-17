@@ -4,12 +4,14 @@
 import type { Emotion, Scenario } from '../engine/types'
 import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
-import { FILLER_VOICES, fillerIds } from '../content/fillers'
+import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
 import { PERSONAS, type Persona } from '../content/voices'
 
 export interface SpeechCaps {
   tts: boolean
   stt: boolean
+  /** сервер говорит голосами ElevenLabs */
+  eleven?: boolean
 }
 
 // ---------- настройка «Голос» ----------
@@ -345,6 +347,11 @@ export function elevenTest(): boolean {
 // запомнить ?tts= сразу при загрузке: игра потом чистит адрес от параметров (share.ts)
 if (typeof window !== 'undefined') elevenTest()
 
+/** Сервер говорит голосами ElevenLabs (/api/health → speech.eleven, TTS_PROVIDER=elevenlabs). */
+let elevenMain = false
+export const setElevenMain = (on: boolean) => void (elevenMain = on)
+const elevenOn = () => elevenMain || (typeof window !== 'undefined' && elevenTest())
+
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
   if (classicVoice() && !o.provider) return { voice, natural: false, live: false, api: 'v1' as const }
@@ -416,6 +423,8 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
     const url = URL.createObjectURL(blob)
     const env = typeof window === 'undefined' ? undefined : envelope(blob.arrayBuffer())
     const header = Number(r.headers.get('x-audio-ms')) / 1000
+    // голос ElevenLabs уже в своём темпе и тоне — плеер его не замедляет (темп лица — только для livetts)
+    if (r.headers.get('x-tts-api') === 'elevenlabs') return { url, duration: header > 0 ? header : (await metaDuration(url)) || (blob.size * 8) / 64000, env }
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
     const raw = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
     // плеер играет в темпе лица — печать текста идёт в тот же такт
@@ -434,7 +443,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   a.src = p.url
   const env = p.env ?? envelopeOf(p.url)
   trackLip(a, env, true)
-  if (p.voice) pace(a, p.voice)
+  pace(a, p.voice ?? '')
   const g = await levelOf(env)
   // пока мерили громкость, реплику оборвали (игрок взял микрофон, пришла другая) — не играем
   if (url !== p.url || !allowed()) return false
@@ -471,7 +480,12 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
   let started = false
   let finish!: () => void
   const done = new Promise<void>((r) => (finish = r))
-  if (typeof Audio === 'undefined' || classicVoice() || !(FILLER_VOICES as readonly string[]).includes(voice)) {
+  // голосом ElevenLabs фраза-пауза — тем же голосом лица (записаны заранее); у кого их нет — молчим, чужой голос хуже паузы
+  const eleven = elevenOn()
+  const src = eleven
+    ? (ELEVEN_FILLERS as readonly string[]).includes(speaker.id) && `/assets/voice-fillers/eleven/${speaker.id}/`
+    : (FILLER_VOICES as readonly string[]).includes(voice) && `/assets/voice-fillers/${voice}/`
+  if (typeof Audio === 'undefined' || classicVoice() || !src) {
     finish()
     return { cancel: () => {}, done }
   }
@@ -489,13 +503,13 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
       for (const e of ['ended', 'pause', 'error']) a.removeEventListener(e, end)
       finish()
     }
-    // «ended» бывает не приходит (вкладка в фоне) — реплику больше двух с половиной секунд не держим
-    const guard = setTimeout(end, 2500)
+    // «ended» бывает не приходит (вкладка в фоне) — фразу больше трёх с половиной секунд не держим (у ElevenLabs «Так... дайте подумать» — 2,9 с)
+    const guard = setTimeout(end, 3500)
     for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
-    a.src = `/assets/voice-fillers/${voice}/${id}.mp3`
+    a.src = `${src}${id}.mp3`
     const env = envelopeOf(a.src)
     trackLip(a, env, false)
-    pace(a, voice)
+    pace(a, eleven ? '' : voice)
     // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
     const me = lip
     void levelOf(env, 120).then((g) => (lip === me ? (setGain(g), a.play().catch(end)) : end()))
