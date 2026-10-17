@@ -146,12 +146,14 @@ describe('голосовой ход: приём с конца реплики с�
 })
 
 describe('голосовой ход: поток Scribe не держим зря', () => {
-  it('заранее открытый поток без речи закрывается через IDLE_MS, на речь открывается новый', async () => {
+  it('заранее открытый поток без речи закрывается через IDLE_MS, на речь открывается новый; лишних нет', async () => {
     const { l, sessions, play } = setup()
     l.prepare()
     await vi.advanceTimersByTimeAsync(IDLE_MS + 10)
     expect(sessions[0].cancel).toHaveBeenCalled()
-    l.open(0)
+    l.open(Date.now())
+    expect(sessions).toHaveLength(1) // игрок думает — поток не держим
+    await play(0, 3000)
     await play(ME, 300)
     expect(sessions).toHaveLength(2)
     expect(sessions[1].all.length).toBeGreaterThan(0)

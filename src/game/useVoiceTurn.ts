@@ -65,7 +65,6 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
       onPartial: setPartial,
       onText: (t) => {
         setNote(null)
-        cb.current.setDraft(t)
         void cb.current.send(t)
       },
       onError: (e, retry) => {

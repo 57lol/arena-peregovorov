@@ -95,6 +95,8 @@ export function createListener(io: ListenIO) {
   let session: Session | null = null
   let sessionAt = 0
   let used = false
+  /** поток на этот ход уже открывали (заранее или на open) — второй раз до речи не открываем */
+  let opened = false
   let idleTimer: ReturnType<typeof setTimeout> | undefined
   let downUntil = 0
   // распознавание
@@ -128,6 +130,7 @@ export function createListener(io: ListenIO) {
     session = s
     sessionAt = now()
     used = false
+    opened = true
     trace('session', 'open')
     clearTimeout(idleTimer)
     idleTimer = setTimeout(() => {
@@ -312,6 +315,7 @@ export function createListener(io: ListenIO) {
     chunkLen = 0
     kept = null
     dropSession()
+    opened = false
     set('idle')
   }
 
@@ -335,8 +339,8 @@ export function createListener(io: ListenIO) {
       empties = phase === 'failed' ? 0 : empties
       kept = null
       trace('open', { at, late: Math.round(now() - at) })
-      // поток ещё не подключали (реплика без голоса) — подключаем, пока игрок собирается с мыслями
-      if (!session || session.ended) openSession()
+      // поток на этот ход ещё не подключали (реплика без голоса) — подключаем, пока игрок собирается с мыслями
+      if (!opened) openSession()
       listenFrom(at)
     },
     /** Ход ушёл, собеседник заговорил, пауза: всё недослушанное и недораспознанное — в мусор, поток закрыть. */
