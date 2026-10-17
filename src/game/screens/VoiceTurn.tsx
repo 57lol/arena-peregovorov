@@ -9,7 +9,7 @@ import { Button } from '../ui'
  */
 export function VoiceTurn({ m, paused = false }: { m: Meeting; paused?: boolean }) {
   const v = useVoiceTurn(m, paused)
-  const theirs = !m.pending && !m.done && !m.heard
+  const theirs = !m.pending && !m.done && !v.myTurn && !m.heard
   const hint = m.pending
     ? `${m.name} думает…`
     : v.mic === 'opening'

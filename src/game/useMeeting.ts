@@ -18,6 +18,7 @@ import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
 import { saveInputMode, savePause, voiceSettings } from './voiceSettings'
+import { voiceTrace } from './trace'
 
 export interface MeetingProps {
   game: Case
@@ -112,6 +113,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     }
     // реплика уже прозвучала (звучит) по потоку с первой фразы: не скачиваем и не играем заново, только печать
     const heard = takeLive(line)
+    voiceTrace('line', { live: heard, chars: line.length })
     if (heard) {
       setDelivery({ text: line, record: last, cps: heard.playing ? liveCps(line) : undefined })
       const current = { silent: stopAudio, cancel: () => {} }
@@ -126,7 +128,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
         ? () => prepareLine(line, voiceFor(sc), last?.emotion ?? 'neutral', LINE_WAIT_MS)
         : undefined,
       play: playPrepared,
-      start: (p) => setDelivery({ text: line, record: last, cps: p ? cpsFor(line, p.duration) : undefined }),
+      start: (p) => {
+        voiceTrace('line-start', { voiced: !!p, sec: p?.duration })
+        setDelivery({ text: line, record: last, cps: p ? cpsFor(line, p.duration) : undefined })
+      },
       stop: stopAudio,
       release: (p) => URL.revokeObjectURL(p.url),
     })
@@ -336,7 +341,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
-    voiceMode, voiceNote, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
+    voiceMode, voiceNote, voicedLine, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
     send, putOnTable, accept, walk, rewind, undo, hush,
   }
 }
