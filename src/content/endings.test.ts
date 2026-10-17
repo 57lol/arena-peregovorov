@@ -10,6 +10,7 @@ import { endingCatalog, endingOf } from './endings'
 import { client } from './scenarios/client'
 import { offer } from './scenarios/offer'
 import { tara } from './scenarios/tara'
+import { istanbul } from './scenarios/istanbul'
 
 const say = (analysis: Partial<MoveAnalysis>) => ({ text: '', analysis: { behaviors: [], ...analysis } as MoveAnalysis })
 const hits = (...ids: string[]) => ids.map((id) => ({ id, quote: id }))
@@ -63,7 +64,7 @@ function explore(sc: Scenario): Map<EndingId, string> {
 
 const best = (p: number[]) => p.indexOf(Math.max(...p))
 
-const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['своё дело', testScenario]]
+const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['istanbul', istanbul], ['своё дело', testScenario]]
 
 describe('финалы', () => {
   for (const [label, sc] of CASES) {

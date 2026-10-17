@@ -52,6 +52,8 @@ export type CharacterLines = Partial<Record<LineKey, string[]>>
 
 export interface Scenario {
   id: string
+  /** язык разговора: 'en' — дело на английском (реплики, бриф, голос); интерфейс и разбор остаются русскими */
+  lang?: 'ru' | 'en'
   title: string
   sphere: string           // закупки, найм, аренда, подряд...
   difficulty: Difficulty

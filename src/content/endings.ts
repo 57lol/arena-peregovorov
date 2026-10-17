@@ -105,6 +105,62 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
         'Линию запустили на казанских коробках, по двести двенадцать.',
     },
   },
+  // дело на английском: эпилоги — тоже по-английски, названия финалов — как везде
+  istanbul: {
+    legend: {
+      title: TITLE.legend,
+      epilogue:
+        'The line arrived in eight weeks, and Emre\'s engineer stayed two weeks in the shop: your operators now spray better ' +
+        'than the people who trained them. In spring Emre brought a delegation from another Alabuga resident to see "our best line in Russia". ' +
+        'You got a box of lokum and a discount on the next oven.',
+    },
+    cold_win: {
+      title: TITLE.cold_win,
+      epilogue:
+        'The CFO has never seen such a price for a coating line. Emre answers your emails in three days, strictly by the contract. ' +
+        'When the oven needed a burner in February, he sent the warranty clause first and the part second.',
+    },
+    middling: {
+      title: TITLE.middling,
+      epilogue:
+        'The contract is signed, the line paints casings, nobody complains. At a trade fair in Kazan Emre smiled and said: ' +
+        '"We could both do better, my friend." You still don\'t know what exactly he meant.',
+    },
+    lose_lose: {
+      title: TITLE.lose_lose,
+      epilogue:
+        'The line works, but you agreed on {got}, and for two months the operators learned on scrapped casings. ' +
+        'At the New Year call Emre admitted he wanted to send his engineer for two weeks from the start: ' +
+        'his warranty calls doubled. You both laughed, but not for long.',
+    },
+    short: {
+      title: TITLE.short,
+      epilogue:
+        'The line works. In January the CFO put your contract next to the Qingdao bid and underlined the difference with a pencil. ' +
+        'Qingdao gave more, and you signed for less.',
+      noDeal:
+        'You went with Qingdao: €465,000 and fourteen weeks of waiting. In January you found Emre\'s last offer in your mail ' +
+        'and looked at it for a long time. It was better.',
+    },
+    walked: {
+      title: TITLE.walked,
+      epilogue:
+        'The Qingdao line arrives in fourteen weeks, not a celebration, but not worse than what was on the table. ' +
+        'In March Emre called himself: the Almaty plant never paid the deposit. This time the conversation was very different.',
+    },
+    slammed: {
+      title: TITLE.slammed,
+      epilogue:
+        'Emre closed his laptop and left the lokum on the table. The line now comes from Qingdao. ' +
+        'Half a year later another Turkish supplier told you he had "heard about that meeting".',
+    },
+    timeout: {
+      title: TITLE.timeout,
+      epilogue:
+        'You parted with "let\'s talk next week". Next week Emre had already shipped the line to Almaty. ' +
+        'Your shop opened on the Qingdao line, a month late.',
+    },
+  },
   offer: {
     legend: {
       title: TITLE.legend,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SCENARIOS, auditScenario } from './index'
 import { openingAnchor } from '../../engine/policy'
+import { optionQuantity, quantities } from '../../engine/offline/numbers'
 
 describe('библиотека сценариев', () => {
   for (const sc of SCENARIOS) {
@@ -24,7 +25,10 @@ describe('библиотека сценариев', () => {
         const num = opt.match(/\d+/)?.[0]
         const words: Record<string, string> = { '212': 'двести двенадцать', '10': 'десять', '2': 'два', '210': 'двести десять', '1': 'один', '12': 'двенадцать', '90': 'девяносто' }
         const said = sc.opening.toLowerCase()
-        const ok = said.includes(opt.toLowerCase()) || (num !== undefined && (said.includes(num) || said.includes(words[num] ?? '@@')))
+        // или то же число в любой записи: «€480,000» = «four hundred eighty thousand euros», «1 year» = «one year»
+        const q = optionQuantity(opt)
+        const same = !!q && quantities(sc.opening).some((x) => x.dim === q.dim && Math.abs(x.value - q.value) <= Math.abs(q.value) * 0.01)
+        const ok = same || said.includes(opt.toLowerCase()) || (num !== undefined && (said.includes(num) || said.includes(words[num] ?? '@@')))
         expect(ok, `${i.id}: «${opt}» не прозвучало во вступлении`).toBe(true)
       }
     })
@@ -41,8 +45,10 @@ describe('бриф не подсказывает ответ', () => {
     const { tara } = await import('./tara')
     const { offer } = await import('./offer')
     const { client } = await import('./client')
+    const { istanbul } = await import('./istanbul')
     const spoilers: [typeof tara, RegExp][] = [
       [tara, /крупн|быстр\p{L}* деньг|срочн/iu],
+      [istanbul, /склад|отмен|горелк|цеп|8 недел|обучени|оператор|гаранти|алмат|предоплат|вперёд/iu],
       [offer, /сесси|магистр|собак|жиль|два раза в год/iu],
       [client, /формул|индекс|сыр|пошлин|локализ|преми|оборот|запас|недел|конвейер|границ/iu],
     ]
