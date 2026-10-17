@@ -12,16 +12,11 @@ const labHeaders = (): Record<string, string> => {
   return { ...(l.llm ? { 'x-lab-llm': l.llm } : {}), ...(l.natural !== undefined ? { 'x-lab-natural': l.natural ? '1' : '0' } : {}) }
 }
 
-// Модель реплики по ссылке (ручная проверка моделей): ?llm=sonnet до конца вкладки, ?llm=off — как по умолчанию.
-// Короткое имя или «провайдер:модель» из VOICE_LLM_ALLOWED на сервере.
+// Модель реплики по ссылке (ручная проверка моделей): ?llm=yandex до конца вкладки, ?llm=off — как по умолчанию.
+// Короткое имя или «провайдер:модель» из VOICE_LLM_ALLOWED на сервере (по умолчанию там только эти три).
 const LLM_ALIAS: Record<string, string> = {
-  sol: 'aitunnel:gpt-6.1-sol',
   sonnet: 'aitunnel:claude-sonnet-5.5',
-  haiku: 'aitunnel:claude-haiku-5.5',
-  gemini: 'aitunnel:gemini-3.8-flash',
-  grok: 'aitunnel:grok-4.7',
-  luna: 'aitunnel:gpt-6-luna',
-  main: 'yandex:yandexgpt-5.1',
+  sol: 'aitunnel:gpt-6.1-sol',
   yandex: 'yandex:yandexgpt-5.1',
 }
 export function voiceLlmTest(): string | undefined {

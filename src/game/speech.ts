@@ -319,7 +319,9 @@ if (typeof window !== 'undefined') elevenTest()
 /** Сервер говорит голосами ElevenLabs (/api/health → speech.eleven, TTS_PROVIDER=elevenlabs). */
 let elevenMain = false
 export const setElevenMain = (on: boolean) => void (elevenMain = on)
-const elevenOn = () => elevenMain || (typeof window !== 'undefined' && elevenTest())
+/** ElevenLabs на паузе: последняя реплика пришла голосом SpeechKit (заголовок x-tts-fallback) — фразы-паузы тоже им */
+let elevenDown = false
+const elevenOn = () => (elevenMain || (typeof window !== 'undefined' && elevenTest())) && !elevenDown
 
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
@@ -382,10 +384,13 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
       headers: { 'content-type': 'application/json' },
       // порядок полей как в прогреве сервера (/api/turn), хотя ключ кэша от него и не зависит
       body: JSON.stringify({ ...body, text, emotion: toEmotion(emotion) }),
-      // чужие провайдеры отвечают дольше SpeechKit
-      signal: AbortSignal.timeout(provider === 'yandex' && !('test' in body) ? ms : Math.max(ms, 15_000)),
+      // В игре сервер сам отдаёт SpeechKit, если ElevenLabs медлит дольше 2,5 с. Лаборатория ждёт ElevenLabs без запасного,
+      // а первая загрузка библиотечного голоса бывает 8–9 с
+      signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 15_000)),
     })
     if (!r.ok || !r.headers.get('content-type')?.startsWith('audio/')) return null
+    if (r.headers.has('x-tts-fallback')) elevenDown = true
+    else if (r.headers.get('x-tts-api') === 'elevenlabs') elevenDown = false
     const blob = await r.blob()
     if (blob.size < 500) return null
     const url = URL.createObjectURL(blob)
@@ -394,7 +399,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
     // голос ElevenLabs уже в своём темпе и тоне — плеер его не замедляет (темп лица — только для livetts)
     if (r.headers.get('x-tts-api') === 'elevenlabs') return { url, duration: header > 0 ? header : (await metaDuration(url)) || (blob.size * 8) / 64000, env }
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
-    const raw = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
+    const raw = header > 0 ? header : (blob.size * 8) / 64000
     // плеер играет в темпе лица — печать текста идёт в тот же такт
     return { url, duration: raw / rate, env, voice }
   } catch {
