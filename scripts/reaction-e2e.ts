@@ -97,6 +97,7 @@ try {
     if (mode === 'fast') assert(!pause, 'Быстрый ответ должен отменить реакцию')
     else {
       assert(pause, 'Не прозвучала пауза')
+      console.log(`${view} ${mode}: пауза через ${Math.round(pause.at - log.at)} мс`)
       assert(pause.at - log.at >= (mode === 'speechkit' ? 550 : 250))
       assert(pause.at - log.at < (mode === 'speechkit' ? 950 : 550))
       assert(pause.src.includes(mode === 'reaction' ? '/voice-reactions/' : mode === 'missing' ? '/voice-fillers/eleven/' : '/voice-fillers/vasily/'))
