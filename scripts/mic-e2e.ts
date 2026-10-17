@@ -1,7 +1,9 @@
 /// <reference lib="dom" />
-// Голосовой ввод без платных вызовов: фейковый микрофон Chromium, /api/health, /api/stt и /api/tts подменены.
-// Проверяет: запись → текст в поле; «Отмена» и «Ещё раз» без перезаписи; сбой и выключенное распознавание;
+// Голосовой ввод без платных вызовов: фейковый микрофон, /api/health, /api/stt и /api/tts подменены.
+// Текстовый режим (?text): запись → текст в поле; «Отмена» и «Ещё раз» без перезаписи; сбой и выключенное распознавание;
 // двойной клик в окне разрешения; собеседник молчит, пока игрок говорит; микрофон отпускается при уходе и отправке.
+// Голосовой режим (основной): микрофон открыт заранее, эхо реплики собеседника не уходит в распознавание, приём —
+// с конца его звука, пауза отправляет ход, «Перебить», нет доступа к микрофону → текст, переключатель в меню.
 // Запуск: npm run dev:offline, потом npx tsx scripts/mic-e2e.ts [--url http://localhost:5173]. Снимки — в ~/Arena-materials/shots/mic/.
 import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -34,7 +36,7 @@ const check = (ok: boolean, what: string) => {
 }
 
 /** stt — что отвечает /api/stt на n-й запрос; gumDelay — сколько «висит окно разрешения». */
-async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; gumDelay?: number; voiceonly?: boolean; phone?: boolean } = {}) {
+async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; long?: boolean; gumDelay?: number; voiceonly?: boolean; voice?: boolean; phone?: boolean; deny?: boolean; echo?: boolean; say?: [number, number] } = {}) {
   const browser = await chromium.launch({
     args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   })
@@ -45,14 +47,19 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
     Object.defineProperty(navigator, 'webdriver', { get: () => false })
     localStorage.setItem('peregovorka.voice.v2', '1')
     localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
-    window.gum = 0; window.tracks = []; window.plays = []; window.ended = []; window.gumAt = []
+    window.gum = 0; window.tracks = []; window.plays = []; window.ended = []; window.gumAt = []; window.__voiceTrace = []
     Object.defineProperty(Document.prototype, 'hidden', { get: () => true })
     const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+    // Голосовой режим: микрофон — тон, который тест включает сам (window.tone), «голос игрока»; после конца
+    // реплики собеседника тон можно включить автоматически (window.sayAfterEnd = [задержка, длительность]).
+    window.tone = () => {}
+    window.echo = ${!!o.echo}; window.sayAfterEnd = ${JSON.stringify(o.say ?? null)}
     navigator.mediaDevices.getUserMedia = async (c) => {
       window.gum++; window.gumAt.push(performance.now())
       await new Promise((r) => setTimeout(r, ${o.gumDelay ?? 0}))
+      if (${!!o.deny}) throw new DOMException('Permission denied', 'NotAllowedError')
       let s = await orig(c)
-      if (${!!o.voiceonly}) {
+      if (${!!(o.voiceonly || o.voice)}) {
         s.getTracks().forEach((t) => t.stop())
         const ctx = new AudioContext()
         await ctx.resume()
@@ -60,9 +67,9 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
         osc.connect(gain).connect(dest)
-        gain.gain.setValueAtTime(0.2, ctx.currentTime)
-        gain.gain.setValueAtTime(0, ctx.currentTime + 0.7)
+        gain.gain.setValueAtTime(0, ctx.currentTime)
         osc.start()
+        window.tone = (on) => gain.gain.setValueAtTime(on ? 0.2 : 0, ctx.currentTime)
         s = dest.stream
         for (const track of s.getTracks()) {
           const stop = track.stop.bind(track)
@@ -76,7 +83,16 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
     HTMLMediaElement.prototype.play = function () {
       const src = this.src.startsWith('data:') ? 'silent' : this.src.includes('voice-fillers') ? 'filler' : 'speech'
       const at = performance.now()
-      if (src === 'speech') this.addEventListener('ended', () => window.ended.push(performance.now()), { once: true })
+      if (src === 'speech') {
+        // «эхо»: пока собеседник говорит, микрофон слышит его из колонок
+        if (window.echo) window.tone(true)
+        this.addEventListener('ended', (e) => {
+          window.ended.push(e.timeStamp)
+          if (window.echo) window.tone(false)
+          const say = window.sayAfterEnd
+          if (say) { window.sayAfterEnd = null; setTimeout(() => { window.tone(true); setTimeout(() => window.tone(false), say[1]) }, say[0]) }
+        }, { once: true })
+      }
       return play.call(this).then(() => void window.plays.push([src, at]))
     }
   `)
@@ -87,17 +103,17 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
   )
   await page.route('**/api/tts', async (r) => {
     await new Promise((ok) => setTimeout(ok, o.tts ?? 0))
-    await r.fulfill({ body: MP3, contentType: 'audio/mpeg' }).catch(() => {})
+    await r.fulfill({ body: o.long ? Buffer.concat([MP3, MP3, MP3, MP3, MP3]) : MP3, contentType: 'audio/mpeg' }).catch(() => {})
   })
   const stt: Buffer[] = []
   await page.route('**/api/stt', async (r) => {
     stt.push(r.request().postDataBuffer() ?? Buffer.alloc(0))
     await (o.stt ?? ((r) => r.fulfill({ json: { text: SAID } })))(r, stt.length)
   })
-  await page.goto(`${URL}/?case=dorm&view=${view}${o.voiceonly ? '&voiceonly' : ''}`)
+  await page.goto(`${URL}/?case=dorm&view=${view}${o.voiceonly ? '&voiceonly' : o.voice ? '' : '&text'}`)
   await page.locator('button.g-big').first().click()
   await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
-  await page.locator(o.voiceonly ? '.g-voiceonly' : '.g-mic').first().waitFor({ timeout: 30_000 })
+  await page.locator(o.voiceonly || o.voice ? '.g-voiceonly, #px-speech' : '.g-mic').first().waitFor({ timeout: 30_000 })
   return { page, stt, close: () => browser.close() }
 }
 
@@ -227,46 +243,121 @@ for (const view of ['classic', '3d'] as const) {
   await m.close()
 }
 
+type Ev = [number, string, unknown]
+const traceOf = (p: Page) => p.evaluate(() => (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace)
+const said = (p: Page, text = SAID) => p.waitForFunction((t) => document.querySelector('.g-you, .w3-you')?.textContent?.includes(t), text, { timeout: 15_000 })
+
 for (const view of ['classic', '3d'] as const) {
   for (const phone of [false, true]) {
-    console.log(`\n— ${view} ${phone ? '390' : '1280'}: только голос, пауза → ход без нажатий`)
-    const m = await meeting(view, { voiceonly: true, phone })
+    console.log(`\n— ${view} ${phone ? '390' : '1280'}: голос по умолчанию, эхо отсекается, пауза → ход без нажатий`)
+    const m = await meeting(view, { voice: true, phone, echo: true, say: [150, 700] })
+    await said(m.page).catch(() => {})
     check((await m.page.locator('textarea').count()) === 0, 'во встрече нет текстового поля')
-    check(await m.page.getByLabel('Авто-микрофон', { exact: true }).isChecked(), 'авто-микрофон включён по умолчанию')
-    await btn(m.page, 'Остановить запись и распознать').waitFor({ timeout: 30_000 })
-    check(await m.page.evaluate(() => {
-      const w = window as unknown as W
-      return w.ended.some((at) => at < w.gumAt[0])
-    }), 'авто-микрофон открылся после конца звука приветствия')
-    await m.page.getByLabel('Авто-микрофон', { exact: true }).uncheck()
-    await m.page.waitForFunction((text) => document.querySelector('.g-you, .w3-you')?.textContent?.includes(text), SAID, { timeout: 15_000 })
-    check(m.stt.length === 1, 'пауза сама отправила одну запись на распознавание')
-    check((await live(m.page)) === 0, 'перед ответом собеседника микрофон отпущен')
-    await m.page.screenshot({ path: join(OUT, `${view}-${phone ? 'phone' : 'wide'}-voiceonly.png`) })
-    // Следующий ответ тоже заканчивается автоматическим открытием микрофона.
-    await m.page.getByLabel('Авто-микрофон', { exact: true }).check()
-    await m.page.waitForFunction(() => (window as unknown as W).gum >= 2, undefined, { timeout: 30_000 })
-    check(await m.page.evaluate(() => {
-      const w = window as unknown as W
-      return w.ended.some((at) => at > w.gumAt[0] && at < w.gumAt[1])
-    }), 'следующий микрофон дождался конца ответа')
+    check((await m.page.getByText(/Бета/).count()) === 0, 'подписи «Бета» нет')
+    check(m.stt.length === 1, `пауза сама отправила одну запись (запросов: ${m.stt.length})`)
+    const w = await m.page.evaluate(() => { const x = window as unknown as W; return { gumAt: x.gumAt, ended: x.ended } })
+    check(w.gumAt[0] < w.ended[0], 'микрофон открыт заранее, до конца приветствия')
+    const pcm = m.stt[0] ? new Int16Array(m.stt[0].buffer, m.stt[0].byteOffset, m.stt[0].byteLength / 2) : new Int16Array()
+    const loud = (from: number, to: number) => { let s = 0; for (let i = from; i < to && i < pcm.length; i++) s += Math.abs(pcm[i]); return s / Math.max(1, Math.min(to, pcm.length) - from) }
+    // начало записи: ≤300 мс тишины перед голосом, эха приветствия (тон до его конца) нет
+    check(pcm.length > 0 && loud(0, 16 * 60) < 50, `в начале записи тишина, не эхо (уровень ${pcm.length ? loud(0, 960).toFixed(0) : '—'})`)
+    const firstLoud = pcm.findIndex((x) => Math.abs(x) > 2000) / 16
+    check(firstLoud > 50 && firstLoud < 400, `голос игрока с начала, с запасом до него (${firstLoud.toFixed(0)} мс)`)
+    const tr = await traceOf(m.page)
+    const open = tr.find((e) => e[1] === 'their-end')?.[2] as { end: number; at: number } | undefined
+    const end = w.ended[0]
+    check(!!open && Math.abs(open.end - end) < 30 && open.at - end <= 100, `приём с конца звука собеседника: +${open ? open.at - Math.round(end) : '—'} мс (цель ≤100)`)
+    check(tr.filter((e) => e[1] === 'mic' && e[2] === 'on').length === 1, 'микрофон включён один раз на встречу')
+    await m.page.screenshot({ path: join(OUT, `${view}-${phone ? 'phone' : 'wide'}-voice.png`) })
+    // следующий ответ: снова слушаем сами, микрофон тот же
+    await m.page.evaluate(() => void ((window as unknown as { sayAfterEnd: [number, number] }).sayAfterEnd = [200, 700]))
+    const opened = await gum(m.page) // в dev StrictMode открывает и сразу закрывает лишний раз — считаем от первого хода
+    await m.page.waitForFunction(() => (window as unknown as W).ended.length >= 2, undefined, { timeout: 30_000 }).catch(() => {})
+    await m.page.waitForTimeout(3500)
+    check(m.stt.length === 2, `второй ход ушёл сам (запросов: ${m.stt.length})`)
+    check((await gum(m.page)) === opened, 'микрофон не переоткрывали между ходами')
     await m.close()
   }
 }
 
 {
-  console.log('\n— только голос: ошибка распознавания, ручной повтор')
-  const m = await meeting('classic', { voiceonly: true, stt: (r, n) => n === 1
+  console.log('\n— голос: «Перебить» во время реплики')
+  const m = await meeting('classic', { voice: true, long: true })
+  await btn(m.page, 'Перебить и ответить').waitFor({ timeout: 15_000 }).catch(() => {})
+  const canInterrupt = await btn(m.page, 'Перебить и ответить').isVisible().catch(() => false)
+  check(canInterrupt, 'пока собеседник говорит, есть «Перебить»')
+  if (canInterrupt) {
+    await btn(m.page, 'Перебить и ответить').click()
+    await m.page.evaluate(() => {
+      const w = window as unknown as { tone: (on: boolean) => void }
+      setTimeout(() => w.tone(true), 100)
+      setTimeout(() => w.tone(false), 800)
+    })
+    await said(m.page).catch(() => {})
+    check(m.stt.length === 1, 'после «Перебить» реплика ушла')
+    check(await m.page.evaluate(() => (window as unknown as W).plays.filter(([s]) => s === 'speech').length) >= 1, 'реплика собеседника звучала и была прервана')
+  }
+  await m.close()
+}
+
+{
+  console.log('\n— голос: нет доступа к микрофону → текст с понятной подписью')
+  const m = await meeting('classic', { voice: true, deny: true })
+  await m.page.locator('#px-speech').waitFor({ timeout: 10_000 }).catch(() => {})
+  check((await m.page.locator('#px-speech').count()) === 1, 'появилось поле ввода')
+  check(/Нет доступа к микрофону/.test(await m.page.locator('.g-voice-note').innerText().catch(() => '')), 'подпись объясняет, почему текстом')
+  await m.page.screenshot({ path: join(OUT, 'voice-denied.png') })
+  await m.close()
+}
+
+{
+  console.log('\n— голос: ошибка распознавания, «Ещё раз» той же записью')
+  const m = await meeting('classic', { voice: true, say: [150, 700], stt: (r, n) => n === 1
     ? r.fulfill({ status: 502, json: { error: 'timeout' } })
     : r.fulfill({ json: { text: SAID } }) })
-  await btn(m.page, 'Сказать ещё раз').waitFor({ timeout: 30_000 })
-  check(await m.page.getByRole('alert').isVisible(), 'ошибка объяснена рядом с микрофоном')
+  await btn(m.page, 'Распознать ту же запись ещё раз').waitFor({ timeout: 30_000 }).catch(() => {})
+  check(await m.page.getByRole('alert').isVisible().catch(() => false), 'ошибка объяснена рядом с микрофоном')
   await m.page.waitForTimeout(1600)
-  check((await gum(m.page)) === 1, 'ошибка не зацикливает авто-микрофон')
-  await m.page.getByLabel('Авто-микрофон', { exact: true }).uncheck()
-  await btn(m.page, 'Сказать ещё раз').click()
-  await m.page.waitForFunction((text) => document.querySelector('.g-you')?.textContent?.includes(text), SAID, { timeout: 15_000 })
-  check((await live(m.page)) === 0, 'повторная запись отпущена после отправки')
+  check(m.stt.length === 1, 'ошибка не зацикливает распознавание')
+  await btn(m.page, 'Распознать ту же запись ещё раз').click().catch(() => {})
+  await said(m.page).catch(() => {})
+  check(m.stt.length === 2 && m.stt[0].equals(m.stt[1]), '«Ещё раз» — те же байты, ход ушёл')
+  await m.close()
+}
+
+{
+  console.log('\n— голос: переключатель в меню 3D, выбор запоминается; свёрнутая вкладка и выход отпускают микрофон')
+  const m = await meeting('3d', { voice: true })
+  await m.page.waitForFunction(() => (window as unknown as W).tracks.some((t) => t.readyState === 'live'), undefined, { timeout: 15_000 }).catch(() => {})
+  check((await live(m.page)) === 1, 'микрофон открыт')
+  // строкой: tsx добавляет в функции __name, которого в браузере нет
+  await m.page.evaluate(`Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange'))`)
+  await m.page.waitForTimeout(300)
+  check((await live(m.page)) === 0, 'свёрнутая вкладка — микрофон закрыт')
+  check((await traceOf(m.page)).some((e) => e[1] === 'mic' && e[2] === 'off'), 'в трассе: микрофон выключен')
+  // строкой: tsx добавляет в функции __name, которого в браузере нет
+  await m.page.evaluate(`Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange'))`)
+  await m.page.waitForTimeout(500)
+  check((await live(m.page)) === 1, 'вернулись — микрофон снова открыт')
+  await m.page.getByRole('button', { name: 'Меню' }).first().click()
+  await m.page.getByRole('button', { name: /Отвечаю голосом/ }).click()
+  check(await m.page.getByLabel('Сколько ждать, пока я договорю').count() === 0, 'в текстовом режиме ползунка паузы нет')
+  await m.page.getByRole('button', { name: /Вернуться за стол/ }).click()
+  await m.page.locator('.w3-say textarea').waitFor({ timeout: 5000 }).catch(() => {})
+  check((await m.page.locator('.w3-say textarea').count()) === 1, 'текстом: поле ввода на месте')
+  await m.page.waitForTimeout(300)
+  check((await live(m.page)) === 0, 'текстом: микрофон отпущен')
+  check(await m.page.evaluate(() => localStorage.getItem('peregovorka.input.v1')) === 'text', 'выбор запомнен')
+  await m.page.getByRole('button', { name: 'Меню' }).first().click()
+  await m.page.getByRole('button', { name: /Отвечаю текстом/ }).click()
+  const slider = m.page.getByLabel('Сколько ждать, пока я договорю')
+  check((await slider.inputValue()) === '1', 'пауза по умолчанию — «средне»')
+  await slider.fill('2')
+  check(await m.page.evaluate(() => localStorage.getItem('peregovorka.pause.v1')) === 'long', 'пауза «долго» запомнена')
+  await m.page.getByRole('button', { name: /Выйти к папке дел/ }).click()
+  await m.page.getByRole('button', { name: /Точно\?/ }).click()
+  await m.page.waitForTimeout(800)
+  check((await live(m.page)) === 0, 'вышли со встречи — микрофон отпущен')
   await m.close()
 }
 
