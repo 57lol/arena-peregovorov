@@ -172,13 +172,3 @@ export class PixelPipeline {
     this.renderer.forceContextLoss()
   }
 }
-
-/** Есть ли WebGL вообще: без него — классический 2D-вид. */
-export function hasWebGL(): boolean {
-  try {
-    const c = document.createElement('canvas')
-    return !!(c.getContext('webgl2') || c.getContext('webgl'))
-  } catch {
-    return false
-  }
-}
