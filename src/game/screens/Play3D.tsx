@@ -572,6 +572,7 @@ function SayForm({ m }: { m: Meeting }) {
         {m.canMic && (
           <MicButton
             disabled={!!m.pending}
+            onStart={m.hush}
             onText={(t) => {
               m.setError(null)
               m.setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))

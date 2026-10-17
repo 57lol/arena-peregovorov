@@ -406,7 +406,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
 
 /** Играть подготовленную реплику. false — браузер не дал звук, печатаем как обычно. */
 export async function playPrepared(p: Prepared, allowed = () => true): Promise<boolean> {
-  if (!allowed()) return false
+  if (!allowed() || recording) return false
   const a = player()
   stopAudio()
   url = p.url
@@ -416,7 +416,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   pace(a, p.voice ?? '')
   const g = await levelOf(env)
   // пока мерили громкость, реплику оборвали (игрок взял микрофон, пришла другая) — не играем
-  if (url !== p.url || !allowed()) return false
+  if (url !== p.url || !allowed() || recording) return false
   setGain(g)
   try {
     await a.play()
@@ -460,7 +460,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     return { cancel: () => {}, done }
   }
   const timer = setTimeout(() => {
-    if (!allowed()) return finish()
+    if (!allowed() || recording) return finish()
     started = true
     // не повторяем прошлую фразу
     const ids = fillerIds(casual).filter((id) => id !== lastFiller)
@@ -482,7 +482,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     pace(a, eleven ? '' : voice)
     // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
     const me = lip
-    void levelOf(env, 120).then((g) => (lip === me ? (setGain(g), a.play().catch(end)) : end()))
+    void levelOf(env, 120).then((g) => (lip === me && !recording ? (setGain(g), a.play().catch(end)) : end()))
   }, delay)
   return {
     cancel: () => {
@@ -513,25 +513,40 @@ export interface Recording {
   cancel: () => void
 }
 
+/** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
+let recording = false
+
 export async function startRecording(): Promise<Recording> {
-  // игрок заговорил — собеседник замолкает; эхо гасить незачем, а системное эхоподавление (Safari, iPhone)
-  // приглушает весь звук страницы, и после первой записи голос собеседника становится заметно тише
+  // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
+  // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
-  const rec = new MediaRecorder(stream)
+  const release = () => stream.getTracks().forEach((t) => t.stop())
   const chunks: Blob[] = []
-  rec.ondataavailable = (e) => {
-    if (e.data.size) chunks.push(e.data)
-  }
-  const done = new Promise<Blob>((resolve) => {
-    rec.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop())
-      resolve(new Blob(chunks, { type: rec.mimeType }))
+  let rec: MediaRecorder
+  let done: Promise<Blob>
+  try {
+    rec = new MediaRecorder(stream)
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data)
     }
-  })
-  rec.start()
+    done = new Promise<Blob>((resolve) => {
+      rec.onstop = () => {
+        release()
+        resolve(new Blob(chunks, { type: rec.mimeType }))
+      }
+    })
+    rec.start()
+  } catch (e) {
+    // микрофон уже включён — без записи его надо отпустить, иначе точка в браузере горит до закрытия вкладки
+    release()
+    throw e
+  }
+  recording = true
   const end = () => {
+    recording = false
     if (rec.state !== 'inactive') rec.stop()
+    else release()
   }
   return {
     stop: () => (end(), done),
@@ -591,25 +606,42 @@ function downsample(buf: AudioBuffer, secs: number): Float32Array {
 export class SttError extends Error {
   /** распознавание на сервере выключено — кнопку прячем */
   off: boolean
-  constructor(message: string, off = false) {
+  /** сбой сети или сервера: запись стоит отправить ещё раз */
+  retry: boolean
+  constructor(message: string, { off = false, retry = false } = {}) {
     super(message)
     this.off = off
+    this.retry = retry
   }
 }
 
-async function recognizeChunk(pcm: Int16Array<ArrayBuffer>): Promise<string> {
-  let r: Response
+/** Сколько ждём распознавание одного куска. Сервер сам повторяет зависший запрос к SpeechKit, это с запасом на повтор. */
+const STT_WAIT_MS = 20_000
+const AGAIN = 'Запись сохранилась: нажмите «Ещё раз» или напишите текстом.'
+
+async function recognizeChunk(pcm: Int16Array<ArrayBuffer>, signal?: AbortSignal): Promise<string> {
+  // AbortSignal.any нет в Safari до 17.4 — склеиваем таймаут и отмену сами
+  const ctl = new AbortController()
+  const abort = () => ctl.abort()
+  const timer = setTimeout(abort, STT_WAIT_MS)
+  signal?.addEventListener('abort', abort)
   try {
-    r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: AbortSignal.timeout(25_000) })
-  } catch {
-    throw new SttError('Не получилось распознать: нет связи с сервером.')
+    let r: Response
+    try {
+      r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: ctl.signal })
+    } catch {
+      throw new SttError(ctl.signal.aborted ? `Распознавание не ответило за ${STT_WAIT_MS / 1000} с. ${AGAIN}` : `Нет связи с сервером. ${AGAIN}`, { retry: true })
+    }
+    const j = (await r.json().catch(() => ({}))) as { text?: string; error?: string }
+    if (r.status === 503 || r.status === 404) throw new SttError('Распознавание речи сейчас недоступно — напишите реплику текстом.', { off: true })
+    if (r.status === 400) throw new SttError('Запись слишком короткая. Нажмите микрофон, скажите реплику и нажмите ещё раз.')
+    if (r.status === 429) throw new SttError('Лимит распознавания на сегодня исчерпан — напишите реплику текстом.', { off: true })
+    if (!r.ok) throw new SttError(`Не получилось распознать. ${AGAIN}`, { retry: true })
+    return j.text ?? ''
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', abort)
   }
-  const j = (await r.json().catch(() => ({}))) as { text?: string; error?: string }
-  if (r.status === 503 || r.status === 404) throw new SttError('Распознавание речи сейчас недоступно — напишите реплику текстом.', true)
-  if (r.status === 400) throw new SttError('Запись слишком короткая. Нажмите микрофон, скажите реплику и нажмите ещё раз.')
-  if (r.status === 429) throw new SttError('Лимит распознавания на сегодня исчерпан — напишите реплику текстом.', true)
-  if (!r.ok) throw new SttError('Не получилось распознать. Попробуйте ещё раз или напишите текстом.')
-  return j.text ?? ''
 }
 
 /**
@@ -638,17 +670,20 @@ export function splitPcm(s: Int16Array<ArrayBuffer>, max = CHUNK_SEC * RATE, loo
 }
 
 /** Распознать запись любой длины (до MAX_REC_SEC): куски уходят на сервер параллельно, текст склеиваем по порядку. */
-export async function recognize(pcm: ArrayBuffer): Promise<string> {
+export async function recognize(pcm: ArrayBuffer, signal?: AbortSignal): Promise<string> {
   const parts = splitPcm(new Int16Array(pcm))
   // хвост короче полсекунды — это щелчок кнопки, не речь
   const real = parts.filter((p, i) => i === 0 || p.length >= RATE / 2)
-  const texts = await Promise.all(real.map(recognizeChunk))
+  const texts = await Promise.all(real.map((p) => recognizeChunk(p, signal)))
   return texts.map((t) => t.trim()).filter(Boolean).join(' ')
 }
 
 /** Понятное сообщение об ошибке микрофона. */
 export function micError(e: unknown): string {
-  const name = (e as { name?: string })?.name
+  const { name, message } = (e ?? {}) as { name?: string; message?: string }
+  // «Permission denied by system»: браузер разрешил, а macOS не даёт ему микрофон
+  if (name === 'NotAllowedError' && /system/i.test(message ?? ''))
+    return 'Система не даёт браузеру микрофон: Системные настройки → Конфиденциальность и безопасность → Микрофон. Или напишите реплику текстом.'
   if (name === 'NotAllowedError' || name === 'SecurityError') return 'Нет доступа к микрофону. Разрешите его для этого сайта в настройках браузера — или напишите реплику текстом.'
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Микрофон не найден. Подключите его или напишите реплику текстом.'
   if (name === 'NotReadableError') return 'Микрофон занят другой программой.'

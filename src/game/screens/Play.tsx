@@ -234,6 +234,7 @@ export function Play(props: Props) {
                   {canMic && (
                     <MicButton
                       disabled={!!pending}
+                      onStart={m.hush}
                       onText={(t) => {
                         setError(null)
                         setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))
