@@ -1,22 +1,38 @@
 /// <reference lib="dom" />
-// Живая катка ?voiceonly&stt=scribe на продовой сборке (по умолчанию :8090, run.sh из judge-run). ПЛАТНО: модель, голос, Scribe.
-// Микрофон — WAV-фразы через WebAudio (по одной на каждое включение микрофона, дальше тишина).
-// Запуск: npx tsx scripts/voiceonly-live.ts [--url http://127.0.0.1:8090] [--case stop] [--view classic] [--wav ~/Arena-materials/final/stt/wav/p2.wav,...]
-import { readFileSync, mkdirSync } from 'node:fs'
+// Живая катка голосового режима на продовой сборке (ПЛАТНО: модель, голос, Scribe). Микрофон — WAV-фразы через WebAudio:
+// каждая звучит через --delay мс после конца реплики собеседника (по событию игры their-end, оно несёт время конца звука).
+// Меряет: «конец реплики собеседника → микрофон принимает» (первый принятый кадр) и «конец моей речи → ход ушёл».
+// Запуск: npx tsx scripts/voiceonly-live.ts [--url http://127.0.0.1:8091] [--case stop] [--view 3d] [--pause medium]
+//   [--delay 150] [--wav p2.wav,p3.wav,p5.wav] [--key ключ_жюри] [--tag имя]
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
 
 const opt = (name: string, fallback: string) => { const i = process.argv.indexOf(`--${name}`); return i < 0 ? fallback : process.argv[i + 1] }
-const base = opt('url', 'http://127.0.0.1:8090')
+const base = opt('url', 'http://127.0.0.1:8091')
 const caseId = opt('case', 'stop')
 const view = opt('view', '')
+const pause = opt('pause', 'medium')
+const delay = Number(opt('delay', '150'))
 const wavDir = join(homedir(), 'Arena-materials/final/stt/wav')
-const wavs = opt('wav', 'p2.wav,p3.wav,p5.wav').split(',').map((f) => readFileSync(f.includes('/') ? f : join(wavDir, f)))
-const out = join(homedir(), 'Arena-materials/final/stt/live-shots')
+const files = opt('wav', 'p2.wav,p3.wav,p5.wav').split(',')
+const wavs = files.map((f) => readFileSync(f.includes('/') ? f : join(wavDir, f)))
+const tag = opt('tag', `${caseId}-${pause}`)
+const out = join(homedir(), 'Arena-materials/final/voice-main/live')
 mkdirSync(out, { recursive: true })
 
-type Ev = [number, string, string]
+/** Где в WAV кончается речь (последний отсчёт громче порога), мс от начала файла. */
+function speechEndMs(buf: Buffer) {
+  const data = buf.indexOf('data') + 8
+  const n = (buf.length - data) >> 1
+  let last = 0
+  for (let i = 0; i < n; i++) if (Math.abs(buf.readInt16LE(data + i * 2)) > 1000) last = i
+  return (last / 16000) * 1000
+}
+const speechEnds = wavs.map(speechEndMs)
+
+type Ev = [number, string, unknown]
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 await ctx.grantPermissions(['microphone'], { origin: base })
@@ -25,72 +41,120 @@ await ctx.route('**/__wav/*', (r) => r.fulfill({ body: wavs[+r.request().url().s
 await ctx.addInitScript(`
   Object.defineProperty(navigator, 'webdriver', { get: () => false })
   localStorage.setItem('peregovorka.voice.v2', '1')
+  localStorage.setItem('peregovorka.pause.v1', ${JSON.stringify(pause)})
   localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
-  window.ev = []; const log = (k, s) => window.ev.push([Math.round(performance.now()), k, String(s).slice(0, 160)])
-  let n = 0
+  window.ev = []; const log = (k, s) => window.ev.push([Math.round(performance.now()), k, s])
+  // трасса игры: на their-end (собеседник договорил) — следующая фраза через ${delay} мс после конца его звука
+  const tr = []; let said = 0
+  tr.push = function (e) {
+    Array.prototype.push.call(this, e)
+    if (e[1] === 'their-end' && said < ${wavs.length}) {
+      const i = said++
+      const at = e[2].end + ${delay}
+      setTimeout(() => window.say(i), Math.max(0, at - performance.now() - 30))
+    }
+    return this.length
+  }
+  window.__voiceTrace = tr
+  let ac, dest
+  const buffers = []
+  window.say = async (i) => {
+    const buf = buffers[i] ?? (buffers[i] = await ac.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer()))
+    const src = ac.createBufferSource(); src.buffer = buf; src.connect(dest)
+    src.start()
+    const t = performance.now()
+    log('say', { i, t: Math.round(t), dur: Math.round(buf.duration * 1000) })
+  }
   navigator.mediaDevices.getUserMedia = async () => {
-    const i = n++
-    const ctx = new AudioContext(); await ctx.resume()
-    const dest = ctx.createMediaStreamDestination()
-    const buf = await ctx.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer())
-    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(dest)
-    const at = ctx.currentTime + 0.4
-    src.start(at)
-    log('mic', 'on #' + i)
-    setTimeout(() => log('said-end', '#' + i + ' ' + buf.duration.toFixed(2) + ' c'), 400 + buf.duration * 1000)
-    for (const t of dest.stream.getTracks()) { const stop = t.stop.bind(t); t.stop = () => { stop(); log('mic', 'off #' + i); void ctx.close().catch(() => {}) } }
-    return dest.stream
+    if (!ac) {
+      ac = new AudioContext(); await ac.resume()
+      dest = ac.createMediaStreamDestination()
+      // заранее декодируем фразы: на ход — без задержки
+      for (let i = 0; i < ${wavs.length}; i++) buffers[i] = await ac.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer())
+    }
+    log('gum', '')
+    return dest.stream.clone()
   }
   const WS = window.WebSocket
   window.WebSocket = class extends WS {
-    constructor(u, p) { super(u, p); log('ws', 'open ' + new URL(u, location.href).pathname); this.addEventListener('message', (e) => log('ws<', e.data)); this.addEventListener('close', (e) => log('ws', 'close ' + e.code + ' ' + e.reason)) }
-    send(d) { if (typeof d === 'string') log('ws>', d); super.send(d) }
+    constructor(u, p) { super(u, p); log('ws', 'open'); this.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.type !== 'partial') log('ws<', m.type + ' ' + (m.text ?? '')) }); this.addEventListener('close', (e) => log('ws', 'close ' + e.code + ' ' + e.reason)) }
   }
   const f = window.fetch
-  window.fetch = (u, o) => { const p = String(u instanceof Request ? u.url : u); if (p.includes('/api/')) log('fetch', p.replace(location.origin, '')); return f(u, o) }
+  window.fetch = (u, o) => {
+    const p = String(u instanceof Request ? u.url : u)
+    if (p.includes('/api/turn')) { let text = ''; try { text = JSON.parse(o.body).text } catch {} ; log('turn', text) }
+    else if (p.includes('/api/stt')) log('fetch', p.replace(location.origin, ''))
+    return f(u, o)
+  }
   const play = HTMLMediaElement.prototype.play
   HTMLMediaElement.prototype.play = function () {
-    const s = this.src
-    if (!this.logged) { this.logged = true; for (const k of ['ended', 'error', 'waiting']) this.addEventListener(k, () => log('audio', k + ' ' + this.src.slice(-12) + ' t=' + this.currentTime.toFixed(2) + ' dur=' + this.duration.toFixed(2) + ' rs=' + this.readyState + ' buf=' + [...Array(this.buffered.length)].map((_, i) => this.buffered.start(i).toFixed(2) + '-' + this.buffered.end(i).toFixed(2)).join(','))) }
-    return play.call(this).then(() => log('play', s.startsWith('data:') ? 'silent' : s.replace(location.origin, '')))
+    if (!this.logged) {
+      this.logged = true
+      this.addEventListener('ended', (e) => log('ended', { t: Math.round(e.timeStamp), src: this.src.slice(-24) }))
+      if (${process.argv.includes('--debug-audio')}) {
+        const a = this
+        for (const k of ['pause', 'waiting', 'stalled', 'error', 'emptied', 'playing']) a.addEventListener(k, (e) => log('a:' + k, { t: Math.round(e.timeStamp), ct: +a.currentTime.toFixed(2), d: +a.duration.toFixed(2), rs: a.readyState, buf: [...Array(a.buffered.length)].map((_, i) => a.buffered.start(i).toFixed(2) + '-' + a.buffered.end(i).toFixed(2)).join(','), src: a.src.slice(-10) }))
+        setInterval(() => { if (!a.paused) log('a:tick', { ct: +a.currentTime.toFixed(2), d: +a.duration.toFixed(2), rs: a.readyState, buf: [...Array(a.buffered.length)].map((_, i) => a.buffered.start(i).toFixed(2) + '-' + a.buffered.end(i).toFixed(2)).join(',') }) }, 1000)
+      }
+    }
+    return play.call(this)
   }
-  const eos = MediaSource.prototype.endOfStream
-  MediaSource.prototype.endOfStream = function (e) { log('mse', 'endOfStream ' + (e || 'ok')); return eos.call(this, e) }
-  let last = ''
-  setInterval(() => {
-    const p = document.querySelector('.px-portrait')?.getAttribute('aria-label') ?? ''
-    const w = window.__world?.company?.lead.emotion ?? ''
-    const cur = p + ' / 3d:' + w
-    if (cur !== last) { last = cur; log('face', cur) }
-    const t = document.querySelector('.g-mic-transcript')?.textContent ?? ''
-    if (t && t !== window.lastPartial) { window.lastPartial = t; log('shown', t) }
-    const h = document.querySelector('.g-voiceonly-hint')?.textContent ?? ''
-    if (h !== window.lastHint) { window.lastHint = h; log('hint', h) }
-  }, 20)
+  if (${process.argv.includes('--debug-audio')}) {
+    const eos = MediaSource.prototype.endOfStream
+    MediaSource.prototype.endOfStream = function (e) { log('mse', 'endOfStream ' + (e || 'ok')); return eos.call(this, e) }
+    const ab = SourceBuffer.prototype.appendBuffer
+    SourceBuffer.prototype.appendBuffer = function (d) { log('mse', 'append ' + d.byteLength); return ab.call(this, d) }
+  }
 `)
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('pageerror', e.message))
-// прод за воротами: сначала вход по ключу жюри (--key), потом сама катка
 const key = opt('key', '')
 if (key) await page.goto(`${base}/?key=${key}`)
-await page.goto(`${base}/?case=${caseId}&voiceonly&stt=scribe${view ? `&view=${view}` : ''}`)
+await page.goto(`${base}/?case=${caseId}${view ? `&view=${view}` : ''}`)
 await page.locator('button.g-big').first().click()
 await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
-const turns = () => page.evaluate(() => (window as unknown as { ev: Ev[] }).ev.filter((e) => e[1] === 'fetch' && e[2].startsWith('/api/turn')).length)
-let seen = 0
+const turns = () => page.evaluate(() => (window as unknown as { ev: Ev[] }).ev.filter((e) => e[1] === 'turn').length)
 const t0 = Date.now()
+let seen = 0
 while (seen < wavs.length && Date.now() - t0 < 240_000) {
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(200)
   const n = await turns()
   if (n > seen) {
     seen = n
-    await page.waitForTimeout(150)
-    await page.screenshot({ path: `${out}/${caseId}-turn${n}-reaction.png` })
+    await page.screenshot({ path: join(out, `${tag}-turn${n}.png`) })
   }
 }
-// дождаться ответа на последний ход
 await page.waitForTimeout(12_000)
-await page.screenshot({ path: `${out}/${caseId}-end.png` })
+await page.screenshot({ path: join(out, `${tag}-end.png`) })
 const ev = await page.evaluate(() => (window as unknown as { ev: Ev[] }).ev)
-console.log(ev.map((e) => e.join(' | ')).join('\n'))
+const trace = await page.evaluate(() => [...(window as unknown as { __voiceTrace: Ev[] }).__voiceTrace])
 await browser.close()
+
+// ——— замеры по ходам ———
+const all = [...ev.map((e) => ['ev', ...e]), ...trace.map((e) => ['tr', ...e])].sort((a, b) => (a[1] as number) - (b[1] as number))
+writeFileSync(join(out, `${tag}.json`), JSON.stringify({ base, caseId, pause, delay, files, all }, null, 1))
+const rows: Record<string, unknown>[] = []
+const ends = trace.filter((e) => e[1] === 'their-end')
+ends.forEach((te, k) => {
+  const d = te[2] as { end: number; at: number }
+  const raw = ev.filter((e) => e[1] === 'ended' && (e[2] as { t: number }).t <= d.end + 5).at(-1)?.[2] as { t: number } | undefined
+  const open = trace.find((e) => e[1] === 'open' && e[0] >= te[0])
+  const first = trace.find((e) => e[1] === 'first-frame' && e[0] >= te[0])?.[2] as { t: number } | undefined
+  const say = ev.find((e) => e[1] === 'say' && (e[2] as { i: number }).i === k)?.[2] as { t: number; dur: number } | undefined
+  const turn = ev.find((e) => e[1] === 'turn' && say && e[0] > say.t)
+  const speechEnd = say ? say.t + speechEnds[k] : undefined
+  if (!say) return
+  rows.push({
+    ход: k + 1,
+    'конец звука (ended)': raw?.t,
+    'игра узнала, мс': raw ? te[0] - raw.t : '—',
+    'приём с, мс после конца': raw && first ? Math.round(first.t - raw.t) : '—',
+    'open() позвали, мс': raw && open ? open[0] - raw.t : '—',
+    'фраза с, мс': raw ? Math.round(say.t - raw.t) : '—',
+    'конец речи → ход, мс': turn && speechEnd ? Math.round(turn[0] - speechEnd) : '—',
+    распознано: turn?.[2] ?? '—',
+    поток: all.some((e) => e[0] === 'ev' && e[2] === 'ws<' && String(e[3]).startsWith('final') && (e[1] as number) > say.t && (!turn || (e[1] as number) <= turn[0])) ? 'Scribe' : 'Яндекс',
+  })
+})
+console.table(rows)
+writeFileSync(join(out, `${tag}-rows.json`), JSON.stringify(rows, null, 1))
