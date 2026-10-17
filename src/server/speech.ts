@@ -79,6 +79,8 @@ interface Clip {
   ms: number
   cache: 'hit' | 'miss'
   api?: string
+  /** ElevenLabs: первый байт и звук целиком, мс от начала синтеза */
+  took?: string
 }
 
 /** Отказ без сбоя: лимит, очередь, бюджет. В сбои ElevenLabs не идёт. */
@@ -205,7 +207,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   // синтезы, которые идут прямо сейчас: файл кэша → звук; второй запрос той же реплики ждёт первый
   const inflight = new Map<string, Promise<Clip>>()
   const elevenJobs = new Map<string, { first: Promise<boolean>; done: Promise<Clip> }>()
-  const HEADERS = { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice, x-tts-fallback' }
+  const HEADERS = { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice, x-tts-fallback, x-tts-ms' }
   const send = (c: Context, clip: Pick<Clip, 'audio' | 'ms'>, extra: Record<string, string>) =>
     c.body(clip.audio, 200, { ...HEADERS, ...(clip.ms ? { 'x-audio-ms': String(clip.ms) } : {}), ...extra })
 
@@ -226,6 +228,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
       if (!(await quota.ttsAllowed(body.text.length))) throw new Refusal('Озвучка на сегодня закончилась')
       charge()
+      const t0 = Date.now()
       if (!(await eleven.slots.take(deadline - Date.now()))) throw new Refusal('ElevenLabs: все потоки заняты')
       try {
         for (let attempt = 0; ; attempt++) {
@@ -237,13 +240,14 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           }
           if (!r.ok) throw Object.assign(new Error(`ElevenLabs → ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`), { status: r.status })
           started(true)
+          const first = Date.now() - t0
           const audio = new Uint8Array(await r.arrayBuffer())
           if (audio.length < 500) throw new Error('ElevenLabs: пустой ответ')
           eleven.fails = 0
           eleven.chars += body.text.length
           await quota.addTts(body.text.length, false, (body.text.length / 1000) * price1k(body.model_id, env))
           await keep(file, audio)
-          return { audio, ms: mp3Ms(audio), cache: 'miss' }
+          return { audio, ms: mp3Ms(audio), cache: 'miss', took: `${first},${Date.now() - t0}` }
         }
       } finally {
         eleven.slots.free()
@@ -301,7 +305,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
     try {
       const clip = await job.done
-      return send(c, clip, { 'x-cache': joined ? 'warm' : clip.cache, 'x-tts-api': 'elevenlabs', 'x-tts-voice': voice })
+      return send(c, clip, { 'x-cache': joined ? 'warm' : clip.cache, 'x-tts-api': 'elevenlabs', 'x-tts-voice': voice, ...(clip.took ? { 'x-tts-ms': clip.took } : {}) })
     } catch (e) {
       return e instanceof Refusal ? e : new Refusal((e as Error).message, 503)
     }

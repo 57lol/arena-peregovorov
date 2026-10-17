@@ -263,11 +263,13 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
+    const t0 = Date.now()
 
     // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
     const a: { analysis: MoveAnalysis; source: string; error?: string } = body.walkAway
       ? { analysis: walkAwayMove(), source: 'button' }
       : await analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
+    const tA = Date.now()
     let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, fitOffer(sc, body.offer)), before, history, dict)
     if (body.accept) analysis = { ...analysis, accepts: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
@@ -280,6 +282,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), ip)
     const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
     const said = await voice(speaker, sc, history, body.playerText, r.decision, r.state, { natural, marks, fallback: llm })
+    const tV = Date.now()
     // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
     const v = { ...said, line: stripTags(unstress(said.line)) }
     rememberSpoken(v.line, said.line)
@@ -305,7 +308,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       state: r.state,
       record,
       ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
-      sources: { analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
+      sources: { ms: { analyze: tA - t0, voice: tV - tA }, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
     })
   })
 
