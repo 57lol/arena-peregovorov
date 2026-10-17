@@ -60,6 +60,19 @@ describe('английские условия в деле «The Istanbul Line»'
     expect(opt(parseOffer(sc, 'Delivery in two months, please.', 'player'))).toEqual({ delivery: '8 weeks' })
   })
 
+  it('разговорное и через дефис: «four fifty», «four sixty-five», «two-year warranty», «10-week delivery»', () => {
+    expect(q('four fifty')).toEqual([[450, 'plain']])
+    expect(q('four sixty-five')).toEqual([[465, 'plain']])
+    expect(q('twenty five')).toEqual([[25, 'plain']])
+    expect(opt(parseOffer(sc, 'Can we meet in the middle on price, say four fifty?', 'player'))).toEqual({ price: '€450,000' })
+    expect(opt(parseOffer(sc, 'A two-year warranty and a 10-week delivery.', 'player'))).toEqual({ warranty: '2 years', delivery: '10 weeks' })
+  })
+
+  it('чужая котировка — не условие игрока: «We have a quote from Qingdao at 465 with 14 weeks»', () => {
+    expect(said('Four hundred eighty is too much for us. We have a quote from Qingdao at four sixty-five with fourteen weeks.').offer).toBeUndefined()
+    expect(opt(said('Qingdao offers 465,000 and 14 weeks. We propose 440,000.').offer ?? {})).toEqual({ price: '€450,000' })
+  })
+
   it('число между вариантами — в пользу собеседника: «440,000» при 450 и 435 — это 450', () => {
     expect(opt(parseOffer(sc, 'We propose 440,000.', 'player'))).toEqual({ price: '€450,000' })
   })

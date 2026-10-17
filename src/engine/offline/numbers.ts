@@ -78,7 +78,8 @@ const UNIT_RE = UNITS.map((u) => `(${u.re})`).join('|')
 // «480,000» — тысячи через запятую (по-английски), а «1,250 млн» — дробь.
 const NUM = `(\\d{1,3}(?:[ \\u00a0]\\d{3})+(?!\\d|[.,]\\d)|\\d{1,3}(?:,\\d{3})+(?![\\d.,]|\\s*(?:млн|млрд|тыс|миллион|миллиард))|\\d+(?:[.,]\\d+)?|${WORD_RE}(?:\\s+${WORD_RE})*)`
 const CURRENCY_AFTER = '(?:\\s*(?:руб\\p{L}*|₽|euros?(?!\\p{L})|€|dollars?(?!\\p{L})|\\$))?'
-const QTY = new RegExp(`(?<![\\p{L}\\d])${NUM}\\s*(?:(${UNIT_RE})${CURRENCY_AFTER})?`, 'giu')
+// «two-year warranty», «10-week delivery» — число и единица через дефис
+const QTY = new RegExp(`(?<![\\p{L}\\d])${NUM}(?:\\s*-\\s*(?=\\p{L})|\\s*)(?:(${UNIT_RE})${CURRENCY_AFTER})?`, 'giu')
 // валюта впереди: «€480,000», «$200», «€450k», «$1.2 million»
 const PREFIX = new RegExp(`(?<![\\p{L}\\d])([€$])\\s?${NUM}(?:\\s*(k(?!\\p{L})|thousands?(?!\\p{L})|grand(?!\\p{L})|millions?(?!\\p{L})|mln(?!\\p{L})))?`, 'giu')
 // «a week», «an hour», «half a year», «a year and a half»
@@ -113,6 +114,10 @@ function num(s: string): number {
   if (parts.every((p) => WORDS[p] !== undefined)) return parts.reduce((a, p) => (THOUSAND.has(p) ? (a || 1) * 1000 : a + WORDS[p]), 0)
   const en = s.toLowerCase().split(/[\s-]+/).filter((p) => p !== 'and')
   if (en.every((p) => EN[p] !== undefined)) {
+    // разговорная цена: «four fifty» — 450, «four sixty-five» — 465 (сотни без «hundred»)
+    const [a, b, c] = en.map((p) => EN[p])
+    if ((en.length === 2 && a >= 1 && a <= 9 && b >= 10 && b <= 90) || (en.length === 3 && a >= 1 && a <= 9 && b >= 20 && b <= 90 && b % 10 === 0 && c >= 1 && c <= 9))
+      return a * 100 + b + (c ?? 0)
     // «four hundred eighty thousand» = (4 × 100 + 80) × 1000
     let total = 0
     let cur = 0

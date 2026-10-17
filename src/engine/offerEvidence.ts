@@ -12,6 +12,10 @@ const REFUSAL = new RegExp(
   'iu',
 )
 
+// Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
+const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
+const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| propose| pay| suggest)|let's|let us|how about|what about|our (?:offer|proposal|counter))(?!\p{L})/iu
+
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
  * Правила независимо находят числа с единицами и отличительные слова вариантов.
  * Отказ предлагать/платить и отвергнутые условия не служат доказательством.
@@ -26,7 +30,8 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
     // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
     // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
     .split(CLAUSE)
-    .map((part) => REFUSAL.test(part) ? '' : part)
+    // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
+    .map((part) => REFUSAL.test(part) || (EN_THIRD.test(part) && !EN_OWN.test(part)) ? '' : part)
     .join('')
   const evidence = parseOffer(sc, positive, 'player', rounded, mentions)
   const out: Offer = {}
