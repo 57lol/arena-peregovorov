@@ -2,12 +2,17 @@ import type { BehaviorDict } from '../dictionary'
 import { stateAfter, step } from '../turn'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../types'
 import { analyzeOffline, withContext } from './analyze'
+import { groundAnalysis } from '../offerEvidence'
 import { templateLine } from './lines'
 
 export { analyzeOffline, censor, isRude, talkActs, withContext } from './analyze'
 export { parseOffer, mentionedIssues } from './parseOffer'
 export { templateLine } from './lines'
 export { quantities } from './numbers'
+
+/** Те же подтверждённые условия на сервере и в браузере. */
+export const groundedOffline = (sc: Scenario, text: string, dict: BehaviorDict) =>
+  groundAnalysis(sc, text, analyzeOffline(sc, text, dict))
 
 /** Уход по кнопке «Встать и уйти»: служебный ход без приёмов. */
 export function walkAwayMove(): MoveAnalysis {
@@ -29,7 +34,7 @@ export function offlineTurn(
   formalOffer?: Offer,
 ): TurnRecord {
   const before = stateAfter(sc, history, dict)
-  const analysis = withContext(withFormalOffer(analyzeOffline(sc, playerText, dict), formalOffer), before, history, dict)
+  const analysis = withContext(withFormalOffer(groundedOffline(sc, playerText, dict), formalOffer), before, history, dict)
   const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
   const { line, emotion } = templateLine(sc, r.decision, r.state, before.lastOpponentOffer)
   return {

@@ -78,6 +78,7 @@ const emptyTotal = (): Total => ({ since: new Date().toISOString(), rub: 0, llmR
 
 export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
   let day: Day = empty('')
+  let loadingDay: Promise<Day> | undefined
   let total: Total | undefined
   let writing = Promise.resolve()
   let reserving = Promise.resolve()
@@ -107,11 +108,16 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
   async function load(): Promise<Day> {
     const date = today()
     if (day.date === date) return day
-    try {
-      day = { ...empty(date), ...JSON.parse(await readFile(join(dir, `${date}.json`), 'utf8')), date }
-    } catch {
-      day = empty(date)
-    }
+    if (loadingDay) { await loadingDay; return load() }
+    loadingDay = (async () => {
+      try {
+        day = { ...empty(date), ...JSON.parse(await readFile(join(dir, `${date}.json`), 'utf8')), date }
+      } catch {
+        day = empty(date)
+      }
+      return day
+    })()
+    try { await loadingDay } finally { loadingDay = undefined }
     return day
   }
 
@@ -143,6 +149,12 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     return 'pro'
   }
 
+  const serial = <T>(run: () => Promise<T>): Promise<T> => {
+    const job = reserving.then(run)
+    reserving = job.then(() => {}, () => {})
+    return job
+  }
+
   return {
     dir,
     modeNow,
@@ -168,6 +180,33 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     async ttsAllowed(chars: number) {
       const [d] = await both()
       return modeNow() !== 'offline' && d.ttsChars + chars <= limits(env).ttsChars
+    },
+    /** Резерв до очереди; отказ возвращает деньги и символы ровно один раз. */
+    reserveTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {
+      return serial(async () => {
+        const [d, t] = await both()
+        const l = limits(env)
+        if (chars < 0 || rub < 0 || !Number.isFinite(chars + rub) || d.ttsChars + chars > l.ttsChars || t.rub + rub > l.total || d.rub + rub > l.rub) return undefined
+        d.ttsChars += chars
+        t.ttsChars += chars
+        d.rub = r4(d.rub + rub)
+        t.rub = r4(t.rub + rub)
+        t.ttsRub = r4(t.ttsRub + rub)
+        await save()
+        let released = false
+        return { release: () => serial(async () => {
+          if (released) return
+          released = true
+          d.ttsChars -= chars
+          t.ttsChars -= chars
+          d.rub = r4(d.rub - rub)
+          t.rub = r4(t.rub - rub)
+          t.ttsRub = r4(t.ttsRub - rub)
+          // Резерв мог пережить полночь.
+          if (d !== day) await writeFile(join(dir, `${d.date}.json`), JSON.stringify(d)).catch(() => {})
+          await save()
+        }) }
+      })
     },
     /** rub — готовая цена (внешний TTS), иначе считаем по тарифу SpeechKit */
     async addTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {

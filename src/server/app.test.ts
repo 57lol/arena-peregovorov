@@ -189,7 +189,7 @@ describe('запросы из браузера с потолками (аудит
     for (let i = 0; i < 3; i++) codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s1' })).status)
     codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s2' })).status)
     vi.unstubAllEnvs()
-    expect(codes).toEqual([200, 200, 429, 200])
+    expect(codes).toEqual([200, 200, 429, 429])
   })
 
   it('лимит лаборатории считается по адресу, который дописал прокси (конец X-Forwarded-For), а не по подделке в начале', async () => {

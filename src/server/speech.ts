@@ -207,12 +207,12 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     console.warn(`[speech] TTS_PROVIDER=${env.TTS_PROVIDER} игра не берёт (голос OpenAI на проде запрещён): говорит SpeechKit. Основной голос — TTS_PROVIDER=elevenlabs`)
 
   // ElevenLabs: очередь по потокам тарифа, сбои подряд и пауза после трёх, символы за сутки на весь сайт
-  const eleven = { slots: slots(() => limitOf('ELEVEN_CONCURRENCY', 5)), fails: 0, until: 0, day: '', chars: 0 }
+  const eleven = { slots: slots(() => limitOf('ELEVEN_CONCURRENCY', 5)), fails: 0, until: 0, usage: { day: '', chars: 0 } }
   const elevenOn = () => primaryTts() === 'elevenlabs' && Date.now() >= eleven.until
   const charsLeft = (n: number) => {
     const today = new Date().toISOString().slice(0, 10)
-    if (eleven.day !== today) Object.assign(eleven, { day: today, chars: 0 })
-    return eleven.chars + n <= limitOf('ELEVEN_DAILY_CHARS', 20_000)
+    if (eleven.usage.day !== today) eleven.usage = { day: today, chars: 0 }
+    return eleven.usage.chars + n <= limitOf('ELEVEN_DAILY_CHARS', 20_000)
   }
   // кто сейчас говорит: eleven — браузер берёт фразы-паузы ElevenLabs и не меняет темп голоса
   const status = () => {
@@ -275,38 +275,19 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         started(true)
         return { audio: cached, ms: mp3Ms(cached), cache: 'hit' }
       }
-      const body = elevenBody(q, env)
-      if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
-      if (!(await quota.ttsAllowed(body.text.length))) throw new Refusal('Озвучка на сегодня закончилась')
-      charge()
       const t0 = Date.now()
-      if (!(await eleven.slots.take(deadline - Date.now()))) throw new Refusal('ElevenLabs: все потоки заняты')
-      try {
-        for (let attempt = 0; ; attempt++) {
-          const r = await elevenRequest(q, f, env)
-          if (r.status === 429 && attempt === 0) {
-            await r.body?.cancel()
-            await new Promise((ok) => setTimeout(ok, 400))
-            continue
-          }
-          await checkEleven(r)
-          started(true)
-          const first = Date.now() - t0
-          const audio = new Uint8Array(await r.arrayBuffer())
-          if (audio.length < 500) throw new Error('ElevenLabs: пустой ответ')
-          eleven.fails = 0
-          eleven.chars += body.text.length
-          await quota.addTts(body.text.length, false, (body.text.length / 1000) * price1k(body.model_id, env))
-          await keep(file, audio)
-          return { audio, ms: mp3Ms(audio), cache: 'miss', took: `${first},${Date.now() - t0}` }
-        }
-      } finally {
-        eleven.slots.free()
-      }
+      let first = 0
+      const chunks: Uint8Array[] = []
+      await elevenPiece(q, (u) => {
+        if (!chunks.length) { first = Date.now() - t0; started(true) }
+        chunks.push(u)
+      }, deadline, charge)
+      const audio = glue(chunks)
+      return { audio, ms: mp3Ms(audio), cache: 'miss', took: `${first},${Date.now() - t0}` }
     })()
-    done.catch((e: Error & { status?: number }) => {
+    done.catch(() => {
       started(false)
-      elevenFailed(e)
+      // Ошибку уже учёл elevenPiece.
     })
     return { first, done }
   }
@@ -325,11 +306,20 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   /** Кусок реплики голосом ElevenLabs потоком: звук отдаём по мере прихода (onChunk), «занято» (429) — один повтор. */
   async function elevenPiece(q: TtsRequest, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void): Promise<void> {
     const body = elevenBody(q, env)
+    const file = fileOf({ p: 'elevenlabs', voice: q.voice, body })
+    const cached = await read(file)
+    if (cached) { onChunk(cached); return }
     if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
-    if (!(await quota.ttsAllowed(body.text.length))) throw new Refusal('Озвучка на сегодня закончилась')
-    charge()
-    if (!(await eleven.slots.take(deadline - Date.now()))) throw new Refusal('ElevenLabs: все потоки заняты')
+    const usage = eleven.usage
+    usage.chars += body.text.length
+    let reservation: Awaited<ReturnType<Budget['reserveTts']>>
+    let occupied = false, accepted = false
     try {
+      reservation = await quota.reserveTts(body.text.length, false, body.text.length / 1000 * price1k(body.model_id, env))
+      if (!reservation) throw new Refusal('Озвучка на сегодня закончилась')
+      charge()
+      occupied = await eleven.slots.take(deadline - Date.now())
+      if (!occupied) throw new Refusal('ElevenLabs: все потоки заняты')
       for (let attempt = 0; ; attempt++) {
         const r = await elevenRequest(q, f, env)
         if (r.status === 429 && attempt === 0) {
@@ -338,22 +328,29 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           continue
         }
         await checkEleven(r)
-        let bytes = 0
+        // Принятый синтез может быть оплачен даже при обрыве тела.
+        accepted = true
+        const chunks: Uint8Array[] = []
         for await (const u of r.body!) {
-          bytes += u.length
+          chunks.push(u)
           onChunk(u)
         }
-        if (bytes < 500) throw new Error('ElevenLabs: пустой ответ')
+        const audio = glue(chunks)
+        if (audio.length < 500) throw new Error('ElevenLabs: пустой ответ')
         eleven.fails = 0
-        eleven.chars += body.text.length
-        await quota.addTts(body.text.length, false, (body.text.length / 1000) * price1k(body.model_id, env))
+        // В том числе опоздавший звук: переключение игрока на SpeechKit его не теряет.
+        await keep(file, audio)
         return
       }
     } catch (e) {
       elevenFailed(e as Error)
       throw e
     } finally {
-      eleven.slots.free()
+      if (occupied) eleven.slots.free()
+      if (!accepted) {
+        usage.chars -= body.text.length
+        await reservation?.release()
+      }
     }
   }
 
@@ -370,7 +367,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
 
   /**
    * Озвучка реплики, пока модель её дописывает. first — начало реплики (прошло проверку): ElevenLabs начинает сразу;
-   * finish — реплика целиком: остаток синтезируется параллельно и приклеивается к началу, звук целиком ложится
+   * finish — реплика целиком: после начала синтезируем остаток и приклеиваем к нему, звук целиком ложится
    * в кэш. Без first — вся реплика одним куском. ElevenLabs не начал отвечать за WAIT.elevenFirst или его нет —
    * реплика целиком голосом SpeechKit. Звук идёт по url с первых байт.
    */
@@ -389,8 +386,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     let charged = false
     const charge = () => {
       if (charged) return
-      charged = true
       if (!count.take(`el:s:${who}`, perSession, HOUR) || !count.take(`el:ip:${ip}`, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
+      charged = true
     }
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
     const prep = async (text: string): Promise<TtsRequest> => {
@@ -446,6 +443,22 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           const ok = await Promise.race([firstByte, p1.then(() => false), new Promise<boolean>((r) => (timer = setTimeout(r, WAIT.elevenFirst(), false)))])
           clearTimeout(timer)
           if (!ok) {
+            void p1.then(async (first) => {
+              if (first.error) return
+              const w = await whole
+              if (!piece) return
+              const tail = w.text.startsWith(start) ? w.text.slice(start.length).trim() : ''
+              const q = await prep(start)
+              const initial = await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) }))
+              if (!initial) return
+              const chunks: Uint8Array[] = [initial]
+              if (stripTags(tail)) {
+                const rest: Uint8Array[] = []
+                await elevenPiece(await prep(tail), (u) => rest.push(u), Date.now() + WAIT.eleven(), charge)
+                chunks.push(noId3(glue(rest)))
+              }
+              if (w.text.startsWith(start)) await keep(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(w.text), env) }), glue(chunks))
+            }).catch((e: Error) => console.warn(`[speech] поздний звук: ${e.message}`))
             const settled = await Promise.race([p1, Promise.resolve(undefined)])
             throw settled?.error ?? new Refusal('ElevenLabs не успел', 503)
           }
@@ -494,9 +507,17 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (!reason) await keep(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(w.text), env) }), audio)
       return { audio, ms: mp3Ms(audio), cache: 'miss' }
     }
-    const sound: LiveSound = { out, head, done: play().catch((e: Error) => (console.warn(`[speech] живой звук: ${e.message}`), undefined)) }
+    const sound: LiveSound = { out, head, done: play().catch((e: Error) => {
+      console.warn(`[speech] живой звук: ${e.message}`)
+      setHead({ api: 'none', voice, error: e.message })
+      out.end()
+      return undefined
+    }) }
     lives.set(id, sound)
-    void sound.done.finally(() => setTimeout(() => lives.delete(id), 5 * 60_000).unref?.())
+    void sound.done.finally(() => setTimeout(() => {
+      lives.delete(id)
+      for (const [key, value] of livesByText) if (value === sound) livesByText.delete(key)
+    }, 5 * 60_000).unref?.())
     return {
       url: `/api/tts/live/${id}`,
       /** кто уже говорит (elevenlabs, v3…; fallback — почему не ElevenLabs), если звук пошёл */
@@ -597,9 +618,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         const cached = await read(file)
         if (cached) return { audio: cached, ms: Math.round((cached.length * 8) / 64), cache: 'hit' }
         if (!take('tts', ip)) throw new Refusal('Лимит озвучки на сегодня')
-        if (!(await quota.ttsAllowed(text.length))) throw new Refusal('Озвучка на сегодня закончилась')
-        const r = await speechkit(key!, { text, voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), liveRole: role }, f)
-        await quota.addTts(text.length, isLive(voice))
+        const reservation = await quota.reserveTts(text.length, isLive(voice))
+        if (!reservation) throw new Refusal('Озвучка на сегодня закончилась')
+        const r = await speechkit(key!, { text, voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), liveRole: role }, f).catch(async (e: unknown) => { await reservation.release(); throw e })
         // v3 упал и ответил v1 — кладём под ключ v1, чтобы v3 попробовать снова в следующий раз
         await keep(r.api !== api ? v1file : file, r.audio)
         return { audio: r.audio, ms: r.ms ?? Math.round((r.audio.length * 8) / 64), cache: 'miss', api: r.api }

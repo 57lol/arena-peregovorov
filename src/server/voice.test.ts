@@ -47,7 +47,7 @@ describe('проверка реплики: условия и согласие с
   it('согласие без решения «согласиться» — нет; «давай так — и по рукам?» — это предложение, а не согласие', () => {
     const offer = { wifi: 2, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }
     const d = { kind: 'counter', offer } as const
-    const s = initialState(dorm)
+    const s = { ...initialState(dorm), lastOpponentOffer: { ...offer, wifi: 0 } }
     expect(ok(dorm, d, s, 'Ладно, по рукам, братан.')).toBe(false)
     expect(ok(dorm, d, s, 'Норм.', { agrees: true })).toBe(false)
     expect(ok(dorm, d, s, 'Давай триста, и по рукам?', { terms: [{ issue: 'wifi', option: 2 }] })).toBe(true)
@@ -56,13 +56,13 @@ describe('проверка реплики: условия и согласие с
 
   it('прошлые ложные срабатывания фильтров: «суббота святое» и шутки про субботу — не условия', () => {
     const offer = { wifi: 2, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }
-    const s = { ...initialState(dorm), revealed: ['t_saturday'] }
+    const s = { ...initialState(dorm), revealed: ['t_saturday'], lastOpponentOffer: { ...offer, quiet: 0 } }
     expect(ok(dorm, { kind: 'counter', offer }, s, 'Слушай, ну раз я всё равно в наушниках, тихо с 23:00 мне не в напряг. Суббота для пацанов святое, сам знаешь.', { terms: [{ issue: 'quiet', option: 3 }] }, undefined, 'тихо с 23:00')).toBe(true)
   })
 
   it('«последнее слово» не на последнем ходу — нет', () => {
-    const s = initialState(tara)
     const offer = { price: 0, payment: 0, rush: 0, term: 3, schedule: 2 }
+    const s = { ...initialState(tara), lastOpponentOffer: { ...offer } }
     expect(ok(tara, { kind: 'counter', offer }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(false)
     expect(ok(tara, { kind: 'counter', offer, final: true }, s, 'Двести двенадцать, и это моё последнее слово.')).toBe(true)
     expect(ok(tara, { kind: 'counter', offer }, s, 'Двести двенадцать — дальше не двинусь.')).toBe(false)
@@ -193,8 +193,8 @@ function fake(answers: (object | Error)[], name: LLM['name'] = 'aitunnel'): LLM 
 }
 
 describe('реплика целиком', () => {
+  const offer = { ...initialState(dorm).lastOpponentOffer!, wifi: 1 }
   const s = { ...initialState(dorm), turn: 1, playerStance: { wifi: 2 } }
-  const offer = { wifi: 1, quiet: 0, cleaning: 0, guests: 3, kitty: 2 }
   const d = { kind: 'counter', offer } as const
   const good = { line: '[chuckles] Триста? Не, давай четыреста пятьдесят — и я тебе даже чайник уступлю.', emotion: 'pleased', terms: [{ issue: 'wifi', option: 1 }], agrees: false, reveals: [] }
 
@@ -283,7 +283,7 @@ describe('проверка реплики: аудит 17.10', () => {
     const hold = { kind: 'hold', reason: 'no_movement' } as const
     expect(check(tara, hold, s, 'Моя цена 9999 рублей за короб.').hard.join()).toMatch(/цифры/)
     expect(check(tara, hold, s, 'Отдам по 199 рублей, так и быть.').hard.join()).toMatch(/цифры/)
-    const offer = { ...s.lastOpponentOffer, price: 1, schedule: 0 }
+    const offer = { ...s.lastOpponentOffer, price: 1 }
     const d = { kind: 'counter', offer } as const
     expect(check(tara, d, { ...s, lastOpponentOffer: offer }, 'Давайте всё-таки двести двенадцать за короб.', {}, s.lastOpponentOffer).hard.join()).toMatch(/цифры/)
     expect(check(tara, d, { ...s, lastOpponentOffer: offer }, 'Было двести двенадцать, теперь двести четыре — шаг навстречу.', {}, s.lastOpponentOffer).hard).toEqual([])
@@ -301,7 +301,8 @@ describe('проверка реплики: аудит 17.10', () => {
     const d = { kind: 'reveal', interestId: 'm_leasing' } as const
     expect(check(tara, d, s, 'Погода сегодня хорошая.').hard.join()).toMatch(/не рассказал/)
     expect(ok(tara, d, s, 'Мы новый агрегат в лизинг взяли, каждый месяц платёж — поэтому деньги нужны сразу.')).toBe(true)
-    expect(ok(tara, d, s, 'Есть у нас обязательства перед банком, вот и всё.', { reveals: ['m_leasing'] })).toBe(true)
+    // Одного заявления reveals мало: лизинг в тексте не назван.
+    expect(ok(tara, d, s, 'Есть у нас обязательства перед банком, вот и всё.', { reveals: ['m_leasing'] })).toBe(false)
   })
 })
 
@@ -324,7 +325,8 @@ describe('начало ответа уже прозвучало', () => {
     const d = { kind: 'hold', reason: 'no_movement' } as const
     const before = voicePrompt(tara, [], 'давайте 1000', d, state)
     const after = voicePrompt(tara, [], 'давайте 1000', d, state, { reaction: 'Хм, неожиданная цифра…' })
-    expect(after.user).toContain('Ты уже начал вслух: «Хм, неожиданная цифра…» — продолжай с этого места, не повторяй')
+    expect(after.user).toContain('Интерфейс может проиграть короткую реакцию: «Хм, неожиданная цифра…»')
+    expect(after.user).toContain('Она может не прозвучать: ответ должен быть самостоятельным')
     expect(after.frame).toEqual(before.frame)
     expect(after.sys).toBe(before.sys)
     expect(frameKey(tara, [], 'давайте 1000', d, state)).toBe(frameKey(tara, [], 'давайте 1000', d, { ...state }))

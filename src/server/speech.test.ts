@@ -46,7 +46,7 @@ describe('голос', () => {
     expect(f).toHaveBeenCalledTimes(1)
     expect((await tts(app, { text: text + '!', voice: 'filipp' })).status).toBe(200)
     expect((await tts(app, { text: text + '?', voice: 'filipp' })).status).toBe(429)
-    expect((await tts(app, { text: text + '?', voice: 'filipp' }, '2.2.2.2')).status).toBe(200)
+    expect((await tts(app, { text: text + '?', voice: 'filipp' }, '2.2.2.2')).status).toBe(429)
   })
 
   it('v3: новые голоса только через v3, старые при сбое v3 доигрывают через v1', async () => {

@@ -121,3 +121,27 @@ describe('/api/stt с хеджем', () => {
     expect((await q.today()).sttSec).toBe(15)
   })
 })
+
+it('без ворот поддельные cookie и IP не обходят лимит Scribe', async () => {
+  const q = quota()
+  const s = makeSttStream(q, { ...env, GATE_SECRET: '', STT_STREAM_SESSION_HOUR_LIMIT: '1' })
+  const call = (fake: string) => s.app.request('/api/stt/session', { method: 'POST',
+    headers: { cookie: `arena_pass=${fake}`, 'x-forwarded-for': fake, origin: env.STT_ORIGIN }, body: '{"seconds":30}' })
+  expect((await call('fakeA')).status).toBe(200)
+  expect((await call('fakeB')).status).toBe(429)
+  expect((await q.today()).sttSec).toBe(35)
+})
+
+it.each(['error', 'close', 'timeout', 'connecting'])('мост Scribe освобождает таймер и обе стороны: %s', async (failure) => {
+  vi.useFakeTimers()
+  const a = new Socket(), b = new Socket()
+  const end = bridgeStream(a as unknown as WebSocket, b as unknown as WebSocket)
+  if (failure === 'connecting') b.readyState = 0
+  if (failure === 'timeout') await vi.advanceTimersByTimeAsync(67_000)
+  else a.emit(failure === 'close' ? 'close' : 'error', new Error('closed'))
+  end()
+  expect(a.close).toHaveBeenCalledOnce()
+  if (failure === 'connecting') expect(b.terminate).toHaveBeenCalledOnce()
+  else expect(b.close).toHaveBeenCalledOnce()
+  expect(vi.getTimerCount()).toBe(0)
+})

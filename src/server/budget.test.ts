@@ -112,3 +112,26 @@ describe('общий бюджет', () => {
     expect(await free.sttAllowed()).toBe(true)
   })
 })
+
+it('резерв TTS атомарен, отказ возвращает бюджет, STT видит занятые деньги', async () => {
+  const b = makeBudget(dir(), { LLM_TOTAL_RUB: '1', TTS_DAILY_CHARS: '40' })
+  const reservations = await Promise.all(Array.from({ length: 10 }, () => b.reserveTts(32, false, 0.9)))
+  expect(reservations.filter(Boolean)).toHaveLength(1)
+  expect((await b.today()).ttsChars).toBe(32)
+  expect(await b.reserveStt(15, 0.2)).toBe(false)
+  const first = reservations.find((x) => x)!
+  await Promise.all([first.release(), first.release()])
+  expect((await b.total()).rub).toBe(0)
+  expect((await b.today()).ttsChars).toBe(0)
+  expect(await b.reserveTts(41, false, 0.1)).toBeUndefined()
+  expect(await b.reserveTts(1, false, 1.1)).toBeUndefined()
+  expect(await b.reserveStt(15, 0.2)).toBe(true)
+  expect(await b.reserveTts(32, false, 0.9)).toBeUndefined()
+})
+
+it('параллельный холодный старт не теряет дневные списания', async () => {
+  const b = makeBudget(dir(), { LLM_TOTAL_RUB: '100' })
+  await Promise.all(Array.from({ length: 12 }, () => b.addTts(1)))
+  expect((await b.today()).ttsChars).toBe(12)
+  expect((await b.total()).ttsChars).toBe(12)
+})

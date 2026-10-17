@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import WebSocket, { WebSocketServer } from 'ws'
 import { budget, type Budget } from './budget'
-import { clientIp, sessionOf, PASS_COOKIE } from './client'
+import { clientIp, sessionOf, remoteIp, clientSession, PASS_COOKIE } from './client'
 import { passValid } from './gate'
 import { DAY, HOUR, limiter } from './limits'
 
@@ -27,7 +27,7 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
     // В проде задаём внешний origin: за Passenger req.url может быть http.
     const allowed = env.STT_ORIGIN || new URL(c.req.url).origin
     if (origin && origin !== allowed) return c.json({ error: 'Чужой сайт' }, 403)
-    const ip = clientIp(c), session = sessionOf(c)
+    const ip = clientIp(c, env), session = sessionOf(c, env)
     if (!count.take(`s:${session}`, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 60), HOUR) ||
         !count.take(`ip:${ip}`, number(env.STT_STREAM_IP_DAY_LIMIT, 300), DAY)) return c.json({ error: 'Лимит потока' }, 429)
     const body = await c.req.json().catch(() => null) as { seconds?: unknown } | null
@@ -55,8 +55,8 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
       if (url.pathname !== '/api/stt/stream' || env.STT_STREAM_VIA === 'worker') return fail(404)
       const cookie = req.headers.cookie?.split(';').map((x) => x.trim()).find((x) => x.startsWith(`${PASS_COOKIE}=`))?.slice(PASS_COOKIE.length + 1)
       if (env.GATE_SECRET && !passValid(env.GATE_SECRET, cookie)) return fail(401)
-      const ip = String(req.headers['x-forwarded-for'] ?? '').split(',').pop()?.trim() || req.socket.remoteAddress || 'local'
-      const session = cookie ?? `ip:${ip}`
+      const ip = remoteIp(req.socket.remoteAddress, String(req.headers['x-forwarded-for'] ?? ''), env)
+      const session = clientSession(cookie, ip, env)
       const id = url.searchParams.get('ticket') ?? ''
       const t = tickets.get(id)
       if (!t || t.until < Date.now() || t.session !== session) return fail(403)

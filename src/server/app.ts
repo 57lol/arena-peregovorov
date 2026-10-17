@@ -8,8 +8,7 @@ import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { analyzeOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
-import { groundAnalysis } from '../engine/offerEvidence'
+import { groundedOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
@@ -21,7 +20,7 @@ import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
-import { frameKey, voice } from './voice'
+import { completeLine, frameKey, voice, voicePrompt } from './voice'
 import { stripTags } from './tags'
 import { roomsApi } from './rooms'
 
@@ -294,14 +293,21 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const ac = new AbortController()
       const at = Date.now() - t0
       let first: string | undefined
-      let open = false
+      let confirmed: { analysis: MoveAnalysis; source: string } | undefined
       let sent = false
       const release = () => {
-        if (sent || !open || first === undefined) return
+        if (sent || !confirmed || first === undefined) return
         sent = true
         ms.first = Date.now() - t0
         sound?.first(first)
-        emit?.({ t: 'line', text: stripTags(unstress(first)), ...(sound ? { audio: sound.url } : {}) })
+        const safe = completeLine(sc, voicePrompt(sc, history, body.playerText, r.decision, r.state).frame, first)
+        const record: TurnRecord = {
+          turn: r.state.turn, playerText: body.playerText, analysis: confirmed.analysis,
+          deltas: r.deltas, decision: r.decision, stateAfter: r.state,
+          opponentLine: stripTags(unstress(safe)), emotion: 'neutral',
+        }
+        emit?.({ t: 'line', text: stripTags(unstress(first)), record,
+          sources: { analysis: confirmed.source, voice: 'partial' }, ...(sound ? { audio: sound.url } : {}) })
       }
       const said = voice(speaker, sc, history, body.playerText, r.decision, r.state, {
         natural,
@@ -314,7 +320,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
           release()
         },
       })
-      return { at, said, ac, key: frameKey(sc, history, body.playerText, r.decision, r.state), open: () => ((open = true), release()) }
+      return { at, said, ac, key: frameKey(sc, history, body.playerText, r.decision, r.state), open: (analysis: MoveAnalysis, source: string) => ((confirmed = { analysis, source }), release()) }
     }
 
     const turn = async () => {
@@ -328,7 +334,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // только у модели с потоком: промах обрывается сразу и почти ничего не стоит
       if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.stream) {
         const quick = await Promise.race([analyzing.then(() => true), new Promise<boolean>((r) => setTimeout(r, 15, false))])
-        if (!quick) guess = speak(decide(groundAnalysis(sc, body.playerText, analyzeOffline(sc, body.playerText, dict))).r)
+        if (!quick) guess = speak(decide(groundedOffline(sc, body.playerText, dict)).r)
       }
       const a = await analyzing
       ms.analyze = Date.now() - t0
@@ -341,7 +347,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       }
       if (guess) ms.spec = run ? 'hit' : 'miss'
       run ??= speak(r)
-      run.open()
+      run.open(analysis, a.source)
       const said = await run.said
       for (const [k, x] of Object.entries(said.ms ?? {})) if (x !== undefined && k !== 'first') ms[k] = run.at + x
       // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
@@ -349,7 +355,6 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       rememberSpoken(v.line, said.line)
       speech.issue(v.line)
       sound?.finish(said.line, v.emotion)
-      if (ms.first === undefined) emit?.({ t: 'line', text: v.line, ...(sound ? { audio: sound.url } : {}) })
       const record: TurnRecord = {
         turn: r.state.turn,
         playerText: body.playerText,
@@ -360,6 +365,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         emotion: v.emotion,
         stateAfter: r.state,
       }
+      if (ms.first === undefined) emit?.({ t: 'line', text: v.line, record, sources: { analysis: a.source, voice: v.source }, ...(sound ? { audio: sound.url } : {}) })
       const done = r.state.status !== 'open'
       return {
         analysis,

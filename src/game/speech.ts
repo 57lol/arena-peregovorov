@@ -196,8 +196,9 @@ async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null
   try {
     const W = window as unknown as { OfflineAudioContext?: typeof OfflineAudioContext; webkitOfflineAudioContext?: typeof OfflineAudioContext }
     const Off = W.OfflineAudioContext ?? W.webkitOfflineAudioContext
-    if (!Off) return null
+    // Запрос уже начат: его ошибку обработаем и без Web Audio.
     const buf = await data
+    if (!Off) return null
     const ctx = new Off(1, 1, 44100)
     const ab = await new Promise<AudioBuffer>((res, rej) => ctx.decodeAudioData(buf, res, rej))
     const ch = ab.getChannelData(0)
@@ -606,13 +607,13 @@ function warmReactions(face: string) {
   for (const r of REACTION_RECORDINGS.filter((r) => r.face === face)) {
     if (reactionLoads.has(r.path)) continue
     reactionLoads.add(r.path)
-    void fetch(r.path).then(async (res) => {
+    void fetch(r.path, { signal: AbortSignal.timeout(4000) }).then(async (res) => {
       if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return
       const bytes = await res.arrayBuffer()
       if (!bytes.byteLength) return
       envCache.set(new URL(r.path, location.href).href, envelope(Promise.resolve(bytes)))
       reactionReady.add(r.path)
-    }).catch(() => {})
+    }).catch(() => {}).finally(() => { if (!reactionReady.has(r.path)) reactionLoads.delete(r.path) })
   }
 }
 

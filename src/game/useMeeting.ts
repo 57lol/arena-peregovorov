@@ -234,13 +234,18 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     }
     try {
       const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(f?.text ? { reaction: f.text } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
-      if (g === gen.current) setReactionEmotion(toPortraitEmotion(r.record.emotion))
+      if (g !== gen.current) return
+      setReactionEmotion(toPortraitEmotion(r.record.emotion))
       noteVoice(r.audioVoice)
       // Дожидаемся только фразы-паузы и начала звука по потоку. Реплика получит единый лимит ожидания в эффекте выше.
       f?.cancel()
       await f?.done
-      if (started && (await started)) liveIs(r.record.opponentLine)
+      const playing = started && await started
       if (g !== gen.current) return
+      if (playing) {
+        if (r.interrupted) stopAudio()
+        else liveIs(r.record.opponentLine)
+      }
       setHistory((h) => [...h, r.record])
       setSource(r.source)
       setDraft('')
@@ -251,8 +256,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       if (g !== gen.current) return
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
-      setPending(null)
-      setEarly(null)
+      if (g === gen.current) {
+        setPending(null)
+        setEarly(null)
+      }
     }
   }
 
@@ -280,6 +287,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   /** Переиграть с хода turn (с 1): всё, что было до него, остаётся, реплика — в поле ввода. */
   const rewind = (turn: number) => {
     gen.current++
+    setPending(null)
+    setEarly(null)
     filler.current?.cancel()
     // внутри клика: прогреваем звук (iOS) — восстановленная реплика прозвучит, когда скачается
     if (voiceOn && canVoice) unlockAudio()
@@ -288,6 +297,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   }
   const undo = () => {
     gen.current++
+    setPending(null)
+    setEarly(null)
     filler.current?.cancel()
     if (voiceOn && canVoice) unlockAudio()
     setHistory((h) => h.slice(0, -1))

@@ -103,3 +103,36 @@ it.each([200, 400])('микрофон на %s мс: реакция молчит 
   await vi.advanceTimersByTimeAsync(1000)
   expect(plays).toHaveLength(played)
 })
+
+it('после сбоя загрузки реакция пробуется снова, а не остаётся недоступной навсегда', async () => {
+  let available = false
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes('voice-reactions') && !available) throw new Error('timeout')
+    return new Response(new Uint8Array(1000), { headers: { 'content-type': 'audio/mpeg' } })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const first = speech.startReaction(voice, true, () => true, reaction)
+  await vi.advanceTimersByTimeAsync(321)
+  expect(plays[0]).not.toBe(reaction.path)
+  current.deref()!.dispatchEvent(new Event('ended'))
+  await first.done
+  const attempts = fetcher.mock.calls.filter(([url]) => url === reaction.path).length
+  available = true
+  const second = speech.startReaction(voice, true, () => true, reaction)
+  await vi.advanceTimersByTimeAsync(321)
+  expect(fetcher.mock.calls.filter(([url]) => url === reaction.path).length).toBeGreaterThan(attempts)
+  expect(plays.at(-1)).toBe(reaction.path)
+  current.deref()!.dispatchEvent(new Event('ended'))
+  await second.done
+})
+
+
+it('ошибка аудио без Web Audio обработана, реакция не оставляет rejected promise', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('audio unavailable') }))
+  speech.warmFillers(voice, true)
+  const f = speech.startReaction(voice, true, () => true, reaction)
+  await vi.advanceTimersByTimeAsync(4000)
+  await f.done
+  // Vitest также проверяет отсутствие unhandled rejection после завершения теста.
+  expect(vi.getTimerCount()).toBe(0)
+})

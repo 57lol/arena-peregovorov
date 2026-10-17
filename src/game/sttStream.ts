@@ -25,6 +25,7 @@ export function createScribe(io: StreamIO) {
   const end = (value: string | null) => {
     if (ended) return
     ended = true
+    clearTimeout(lifeTimer)
     clearTimeout(connectTimer)
     clearTimeout(finalTimer)
     ctl.abort()
@@ -37,6 +38,7 @@ export function createScribe(io: StreamIO) {
     }
     resolve(value)
   }
+  const lifeTimer = setTimeout(() => end(null), 70_000)
   const connectTimer = setTimeout(() => end(null), 1500)
   const send = (data: ArrayBuffer | string) => {
     if (!ws || ws.readyState !== 1 || ws.bufferedAmount > 64000) return end(null)
@@ -62,7 +64,8 @@ export function createScribe(io: StreamIO) {
           queue.length = 0
           queuedBytes = 0
           if (finishing) commit()
-        } else if (m.type === 'partial' || m.type === 'segment' || m.type === 'final') {
+        } else if (!ready) return end(null)
+        else if (m.type === 'partial' || m.type === 'segment' || m.type === 'final') {
           if (typeof m.text !== 'string' || m.text.length > 8000) return end(null)
           if (m.type === 'segment') segments = [segments, m.text].filter(Boolean).join(' ')
           text = m.type === 'segment' ? segments : [segments, m.text].filter(Boolean).join(' ')

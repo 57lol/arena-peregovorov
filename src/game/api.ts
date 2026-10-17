@@ -2,7 +2,7 @@
 // офлайн-разметчиком и шаблонами: игра проходится и без сети.
 
 import { BEHAVIOR_DICT } from '../engine/behaviors'
-import { analyzeOffline, templateLine, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
+import { groundedOffline, templateLine, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { stateAfter, step } from '../engine/turn'
 import type { Difficulty, Offer, Scenario, Tone, TurnRecord } from '../engine/types'
 import { loadLab } from './lab/config'
@@ -47,6 +47,7 @@ export interface TurnInput {
 }
 
 export interface TurnResult {
+  interrupted?: boolean
   record: TurnRecord
   /** откуда разбор и реплика: llm, cache, offline, local (сервер недоступен) */
   source: string
@@ -88,7 +89,7 @@ export class ApiError extends Error {
 /** Ответ сервера, который надо показать игроку, а не прятать за игрой без сети: ошибка в ходе, вход истёк, лимит. */
 export const shownError = (e: unknown): e is ApiError => e instanceof ApiError && [400, 401, 409, 413, 429].includes(e.status)
 
-type TurnReply = { record: TurnRecord; sources: { analysis: string; voice: string; voiceModel?: string }; audio?: string; audioVoice?: TurnResult['audioVoice'] }
+type TurnReply = { interrupted?: boolean; record: TurnRecord; sources: { analysis: string; voice: string; voiceModel?: string }; audio?: string; audioVoice?: TurnResult['audioVoice'] }
 
 /**
  * Ход потоком: сервер присылает строки JSON — line (начало реплики и ссылка на звук) раньше, чем ход целиком (done).
@@ -108,19 +109,34 @@ async function postStream(path: string, body: object, onLine: (l: TurnLine) => v
   }
   const reader = r.body!.pipeThrough(new TextDecoderStream()).getReader()
   let buf = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buf += value
-    for (let i; (i = buf.indexOf('\n')) >= 0; ) {
-      const ev = JSON.parse(buf.slice(0, i)) as { t: string; error?: string } & Partial<TurnLine> & TurnReply
-      buf = buf.slice(i + 1)
-      if (ev.t === 'line' && ev.text) onLine({ text: ev.text, ...(ev.audio ? { audio: ev.audio } : {}) })
-      else if (ev.t === 'done') return ev
-      else if (ev.t === 'error') throw new ApiError(ev.error ?? 'Ход не сыгрался', 502)
+  let committed: TurnReply | undefined
+  let published = false
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += value
+      for (let i; (i = buf.indexOf('\n')) >= 0; ) {
+        const ev = JSON.parse(buf.slice(0, i)) as { t: string; error?: string } & Partial<TurnLine> & TurnReply
+        buf = buf.slice(i + 1)
+        if (ev.t === 'line' && ev.text) {
+          if (ev.record && ev.sources) committed = { record: ev.record, sources: ev.sources, interrupted: true }
+          published = true
+          onLine({ text: ev.text, ...(ev.audio ? { audio: ev.audio } : {}) })
+        } else if (ev.t === 'done') return ev
+        else if (ev.t === 'error') throw new ApiError(ev.error ?? 'Ход не сыгрался', 502)
+      }
     }
+    throw new ApiError('Ответ сервера оборвался', 502)
+  } catch (e) {
+    // После публикации решения локально ход уже не переигрываем.
+    if (committed) return committed
+    if (published) throw new ApiError('Ответ сервера оборвался после начала реплики. Обновите страницу.', 409)
+    throw e
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
   }
-  throw new ApiError('Ответ сервера оборвался', 502)
 }
 
 /** onLine — начало реплики раньше хода целиком (ход идёт потоком). */
@@ -142,6 +158,7 @@ export async function playTurn(t: TurnInput, onLine?: (l: TurnLine) => void): Pr
     if (body.voiceLlm) console.info(`реплика: ${r.sources.voiceModel ?? r.sources.voice} (просили ${body.voiceLlm})`)
     return {
       record: r.record,
+      ...(r.interrupted ? { interrupted: true } : {}),
       source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}`,
       ...(r.audio ? { audio: r.audio } : {}),
       ...(r.audioVoice ? { audioVoice: r.audioVoice } : {}),
@@ -159,7 +176,7 @@ function localTurn(t: TurnInput): TurnRecord {
   const before = stateAfter(t.scenario, t.history, dict)
   let analysis = t.walkAway
     ? walkAwayMove()
-    : withContext(withFormalOffer(analyzeOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
+    : withContext(withFormalOffer(groundedOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
   if (t.accept) analysis = { ...analysis, accepts: true }
   const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
   const { line, emotion } = templateLine(t.scenario, r.decision, r.state, before.lastOpponentOffer)

@@ -16,7 +16,7 @@ import { WAIT } from './timeouts'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-const VOICE_VERSION = 'v14'
+const VOICE_VERSION = 'v15'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 /** Что модель заявила до самой реплики: по этому рамку проверяем раньше, чем реплика зазвучит. */
@@ -529,11 +529,13 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
   if (!line) return { hard: ['пустая реплика'], soft: [] }
   const hard = [...new Set([...checkHeader(sc, frame, { ...out, agrees: false }), ...sayProblems(sc, frame, line, ctx)])]
   if (d.kind !== 'accept' && out.agrees && !hard.includes('ты соглашаешься на сделку, а твоё решение — не соглашаться')) hard.unshift('ты соглашаешься на сделку, а твоё решение — не соглашаться')
-  // решение — рассказать причину: она должна прозвучать (сама модель так сказала или в реплике её слова)
+  // Обязательное должно прозвучать в самом тексте.
   if (d.kind === 'reveal') {
     const it = frame.allowed.find((i) => i.id === d.interestId)
-    if (it && !out.reveals.includes(it.id) && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
+    if (it && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
   }
+  if (d.kind === 'accept' && !saysYes(line)) hard.push('не прозвучало согласие на сделку')
+  if (missingTerms(sc, frame, line).length) hard.push('не прозвучали изменённые условия')
   const soft = startProblems(sc, line, ctx)
   if (line.split(/\s+/).length > 55) soft.unshift('слишком длинно: скажи короче, как в жизни')
   const listing = d.kind !== 'accept' && d.kind !== 'counter' && !(d.kind === 'reveal' && d.offer)
@@ -581,19 +583,29 @@ export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): 
     if (claimsFinal(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
     return !isRude(clean) && !mixesSides(sc, clean)
   })
-  let text = keep.join(' ').trim()
+  const text = keep.join(' ').trim()
   if (stripTags(text).split(/\s+/).filter(Boolean).length < 2) return undefined
-  if (d.kind === 'accept' && !saysYes(stripTags(text))) text = `${text} Договорились: ${terms(sc, frame.position)}.`
+  return completeLine(sc, frame, text)
+}
+
+function missingTerms(sc: Scenario, frame: Frame, text: string) {
+  const d = frame.decision
+  if (d.kind !== 'counter' && !(d.kind === 'reveal' && d.offer)) return []
+  return frame.changed.filter((id) => !optionMarks(sc, id, frame.position[id]!).some((has) => has(text)))
+}
+
+/** Уже сказанное сохраняем, обязательный хвост договариваем. */
+export function completeLine(sc: Scenario, frame: Frame, text: string): string {
+  const d = frame.decision
+  const clean = stripTags(unstress(text))
+  if (d.kind === 'accept' && !saysYes(clean)) text += ` Договорились: ${terms(sc, frame.position)}.`
   if (d.kind === 'reveal') {
-    const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-    if (it && !tells(it, text)) text = `${text} Скажу как есть: ${lowerFirst(tame(it.text))}.`
+    const it = frame.allowed.find((i) => i.id === d.interestId)
+    if (it && !tells(it, clean)) text += ` Скажу как есть: ${lowerFirst(tame(it.text))}.`
   }
-  // во встречном главное — что изменилось: если это выпало вместе с нарушением, договариваем коротко
-  if (frame.changed.length && (d.kind === 'counter' || (d.kind === 'reveal' && d.offer))) {
-    const named = frame.changed.some((id) => optionMarks(sc, id, frame.position[id]!).some((has) => has(text)))
-    if (!named) return `${text} Давай так: ${terms(sc, Object.fromEntries(frame.changed.map((id) => [id, frame.position[id]])))}.`
-  }
-  return text
+  const missing = missingTerms(sc, frame, clean)
+  if (missing.length) text += ` Давай так: ${terms(sc, Object.fromEntries(missing.map((id) => [id, frame.position[id]])))}.`
+  return text.trim()
 }
 
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)
@@ -837,7 +849,7 @@ export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: str
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
   const frame = frameFor(sc, d, state, prev, stanceBefore)
-  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + (opts.reaction ? `\nТы уже начал вслух: «${opts.reaction}» — продолжай с этого места, не повторяй.` : '') }
+  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + (opts.reaction ? `\nИнтерфейс может проиграть короткую реакцию: «${opts.reaction}». Она может не прозвучать: ответ должен быть самостоятельным. Не повторяй её.` : '') }
 }
 
 /**
@@ -934,7 +946,7 @@ export async function voice(
         const { out, check } = tries[tries.length - 1]
         const problems = [...check.hard, ...check.soft]
         const rest = check.hard.some((h) => !h.startsWith('вырезано')) ? prune(sc, frame, out, ctx) : undefined
-        const line = rest?.startsWith(spoken.first) ? rest : out.line
+        const line = completeLine(sc, frame, rest?.startsWith(spoken.first) ? rest : out.line)
         return { line, emotion: pickEmotion(out.emotion, d, state, fallback.emotion), kind: check.hard.length ? ('safe' as const) : ('llm' as const), problems, attempts: tries.length }
       }
       const best = [...tries].filter((t) => t.out.line !== '…').sort((a, b) => a.check.hard.length - b.check.hard.length || a.check.soft.length - b.check.soft.length)[0]

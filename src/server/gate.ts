@@ -4,10 +4,12 @@
 // Секреты — только в окружении: GATE_SECRET (подпись cookie), JURY_KEY, SITE_LOGIN, SITE_PASSWORD_HASH
 // (scrypt:<соль hex>:<хэш hex> из hashPassword).
 
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { clientIp, PASS_COOKIE as COOKIE } from './client'
+import { makePass, passValid } from './pass'
+export { makePass, passValid } from './pass'
 import { GATE_SCENE_JS } from './gate-scene'
 
 const TTL = 30 * 24 * 3600
@@ -30,23 +32,6 @@ function same(a: string, b: string) {
 function checkPassword(password: string, stored: string) {
   const [kind, salt, hash] = stored.split(':')
   return kind === 'scrypt' && !!salt && !!hash && same(hashPassword(password, salt), stored)
-}
-
-const sign = (secret: string, what: string) => createHmac('sha256', secret).update(what).digest('base64url')
-
-/** Пропуск: срок, случайный номер входа (по нему лимиты на сессию) и подпись. */
-export function makePass(secret: string, now = Date.now()) {
-  const exp = Math.floor(now / 1000) + TTL
-  const id = randomBytes(9).toString('base64url')
-  return `${exp}.${id}.${sign(secret, `v2.${exp}.${id}`)}`
-}
-
-/** Пропуски до 17.10 — без номера входа («срок.подпись»): жюри не выкидывает на вход. */
-export function passValid(secret: string, value: string | undefined, now = Date.now()) {
-  const parts = (value ?? '').split('.')
-  const [exp, id, sig] = parts.length === 2 ? [parts[0], undefined, parts[1]] : parts
-  if (!sig || parts.length > 3 || !(Number(exp) > now / 1000)) return false
-  return same(sig, sign(secret, id === undefined ? `v1.${exp}` : `v2.${exp}.${id}`))
 }
 
 export function gate(cfg: GateConfig): MiddlewareHandler {
@@ -104,7 +89,12 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
       return page(c, clean, 'Ключ в ссылке не подошёл. Войдите по логину и паролю.', 401)
     }
 
-    if (passValid(cfg.secret, getCookie(c, COOKIE)) || OPEN.some((r) => r.test(path))) return next()
+    const pass = getCookie(c, COOKIE)
+    if (passValid(cfg.secret, pass)) {
+      c.set('verifiedPass', pass)
+      return next()
+    }
+    if (OPEN.some((r) => r.test(path))) return next()
 
     if (path.startsWith('/api/')) return c.json({ error: 'Нужен вход: откройте сайт и войдите' }, 401)
     const isPage = c.req.method === 'GET' && !/\.[a-z0-9]{1,5}$/i.test(path)

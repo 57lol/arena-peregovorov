@@ -87,3 +87,23 @@ describe('поток браузера', () => {
     expect(pieces).toEqual(whole)
   })
 })
+
+it('готовый, но замолчавший Scribe закрывается по общему сроку', async () => {
+  vi.useFakeTimers()
+  const { ws, s } = await setup()
+  ws.emit('ready')
+  await vi.advanceTimersByTimeAsync(70_000)
+  expect(await s.finish()).toBeNull()
+  expect(ws.close).toHaveBeenCalledOnce()
+  expect(ws.onmessage).toBeNull()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('текст до ready не считается распознанной репликой', async () => {
+  vi.useFakeTimers()
+  const { ws, s, partial } = await setup()
+  ws.emit('partial', 'По рукам')
+  expect(await s.finish()).toBeNull()
+  expect(partial).not.toHaveBeenCalledWith('По рукам')
+  expect(vi.getTimerCount()).toBe(0)
+})

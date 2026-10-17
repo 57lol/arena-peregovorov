@@ -241,3 +241,26 @@ describe('живой звук реплики', () => {
   })
 })
 
+
+it.each(['reveal', 'accept', 'counter'] as const)('#7: обрыв после начала сохраняет его и договаривает %s', async (kind) => {
+  const start = 'Слушай, есть тут один момент.'
+  const before = initialState(dorm)
+  const offer = { ...before.lastOpponentOffer!, wifi: 1, cleaning: 1 }
+  const decision: Decision = kind === 'reveal' ? { kind, interestId: 't_router' } : kind === 'counter' ? { kind, offer } : { kind }
+  const state = { ...before, turn: 1, revealed: kind === 'reveal' ? ['t_router'] : [], ...(kind === 'accept' ? { deal: offer } : {}) }
+  const m: LLM = {
+    name: 'aitunnel', model: `broken-${kind}-${uniq()}`, json: vi.fn(),
+    async *stream() {
+      yield JSON.stringify({ agrees: kind === 'accept', terms: kind === 'counter' ? [{ issue: 'wifi', option: 1 }, { issue: 'cleaning', option: 1 }] : [], reveals: kind === 'reveal' ? ['t_router'] : [] }).slice(0, -1) + ',"line":"' + start + ' А потом'
+      throw new Error('connection reset')
+    },
+  }
+  const first = vi.fn()
+  const v = await voice(m, dorm, [], `Проверка обрыва ${kind}`, decision, state, { onFirst: first })
+  expect(first).toHaveBeenCalledExactlyOnceWith(start)
+  expect(v.line.startsWith(start)).toBe(true)
+  expect(v.source).toBe('safe')
+  if (kind === 'reveal') expect(v.line).toContain('роутер я взял в рассрочку')
+  if (kind === 'accept') expect(v.line).toContain('Договорились:')
+  if (kind === 'counter') { expect(v.line).toContain('450'); expect(v.line).toContain('раз в неделю') }
+})

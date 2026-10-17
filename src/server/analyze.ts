@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { BEHAVIOR_DICT, behaviorGuide, guardBehaviors } from '../engine/behaviors'
 import type { BehaviorDict } from '../engine/dictionary'
-import { analyzeOffline, isRude, parseOffer, talkActs } from '../engine/offline'
+import { groundedOffline, isRude, parseOffer, talkActs } from '../engine/offline'
 import { groundAnalysis } from '../engine/offerEvidence'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TalkAct, type TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
@@ -176,7 +176,7 @@ export async function analyzeMove(
   text: string,
   lastOpponentOffer?: Offer,
 ): Promise<AnalyzeResult> {
-  const offline = () => groundAnalysis(sc, text, analyzeOffline(sc, text, dict))
+  const offline = () => groundedOffline(sc, text, dict)
   if (llm.name === 'offline') return { analysis: offline(), source: 'offline' }
   // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
   // один и тот же разбор, без капризов модели.

@@ -288,3 +288,37 @@ describe('мгновенная реакция в useMeeting', () => {
     expect(props.history).toHaveLength(1)
   })
 })
+
+it('обрыв подтверждённого хода не помечает ранний звук как полную реплику', async () => {
+  render(); resolveAudio(prepared); await advance()
+  const record: TurnRecord = { turn: 1, playerText: 'привет', opponentLine: 'Слушай, есть момент. Договорились.', emotion: 'neutral',
+    analysis: { behaviors: [] }, deltas: [], decision: { kind: 'accept' }, stateAfter: { ...initialState(props.game.scenario), status: 'deal' } }
+  api.turn.mockImplementation(async (_: unknown, onLine: (l: { text: string; audio: string }) => void) => {
+    onLine({ text: 'Слушай, есть момент.', audio: '/live/old' })
+    return { record, source: 'llm/partial', interrupted: true }
+  })
+  speech.prepare.mockClear(); speech.stop.mockClear()
+  void meeting.send('привет'); render(); await advance()
+  expect(props.history).toEqual([record])
+  expect(speech.heard).toBe('')
+  expect(speech.stop).toHaveBeenCalled()
+  expect(speech.prepare).toHaveBeenCalledWith(record.opponentLine, 'vasily', 'neutral', 4000)
+})
+
+it('старый ответ не снимает pending нового хода после переигрывания', async () => {
+  speech.on = false
+  render()
+  let old!: (value: unknown) => void
+  api.turn.mockImplementationOnce(() => new Promise((r) => { old = r }))
+  void meeting.send('старый'); render()
+  meeting.rewind(1); render()
+  let next!: (value: unknown) => void
+  api.turn.mockImplementationOnce(() => new Promise((r) => { next = r }))
+  void meeting.send('новый'); render()
+  const record: TurnRecord = { turn: 1, playerText: 'новый', opponentLine: 'Ответ', emotion: 'neutral', analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(props.game.scenario) }
+  old({ record, source: 'llm' }); await advance()
+  expect(meeting.pending).toBe('новый')
+  expect(props.history).toHaveLength(0)
+  next({ record, source: 'llm' }); await advance()
+  expect(props.history).toHaveLength(1)
+})
