@@ -2,7 +2,7 @@
 
 import { BEHAVIOR_DICT, detectBehaviors } from '../behaviors'
 import type { BehaviorDict } from '../dictionary'
-import type { BehaviorHit, MoveAnalysis, OpponentState, Scenario, TurnRecord } from '../types'
+import type { BehaviorHit, MoveAnalysis, OpponentState, Scenario, TalkAct, TurnRecord } from '../types'
 import { mentionedIssues, parseOffer } from './parseOffer'
 
 const L = '(?<![\\p{L}])'
@@ -65,7 +65,7 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
     if (a && !c.endsWith('?') && !NEG.test(c.slice(0, a.index))) accepts = true
   }
 
-  const offer = parseOffer(sc, text)
+  const offer = parseOffer(sc, text, 'player')
   const toneViolation = RUDE.test(text)
   // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
   const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
@@ -76,7 +76,30 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   if (walksAway) out.walksAway = true
   if (asksAbout.size) out.asksAbout = [...asksAbout]
   if (toneViolation) out.toneViolation = true
+  const talk = talkActs(sc, text)
+  if (talk.length) out.talk = talk
   return out
+}
+
+const APOLOGY = new RegExp(`${L}(извини\\p{L}*|прост(и|ите)${R}|сорян|сори${R}|виноват\\p{L}*|мой косяк|моя вина)`, 'iu')
+const JOKE = new RegExp(`(${L}(ахах\\p{L}*|хаха\\p{L}*|ха-ха\\p{L}*|хех${R}|шучу|прикол\\p{L}*)|\\)\\)|😂|😄)`, 'iu')
+const PERSONAL = new RegExp(
+  `${L}(меня зовут|будем знакомы|приятно познакомиться|(тебя|вас) как (звать|зовут)|как (тебя|вас) (звать|зовут|по имени)|` +
+    `(сам|сама|сами)-то|как (сам|дела|жизнь)|откуда (ты|вы)${R}|жиза|сочувствую|тоже первый)`,
+  'iu',
+)
+// «Идёт?», «по рукам?» — это про сделку, а не вопрос человеку
+const DEAL_Q = /^(ну\s+)?(идёт|идет|по рукам|договорились|да|ок|окей|норм|годится|лады|согласен|согласны|устроит|как тебе|как вам)\??$/iu
+
+/** Человеческая часть реплики (talk): на неё собеседник отвечает, даже если по сделке сказать нечего. */
+export function talkActs(sc: Scenario, text: string): TalkAct[] {
+  const out = new Set<TalkAct>()
+  if (APOLOGY.test(text)) out.add('apology')
+  if (JOKE.test(text)) out.add('joke')
+  if (PERSONAL.test(text)) out.add('personal')
+  for (const c of clauses(text))
+    if (c.endsWith('?') && !DEAL_Q.test(c.trim()) && !Object.keys(parseOffer(sc, c)).length && c.split(/\s+/).length >= 3) out.add('question')
+  return [...out]
 }
 
 function markerHits(text: string, dict: BehaviorDict): BehaviorHit[] {

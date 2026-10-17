@@ -42,6 +42,8 @@ export interface Character {
   speech: string           // манера речи для LLM
   bio: string
   lines?: CharacterLines   // свои реплики для офлайн-режима (если нет — берутся общие по тону)
+  /** как он звучит: 3–5 коротких живых реплик для модели (настрой и ритм, без скрытых причин и условий сделки) */
+  voiceExamples?: string[]
 }
 
 // Ключи совпадают с видами решений движка и причинами hold; {offer} — подставить предложение.
@@ -77,7 +79,16 @@ export interface MoveAnalysis {
   walksAway?: boolean
   asksAbout?: IssueId[]
   toneViolation?: boolean  // нарушение делового тона
+  /** что в реплике есть, кроме сделки: на это собеседник отвечает по-человечески, сделка от этого не двигается */
+  talk?: TalkAct[]
 }
+
+/**
+ * Человеческая часть реплики: apology — извинился; joke — пошутил; personal — личное (имя, вопрос о собеседнике
+ * как о человеке, сочувствие); question — вопрос по делу, но не о причинах (про продукт, факты, планы); offtopic — не по теме.
+ */
+export type TalkAct = 'apology' | 'joke' | 'personal' | 'question' | 'offtopic'
+export const TALK_ACTS: TalkAct[] = ['apology', 'joke', 'personal', 'question', 'offtopic']
 
 export interface OpponentState {
   trust: number            // 0..100
@@ -102,6 +113,8 @@ export type Decision =
   // general: спросили «зачем тебе всё это» в общем; offTopic: про спрошенный пункт рассказать нечего
   | { kind: 'reveal'; interestId: string; offer?: Offer; again?: true; general?: true; offTopic?: IssueId[] }
   | { kind: 'hold'; reason?: HoldReason }
+  // ответить человеку: на шутку, вопрос, извинение, личное — сделка не двигается; back: потом вернуть разговор к делу
+  | { kind: 'respond'; to: TalkAct[]; back?: true }
   | { kind: 'warn_tone' }
   | { kind: 'walk_away' }
 

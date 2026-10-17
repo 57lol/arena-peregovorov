@@ -17,6 +17,7 @@ export type BehaviorId =
   | 'package'
   | 'meso'
   | 'label'
+  | 'rapport'
   | 'signpost'
   | 'anchor'
   | 'alternative'
@@ -42,7 +43,7 @@ export type SourceKey =
   | 'rackham78' | 'thompson90' | 'thompson91' | 'thompsonHrebec96' | 'weingart90' | 'weingart93' | 'brett98'
   | 'galinsky01' | 'mason13' | 'amesMason15' | 'schweinsberg12' | 'leonardelli19' | 'laxSebenius86'
   | 'malhotraBazerman07' | 'huang17' | 'yeomans20' | 'voss16' | 'lieberman07' | 'sinaceurNeale05'
-  | 'wang12' | 'bianchi24' | 'chawla21'
+  | 'wang12' | 'bianchi24' | 'chawla21' | 'brooks14' | 'kurtzberg09' | 'morris02' | 'droletMorris00'
 
 export const SOURCES: Record<SourceKey, { cite: string; url: string }> = {
   rackham78: { cite: 'Rackham & Carlisle, 1978. The Effective Negotiator, Part 1', url: 'https://doi.org/10.1108/eb002297' },
@@ -67,6 +68,10 @@ export const SOURCES: Record<SourceKey, { cite: string; url: string }> = {
   wang12: { cite: 'Wang, Northcraft & Van Kleef, 2012. Hidden costs of anger expression', url: 'https://doi.org/10.1016/j.obhdp.2012.05.002' },
   bianchi24: { cite: 'Bianchi et al., 2024. How well can LLMs negotiate? NegotiationArena', url: 'https://proceedings.mlr.press/v235/bianchi24a.html' },
   chawla21: { cite: 'Chawla et al., 2021. CaSiNo: campsite negotiation dialogues', url: 'https://aclanthology.org/2021.naacl-main.254' },
+  brooks14: { cite: 'Brooks, Dai & Schweitzer, 2014. I’m sorry about the rain! Superfluous apologies increase trust', url: 'https://doi.org/10.1177/1948550613506122' },
+  kurtzberg09: { cite: 'Kurtzberg, Naquin & Belkin, 2009. Humor as a relationship-building tool in online negotiations', url: 'https://doi.org/10.1108/10444060910991075' },
+  morris02: { cite: 'Morris, Nadler, Kurtzberg & Thompson, 2002. Schmooze or lose: social friction and lubrication in e-mail negotiations', url: 'https://doi.org/10.1037/1089-2699.6.1.89' },
+  droletMorris00: { cite: 'Drolet & Morris, 2000. Rapport in conflict resolution', url: 'https://doi.org/10.1006/jesp.1999.1395' },
 }
 
 /**
@@ -345,6 +350,37 @@ export const BEHAVIORS: Behavior[] = [
     ],
   },
   {
+    id: 'rapport',
+    title: 'Личный контакт',
+    moment: 'Поговорили с человеком, а не с позицией: извинились, пошутили, спросили о нём. Доверие растёт.',
+    definition:
+      'Игрок обращается к собеседнику как к человеку: извиняется за свою оплошность, шутит к месту, называет себя ' +
+      'или спрашивает имя, интересуется его делами («ты сам-то на служебный едешь?»), сочувствует. Даже извинение ' +
+      'за то, в чём не виноват, повышает доверие (Brooks и др., 2014); короткий разговор «не о деле» и шутка ' +
+      'делают собеседника сговорчивее и снижают риск тупика (Morris и др., 2002; Kurtzberg и др., 2009).',
+    notThis: 'Дежурное «здравствуйте» и лесть («какое щедрое предложение») не считаются. Вопрос о причинах требований — это вопрос об интересах.',
+    examples: [
+      'Слушай, извини, правда случайно — сумка дурная.',
+      'Я Никита, кстати. А тебя как звать?',
+      'Ахах, понял, меломан. А приставка какая у тебя?',
+    ],
+    polarity: 'strong',
+    axis: 'relate',
+    trust: 4,
+    tension: -4,
+    sources: ['brooks14', 'morris02', 'kurtzberg09', 'droletMorris00'],
+    advice:
+      'Начните с человека: извинитесь за то, в чём есть ваша доля, спросите имя, пошутите к месту. Это ничего не стоит, ' +
+      'а собеседник, который видит в вас человека, раньше рассказывает о себе и легче уступает.',
+    markers: [
+      re('‹(?:извини|извините|прости|простите|сорян|сори|виноват|виновата|мой косяк|моя вина)›'),
+      re('‹(?:меня зовут|будем знакомы|приятно познакомиться|(?:тебя|вас) как (?:звать|зовут)|как (?:тебя|вас) (?:звать|зовут|по имени))'),
+      re('‹(?:сам|сама|сами)-то›§*\\?'),
+      re('‹(?:как (?:сам|дела|жизнь|настроение)|давно (?:тут|здесь) (?:живёшь|живешь|работаешь|работаете))›'),
+      re('‹(?:ахах\\p{L}*|хаха\\p{L}*|ха-ха\\p{L}*|жиза|сочувствую)›'),
+    ],
+  },
+  {
     id: 'signpost',
     title: 'Объявление хода',
     moment: 'Объявили ход заранее, и собеседник слушает, а не защищается.',
@@ -515,7 +551,7 @@ export const BEHAVIORS: Behavior[] = [
     definition:
       'Нападение на собеседника или его мотивы («вы пытаетесь нажиться», «бред») и эмоциональная защита ' +
       '(«это не наша вина», «ваши проблемы»). Одна такая реплика обычно запускает спираль: атака — защита — атака.',
-    notThis: 'Реакция на цену без выпада в адрес собеседника («чё так дорого?», «дороговато», «ого, цены») — не атака.',
+    notThis: 'Реакция на цену без выпада в адрес собеседника («чё так дорого?», «дороговато», «ты загнул», «перебор», «ого, цены») — не атака.',
     examples: [
       'Вы просто пытаетесь нажиться на нашем запуске.',
       'Это не наша вина, что у вас лизинг, это ваши проблемы.',
@@ -635,7 +671,7 @@ export interface MoveContext {
 // Ультиматум и атака не бывают заодно «объявлением хода» или разменом: в «что работало» такая реплика не попадёт.
 const EXCLUDES: Partial<Record<BehaviorId, BehaviorId[]>> = {
   ultimatum: ['alternative', 'meso', 'package', 'signpost'],
-  attack: ['label', 'signpost', 'package'],
+  attack: ['label', 'signpost', 'package', 'rapport'],
 }
 
 // Если в ходе есть что-то из этого, встречное уже не «мгновенное».
@@ -676,6 +712,8 @@ export function detectBehaviors(text: string, ctx: MoveContext = {}): BehaviorHi
   return [...hits.values()]
 }
 
+const PRICE_REACTION = re('‹(?:загнул\\p{L}*|перебор|многовато|дорого|дороговато|круто берёшь|круто берете|жирно|не много ли|ну ты да[её]шь|ого)›')
+
 /**
  * Страховка поверх разметки нейросетью — там, где она путается:
  * размен засчитываем, только если в реплике есть обе стороны («если вы…, то мы…», «в обмен», «при условии»);
@@ -686,6 +724,8 @@ export function guardBehaviors(text: string, hits: BehaviorHit[]): BehaviorHit[]
   const rules = detectBehaviors(text)
   const byRule = (id: BehaviorId) => rules.find((h) => h.id === id)
   let out = hits.filter((h) => h.id !== 'package' || byRule('package'))
+  // «две тысячи — ты загнул» — реакция на цену, а не выпад: без правила-атаки такую «атаку» модели не засчитываем
+  out = out.filter((h) => h.id !== 'attack' || byRule('attack') || !PRICE_REACTION.test(h.quote))
   const ultimatum = byRule('ultimatum')
   if (ultimatum && !out.some((h) => h.id === 'ultimatum')) out = [...out, ultimatum]
   const ids = new Set(out.map((h) => h.id))
@@ -763,7 +803,8 @@ const CUES: Partial<Record<BehaviorId, string>> = {
   alternative: 'спокойно упоминает свой другой вариант (поставщик, кандидат). С «иначе» или сроком — ultimatum',
   split: 'предлагает сойтись посередине, пополам',
   irritator: 'хвалит своё предложение: «щедрое», «честное», «разумное», «и так идём навстречу», «поверьте», «вы же понимаете»',
-  attack: 'выпад в адрес собеседника или его мотивов («вы наживаетесь», «бред») или «не наша вина», «ваши проблемы». Не: «дороговато»',
+  attack: 'выпад в адрес собеседника или его мотивов («вы наживаетесь», «бред») или «не наша вина», «ваши проблемы». Не: «дороговато», «ты загнул», «перебор» — это реакция на цену',
+  rapport: 'по-человечески к собеседнику: извиняется за свою оплошность, шутит к месту, называет себя или спрашивает имя, спрашивает о его делах («ты сам-то…?»), сочувствует. Не: дежурное «здравствуйте», лесть',
   dilution: 'три и больше довода подряд («во-первых…, во-вторых…, к тому же…»)',
   ultimatum: '«или так, или никак», «последнее предложение», угроза уйти, срок на ответ',
 }

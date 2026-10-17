@@ -209,7 +209,7 @@ function sameFull(a: FullOffer, b: FullOffer) {
 const round2 = (x: number) => Math.round(x * 100) / 100
 
 const DECISION_WEIGHT: Record<Decision['kind'], number> = {
-  accept: 15, walk_away: 20, warn_tone: 10, reveal: 8, counter: 0, hold: 0,
+  accept: 15, walk_away: 20, warn_tone: 10, reveal: 8, counter: 0, hold: 0, respond: 0,
 }
 
 function pickMoments(sc: Scenario, history: TurnRecord[]): KeyMoment[] {

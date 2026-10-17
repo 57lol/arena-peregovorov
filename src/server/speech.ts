@@ -11,6 +11,7 @@ import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
 import { direct, DIRECT_VERSION, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
 import { unstress } from './stress'
+import { stripTags } from './tags'
 import { castFor, mainTts, mannerOf, mp3Ms, price1k, styleFor, synthesize, wavMs, ttsStatus, voicesOf, YANDEX_VOICES, type MainTts, type TtsProvider } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -131,8 +132,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const st = ttsStatus(env)[p]
     const voice = castFor(p, b.who, b.voice, env)
     const instructions = mannerOf(b.who, b.emotion)
-    // ударения «+» — разметка SpeechKit, чужим моделям она не нужна; рубли и проценты словами помогают всем
-    const text = spellOut(unstress(spokenOf(b.text))).replace(/[«»"]/g, '')
+    // ударения «+» — разметка SpeechKit, чужим моделям она не нужна; рубли и проценты словами помогают всем.
+    // Пометки для голоса от модели реплики («[laughs]») понимает только ElevenLabs, остальным их не отдаём.
+    const spoken = spokenOf(b.text)
+    const text = spellOut(unstress(p === 'elevenlabs' ? spoken : stripTags(spoken))).replace(/[«»"]/g, '')
     const ext = /^gemini/.test(st.model) && p === 'aitunnel' ? 'wav' : 'mp3'
     const file = join(CACHE_DIR, 'tts', `${hashOf({ p, m: st.model, text, voice, i: instructions, e: b.emotion })}.${ext}`)
     const headers = { 'content-type': ext === 'wav' ? 'audio/wav' : 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-expose-headers': 'x-audio-ms, x-cache, x-tts-api, x-tts-voice', 'x-tts-voice': voice, 'x-tts-api': p }
@@ -204,7 +207,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const neat = yandexOnly && !natural && b.natural === undefined && mode === 'voices+'
     // на экране реплика остаётся как есть, размечаем только текст для синтеза
     const plain = b.text.replace(/[«»"]/g, '')
-    const text = natural ? direct(plain, b.emotion) : neat ? polish(spokenOf(b.text).replace(/[«»"]/g, ''), b.emotion) : plain
+    const text = natural ? direct(plain, b.emotion) : neat ? polish(stripTags(spokenOf(b.text)).replace(/[«»"]/g, ''), b.emotion) : plain
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
     const role = isLive(voice) ? liveRole(voice, b.emotion, b.role) : undefined

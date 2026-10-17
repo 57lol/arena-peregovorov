@@ -110,6 +110,9 @@ function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
  * Назад не откатывается: хуже своего прошлого предложения для себя не делает, но и жаднее не становится.
  * И уступки игроку не забирает: новое встречное даёт игроку не меньше прошлого. Иначе выходит «я уступил —
  * а мне стало хуже»: собеседник подвинулся к новой позиции игрока по одному пункту и откатился по другим.
+ * Но то, что игрок отдал сам, собеседник берёт и ничем не отдаривается: точка отсчёта — прошлое встречное,
+ * в котором пункты, где игрок сам шагнул дальше, заменены его новой позицией. Иначе «давай 450 вместо 300»
+ * заставляло собеседника вернуть разницу в другом пункте, даже в том, что ему дорого.
  */
 export function makeCounter(
   sc: Scenario,
@@ -119,8 +122,9 @@ export function makeCounter(
   trust = 100,
 ): FullOffer {
   const opp = sc.opponent.profile
-  const prevU = previous ? score(opp, previous) : Infinity
-  const given = previous ? score(sc.player.profile, previous) : -Infinity
+  const ref = previous ? withConcessions(sc, previous, stance) : undefined
+  const prevU = ref ? score(opp, ref) : Infinity
+  const given = ref ? score(sc.player.profile, ref) : -Infinity
   const need = Math.min(target, prevU)
   const guard = 2 * (1 - openness(trust))
   let best: FullOffer | undefined
@@ -137,6 +141,18 @@ export function makeCounter(
     }
   }
   return best ?? previous ?? bestFor(sc)
+}
+
+/** Прошлое встречное, где по пунктам, в которых игрок сам отдал больше, стоит его позиция. */
+export function withConcessions(sc: Scenario, previous: FullOffer, stance: Offer): FullOffer {
+  const out: FullOffer = { ...previous }
+  for (const i of sc.issues) {
+    const s = stance[i.id]
+    if (typeof s !== 'number') continue
+    const pl = sc.player.profile.points[i.id], op = sc.opponent.profile.points[i.id]
+    if (pl[s] < pl[previous[i.id]] && op[s] > op[previous[i.id]]) out[i.id] = s
+  }
+  return out
 }
 
 function bestFor(sc: Scenario): FullOffer {

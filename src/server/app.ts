@@ -13,12 +13,13 @@ import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
 import { hashOf } from './cache'
-import { llmMode, llmStatus, makeLLM, type LabLlm, type LLM } from './llm'
+import { llmFromSpec, llmMode, llmStatus, makeLLM, voiceChoices, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
 import { voice } from './voice'
+import { stripTags } from './tags'
 import { roomsApi } from './rooms'
 
 const CACHE = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
@@ -37,6 +38,8 @@ const TurnBody = z.object({
   walkAway: z.boolean().optional(),
   /** голос включён: тело /api/tts без текста — сервер начнёт синтез реплики сразу, как её напишет модель */
   tts: z.object({ voice: z.string().max(60) }).passthrough().optional(),
+  /** модель реплики на этот ход («aitunnel:claude-sonnet-5.5») — для страницы сравнения; то же заголовком x-voice-llm */
+  voiceLlm: z.string().max(80).optional(),
 })
 const ReportBody = z.object({ scenario: z.any().optional(), scenarioId: z.string().optional(), history: z.array(z.any()) })
 
@@ -89,8 +92,26 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
+
+  // Модель реплики на запрос (страница сравнения моделей): только из разрешённого списка и не при LAB=off.
+  // Разметка и решения движка при этом те же — меняются только слова собеседника.
+  const voiceLlms = new Map<string, LLM>()
+  function voiceLLM(want: string | undefined): { llm?: LLM; note?: string } {
+    if (!want || process.env.LAB === 'off' || llm.name === 'offline') return {}
+    if (!voiceChoices().includes(want)) return { note: `модель ${want} не в списке` }
+    let m = voiceLlms.get(want)
+    if (!m) {
+      try {
+        m = llmFromSpec(want)
+      } catch (e) {
+        return { note: (e as Error).message }
+      }
+      voiceLlms.set(want, m)
+    }
+    return { llm: m }
+  }
 
   // Лаборатория (/?lab): ход можно сыграть другой моделью — заголовок x-lab-llm. Модель создаётся один раз,
   // без ключа заголовок молча не действует. Свой суточный лимит на IP, LAB=off выключает всё.
@@ -183,9 +204,13 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
     // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
     const marks = !nh && naturalMode() === 'voices+'
-    const said = await voice(llm, sc, history, body.playerText, r.decision, r.state, natural, marks)
-    const v = { ...said, line: unstress(said.line) }
-    if (marks) rememberSpoken(v.line, said.line)
+    // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
+    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'))
+    const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
+    const said = await voice(speaker, sc, history, body.playerText, r.decision, r.state, { natural, marks, fallback: llm })
+    // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
+    const v = { ...said, line: stripTags(unstress(said.line)) }
+    rememberSpoken(v.line, said.line)
     if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, ip)
     const record: TurnRecord = {
       turn: r.state.turn,
@@ -207,7 +232,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       state: r.state,
       record,
       ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
-      sources: { analysis: a.source, voice: v.source, ...(lab ? { lab } : {}), ...(a.error || v.error ? { errors: [a.error, v.error].filter(Boolean) } : {}) },
+      sources: { analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
     })
   })
 

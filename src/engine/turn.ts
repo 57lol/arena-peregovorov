@@ -3,8 +3,8 @@
 
 import type { BehaviorDict } from './dictionary'
 import { makeCounter, openingAnchor, revealAt, targetUtility, tierOf, wouldAccept } from './policy'
-import type { Decision, Delta, MoveAnalysis, Offer, OpponentState, Scenario, Tone, TurnRecord } from './types'
-import { bestOption, isComplete, sameOffer, score, type FullOffer } from './utility'
+import type { Decision, Delta, Interest, MoveAnalysis, Offer, OpponentState, Scenario, Tone, TurnRecord } from './types'
+import { bestOption, isComplete, issueWeight, sameOffer, score, type FullOffer } from './utility'
 
 const START: Record<Tone, { trust: number; tension: number }> = {
   friendly: { trust: 55, tension: 10 },
@@ -124,9 +124,10 @@ function isGeneral(sc: Scenario, a: MoveAnalysis): boolean {
 
 /**
  * Что собеседник готов рассказать в ответ на вопрос: сначала про то, о чём спросили; если спросили в общем —
- * про самое главное из доступного. Если про спрошенный пункт уже всё рассказано, он напоминает рассказанное
- * (told), а не выдаёт постороннее: на «зачем тебе гости?» не отвечают про график уборки.
- * Возвращает очередь от самого лёгкого к самому глубокому и первое, на что хватает доверия.
+ * про самое главное по смыслу: интерес самого весомого для него пункта, на который хватает доверия. Совместимый пункт
+ * (ловушку) на общий вопрос он не выдаёт: его находят, спросив именно о нём. Причины без пункта (личное) — после всех.
+ * Если про спрошенный пункт уже всё рассказано, он напоминает рассказанное (told), а не выдаёт постороннее:
+ * на «зачем тебе гости?» не отвечают про график уборки.
  */
 export function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveAnalysis) {
   const asked = new Set(isGeneral(sc, analysis) ? [] : analysis.asksAbout ?? [])
@@ -136,12 +137,40 @@ export function pickInterest(sc: Scenario, state: OpponentState, analysis: MoveA
   const told = all.filter((i) => i.issue && asked.has(i.issue) && state.revealed.includes(i.id))
   // спросили про пункт, о котором уже рассказано, — новое постороннее не выдаём
   const about = onTopic.length ? onTopic : told.length ? [] : pool
-  const ordered = [...about].sort((a, b) => a.trustToReveal - b.trustToReveal)
+  const ordered = onTopic.length ? [...about].sort((a, b) => a.trustToReveal - b.trustToReveal) : byImportance(sc, about)
   const ready = ordered.find((i) => revealAt(sc, i) <= state.trust)
   // спросили про пункт, о котором собеседнику рассказать нечего, и он рассказывает другое
   const offTopic = ready && asked.size && !onTopic.length ? [...asked] : undefined
   return { ready, queue: ordered, told: onTopic.length ? undefined : told[0], offTopic, general: !!ready && !asked.size }
 }
+
+/** Главное — по весу пункта для собеседника; ловушку (совместимый пункт) не выдаёт, личное — последним. */
+function byImportance(sc: Scenario, list: Interest[]): Interest[] {
+  const opp = sc.opponent.profile
+  const kind = (i: Interest) => sc.issues.find((x) => x.id === i.issue)?.kind
+  const weight = (i: Interest) => (i.issue && opp.points[i.issue] ? issueWeight(opp, i.issue) : -1)
+  return list
+    .filter((i) => kind(i) !== 'compatible')
+    .sort((a, b) => weight(b) - weight(a) || a.trustToReveal - b.trustToReveal)
+}
+
+/**
+ * Предложение без одного пункта — не повод зачитывать весь листок заново: недостающий пункт берём с его листка
+ * («остальное как у вас»). Не хватает двух и больше — это ещё не предложение по всей сделке.
+ */
+export function completeProposal(sc: Scenario, proposal: Offer | undefined, theirs: Offer | undefined): FullOffer | undefined {
+  if (!proposal) return undefined
+  if (isComplete(sc, proposal)) return proposal
+  const missing = sc.issues.filter((i) => typeof proposal[i.id] !== 'number')
+  if (missing.length > 1) return undefined
+  const out: FullOffer = { ...(proposal as FullOffer) }
+  for (const i of missing) out[i.id] = theirs?.[i.id] ?? bestOption(sc.opponent.profile, i.id)
+  return out
+}
+
+/** Ход без дела: ни предложения, ни согласия, ни вопроса о причинах. */
+const chatOnly = (a: MoveAnalysis | undefined) =>
+  !!a && !(a.offer && Object.keys(a.offer).length) && !a.accepts && !a.asksAbout?.length && !a.walksAway
 
 export interface StepResult {
   deltas: Delta[]
@@ -181,12 +210,15 @@ export function step(
     state: { ...s, ...patch },
   })
   const theirs = before.lastOpponentOffer
+  // «Принимаю ваше предложение» сразу после открытия: в его первом листке нет совместимого пункта (он о нём молчит),
+  // его берём в лучшем для него варианте — он же лучший и для игрока
+  const theirsFull = completeProposal(sc, theirs, undefined)
   const acceptsTheirs =
-    analysis.accepts && isComplete(sc, theirs) && (!newOffer || sameOffer({ ...theirs, ...newOffer }, theirs))
+    analysis.accepts && !!theirsFull && (!newOffer || sameOffer({ ...theirsFull, ...newOffer }, theirsFull))
 
   // После последнего предложения оппонента остаётся только принять.
   if (before.lastCall) {
-    if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirs, tableOffer: theirs })
+    if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirsFull, tableOffer: theirsFull })
     return end({ kind: 'hold', reason: 'timeout' }, { status: 'timeout' })
   }
 
@@ -200,16 +232,17 @@ export function step(
   }
   if (s.tension >= WALK_TENSION) return end({ kind: 'walk_away' }, { status: 'walked_away', endedBy: 'opponent' })
 
-  if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirs, tableOffer: theirs })
+  if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirsFull, tableOffer: theirsFull })
 
   const target = targetUtility(sc, s, turn)
   const prevCounter = isComplete(sc, theirs) ? theirs : undefined
   const stance = s.playerStance ?? {}
 
-  if (proposal && isComplete(sc, proposal)) {
+  const whole = completeProposal(sc, proposal, theirs)
+  if (whole) {
     const next = makeCounter(sc, target, stance, prevCounter, s.trust)
-    if (wouldAccept(sc, proposal, target, next))
-      return end({ kind: 'accept' }, { status: 'deal', deal: proposal, tableOffer: proposal })
+    if (wouldAccept(sc, whole, target, next))
+      return end({ kind: 'accept' }, { status: 'deal', deal: whole, tableOffer: whole })
   }
 
   const isLast = turn >= sc.turnLimit
@@ -230,9 +263,17 @@ export function step(
     if (!newOffer) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
   }
 
+  // Игрок шутит, извиняется, спрашивает о деле или о жизни — собеседник отвечает человеку, сделка стоит на месте.
+  // Два таких хода подряд или под конец встречи — после ответа он сам возвращает разговор к делу.
+  const talk = analysis.talk?.length && !newOffer && !analysis.accepts && !isLast ? analysis.talk : undefined
+  const respond = (): StepResult => {
+    const back = chatOnly(past[past.length - 1]) || turn >= sc.turnLimit - 2
+    return end({ kind: 'respond', to: talk!, ...(back ? { back: true as const } : {}) }, {})
+  }
+
   // Оппонент двигается только в ответ на предложение (иначе выгодно просто тянуть время)
-  // или если на столе ещё нет его полного предложения.
-  if (newOffer || analysis.accepts || !prevCounter || isLast) {
+  // или если на столе ещё нет его полного предложения (но не перебивает человека, который просто разговаривает).
+  if (newOffer || analysis.accepts || (!prevCounter && !talk) || isLast) {
     const offer = counterNow()
     if (prevCounter && sameOffer(offer, prevCounter) && !isLast)
       return end({ kind: 'hold', reason: 'no_movement' }, { tableOffer: offer })
@@ -242,6 +283,7 @@ export function step(
       { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast },
     )
   }
+  if (talk) return respond()
   return end({ kind: 'hold', reason: 'no_offer' }, {})
 }
 

@@ -4,9 +4,9 @@ import { BEHAVIORS, BEHAVIOR_DICT, behaviorGuide, behaviorProfile, detectBehavio
 const ids = (text: string, ctx = {}) => detectBehaviors(text, ctx).map((h) => h.id)
 
 describe('словарь индикаторов', () => {
-  it('от 10 до 16 индикаторов, id уникальны, у всех есть источник и примеры', () => {
+  it('от 10 до 17 индикаторов, id уникальны, у всех есть источник и примеры', () => {
     expect(BEHAVIORS.length).toBeGreaterThanOrEqual(10)
-    expect(BEHAVIORS.length).toBeLessThanOrEqual(16)
+    expect(BEHAVIORS.length).toBeLessThanOrEqual(17)
     expect(new Set(BEHAVIORS.map((b) => b.id)).size).toBe(BEHAVIORS.length)
     for (const b of BEHAVIORS) {
       expect(b.sources.length, b.id).toBeGreaterThan(0)

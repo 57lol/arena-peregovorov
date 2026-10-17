@@ -64,7 +64,11 @@ export function mentionedIssues(sc: Scenario, text: string): IssueId[] {
     .map((i) => i.issue.id)
 }
 
-function nearest(values: IssueInfo['values'], v: number): number {
+/**
+ * Ближайший вариант. favor — очки той стороны, в чью пользу округлять число между вариантами: игрок, сказавший
+ * «200» при вариантах 204 и 196, предлагает не меньше 204 — засчитать ему 196 значило бы отдать больше, чем он просил.
+ */
+function nearest(values: IssueInfo['values'], v: number, favor?: number[]): number {
   let best = -1
   let bestD = Infinity
   values.forEach((o, n) => {
@@ -72,18 +76,42 @@ function nearest(values: IssueInfo['values'], v: number): number {
     const d = Math.abs(o.value - v)
     if (d < bestD) { bestD = d; best = n }
   })
-  return best
+  if (!favor || best < 0 || bestD <= Math.abs(v) * 0.01) return best
+  // соседи с двух сторон от числа: берём того, кто выгоднее стороне favor
+  let lo = -1, hi = -1
+  values.forEach((o, n) => {
+    if (!o) return
+    if (o.value < v && (lo < 0 || o.value > values[lo]!.value)) lo = n
+    if (o.value > v && (hi < 0 || o.value < values[hi]!.value)) hi = n
+  })
+  if (lo < 0 || hi < 0) return best
+  return (favor[hi] ?? 0) > (favor[lo] ?? 0) ? hi : lo
 }
 
-export function parseOffer(sc: Scenario, text: string): Offer {
+/**
+ * «Давайте 200 ровно» без рублей при ценах 180–212 и сроках 90–730 дней: число в 2% от цены и в 11% от срока —
+ * это цена. Берём пункт, только если число почти совпадает с его вариантом (до 3%), а у остальных вдвое дальше.
+ */
+function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T | undefined {
+  const rel = cands.map((c) => {
+    const vs = c.info.values.filter((v) => v).map((v) => v!.value)
+    return Math.min(...vs.map((v) => Math.abs(v - c.value) / Math.max(1, Math.abs(v))))
+  })
+  const best = rel.indexOf(Math.min(...rel))
+  return rel[best] <= 0.03 && rel.every((r, n) => n === best || r >= 2 * rel[best]) ? cands[best] : undefined
+}
+
+/** side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника. */
+export function parseOffer(sc: Scenario, text: string, side?: 'player'): Offer {
   const infos = issueInfo(sc)
   const offer: Offer = {}
   const lower = text.toLowerCase()
 
-  // Пересказ чужих слов («Правильно понимаю: у вас лизинг каждый месяц?») — не предложение игрока.
+  // Пересказ чужих слов («Правильно понимаю: у вас лизинг каждый месяц?») и вопрос «почему вам важна оплата
+  // по факту?» — не предложение игрока («а почему бы не 30 дней?» — предложение).
   const echo: [number, number][] = []
   for (const m of text.matchAll(/[^.!?\n]*\?/gu))
-    if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)/iu.test(m[0]))
+    if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)|(?<!\p{L})(почему|зачем|отчего|для чего)(?!\s+бы)(?!\p{L})/iu.test(m[0]))
       echo.push([m.index!, m.index! + m[0].length])
   const echoed = (at: number) => echo.some(([a, b]) => at >= a && at < b)
 
@@ -129,13 +157,13 @@ export function parseOffer(sc: Scenario, text: string): Offer {
       if (!pick || bestD >= 1000) {
         const exact = cands.filter(exactly)
         if (exact.length === 1) pick = exact[0]
-        else if (q.dim === 'plain') pick = undefined // голое число без подсказок — не угадываем
+        else if (q.dim === 'plain') pick = closeOnly(cands) // голое число без подсказок — только если оно явно из одного пункта
       }
       cands = pick ? [pick] : []
     }
     const c = cands[0]
     if (!c) continue
-    const n = nearest(c.info.values, c.value)
+    const n = nearest(c.info.values, c.value, side === 'player' ? sc.opponent.profile.points[c.info.issue.id] : undefined)
     if (n >= 0) offer[c.info.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
   }
 
@@ -153,6 +181,7 @@ export function parseOffer(sc: Scenario, text: string): Offer {
       const hits = own.map((w) => flat.search(new RegExp(`(?<!\\p{L})${w}`, 'u'))).filter((at) => at >= 0)
       if (!own.length || hits.length < Math.min(2, own.length)) return
       const at = Math.max(...hits)
+      if (echoed(at)) return
       if (at > foundAt) { found = n; foundAt = at }
     })
     if (found >= 0 && offer[info.issue.id] === undefined) offer[info.issue.id] = found

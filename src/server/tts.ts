@@ -2,6 +2,7 @@
 // остальные — для лаборатории и страницы сравнения голосов: OpenAI, ElevenLabs, SaluteSpeech. Каждый включается
 // своим ключом в .env; без ключа провайдер просто помечен «нужен ключ».
 
+import { hasTags, stripTags } from './tags'
 import type { Emotion } from '../engine/types'
 import { PERSONAS, YANDEX_VOICES, type VoiceInfo } from '../content/voices'
 import { sberFetch, sberToken } from './sber'
@@ -221,7 +222,8 @@ export async function elevenTts(key: string, q: TtsRequest, f: Fetch = fetch, en
         headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET ?? '', 'content-type': 'application/json' },
         // v4 и v3 понимают теги эмоций: «[annoyed] …» — та же эмоция движка, что и у других голосов
         body: JSON.stringify({
-          text: (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') ? TAG[q.emotion ?? 'neutral'] : '') + q.text.slice(0, 1000),
+          // свои пометки модели реплики («[laughs] …») точнее эмоции движка — тогда общую не добавляем
+          text: (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') && !hasTags(q.text) ? TAG[q.emotion ?? 'neutral'] : '') + (/v[34]/.test(env.ELEVENLABS_MODEL ?? '') ? q.text : stripTags(q.text)).slice(0, 1000),
           voice_id: q.voice,
           model_id: env.ELEVENLABS_MODEL ?? 'eleven_flash_v2_5',
           voice_settings: { stability: Number(env.ELEVEN_STABILITY ?? 0.45), similarity_boost: 0.8, use_speaker_boost: true },
@@ -393,6 +395,8 @@ export function wavMs(b: Uint8Array): number {
 
 /** Синтез у выбранного провайдера. SpeechKit: v3, а если он не ответил — v1 (для голосов, которые v1 знает). */
 export async function synthesize(p: TtsProvider, q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Audio & { api?: string }> {
+  // пометки для голоса («[laughs]») — только ElevenLabs; остальные прочитали бы их вслух
+  if (p !== 'elevenlabs') q = { ...q, text: stripTags(q.text) }
   switch (p) {
     case 'yandex': {
       const key = env.YANDEX_API_KEY!

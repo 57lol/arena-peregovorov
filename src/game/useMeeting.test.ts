@@ -48,6 +48,8 @@ const prepared = { url: 'blob:greeting', duration: 3 }
 function render() {
   for (let n = 0; n < 20; n++) {
     hooks.cursor = 0; hooks.dirty = false
+    // самодельный рендер для теста: хук вызывается не из компонента намеренно
+    // oxlint-disable-next-line react-hooks/rules-of-hooks
     meeting = useMeeting(props)
     hooks.effects.splice(0).forEach((effect) => effect())
     if (!hooks.dirty) return

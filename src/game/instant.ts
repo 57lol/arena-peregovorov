@@ -166,6 +166,10 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
       return `${n} ${g(sc, 'одёрнул', 'одёрнула')} вас за тон. Ещё раз — и встанет из-за стола.`
     case 'walk_away':
       return `${n} ${g(sc, 'встал', 'встала')} из-за стола.`
+    case 'respond':
+      return d.back
+        ? `${n} ${g(sc, 'ответил', 'ответила')} и ${g(sc, 'вернул', 'вернула')} разговор к делу. Условия на листке прежние.`
+        : `${n} ${g(sc, 'ответил', 'ответила')} вам по-человечески. Условия на листке прежние.`
     case 'hold':
       switch (d.reason) {
         case 'not_ready_to_reveal':

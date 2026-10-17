@@ -17,9 +17,19 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
     .split(CLAUSE)
     .map((part) => REFUSAL.test(part) ? '' : part)
     .join('')
-  const evidence = parseOffer(sc, positive)
-  return Object.fromEntries(Object.entries(offer).filter(([id, option]) => evidence[id] !== undefined && evidence[id] === option))
+  const evidence = parseOffer(sc, positive, 'player')
+  const out: Offer = {}
+  for (const [id, option] of Object.entries(offer)) {
+    const e = evidence[id]
+    if (e === undefined || option === undefined) continue
+    // Число между двумя вариантами («200» при 204 и 196) модель округляет как придётся, правила — в пользу собеседника.
+    // Соседний вариант по числу из слов игрока — это то же условие, берём округление правил.
+    if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id))) out[id] = e
+  }
+  return out
 }
+
+const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))
 
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis): MoveAnalysis {
   const { offer, ...rest } = analysis

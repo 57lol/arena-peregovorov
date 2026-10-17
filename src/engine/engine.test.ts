@@ -121,6 +121,7 @@ describe('движок', () => {
 })
 
 import { checkScenario } from './validate'
+import { withConcessions } from './policy'
 describe('проверка сценария', () => {
   it('тестовый сценарий проходит, типы пунктов выводятся из очков', () => {
     const r = checkScenario(sc)
@@ -167,14 +168,14 @@ describe('вежливый исследователь в «Таре»', () => {
       analysis: { behaviors: [{ id: 'ask_interest', quote: 'почему' }, ...extra.map((id) => ({ id, quote: 'так' }))], asksAbout },
     })
     const h = playAnalyses(tara, [
+      ask(['schedule']),                            // про график рассказывает сразу: доверия хватает
       ask(['price', 'payment', 'rush', 'term']),   // «что для вас главное?»
       ask(['payment'], ['check']),
-      ask(['rush']),
       ask(['term'], ['check']),
       ask(['schedule']),                            // про график уже рассказал — напомнит про график
     ], BEHAVIOR_DICT)
     // вопрос о новом пункте после общего вопроса — в полную силу
-    expect(h[1].deltas.find((d) => d.because.startsWith('Вопрос об интересах') && d.field === 'trust')?.by).toBe(4)
+    expect(h[2].deltas.find((d) => d.because.startsWith('Вопрос об интересах') && d.field === 'trust')?.by).toBe(4)
     const last = h[h.length - 1].decision
     expect(last.kind).toBe('reveal')
     if (last.kind !== 'reveal') return
@@ -196,7 +197,7 @@ describe('вежливый исследователь в «Таре»', () => {
 
 describe('собеседник не откатывает уступки', () => {
   // Игрок идёт к собеседнику по шагу во всех пунктах, на разном доверии. Каждое следующее встречное
-  // должно давать игроку не меньше прошлого: иначе «уступил я — стало хуже мне».
+  // должно давать игроку не меньше прошлого, если не считать того, что игрок отдал сам: иначе «уступил я — стало хуже мне».
   it('встречные предложения для игрока не ухудшаются', async () => {
     const { tara } = await import('../content/scenarios/tara')
     const { offer } = await import('../content/scenarios/offer')
@@ -217,13 +218,15 @@ describe('собеседник не откатывает уступки', () => 
         return move(o, { behaviors: m.filter((id) => dict[id]).map((id) => ({ id, quote: id })) })
       })
       const h = playAnalyses(s, moves, dict)
-      let prev = -Infinity
+      let last: Offer | undefined
       for (const r of h) {
         if (r.decision.kind !== 'counter' && !(r.decision.kind === 'reveal' && r.decision.offer)) continue
         const o = (r.decision as { offer: Offer }).offer
         const u = score(s.player.profile, o as never)
-        if (u < prev) bad.push(`${s.id}/${d}/${m.join('+') || '—'}: ход ${r.turn}, ${prev} → ${u}`)
-        prev = u
+        // точка отсчёта — прошлое встречное, где игрок сам отдал больше: это собеседник берёт без отдарка
+        const floor = last ? score(s.player.profile, withConcessions(s, last as never, r.stateAfter.playerStance ?? {}) as never) : -Infinity
+        if (u < floor) bad.push(`${s.id}/${d}/${m.join('+') || '—'}: ход ${r.turn}, ${floor} → ${u}`)
+        last = o
       }
     }
     expect(bad).toEqual([])
@@ -243,5 +246,84 @@ describe('ответ по теме вопроса (заметка капитан
     const r = step(sc, before, { behaviors: [{ id: 'ask_interest', quote: 'зачем тебе гости' }], asksAbout: ['guests'] }, BEHAVIOR_DICT)
     expect(r.decision).toMatchObject({ kind: 'reveal', interestId: 't_saturday', again: true })
     expect(r.state.revealed).toEqual(before.revealed)
+  })
+})
+
+describe('живые диалоги: движок как рамка (17.10)', () => {
+  it('на «что для тебя главное?» Тимур говорит про субботних гостей, а не про наушники', async () => {
+    const { dormCase } = await import('../content/scenarios/story/dorm')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const sc = dormCase.scenario
+    const all = sc.issues.map((i) => i.id)
+    const r = step(sc, initialState(sc), { behaviors: [{ id: 'ask_interest', quote: 'что для тебя главное' }], asksAbout: all }, BEHAVIOR_DICT)
+    expect(r.decision).toMatchObject({ kind: 'reveal', interestId: 't_saturday', general: true })
+  })
+
+  it('ловушку (склад и график Марата) общий вопрос на первом ходу не выдаёт', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const r = step(tara, initialState(tara), { behaviors: [{ id: 'ask_interest', quote: 'что главное' }, { id: 'rapport', quote: 'образцы отличные' }], asksAbout: ['price', 'payment', 'rush', 'term', 'schedule'] }, BEHAVIOR_DICT)
+    expect(r.state.revealed).not.toContain('m_warehouse')
+    if (r.decision.kind === 'reveal') expect(tara.issues.find((i) => i.id === tara.opponent.profile.interests.find((x) => x.id === (r.decision as { interestId: string }).interestId)?.issue)?.kind).not.toBe('compatible')
+    // а спросили прямо про график — расскажет
+    const r2 = step(tara, initialState(tara), { behaviors: [{ id: 'ask_interest', quote: 'как вам удобнее возить' }], asksAbout: ['schedule'] }, BEHAVIOR_DICT)
+    expect(r2.decision).toMatchObject({ kind: 'reveal', interestId: 'm_warehouse' })
+  })
+
+  it('игрок сам уступил — собеседник берёт уступку и ничего не отдаёт взамен', async () => {
+    const { dormCase } = await import('../content/scenarios/story/dorm')
+    const sc = dormCase.scenario
+    // прошлое встречное Тимура: вай-фай 300, тихо с 23:00, график, суббота допоздна, общая касса
+    const prev = { wifi: 2, quiet: 3, cleaning: 2, guests: 2, kitty: 2 }
+    // игрок сам поднял вай-фай до 450 и просит выходные допоздна (Тимуру это только лучше)
+    const stance = { wifi: 1, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }
+    const next = makeCounter(sc, 0, stance, prev, 70)
+    expect(next.guests).toBeGreaterThanOrEqual(2) // гостей «до 22:00» в компенсацию не отдаёт
+    expect(next.wifi).toBe(1)
+  })
+
+  it('«давайте 200 ровно» при вариантах 204 и 196 — не сделка на 196', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { groundAnalysis } = await import('./offerEvidence')
+    const text = 'Тогда давайте 200 ровно, по факту отгрузки, 48 часов, год, раз в неделю.'
+    // модель округлила как придётся (196), правила — в пользу собеседника (204)
+    const a = groundAnalysis(tara, text, { behaviors: [], offer: { price: 2, payment: 0, rush: 4, term: 2, schedule: 2 } })
+    expect(a.offer?.price).toBe(1)
+  })
+
+  it('предложение без одного пункта принимается: недостающее берётся с его листка', async () => {
+    const { dormCase } = await import('../content/scenarios/story/dorm')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const sc = dormCase.scenario
+    const before = { ...initialState(sc), trust: 75, tension: 10, turn: 6, lastOpponentOffer: { wifi: 1, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }, playerStance: {} }
+    const r = step(sc, before, { behaviors: [], offer: { wifi: 1, quiet: 3, cleaning: 2, kitty: 2 } }, BEHAVIOR_DICT)
+    expect(r.decision.kind).toBe('accept')
+    expect(r.state.deal).toEqual({ wifi: 1, quiet: 3, cleaning: 2, kitty: 2, guests: 3 })
+  })
+
+  it('шутка, извинение, вопрос о жизни — ход «ответить человеку», сделка на месте; два таких подряд — назад к делу', async () => {
+    const { dormCase } = await import('../content/scenarios/story/dorm')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const sc = dormCase.scenario
+    const chat = { behaviors: [{ id: 'rapport', quote: 'приставка какая' }], talk: ['joke', 'personal'] as const }
+    const h = playAnalyses(sc, [{ text: '', analysis: { ...chat, talk: [...chat.talk] } }, { text: '', analysis: { ...chat, talk: ['question'] } }], BEHAVIOR_DICT)
+    expect(h[0].decision).toEqual({ kind: 'respond', to: ['joke', 'personal'] })
+    expect(h[0].stateAfter.tableOffer).toEqual(initialState(sc).tableOffer)
+    expect(h[1].decision).toMatchObject({ kind: 'respond', back: true })
+    // и воспроизводимо: та же история — то же решение
+    expect(playAnalyses(sc, [{ text: '', analysis: { ...chat, talk: [...chat.talk] } }], BEHAVIOR_DICT)[0]).toEqual(h[0])
+  })
+
+  it('Серый: извинение и имя поднимают доверие, «ты загнул» — не атака', async () => {
+    const { stopCase } = await import('../content/scenarios/story/stop')
+    const { BEHAVIOR_DICT, guardBehaviors, detectBehaviors } = await import('./behaviors')
+    const sc = stopCase.scenario
+    const text = 'Слушай, извини, правда случайно, сумка дурная. Но две тысячи — ты загнул, братан. Тебя как звать-то?'
+    const hits = guardBehaviors(text, [{ id: 'attack', quote: 'две тысячи — ты загнул, братан' }, ...detectBehaviors(text)])
+    expect(hits.map((h) => h.id)).not.toContain('attack')
+    expect(hits.map((h) => h.id)).toContain('rapport')
+    const r = step(sc, initialState(sc), { behaviors: hits }, BEHAVIOR_DICT)
+    expect(r.state.trust).toBeGreaterThan(initialState(sc).trust)
+    expect(r.state.tension).toBeLessThan(initialState(sc).tension)
   })
 })

@@ -4,7 +4,7 @@
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone } from '../types'
 import { formatOffer } from '../utility'
 
-type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_news' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
+type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_news' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout' | 'respond_back'
 
 const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
   accept: {
@@ -31,6 +31,21 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
     evasive: ['Ну... если совсем откровенно, {interest}.'],
   },
   hold: { any: ['Моё предложение в силе.'] },
+  // ответ человеку без сдвига сделки: коротко отреагировать, условия не трогать
+  respond: {
+    any: ['Ну, бывает.', 'Понял вас.', 'Ясно. Ладно.'],
+    friendly: ['Ха, ну ты даёшь.', 'Да ладно, всё нормально.', 'Ну смешно, да.'],
+    cold: ['Так.', 'Понятно.'],
+    aggressive: ['Ну-ну.', 'Ладно, проехали.'],
+    evasive: ['Ну… бывает.', 'Ну, это как посмотреть.'],
+  },
+  respond_back: {
+    any: ['Ладно, давайте к делу. Что предлагаете?', 'Хорошо. А по сделке что?'],
+    friendly: ['Ха, ладно. Давай к делу: как делаем?'],
+    cold: ['Хорошо. Вернёмся к цифрам.'],
+    aggressive: ['Ладно, хорош болтать. По делу что?'],
+    evasive: ['Ну ладно… А по делу-то что скажете?'],
+  },
   no_offer: {
     any: ['Хорошо, а что конкретно вы предлагаете?', 'Давайте к цифрам. Что предлагаете?', 'Ясно. Жду от вас конкретики.'],
     friendly: ['Понимаю. А какие цифры вам бы подошли?'],
@@ -74,6 +89,7 @@ function kindOf(d: Decision, state: OpponentState): Kind {
   if (state.status === 'timeout') return 'timeout'
   if (d.kind === 'hold' && d.reason === 'no_offer' && Object.keys(state.playerStance ?? {}).length) return 'no_news'
   if (d.kind === 'hold') return d.reason ?? 'hold'
+  if (d.kind === 'respond') return d.back ? 'respond_back' : 'respond'
   if (d.kind === 'counter' && d.final) return 'final'
   return d.kind
 }

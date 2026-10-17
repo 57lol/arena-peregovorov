@@ -93,6 +93,7 @@ const DECISION_RU = (sc: Scenario): Record<Decision['kind'], string> => ({
   counter: 'предлагает свой вариант',
   reveal: `рассказывает, что ${g(sc, 'ему', 'ей')} важно`,
   hold: 'держит позицию',
+  respond: 'отвечает вам по-человечески, сделка на месте',
   warn_tone: 'одёргивает за тон',
   walk_away: 'встаёт из-за стола',
 })

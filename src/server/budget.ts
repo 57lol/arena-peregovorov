@@ -149,9 +149,10 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       await both()
       return modeNow()
     },
-    async addLlm(model: string, tokensIn: number, tokensOut: number) {
+    /** rub — готовая цена (AITunnel пишет её в ответе), иначе по тарифу YandexGPT */
+    async addLlm(model: string, tokensIn: number, tokensOut: number, price?: number) {
       const [d, t] = await both()
-      const rub = priceOf(model, tokensIn, tokensOut, env)
+      const rub = price ?? priceOf(model, tokensIn, tokensOut, env)
       const m = (d.llm[model] ??= { in: 0, out: 0, calls: 0, rub: 0 })
       m.in += tokensIn
       m.out += tokensOut

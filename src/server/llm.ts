@@ -19,11 +19,13 @@ export interface JsonRequest {
 }
 
 export interface LLM {
-  name: 'anthropic' | 'openai' | 'yandex' | 'gigachat' | 'claude-cli' | 'offline'
+  name: 'anthropic' | 'openai' | 'yandex' | 'gigachat' | 'claude-cli' | 'aitunnel' | 'offline'
   model: string
   json(req: JsonRequest): Promise<unknown>
-  /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL): Lite быстрее, а разметку держит не хуже Pro */
+  /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL или ANALYZE_LLM) */
   analyzer?: LLM
+  /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию gpt-6.1-sol через AITunnel, если есть ключ) */
+  voice?: LLM
 }
 
 const timeout = () => Number(process.env.LLM_TIMEOUT_MS ?? 25000)
@@ -38,7 +40,7 @@ export function extractJson(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1))
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown, ms = timeout()): Promise<any> {
+export async function post(url: string, headers: Record<string, string>, body: unknown, ms = timeout()): Promise<any> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
@@ -250,6 +252,90 @@ function gigachat(): LLM {
   }
 }
 
+/**
+ * Как выключить рассуждение у модели AITunnel. У Sonnet 5.5, GPT-6.1 Sol, Gemini 3.x и Grok «none» запрещён (400),
+ * минимум «minimal»; у Luna, GPT-5.4, Haiku, DeepSeek, Qwen — «none». Рассуждение тормозит реплику на секунды
+ * и однажды съело весь лимит токенов (пустой ответ). AITUNNEL_REASONING — свой вариант для всех моделей.
+ */
+export function aitunnelFlags(model: string, env = process.env): Record<string, unknown> {
+  if (env.AITUNNEL_REASONING) return env.AITUNNEL_REASONING === 'off' ? {} : { reasoning_effort: env.AITUNNEL_REASONING }
+  if (/^kimi/.test(model)) return { reasoning: { enabled: false } }
+  if (/^(claude-(sonnet|opus|fable)|gpt-6(\.\d)?-sol|gpt-6-astra|gemini|grok)/.test(model)) return { reasoning_effort: 'minimal' }
+  if (/^(gpt-6-luna|gpt-5|claude-haiku|deepseek|qwen)/.test(model)) return { reasoning_effort: 'none' }
+  return {}
+}
+
+/**
+ * AITunnel: один ключ — сотни моделей (Claude, GPT, Gemini, Grok, YandexGPT), OpenAI-совместимый API, оплата рублями.
+ * Цену хода AITunnel сам пишет в usage.cost_rub — её и кладём в общий бюджет. У Claude кэш системного промпта
+ * включается меткой cache_control (ход дешевле вдвое), у остальных он автоматический.
+ */
+export function aitunnel(model = process.env.AITUNNEL_MODEL ?? 'gpt-6.1-sol', b: Budget = sharedBudget(), env = process.env): LLM {
+  const key = env.AITUNNEL_API_KEY
+  if (!key) throw new Error('Нет AITUNNEL_API_KEY')
+  const url = `${(env.AITUNNEL_BASE_URL ?? 'https://api.aitunnel.ru/v1').replace(/\/$/, '')}/chat/completions`
+  const claude = /^claude/.test(model)
+  void b.mode()
+  return {
+    name: 'aitunnel',
+    model,
+    async json({ system, user, temperature, maxTokens, schema, timeoutMs }) {
+      if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан')
+      const r = await post(url, { authorization: `Bearer ${key}` }, {
+        model,
+        temperature,
+        // с рассуждением «minimal» его почти нет, но запас нужен: иначе ответ может прийти пустым
+        max_tokens: Math.max(maxTokens ?? 1024, 800),
+        messages: [
+          { role: 'system', content: claude ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system },
+          { role: 'user', content: user },
+        ],
+        response_format: schema
+          ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
+          : { type: 'json_object' },
+        ...aitunnelFlags(model, env),
+      }, timeoutMs ? Math.min(timeoutMs, timeout()) : undefined)
+      const text = r.choices?.[0]?.message?.content
+      const u = r.usage ?? {}
+      const tin = Number(u.prompt_tokens ?? 0), tout = Number(u.completion_tokens ?? 0)
+      await b.addLlm(`aitunnel/${model}`, tin, tout, u.cost_rub !== undefined ? Number(u.cost_rub) : undefined)
+      if (typeof text !== 'string' || !text.trim()) throw new Error('Пустой ответ')
+      return extractJson(text)
+    },
+  }
+}
+
+/**
+ * Модель по строке «провайдер:модель»: «aitunnel:claude-sonnet-5.5», «yandex:yandexgpt-5.1», «yandex-lite», «offline».
+ * Для VOICE_LLM, ANALYZE_LLM и выбора модели реплики на запрос (страница сравнения моделей).
+ */
+export function llmFromSpec(spec: string, env = process.env): LLM {
+  const [kind, ...rest] = spec.trim().split(':')
+  const model = rest.join(':') || undefined
+  switch (kind) {
+    case 'aitunnel': return aitunnel(model, undefined, env)
+    case 'yandex': return yandex(undefined, undefined, model)
+    case 'yandex-lite': return yandex(undefined, undefined, env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite')
+    case 'openai': return model ? openaiCompatible('openai', `${env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'}/chat/completions`, { authorization: `Bearer ${need(env.OPENAI_API_KEY, 'OPENAI_API_KEY')}` }, model) : openai()
+    case 'anthropic': return anthropic()
+    case 'offline': return offline
+    default: throw new Error(`Не знаю модель «${spec}»`)
+  }
+}
+
+function need(v: string | undefined, name: string): string {
+  if (!v) throw new Error(`Нет ${name}`)
+  return v
+}
+
+/** Модели реплики, которые можно выбрать на запрос (страница сравнения): VOICE_LLM_ALLOWED или этот список. */
+export const VOICE_CHOICES = [
+  'aitunnel:gpt-6.1-sol', 'aitunnel:claude-sonnet-5.5', 'aitunnel:gemini-3.8-flash', 'aitunnel:gpt-6-luna',
+  'aitunnel:claude-haiku-5.5', 'aitunnel:gpt-5.4-mini', 'aitunnel:grok-4.7', 'aitunnel:deepseek-v4.1-flash',
+  'yandex:yandexgpt-5.1', 'yandex-lite',
+]
+export const voiceChoices = (env = process.env) => (env.VOICE_LLM_ALLOWED ? env.VOICE_LLM_ALLOWED.split(',').map((x) => x.trim()).filter(Boolean) : VOICE_CHOICES)
+
 /** Какие LLM можно включить и какой ключ нужен — для лаборатории. Ключей наружу не отдаём. */
 export function llmStatus(env = process.env) {
   const yc = !!env.YANDEX_API_KEY && !!env.YANDEX_FOLDER_ID
@@ -259,6 +345,7 @@ export function llmStatus(env = process.env) {
     openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_MODEL ?? 'gpt-4.1-mini' },
     anthropic: { ready: !!env.ANTHROPIC_API_KEY, need: 'ANTHROPIC_API_KEY', model: env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5' },
     gigachat: { ready: !!env.GIGACHAT_AUTH_KEY, need: 'GIGACHAT_AUTH_KEY', model: env.GIGACHAT_MODEL ?? 'GigaChat-2' },
+    aitunnel: { ready: !!env.AITUNNEL_API_KEY, need: 'AITUNNEL_API_KEY', model: env.AITUNNEL_MODEL ?? 'gpt-6.1-sol' },
     offline: { ready: true, need: '', model: 'правила и шаблоны' },
   }
 }
@@ -270,7 +357,27 @@ const offline: LLM = {
   json: () => Promise.reject(new Error('Офлайн-режим')),
 }
 
-export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline'): { llm: LLM; error?: string } {
+export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = process.env): { llm: LLM; error?: string } {
+  const made = baseLLM(kind)
+  if (made.llm.name === 'offline') return made
+  // Разметка и реплика — раздельно: ANALYZE_LLM и VOICE_LLM («провайдер:модель»). Реплику по умолчанию пишет
+  // gpt-6.1-sol через AITunnel, если есть ключ (живее и дешевле Pro, рамку держит); VOICE_LLM=main — основной моделью.
+  // Ошибка модели реплики не ломает игру: voice() откатывается на основную модель, потом на заготовку.
+  const errors: string[] = made.error ? [made.error] : []
+  const attach = (field: 'analyzer' | 'voice', spec: string | undefined) => {
+    if (!spec || spec === 'main') return
+    try {
+      made.llm[field] = llmFromSpec(spec, env)
+    } catch (e) {
+      errors.push(`${field}: ${(e as Error).message}`)
+    }
+  }
+  attach('analyzer', env.ANALYZE_LLM)
+  attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? 'aitunnel:gpt-6.1-sol' : undefined))
+  return { llm: made.llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
+}
+
+function baseLLM(kind: string): { llm: LLM; error?: string } {
   try {
     switch (kind) {
       case 'anthropic': return { llm: anthropic() }
@@ -285,6 +392,7 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline'): { llm: LL
       case 'yandex-lite': return { llm: yandex(undefined, undefined, process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite') }
       case 'gigachat': return { llm: gigachat() }
       case 'claude-cli': return { llm: claudeCli() }
+      case 'aitunnel': return { llm: aitunnel() }
       default: return { llm: offline }
     }
   } catch (e) {

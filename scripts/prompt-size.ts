@@ -7,8 +7,8 @@ import { initialState } from '../src/engine/turn'
 import type { TurnRecord } from '../src/engine/types'
 import { findScenario } from '../src/server/library'
 import { systemPrompt, userPrompt, schemaFor } from '../src/server/analyze'
-import { system as voiceSystem, instruction } from '../src/server/voice'
-import { SYSTEM as GEN_SYSTEM, userPrompt as genUser, SCHEMA as GEN_SCHEMA } from '../src/server/generate'
+import { system as voiceSystem, frameFor, userPrompt as voiceUser, schema as voiceSchema } from '../src/server/voice'
+import { SYSTEM as GEN_SYSTEM, userPrompt as genUser, SCHEMA as GEN_SCHEMA, GenerateRequest } from '../src/server/generate'
 
 try {
   process.loadEnvFile('.env')
@@ -35,9 +35,10 @@ const parts: Record<string, string> = {
   'разбор: user': userPrompt(sc, hist, text, st.lastOpponentOffer),
   'разбор: schema': JSON.stringify(schemaFor(sc, BEHAVIOR_DICT)),
   'реплика: system': voiceSystem(sc),
-  'реплика: user': `Разговор до этого:\n${hist.slice(-2).map((h) => `Игрок: ${h.playerText}\nТы: ${h.opponentLine}`).join('\n')}\n\nИгрок сейчас сказал: «${text}»\n\n${instruction(sc, { kind: 'hold', reason: 'no_movement' } as never, st, st.lastOpponentOffer ?? {})}\nНастроение: присматриваешься.`,
+  'реплика: user': voiceUser(sc, hist, text, frameFor(sc, { kind: 'hold', reason: 'no_movement' }, st, st.lastOpponentOffer ?? {}), st, st.lastOpponentOffer ?? {}),
+  'реплика: schema': JSON.stringify(voiceSchema(sc)),
   'генерация: system': GEN_SYSTEM,
-  'генерация: user': genUser({} as never, []),
+  'генерация: user': genUser(GenerateRequest.parse({}), []),
   'генерация: schema': JSON.stringify(GEN_SCHEMA),
 }
 
