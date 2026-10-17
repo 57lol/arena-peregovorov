@@ -6,7 +6,7 @@
 // «суп» в атласе с тремя вариантами освещённости. Всё движущееся — маленькие супы, по мешу на часть.
 
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, CylinderGeometry, DirectionalLight, Group, Object3D, PlaneGeometry } from 'three'
-import { CLOCK, ROOM as SIZE, SEATS, TABLE } from '../layout'
+import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
 import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads } from '../roomkit'
 import type { StoryRoom } from './index'
@@ -239,7 +239,7 @@ function buildInei(): RoomBuild {
     }
   }
   exec(SEATS.opponent.x, SEATS.opponent.z)
-  for (const s of SEATS.extras) conf(s.x, s.z, Math.abs(s.x) > 1.8 ? (s.x < 0 ? PI / 2 : -PI / 2) : 0)
+  for (const s of SEATS.extras) conf(s.x, s.z, seatYaw(s.x))
 
   // ------------------------------------------------------------------ на столе: образцы, письмо со штампом, калькулятор, чай, вода
   const Y = ty + 0.001

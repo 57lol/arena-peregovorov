@@ -7,6 +7,7 @@ import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
 import { PERSONAS, type Persona } from '../content/voices'
 import { cpsFor } from './ui/typing'
+import { speechPause } from './silence'
 
 export interface SpeechCaps {
   tts: boolean
@@ -159,6 +160,9 @@ export function stopAudio() {
   liveStop?.abort()
   liveStop = null
 }
+
+/** Реальный плеер, включая поток и фразы-паузы: печать текста может закончиться раньше звука. */
+export const speechPlaying = () => !!audio && !audio.paused && !audio.ended
 
 export interface Prepared {
   url: string
@@ -653,16 +657,30 @@ export interface Recording {
 }
 
 /** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
-let recording = false
+let recording: MediaStream | null = null
 
-export async function startRecording(): Promise<Recording> {
+export async function startRecording(options?: { onSilence: () => void; maxMs?: number }): Promise<Recording> {
   // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
   // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
-  const release = () => stream.getTracks().forEach((t) => t.stop())
+  let meter: AudioContext | undefined
+  let source: MediaStreamAudioSourceNode | undefined
+  let poll: ReturnType<typeof setInterval> | undefined
+  let limit: ReturnType<typeof setTimeout> | undefined
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    clearInterval(poll)
+    clearTimeout(limit)
+    source?.disconnect()
+    void meter?.close().catch(() => {})
+    meter = undefined
+    stream.getTracks().forEach((t) => t.stop())
+  }
   const chunks: Blob[] = []
-  let rec: MediaRecorder
+  let rec!: MediaRecorder
   let done: Promise<Blob>
   try {
     rec = new MediaRecorder(stream)
@@ -671,21 +689,46 @@ export async function startRecording(): Promise<Recording> {
     }
     done = new Promise<Blob>((resolve) => {
       rec.onstop = () => {
+        if (recording === stream) recording = null
         release()
         resolve(new Blob(chunks, { type: rec.mimeType }))
       }
     })
     rec.start()
+    if (options) {
+      const Ctx = AC()!
+      meter = new Ctx()
+      source = meter.createMediaStreamSource(stream)
+      const analyser = meter.createAnalyser()
+      analyser.fftSize = 2048
+      source.connect(analyser)
+      void meter.resume().catch(() => {})
+      const samples = new Float32Array(analyser.fftSize)
+      const paused = speechPause()
+      let stopped = false
+      const autoStop = () => {
+        if (stopped) return
+        stopped = true
+        options.onSilence()
+      }
+      poll = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples)
+        const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length)
+        if (paused(rms, performance.now())) autoStop()
+      }, 80)
+      limit = setTimeout(autoStop, options.maxMs ?? 30_000)
+    }
   } catch (e) {
     // микрофон уже включён — без записи его надо отпустить, иначе точка в браузере горит до закрытия вкладки
     release()
+    if (rec && rec.state !== 'inactive') rec.stop()
     throw e
   }
-  recording = true
+  recording = stream
   const end = () => {
-    recording = false
+    if (recording === stream) recording = null
     if (rec.state !== 'inactive') rec.stop()
-    else release()
+    release()
   }
   return {
     stop: () => (end(), done),

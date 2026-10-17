@@ -9,7 +9,9 @@ import type { TurnRecord } from '../engine/types'
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
   effects: [] as (() => void)[], cleanups: [] as (() => void)[] }))
 const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn(),
-  live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '' }))
+  live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false }))
+const mode = vi.hoisted(() => ({ voiceOnly: false }))
+vi.mock('./voiceOnly', () => mode)
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
   useMemo: (fn: () => unknown) => fn(),
@@ -42,6 +44,7 @@ vi.mock('./speech', () => ({
   informal: () => true, startFiller: () => ({ cancel: vi.fn(), done: Promise.resolve() }),
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(),
+  speechPlaying: () => speech.playing,
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn() }))
 vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn }))
@@ -67,6 +70,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   hooks.slots = []; hooks.cursor = 0; hooks.effects = []; hooks.cleanups = []
   speech.on = true; speech.prepare.mockReset(); speech.play.mockClear(); speech.stop.mockClear()
+  speech.playing = false; mode.voiceOnly = false
   speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
   speech.prepare.mockImplementation(() => new Promise((r) => { resolveAudio = r }))
   props = {
@@ -77,6 +81,29 @@ beforeEach(() => {
   }
 })
 afterEach(() => { hooks.cleanups.forEach((fn) => fn?.()); vi.useRealTimers() })
+
+describe('только голос', () => {
+  it('авто-микрофон включён, запись ждёт подготовки, печати и конца настоящего звука', async () => {
+    mode.voiceOnly = true
+    render()
+    expect(meeting.autoMic).toBe(true)
+    expect(meeting.micReady).toBe(false)
+    await advance()
+    speech.playing = true
+    resolveAudio(prepared)
+    await advance()
+    meeting.setTalking(false)
+    await advance(100)
+    expect(meeting.micReady).toBe(false)
+    speech.playing = false
+    meeting.setTalking(true)
+    await advance(100)
+    expect(meeting.micReady).toBe(false)
+    meeting.setTalking(false)
+    render()
+    expect(meeting.micReady).toBe(true)
+  })
+})
 
 describe('реплики в настоящем useMeeting', () => {
   it('приветствие скрыто с первого рендера; готовность звука открывает его один раз', async () => {

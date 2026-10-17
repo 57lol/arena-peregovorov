@@ -6,7 +6,7 @@
 // «суп» в атласе с тремя вариантами освещённости. Звенья роботов и конвейер — свои маленькие супы на осях.
 
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, CylinderGeometry, DirectionalLight, Group, type MeshBasicMaterial, Object3D, PlaneGeometry, SphereGeometry } from 'three'
-import { CLOCK, ROOM as SIZE, SEATS, TABLE } from '../layout'
+import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
 import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads } from '../roomkit'
 import type { StoryRoom } from './index'
@@ -291,7 +291,7 @@ function buildBytovka(): RoomBuild {
     b(0.34, 0.05, 0.26, F('c1', 'c1', 'folded'), 0, 0.34, 0, 0.1)
   }
   chair(SEATS.opponent.x, SEATS.opponent.z, 0)
-  const side = (s: { x: number }) => (Math.abs(s.x) > 1.8 ? (s.x < 0 ? PI / 2 : -PI / 2) : 0)
+  const side = (s: { x: number }) => seatYaw(s.x)
   const [e0, e1, e2, e3] = SEATS.extras
   stool(e0.x, e0.z, 0.2)
   chair(e1.x, e1.z, side(e1))

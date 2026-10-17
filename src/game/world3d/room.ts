@@ -18,7 +18,7 @@ import {
   PlaneGeometry,
   SphereGeometry,
 } from 'three'
-import { CLOCK, ROOM, SEATS, TABLE } from './layout'
+import { CLOCK, ROOM, SEATS, TABLE, seatYaw } from './layout'
 import { F, type Faces, Kit, Soup, at, faceEye, flatY as flat, planeZ as plane, quads } from './roomkit'
 import { ATLAS, PLACE } from './room3d.gen'
 
@@ -204,7 +204,7 @@ export function buildRoom(kind: RoomKind): RoomBuild {
   const o = SEATS.opponent
   if (kind === 'factory') boss(o.x, o.z, 0)
   else plain(o.x, o.z, 0, 0.1)
-  for (const s of SEATS.extras) plain(s.x, s.z, Math.abs(s.x) > 1.8 ? (s.x < 0 ? PI / 2 : -PI / 2) : 0)
+  for (const s of SEATS.extras) plain(s.x, s.z, seatYaw(s.x))
   // запасные стулья вдоль правой стены
   if (kind === 'factory') for (const [x, z] of PLACE.factory.spare) plain(x, z, -PI / 2)
 

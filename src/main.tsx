@@ -1,4 +1,5 @@
-// ?tts= и ?llm= — самыми первыми, пока адрес не почистили
+// Параметры голоса — первыми, пока адрес не почистили
+import './game/voiceOnly'
 import './game/speech'
 // ?reset — первым делом, до App.tsx: он при загрузке читает сохранённую партию
 import { resetting } from './game/reset'

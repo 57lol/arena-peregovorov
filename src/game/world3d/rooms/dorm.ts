@@ -5,7 +5,7 @@
 // мелочь — «суп» в атласе с тремя вариантами освещённости. Места вещей — PLACE из dorm.gen.ts.
 
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, DirectionalLight, Group, Mesh, Object3D, PlaneGeometry, SphereGeometry } from 'three'
-import { CLOCK, ROOM as SIZE, SEATS, TABLE } from '../layout'
+import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
 import { F, type Faces, Kit, Soup, at, faceEye, flatY, planeZ, quads } from '../roomkit'
 import type { StoryRoom } from './index'
@@ -308,7 +308,7 @@ function buildDorm(): RoomBuild {
     b(0.42, 0.2, 0.04, F('chair_back', 'wood_d'), 0, 0.72, -0.15)
   }
   gaming(SEATS.opponent.x, SEATS.opponent.z)
-  const side = (s: { x: number }) => (Math.abs(s.x) > 1.8 ? (s.x < 0 ? PI / 2 : -PI / 2) : 0)
+  const side = (s: { x: number }) => seatYaw(s.x)
   const [e0, e1, e2, e3] = SEATS.extras
   stool(e0.x, e0.z, side(e0))
   chair(e1.x, e1.z, side(e1))

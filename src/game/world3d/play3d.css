@@ -190,6 +190,18 @@
 .w3-say .px-field-hint {
   display: none;
 }
+.w3-say .g-voiceonly {
+  grid-column: 1 / -1;
+  background: var(--plate);
+  padding: 28px 12px 10px;
+}
+.w3-say .g-voiceonly-beta {
+  top: 6px;
+  right: 12px;
+}
+.w3-say .g-voiceonly + .w3-say-row:empty {
+  display: none;
+}
 .w3-say-row {
   display: flex;
   flex-wrap: wrap;

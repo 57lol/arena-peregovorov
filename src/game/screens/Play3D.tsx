@@ -20,6 +20,7 @@ import { World } from '../world3d/stage'
 import { Margin } from './Margin'
 import { Mentor } from './Mentor'
 import { MicButton } from './Mic'
+import { VoiceOnly } from './VoiceOnly'
 import { VolumeSlider } from './Volume'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
@@ -563,7 +564,7 @@ function SayForm({ m }: { m: Meeting }) {
         m.send(m.draft)
       }}
     >
-      <SpeechField
+      {m.voiceOnly ? <VoiceOnly m={m} /> : <SpeechField
         label={m.pending ? `${m.name} думает…` : 'Ваша реплика'}
         value={m.pending ?? m.draft}
         disabled={!!m.pending}
@@ -578,12 +579,12 @@ function SayForm({ m }: { m: Meeting }) {
           }
         }}
         onPointerDown={() => (byKey.current = false)}
-      />
+      />}
       <div className="w3-say-row">
-        <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
+        {!m.voiceOnly && <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
           {m.pending ? 'Слушает…' : 'Сказать'}
-        </Button>
-        {m.canMic && (
+        </Button>}
+        {!m.voiceOnly && m.canMic && (
           <MicButton
             disabled={!!m.pending}
             onStart={m.hush}

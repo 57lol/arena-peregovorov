@@ -18,7 +18,7 @@ const URL = arg('url', 'http://localhost:5173')
 await requireOffline(URL)
 const OFFLINE = process.argv.includes('--offline')
 const ONLY = arg('only', 'tara-wide,tara-phone,client-wide,client-phone').split(',')
-const OUT = join(homedir(), 'Arena-materials', 'shots', '3d')
+const OUT = arg('out', join(homedir(), 'Arena-materials', 'shots', '3d'))
 mkdirSync(OUT, { recursive: true })
 
 const CASES = {

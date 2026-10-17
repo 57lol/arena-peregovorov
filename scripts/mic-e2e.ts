@@ -7,15 +7,18 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Page, type Route } from 'playwright'
+import { requireOffline } from './offline-guard'
 
 const i = process.argv.indexOf('--url')
 const URL = i > 0 ? process.argv[i + 1] : 'http://localhost:5173'
+await requireOffline(URL)
 const MP3 = readFileSync(new globalThis.URL('../public/assets/voice-fillers/denis/t1.mp3', import.meta.url))
 const SAID = 'Добрый день, давай договоримся'
-const OUT = join(homedir(), 'Arena-materials', 'shots', 'mic')
+const outIndex = process.argv.indexOf('--out')
+const OUT = outIndex > 0 ? process.argv[outIndex + 1] : join(homedir(), 'Arena-materials', 'shots', 'mic')
 mkdirSync(OUT, { recursive: true })
 
-type W = { gum: number; tracks: MediaStreamTrack[]; plays: [string, number][]; mark: number }
+type W = { gum: number; tracks: MediaStreamTrack[]; plays: [string, number][]; mark: number; ended: number[]; gumAt: number[] }
 const live = (p: Page) => p.evaluate(() => (window as unknown as W).tracks.filter((t) => t.readyState === 'live').length)
 const gum = (p: Page) => p.evaluate(() => (window as unknown as W).gum)
 /** что заиграло после отметки mark() — приветствие, успевшее зазвучать до микрофона, не в счёт */
@@ -31,23 +34,41 @@ const check = (ok: boolean, what: string) => {
 }
 
 /** stt — что отвечает /api/stt на n-й запрос; gumDelay — сколько «висит окно разрешения». */
-async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; gumDelay?: number } = {}) {
+async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; gumDelay?: number; voiceonly?: boolean; phone?: boolean } = {}) {
   const browser = await chromium.launch({
     args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   })
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  const ctx = await browser.newContext({ viewport: o.phone ? { width: 390, height: 844 } : { width: 1280, height: 800 } })
   await ctx.grantPermissions(['microphone'], { origin: URL })
   // строкой: tsx добавляет в функции __name, которого в браузере нет
   await ctx.addInitScript(`
     Object.defineProperty(navigator, 'webdriver', { get: () => false })
     localStorage.setItem('peregovorka.voice.v2', '1')
     localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
-    window.gum = 0; window.tracks = []; window.plays = []
+    window.gum = 0; window.tracks = []; window.plays = []; window.ended = []; window.gumAt = []
+    Object.defineProperty(Document.prototype, 'hidden', { get: () => true })
     const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
     navigator.mediaDevices.getUserMedia = async (c) => {
-      window.gum++
+      window.gum++; window.gumAt.push(performance.now())
       await new Promise((r) => setTimeout(r, ${o.gumDelay ?? 0}))
-      const s = await orig(c)
+      let s = await orig(c)
+      if (${!!o.voiceonly}) {
+        s.getTracks().forEach((t) => t.stop())
+        const ctx = new AudioContext()
+        await ctx.resume()
+        const dest = ctx.createMediaStreamDestination()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain).connect(dest)
+        gain.gain.setValueAtTime(0.2, ctx.currentTime)
+        gain.gain.setValueAtTime(0, ctx.currentTime + 0.7)
+        osc.start()
+        s = dest.stream
+        for (const track of s.getTracks()) {
+          const stop = track.stop.bind(track)
+          track.stop = () => { stop(); void ctx.close().catch(() => {}) }
+        }
+      }
       window.tracks.push(...s.getTracks())
       return s
     }
@@ -55,6 +76,7 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
     HTMLMediaElement.prototype.play = function () {
       const src = this.src.startsWith('data:') ? 'silent' : this.src.includes('voice-fillers') ? 'filler' : 'speech'
       const at = performance.now()
+      if (src === 'speech') this.addEventListener('ended', () => window.ended.push(performance.now()), { once: true })
       return play.call(this).then(() => void window.plays.push([src, at]))
     }
   `)
@@ -72,10 +94,10 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
     stt.push(r.request().postDataBuffer() ?? Buffer.alloc(0))
     await (o.stt ?? ((r) => r.fulfill({ json: { text: SAID } })))(r, stt.length)
   })
-  await page.goto(`${URL}/?case=dorm&view=${view}`)
+  await page.goto(`${URL}/?case=dorm&view=${view}${o.voiceonly ? '&voiceonly' : ''}`)
   await page.locator('button.g-big').first().click()
   await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
-  await btn(page, 'Сказать голосом').waitFor({ timeout: 30_000 })
+  await page.locator(o.voiceonly ? '.g-voiceonly' : '.g-mic').first().waitFor({ timeout: 30_000 })
   return { page, stt, close: () => browser.close() }
 }
 
@@ -202,6 +224,49 @@ for (const view of ['classic', '3d'] as const) {
   await m.page.getByRole('button', { name: /Точно\?/ }).click()
   await m.page.waitForTimeout(800)
   check((await live(m.page)) === 0, 'микрофон отпущен после выхода')
+  await m.close()
+}
+
+for (const view of ['classic', '3d'] as const) {
+  for (const phone of [false, true]) {
+    console.log(`\n— ${view} ${phone ? '390' : '1280'}: только голос, пауза → ход без нажатий`)
+    const m = await meeting(view, { voiceonly: true, phone })
+    check((await m.page.locator('textarea').count()) === 0, 'во встрече нет текстового поля')
+    check(await m.page.getByLabel('Авто-микрофон', { exact: true }).isChecked(), 'авто-микрофон включён по умолчанию')
+    await btn(m.page, 'Остановить запись и распознать').waitFor({ timeout: 30_000 })
+    check(await m.page.evaluate(() => {
+      const w = window as unknown as W
+      return w.ended.some((at) => at < w.gumAt[0])
+    }), 'авто-микрофон открылся после конца звука приветствия')
+    await m.page.getByLabel('Авто-микрофон', { exact: true }).uncheck()
+    await m.page.waitForFunction((text) => document.querySelector('.g-you, .w3-you')?.textContent?.includes(text), SAID, { timeout: 15_000 })
+    check(m.stt.length === 1, 'пауза сама отправила одну запись на распознавание')
+    check((await live(m.page)) === 0, 'перед ответом собеседника микрофон отпущен')
+    await m.page.screenshot({ path: join(OUT, `${view}-${phone ? 'phone' : 'wide'}-voiceonly.png`) })
+    // Следующий ответ тоже заканчивается автоматическим открытием микрофона.
+    await m.page.getByLabel('Авто-микрофон', { exact: true }).check()
+    await m.page.waitForFunction(() => (window as unknown as W).gum >= 2, undefined, { timeout: 30_000 })
+    check(await m.page.evaluate(() => {
+      const w = window as unknown as W
+      return w.ended.some((at) => at > w.gumAt[0] && at < w.gumAt[1])
+    }), 'следующий микрофон дождался конца ответа')
+    await m.close()
+  }
+}
+
+{
+  console.log('\n— только голос: ошибка распознавания, ручной повтор')
+  const m = await meeting('classic', { voiceonly: true, stt: (r, n) => n === 1
+    ? r.fulfill({ status: 502, json: { error: 'timeout' } })
+    : r.fulfill({ json: { text: SAID } }) })
+  await btn(m.page, 'Сказать ещё раз').waitFor({ timeout: 30_000 })
+  check(await m.page.getByRole('alert').isVisible(), 'ошибка объяснена рядом с микрофоном')
+  await m.page.waitForTimeout(1600)
+  check((await gum(m.page)) === 1, 'ошибка не зацикливает авто-микрофон')
+  await m.page.getByLabel('Авто-микрофон', { exact: true }).uncheck()
+  await btn(m.page, 'Сказать ещё раз').click()
+  await m.page.waitForFunction((text) => document.querySelector('.g-you')?.textContent?.includes(text), SAID, { timeout: 15_000 })
+  check((await live(m.page)) === 0, 'повторная запись отпущена после отправки')
   await m.close()
 }
 

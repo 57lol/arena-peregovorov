@@ -28,6 +28,7 @@ export function createMic(io: MicIO) {
   let pcm: ArrayBuffer | null = null
   let job: AbortController | null = null
   let dead = false
+  let generation = 0
   const set = (s: MicState) => {
     state = s
     if (!dead) io.onState(s)
@@ -40,14 +41,15 @@ export function createMic(io: MicIO) {
     pcm = null
     io.onStart()
     set('starting')
+    const g = ++generation
     try {
       const r = await io.start()
       // пока ждали микрофон, игрок ушёл или отправил реплику — сразу отпускаем
-      if (dead || !is('starting')) return r.cancel()
+      if (dead || g !== generation || !is('starting')) return r.cancel()
       rec = r
       set('rec')
     } catch (e) {
-      if (dead || !is('starting')) return
+      if (dead || g !== generation || !is('starting')) return
       set('idle')
       io.onError(micError(e))
     }
@@ -58,10 +60,13 @@ export function createMic(io: MicIO) {
     if (!is('rec') || !r) return
     rec = null
     set('busy')
+    const g = generation
     try {
-      pcm = await io.toPcm(await r.stop())
+      const data = await io.toPcm(await r.stop())
+      if (dead || g !== generation) return
+      pcm = data
     } catch (e) {
-      if (!is('busy')) return
+      if (dead || g !== generation || !is('busy')) return
       set('idle')
       return io.onError(micError(e))
     }
@@ -104,6 +109,7 @@ export function createMic(io: MicIO) {
     },
     /** игрок отправил реплику: запись и распознавание уже не нужны, поздний текст не попадёт в следующий ход */
     interrupt() {
+      generation++
       job?.abort()
       job = null
       rec?.cancel()
@@ -114,7 +120,9 @@ export function createMic(io: MicIO) {
     /** уход со встречи: микрофон отпускаем всегда */
     dispose() {
       dead = true
+      generation++
       job?.abort()
+      job = null
       rec?.cancel()
       rec = null
     },

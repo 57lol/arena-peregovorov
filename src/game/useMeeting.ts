@@ -11,10 +11,11 @@ import { firstName } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, startFiller, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
+import { voiceOnly } from './voiceOnly'
 
 export interface MeetingProps {
   game: Case
@@ -56,6 +57,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const [instantOn, setInstantOn] = useState(loadInstantOn)
   const [source, setSource] = useState<string>('')
   const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
+  const [autoMic, setAutoMic] = useState(voiceOnly)
+  const [audioPlaying, setAudioPlaying] = useState(false)
   const voiceRef = useRef(voiceOn)
   const [delivery, setDelivery] = useState<{ text: string; record: TurnRecord | undefined; cps?: number } | null>(null)
   // начало реплики, пока ход ещё идёт: печатается вместе со звуком, который сервер уже синтезирует (ход потоком)
@@ -141,6 +144,15 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const delivered = delivery?.text === line && delivery.record === last
   const lineWaiting = !pending && voiceOn && canVoice && !delivered
   const lineCps = pending ? early?.cps : delivered ? delivery.cps : undefined
+
+  useEffect(() => {
+    if (!voiceOnly) return
+    const poll = () => setAudioPlaying(speechPlaying())
+    poll()
+    const timer = setInterval(poll, 100)
+    return () => clearInterval(timer)
+  }, [])
+  const micReady = !pending && !done && delivered && !talking && !lineWaiting && !audioPlaying && !speechPlaying()
 
   // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
   useEffect(() => {
@@ -287,6 +299,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
+    voiceOnly, autoMic, setAutoMic, micReady,
     send, putOnTable, accept, walk, rewind, undo, hush,
   }
 }

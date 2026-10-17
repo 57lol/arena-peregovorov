@@ -6,6 +6,7 @@ import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
 import { mentorLine, useTutorial } from '../tutorial'
 import { MicButton } from './Mic'
+import { VoiceOnly } from './VoiceOnly'
 import { Margin, MarginOff } from './Margin'
 import { Mentor } from './Mentor'
 import { Notes, Slip, XRay } from './meetingParts'
@@ -210,7 +211,7 @@ export function Play(props: Props) {
                     </Button>
                   </div>
                 )}
-                <SpeechField
+                {m.voiceOnly ? <VoiceOnly m={m} /> : <SpeechField
                   label={pending ? `${name} думает…` : 'Ваша реплика'}
                   value={pending ?? draft}
                   disabled={!!pending}
@@ -223,17 +224,17 @@ export function Play(props: Props) {
                     }
                   }}
                   hint="Enter — сказать, Shift+Enter — новая строка"
-                />
+                />}
                 {error && (
                   <p className="g-error" role="alert">
                     {error}
                   </p>
                 )}
                 <div className="g-say-row">
-                  <Button variant="brass" icon="send" type="submit" disabled={!!pending || !draft.trim()}>
+                  {!m.voiceOnly && <Button variant="brass" icon="send" type="submit" disabled={!!pending || !draft.trim()}>
                     {pending ? 'Слушает…' : 'Сказать'}
-                  </Button>
-                  {canMic && (
+                  </Button>}
+                  {!m.voiceOnly && canMic && (
                     <MicButton
                       disabled={!!pending}
                       onStart={m.hush}

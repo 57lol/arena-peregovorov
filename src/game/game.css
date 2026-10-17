@@ -848,6 +848,53 @@ body {
 .g-mic {
   font-variant-numeric: tabular-nums;
 }
+/* Разговорный режим: подписи микрофона видны и на телефоне. */
+.g-voiceonly {
+  position: relative;
+  padding-top: 22px;
+}
+.g-voiceonly-beta {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 14px;
+  color: var(--on-desk-muted);
+}
+.g-voiceonly-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.g-voiceonly .g-mic {
+  min-height: 56px;
+  min-width: 164px;
+  justify-content: center;
+}
+.g-voiceonly .g-mic-label {
+  display: inline;
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+.g-auto-mic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.g-auto-mic input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--c-brass);
+}
+.g-voiceonly-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--on-desk-muted);
+}
 .px-dialog-extra .g-voice-btn {
   margin-top: calc(1 * var(--u));
 }

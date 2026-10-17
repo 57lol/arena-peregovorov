@@ -21,7 +21,7 @@ export const TABLE = {
 /** Глаза сидящего игрока и куда он смотрит по умолчанию. */
 export const EYE = { x: 0, y: 1.2, z: 0.62 }
 
-/** Места за столом: x, z — где стоит спинка стула; люди — плоские спрайты по центру места. */
+/** Места за столом: x, z — начало координат стула. */
 export const SEATS = {
   opponent: { x: 0, z: -1.08 },
   /** массовка: по бокам от собеседника и в торцах стола (торцевые сидят боком к столу) */
@@ -39,3 +39,14 @@ export const CLOCK = { x: 0.0, y: 1.98, z: ROOM.back + 0.03, r: 0.17 }
 
 /** Метров на точку спрайта: лицо собеседника (96 точек) — 0.62 м, как живой человек за столом. */
 export const SPRITE_M_PER_PX = 0.62 / 96
+
+/** Стулья в торцах смотрят к столу, дальний ряд — к игроку. */
+export const seatYaw = (x: number) => Math.abs(x) > 1.8 ? (x < 0 ? Math.PI / 2 : -Math.PI / 2) : 0
+export const SEATED_FORWARD = 0.06
+export const SEATED_TURN = 0.55
+
+/** Край биллборда остаётся перед спинкой даже при взгляде на соседа. */
+export function seatedTurn(want: number, facing: number) {
+  const d = ((want - facing + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI
+  return facing + Math.max(-SEATED_TURN, Math.min(SEATED_TURN, d))
+}

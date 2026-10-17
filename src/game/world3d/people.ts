@@ -19,7 +19,7 @@ import {
   type Texture,
 } from 'three'
 import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
-import { SPRITE_M_PER_PX as M, TABLE } from './layout'
+import { SPRITE_M_PER_PX as M, TABLE, SEATED_FORWARD, seatedTurn, seatYaw } from './layout'
 import { lipState } from '../speech'
 
 const S = PORTRAIT_SIZE
@@ -294,6 +294,7 @@ export class Person {
   private talkFlip = 0
   private gazeUntil = 0
   private turn = 0
+  private facing: number
   private jolt = 0
   private prevEmotion: PortraitEmotion = 'neutral'
   private gone = 0
@@ -304,7 +305,8 @@ export class Person {
     this.id = o.id
     this.lead = !!o.lead
     this.focus = o.focus ?? { x: 0, z: -0.3 }
-    this.group.position.set(o.x, 0, o.z)
+    this.facing = this.turn = seatYaw(o.x)
+    this.group.position.set(o.x + Math.sin(this.facing) * SEATED_FORWARD, 0, o.z + Math.cos(this.facing) * SEATED_FORWARD)
     loadSheet(o.id).then((s) => this.build(s))
   }
 
@@ -393,6 +395,7 @@ export class Person {
     }
     // уходит: разворачивается боком к двери (она слева в обеих комнатах) — плоский спрайт сужается, как при повороте
     if (this.leaving && this.gone > 0.35) want = toCam - 0.55
+    else want = seatedTurn(want, this.facing)
     const d = MathUtils.euclideanModulo(want - this.turn + Math.PI, Math.PI * 2) - Math.PI
     this.turn += d * (1 - Math.exp(-dt * (this.leaving ? 5 : this.lead ? 20 : 5)))
     this.body.rotation.y = this.turn
