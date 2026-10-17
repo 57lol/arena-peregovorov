@@ -22,6 +22,7 @@ import { accent, render, resolveStress, unstress, type AskJson } from './stress'
 import { stripTags } from './tags'
 import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
+import { streamConfigured } from './sttStream'
 import { castFor, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -243,7 +244,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   // кто сейчас говорит: eleven — браузер берёт фразы-паузы ElevenLabs и не меняет темп голоса
   const status = () => {
     const voice = elevenOn() ? 'elevenlabs' : yandexTtsReady() ? 'speechkit' : null
-    return { tts: !!voice || !!primaryTts(), stt: !!key && !denied.stt, voice, ...(voice === 'elevenlabs' ? { eleven: true } : {}) }
+    return { tts: !!voice || !!primaryTts(), stt: !!key && !denied.stt, voice, ...(voice === 'elevenlabs' ? { eleven: true } : {}), ...(streamConfigured(env) ? { scribe: true } : {}) }
   }
 
   // Тексты, которые сервер выдал сам: реплики /api/turn, вступления дел, собранные дела. ElevenLabs озвучивает только их.

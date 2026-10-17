@@ -16,11 +16,14 @@ export function streamToken(secret: string, claims: { id: string; exp: number; s
   return `${payload}.${createHmac('sha256', secret).update(`stt.v1.${payload}`).digest('base64url')}`
 }
 
+/** Поток Scribe есть: воркер настроен и не выключен (STT_STREAM=off — только Яндекс). Игра узнаёт это из /api/health. */
+export const streamConfigured = (env = process.env) => env.SPEECH !== 'off' && env.STT_STREAM !== 'off' && !!env.ELEVEN_RELAY_URL && !!env.ELEVEN_RELAY_SECRET
+
 export function makeSttStream(quota: Budget = budget(), env = process.env) {
   const app = new Hono()
   const count = limiter()
   const tickets = new Map<string, { url: string; session: string; until: number }>()
-  const configured = () => env.SPEECH !== 'off' && !!env.ELEVEN_RELAY_URL && !!env.ELEVEN_RELAY_SECRET
+  const configured = () => streamConfigured(env)
   app.post('/api/stt/session', bodyLimit({ maxSize: 1024 }), async (c) => {
     if (!configured()) return c.json({ error: 'Поток недоступен' }, 503)
     const origin = c.req.header('origin')
@@ -28,7 +31,7 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
     const allowed = env.STT_ORIGIN || new URL(c.req.url).origin
     if (origin && origin !== allowed) return c.json({ error: 'Чужой сайт' }, 403)
     const ip = clientIp(c, env), session = sessionOf(c, env)
-    if (!count.take(`s:${session}`, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 60), HOUR) ||
+    if (!count.take(`s:${session}`, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 120), HOUR) ||
         !count.take(`ip:${ip}`, number(env.STT_STREAM_IP_DAY_LIMIT, 300), DAY)) return c.json({ error: 'Лимит потока' }, 429)
     const body = await c.req.json().catch(() => null) as { seconds?: unknown } | null
     if (!body || (body.seconds !== 30 && body.seconds !== 60)) return c.json({ error: 'Нужна длительность 30 или 60 секунд' }, 400)

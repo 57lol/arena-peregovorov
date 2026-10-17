@@ -318,7 +318,7 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       const speech = makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null })
       const app = createApp(offline, undefined, speech)
       const health = await (await app.request('/api/health')).json() as { speech: object }
-      expect(health.speech).toEqual({ tts: true, stt: false, voice: 'elevenlabs', eleven: true })
+      expect(health.speech).toEqual({ tts: true, stt: false, voice: 'elevenlabs', eleven: true, scribe: true })
       const text = `Без Яндекса ${Math.random()}`
       speech.issue(text)
       const r = await tts(app, { text, voice: 'sergey', who: 'palych' })
