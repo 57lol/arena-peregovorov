@@ -47,5 +47,11 @@ export const ELEVEN_KNOWN: KnownLine[] = [
     voice: 'pM78bgjPVk0JXtaEnFoj',
     text: 'Виктор Павлович Громов, бригадир. Палычем меня зовут свои — это ещё заслужить надо. Скажу сразу, чтобы не ходить кругами. В ночь ребята выйдут так. Доплата +50%, старт на следующей неделе. После смены — развоз по районам, ночью — горячий ужин. Нет — работаем днём, на старом цехе, как работали.',
     file: 'assets/voice-eleven/palych/opening-launch.mp3'
+  },
+  {
+    who: 'emre',
+    voice: 'TcOBSQQ3Mm1U95izQTyI',
+    text: 'Hello, hello! Emre Kaya, Marmara Coating. I brought lokum from Istanbul, it\'s for your team. So. Your engineers saw the line: the tunnel, the booth, the oven. I think they liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
+    file: 'assets/voice-eleven/emre/opening-istanbul.mp3'
   }
 ]

@@ -8,6 +8,7 @@ import { ALL_SCENARIOS } from '../content/scenarios'
 import { FILLERS } from '../content/fillers'
 import { openingAnchor } from '../engine/policy'
 import { formatOffer } from '../engine/utility'
+import { isEn } from '../engine/lang'
 
 export interface KnownText {
   src: string
@@ -25,7 +26,8 @@ const fill = (line: string, offer: string, interest: string, main: string) =>
 
 export function knownTexts(cutscenes: KnownText[] = []): KnownText[] {
   const out: KnownText[] = []
-  for (const sc of ALL_SCENARIOS) {
+  // дела на английском — без русских ударений: их тексты синтез получает как есть
+  for (const sc of ALL_SCENARIOS.filter((sc) => !isEn(sc))) {
     const offer = formatOffer(sc, openingAnchor(sc))
     const interests = sc.opponent.profile.interests.map((i) => i.text)
     const main = offer.split(', ')[0] ?? ''

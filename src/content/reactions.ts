@@ -68,6 +68,16 @@ export const REACTIONS = {
     suspicion: ['Вы чего меня подгоняете?', 'Погодите, что за нажим?'],
     thoughtful: ['Так, дайте прикину…', 'Хм, погодите, соображу…'],
   },
+  // дело на английском: тёплый торговец из Стамбула, английский не родной — фразы простые
+  emre: {
+    anger: ['Hey, hey. Why like this?', 'Wait. Why so angry now?'],
+    hurt: ['Ouch. That one hurt a little.', 'Hm. Not nice, my friend.'],
+    chuckle: ['Ha! Okay, you got me.', 'Heh, you are funny, you know?'],
+    warmth: ['Ah, this is nice to hear.', 'See? Now we are talking.'],
+    surprise: ['Wait, how much did you say?', 'Whoa. That number, really?'],
+    suspicion: ['Hm. Why the pressure?', 'Okay... where is this going?'],
+    thoughtful: ['Okay, let me count...', 'Hmm, give me one second...'],
+  },
 } as const satisfies Record<ReactionFace, Record<ReactionType, readonly [string, string]>>
 
 export const reactionAudio = (face: ReactionFace, type: ReactionType, n: number) => `/assets/voice-reactions/${face}/${type}-${n}.mp3`

@@ -2,11 +2,13 @@
 // Серый — eleven_v4_turbo с его настройками (говорок держится только так).
 //   npx tsx scripts/reaction-voices.ts > list.jsonl
 import { REACTION_RECORDINGS } from '../src/content/reactions'
-import { forEleven, spellOut } from '../src/server/direct'
+import { forEleven, forEnglish, spellOut } from '../src/server/direct'
+import { looksEnglish } from '../src/engine/lang'
 import { accent, render, settle } from '../src/server/stress'
 import { CAST, elevenBody } from '../src/server/tts'
 
-const spoken = (text: string) => render(spellOut(settle(accent(forEleven(text)))), 'eleven').replace(/[«»"]/g, '')
+// английский (Эмре) — как есть: русские ударения и правила чтения не для него
+const spoken = (text: string) => (looksEnglish(text) ? forEnglish(text, 'eleven') : render(spellOut(settle(accent(forEleven(text)))), 'eleven')).replace(/[«»"]/g, '')
 for (const r of REACTION_RECORDINGS) {
   const voice = CAST[r.face]
   const model = r.face === 'gopnik' ? 'eleven_v4_turbo' : 'eleven_v4'

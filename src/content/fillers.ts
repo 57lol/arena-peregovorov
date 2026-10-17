@@ -14,7 +14,14 @@ export const FILLER_VOICES = ['denis', 'sergey', 'vasily', 'sofia', 'vera', 'iri
  * Те же фразы голосами ElevenLabs — у лиц из кампании и дел (scripts/eleven-known.ts, eleven_v4):
  * /assets/voice-fillers/eleven/<лицо>/<id>.mp3. Играют, когда сервер говорит ElevenLabs.
  */
-export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych'] as const
+export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych', 'emre'] as const
+
+/**
+ * Лица дел на английском: их фразы-паузы — по-английски, с теми же id, что на «вы» (c1–c3, v1–v3). Звучат только
+ * голосом ElevenLabs; у запасного SpeechKit (john) записей нет — на нём собеседник думает молча, а не по-русски.
+ */
+export const EN_FILLERS = { c1: 'Hmm, one second.', c2: 'Okay, okay.', c3: 'Let me count.', v1: 'So... let me think.', v2: 'Look...', v3: 'One moment.' } as const
+export const ENGLISH_FACES: readonly string[] = ['emre']
 
 /** id фраз под обращение собеседника: на «ты» — бытовые главы, на «вы» — деловые. */
 export const fillerIds = (informal: boolean): string[] => [...Object.keys(FILLERS.common), ...Object.keys(informal ? FILLERS.ty : FILLERS.vy)]
