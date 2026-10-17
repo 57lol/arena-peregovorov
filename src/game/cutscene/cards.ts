@@ -11,7 +11,7 @@ export function posterOf(cs: Cutscene): { shot: Shot; t: number } {
 }
 
 /** Где катсцена в неделе: «Пролог», «После главы 2», «Финал». */
-export function placeOf(cs: Cutscene): string {
+function placeOf(cs: Cutscene): string {
   if (cs.id === 'prologue') return 'Пролог'
   const after = Object.keys(BRIDGES).find((k) => BRIDGES[k].id === cs.id)
   const i = CHAPTERS.findIndex((c) => c.id === after)
