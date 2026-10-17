@@ -3,7 +3,7 @@
 // за ларёк), дверь закрывается, игрок провожает его взглядом и снова смотрит на стол. По кадрам: путь, дверь, взгляд;
 // снимки и короткое видео по каждому делу. Без платных вызовов: /api/* перехвачены, ход считает офлайн-движок.
 // Запуск: vite на любом порту (API не нужен), затем
-//   npx tsx scripts/exit-e2e.ts [--url http://localhost:5391] [--case dorm,stop,...] [--out папка] [--video]
+//   npx tsx scripts/exit-e2e.ts [--url http://localhost:5391] [--case dorm,stop,...] [--out папка] [--video] [--phone]
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
@@ -20,6 +20,8 @@ const BASE = arg('url', 'http://localhost:5391')
 const CASES = arg('case', 'dorm,stop,tara,shop,offer,client,launch').split(',')
 const OUT = arg('out', '.cache/exit-e2e')
 const VIDEO = process.argv.includes('--video')
+/** телефон вертикально: узкий кадр, взгляд за уходящим тот же */
+const VIEWPORT = process.argv.includes('--phone') ? { width: 390, height: 844 } : { width: 1280, height: 800 }
 const RUDE = 'Вы что, идиот?'
 
 type Sample = { at: number; walking: boolean; exited: boolean; leaving: boolean; x: number; z: number; door: number; yaw: number }
@@ -32,7 +34,7 @@ try {
     if (!scenario) throw new Error(`нет дела ${id}`)
     const dir = join(OUT, id)
     mkdirSync(dir, { recursive: true })
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...(VIDEO ? { recordVideo: { dir, size: { width: 960, height: 600 } } } : {}) })
+    const ctx = await browser.newContext({ viewport: VIEWPORT, ...(VIDEO ? { recordVideo: { dir, size: { width: 960, height: 600 } } } : {}) })
     // программный рендер с записью видео даёт мало кадров — проверку «не тянет 3D» выключаем (как в play3d-e2e)
     await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
     await ctx.addInitScript(`
