@@ -483,8 +483,11 @@ async function noServer(browser: Browser, size: number) {
   await page.locator('.g-folder').filter({ hasText: 'Удержать клиента' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')
-  // кнопка «Голос вкл/выкл» и микрофон — по подписи, вид кнопок меняется
-  const voiceBtns = await page.getByRole('button', { name: /Голос собеседника|голосом|микрофон/i }).filter({ visible: true }).count()
+  // кнопка «Голос вкл/выкл» и микрофон — по подписи, вид кнопок меняется. Пока игра переспрашивает /api/health
+  // (пять попыток), голос считается включённым — ждём, когда она сдастся
+  const voice = page.getByRole('button', { name: /Голос собеседника|голосом|микрофон/i }).filter({ visible: true })
+  for (let t = 0; t < 40 && (await voice.count()); t++) await page.waitForTimeout(500)
+  const voiceBtns = await voice.count()
   if (voiceBtns) fail(`${tag}: без сервера видны кнопки голоса (${voiceBtns})`)
   else ok(`${tag}: кнопок голоса нет`)
   await page.locator('.px-dialog-box').click()
