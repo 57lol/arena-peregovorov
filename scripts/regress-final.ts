@@ -7,6 +7,7 @@
 // Запуск: npm run dev:offline, потом
 //   npx tsx scripts/regress-final.ts [--url http://localhost:5173] [--parts cases,custom,reload,race,noserver] [--sizes 390,1440]
 //     [--only offer,tara,client] [--tag офлайн] [--shots]   (--shots — писать снимки для презентации)
+//   Часть custom (своё дело) собирает нейросеть — без --live она пропускается.
 
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -14,6 +15,7 @@ import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
 import { SCENARIOS } from '../src/content/scenarios'
 import type { Offer, Scenario } from '../src/engine/types'
+import { worstFirst } from '../src/game/ui/order'
 import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
@@ -143,9 +145,12 @@ async function setNotebook(page: Page, sc: Scenario, offer: Offer, mobile: boole
     const row = page.locator('.px-issue').filter({ has: page.locator('.px-issue-title', { hasText: i.title }) })
     for (let guard = 0; guard < 8; guard++) {
       const now = (await row.locator('.px-issue-value').textContent())?.trim() ?? ''
-      const at = i.options.indexOf(now)
-      if (at === want) break
-      await row.getByRole('button', { name: at < want ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
+      // стрелки листают от худшего для игрока к лучшему
+      const ord = worstFirst(sc.player.profile.points[i.id])
+      const at = ord.indexOf(i.options.indexOf(now))
+      const to = ord.indexOf(want)
+      if (at === to) break
+      await row.getByRole('button', { name: at < to ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
     }
   }
 }
@@ -170,6 +175,16 @@ async function toFolder(page: Page) {
   await page.goto(URL)
   await page.waitForSelector('.tt-sign')
 }
+
+/** Папка «Все дела»: с титула — через хаб жюри и карту недели. */
+async function allCases(page: Page) {
+  await page.getByRole('button', { name: /Для жюри/ }).click()
+  await page.getByRole('button', { name: 'Карта недели' }).first().click()
+  await page.getByRole('button', { name: 'Все дела', exact: true }).click()
+}
+
+/** Текст реплики из видимого окна (в .px-dialog-box есть ещё скрытая копия для экранного диктора). */
+const replyText = (page: Page) => page.locator('.px-dialog-box .px-dialog-shown').innerText()
 
 /** Одна партия с экрана встречи до кнопки «Разбор встречи». */
 async function playOut(page: Page, sc: Scenario, s: Script, size: number, tag: string) {
@@ -200,7 +215,7 @@ async function playOut(page: Page, sc: Scenario, s: Script, size: number, tag: s
       await page.keyboard.press('Enter')
     }
     await waitReply(page)
-    const reply = (await page.locator('.px-dialog-box').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 140)
+    const reply = (await replyText(page).catch(() => '')).replace(/\s+/g, ' ').slice(0, 140)
     console.log(`      ↳ ${reply}`)
     if (tag.startsWith('без-сервера') && n === 0 && !(await page.locator('.g-source').count())) fail(`${tag}: нет отметки «играем офлайн»`)
     if (!tag.startsWith('без-сервера') && !process.argv.includes('--offline-ok') && (await page.locator('.g-source').count()))
@@ -229,7 +244,7 @@ async function playCase(browser: Browser, sc: Scenario, size: number) {
     await noScroll(page, `${tag} титул`)
     await shot(page, `01-титул-${size}`)
   }
-  await page.getByRole('button', { name: 'Все дела' }).click()
+  await allCases(page)
   await page.waitForSelector('.g-folders')
   const folders = await page.locator('.g-folder').count()
   if (folders < 4) fail(`${tag}: в папке ${folders} карточек (ждём 3 дела + своё)`)
@@ -302,7 +317,7 @@ async function playCase(browser: Browser, sc: Scenario, size: number) {
   await page.locator('textarea').fill('Давайте иначе: что для вас сейчас важнее всего и почему?')
   await page.keyboard.press('Enter')
   await waitReply(page)
-  const after = (await page.locator('.px-dialog-box').innerText()).trim()
+  const after = (await replyText(page)).trim()
   if (!after) fail(`${tag}: после перемотки собеседник молчит`)
   else ok(`${tag}: после перемотки ход проходит — «${after.replace(/\s+/g, ' ').slice(0, 80)}»`)
   await ctx.close()
@@ -316,8 +331,9 @@ async function customCase(browser: Browser, size: number, sphere: string, theme:
   const page = await ctx.newPage()
   watch(page, tag)
   await toFolder(page)
-  await page.getByRole('button', { name: 'Все дела' }).click()
-  await page.getByRole('button', { name: 'Заполнить бриф' }).click()
+  // «Для жюри» → «Своё дело» открывает форму сразу
+  await page.getByRole('button', { name: /Для жюри/ }).click()
+  await page.getByRole('button', { name: 'Своё дело', exact: true }).click()
   await page.getByRole('button', { name: sphere, exact: true }).click()
   await page.getByLabel('О чём договариваемся').fill(theme)
   await page.getByLabel('Кто вы').fill(role)
@@ -350,7 +366,7 @@ async function customCase(browser: Browser, size: number, sphere: string, theme:
       await page.locator('textarea').fill(line)
       await page.keyboard.press('Enter')
       await waitReply(page)
-      console.log(`      ↳ ${(await page.locator('.px-dialog-box').innerText()).replace(/\s+/g, ' ').slice(0, 120)}`)
+      console.log(`      ↳ ${(await replyText(page)).replace(/\s+/g, ' ').slice(0, 120)}`)
     }
     await noScroll(page, `${tag} встреча`)
     await shot(page, `12-своё-дело-встреча-${sphere}-${size}`)
@@ -367,7 +383,7 @@ async function reloadNav(browser: Browser, size: number) {
   const page = await ctx.newPage()
   watch(page, tag)
   await toFolder(page)
-  await page.getByRole('button', { name: 'Все дела' }).click()
+  await allCases(page)
   await page.locator('.g-folder').filter({ hasText: 'Удержать клиента' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')
@@ -429,17 +445,14 @@ async function roomRace(browser: Browser, size: number) {
     await r.continue().catch(() => {})
   })
   await page.goto(`${URL}/?case=tara&room=${room.id}`)
-  await page.waitForSelector('.g-invite')
-  await page.getByRole('button', { name: /К делу/ }).click()
+  await page.getByRole('region', { name: 'Приглашение' }).waitFor()
+  const go = page.getByRole('button', { name: 'К делу' })
   await page.waitForTimeout(300)
-  const stayed = await page.locator('.g-signin').isVisible()
-  if (!stayed) fail(`${tag}: пустили к делу без имени, пока комната грузилась`)
-  else ok(`${tag}: пока комната грузится, без имени не пускают`)
+  if (await go.isEnabled()) fail(`${tag}: «К делу» активна, пока комната грузится`)
+  else ok(`${tag}: пока комната грузится, «К делу» неактивна`)
   release()
-  if (stayed) {
-    await page.locator('.g-signin input').fill('Гонщик')
-    await page.getByRole('button', { name: /К делу/ }).click()
-  }
+  await page.getByLabel('Имя для журнала').fill('Гонщик')
+  await go.click()
   await page.waitForSelector('.g-dossier')
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')
@@ -466,11 +479,12 @@ async function noServer(browser: Browser, size: number) {
   page.on('pageerror', (e) => fail(`${tag}: ошибка на странице ${e.message.slice(0, 200)}`))
   await page.route('**/api/**', (r) => r.abort())
   await toFolder(page)
-  await page.getByRole('button', { name: 'Все дела' }).click()
+  await allCases(page)
   await page.locator('.g-folder').filter({ hasText: 'Удержать клиента' }).getByRole('button', { name: 'Открыть дело' }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('.px-dialog')
-  const voiceBtns = await page.locator('.g-voice-btn, .g-mic').count()
+  // кнопка «Голос вкл/выкл» и микрофон — по подписи, вид кнопок меняется
+  const voiceBtns = await page.getByRole('button', { name: /Голос собеседника|голосом|микрофон/i }).filter({ visible: true }).count()
   if (voiceBtns) fail(`${tag}: без сервера видны кнопки голоса (${voiceBtns})`)
   else ok(`${tag}: кнопок голоса нет`)
   await page.locator('.px-dialog-box').click()
@@ -490,7 +504,9 @@ try {
     if (PARTS.includes('race')) await roomRace(browser, size).catch((e) => fail(`гонка-${size}: ${e.message}`))
     if (PARTS.includes('noserver')) await noServer(browser, size).catch((e) => fail(`без сервера-${size}: ${e.message}`))
   }
-  if (PARTS.includes('custom')) {
+  // своё дело собирает нейросеть: офлайн его не собрать
+  if (PARTS.includes('custom') && !process.argv.includes('--live')) console.log('\n[своё дело] пропущено: нужна живая нейросеть (--live)')
+  else if (PARTS.includes('custom')) {
     const faces = [
       await customCase(browser, SIZES.at(-1)!, 'Найм', 'найм тимлида в команду мобильного приложения', 'технический директор стартапа', 'напористый', true).catch((e) => fail(`своё-найм: ${e.message}`)),
       await customCase(browser, SIZES[0], 'Аренда', 'аренда офиса в бизнес-центре на три года', 'директор небольшой юридической фирмы', 'дружелюбный', true).catch((e) => fail(`своё-аренда: ${e.message}`)),
