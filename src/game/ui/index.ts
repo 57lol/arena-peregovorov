@@ -1,9 +1,9 @@
 // Пиксельный UI-кит. Стили подключаются один раз: import './game/ui/tokens.css' и './game/ui/ui.css'.
 export * from './assets'
-export { Portrait, EMOTION_RU } from './Portrait'
-export { Scene, useIntegerScale } from './Scene'
-export { DialogBox, useTypewriter, cpsFor } from './DialogBox'
-export { Button, SpeechField, IssueStepper, Notebook, OfferSlip, Meter, Stamp } from './Controls'
+export { Portrait } from './Portrait'
+export { Scene } from './Scene'
+export { DialogBox, cpsFor } from './DialogBox'
+export { Button, SpeechField, IssueStepper, Notebook, Meter, Stamp } from './Controls'
 export { worstFirst } from './order'
 export { MeetingClock } from './MeetingClock'
 export { PixelIcon, type IconName } from './PixelIcon'
