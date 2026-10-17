@@ -20,6 +20,8 @@ it('только ближайший разрешённый прокси може
   expect(remoteIp('::ffff:127.0.0.1', 'fake, 198.51.100.2', env)).toBe('198.51.100.2')
   expect(remoteIp('127.0.0.1', 'garbage', env)).toBe('127.0.0.1')
   expect(remoteIp(undefined, '198.51.100.2', env)).toBe('local')
+  // Passenger отдаёт соединение через unix-сокет без адреса: доверие только по явному «unix»
+  expect(remoteIp(undefined, 'fake, 198.51.100.2', { TRUSTED_PROXIES: 'unix' })).toBe('198.51.100.2')
 })
 it('проверенные пропуски дают разные сессии, подделанный или истёкший — адрес', async () => {
   vi.stubEnv('GATE_SECRET', 'secret')

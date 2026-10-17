@@ -8,11 +8,11 @@ import { getCookie } from 'hono/cookie'
 
 export const PASS_COOKIE = 'arena_pass'
 
-/** Заголовку доверяем только от явно заданного ближайшего прокси. */
+/** Заголовку доверяем только от явно заданного ближайшего прокси; unix — соединение через сокет без адреса (Passenger). */
 export function remoteIp(remote: string | undefined, forwarded: string | undefined, env = process.env): string {
   const peer = remote?.replace(/^::ffff:/, '')
   const trusted = (env.TRUSTED_PROXIES ?? '').split(',').map((s) => s.trim().replace(/^::ffff:/, ''))
-  if (peer && trusted.includes(peer)) {
+  if (trusted.includes(peer ?? 'unix')) {
     const ip = forwarded?.split(',').pop()?.trim()
     if (ip && isIP(ip)) return ip
   }
