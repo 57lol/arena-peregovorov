@@ -151,7 +151,8 @@ describe('естественная речь', () => {
     const text = `Ну, смотрите: 204 ₽ ${Math.random()}`
     const last = () => JSON.parse(String((f.mock.calls.at(-1) as unknown as [string, RequestInit])[1].body))
     await tts(app, { text, voice: 'alexander' })
-    expect(last().text).toBe(text)
+    // без флага — только ударения по словарю (stress.ts)
+    expect(last().text).toBe(text.replace('смотрите', 'смотр+ите'))
     const r = await tts(app, { text, voice: 'alexander', emotion: 'neutral', natural: true, live: true })
     expect(r.headers.get('x-tts-voice')).toBe('denis')
     expect(last().text).toContain('sil<[')
@@ -199,7 +200,8 @@ describe('лица и их подача', () => {
     const { spellOut } = await import('./direct')
     expect(spellOut('гости до 22:00, а в 7:52 автобус')).toBe('гости до 22, а в 7:52 автобус')
     expect(spellOut('1100 ₽ за кг, 50 кг')).toBe('1100 рублей за килограмм, 50 кг')
-    expect(spellOut('ОЭЗ «Алабуга»')).toBe('О-Э-З «Алабуга»')
+    // «ОЭЗ» для SpeechKit — в render (stress.ts), остальные движки читают сами
+    expect(spellOut('ОЭЗ «Алабуга»')).toBe('ОЭЗ «Алабуга»')
   })
 })
 
@@ -243,6 +245,18 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       // лаборатория с явным api — всегда SpeechKit
       expect((await tts(app, { text: `Ещё ${Math.random()}`, voice: 'sergey', api: 'v3' })).headers.get('x-tts-voice')).toBe('sergey')
     })
+  })
+
+  it('ударения: ElevenLabs получает U+0301 после гласной, OpenAI — текст без разметки', async () => {
+    for (const [model, want] of [['eleven-v4-turbo', 'Догово́р на кварта́л'], ['gpt-4o-mini-tts', 'Договор на квартал']]) {
+      await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: model }, async () => {
+        const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+        const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
+        await tts(app, { text: `Договор на квартал ${Math.random()}`, voice: 'denis', who: 'rinat' })
+        const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+        expect(body.input).toContain(want)
+      })
+    }
   })
 
   it('Gemini через AITunnel: манера словами в instructions, pcm → wav', async () => {
