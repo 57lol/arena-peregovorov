@@ -20,16 +20,19 @@ export function stripTags(text: string): string {
   return text.replace(ANY, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim()
 }
 
-/** Оставить одну знакомую пометку (по-английски, строчными) там, где она звучит естественно; остальное убрать. */
-export function normalizeTags(text: string, max = 1): string {
+/**
+ * Оставить одну знакомую пометку (по-английски, строчными) там, где она звучит естественно; остальное убрать.
+ * mid — продолжение реплики (кусок после уже сказанного начала): в его начале можно звук, но не подачу и не шёпот.
+ */
+export function normalizeTags(text: string, max = 1, mid = false): string {
   let n = 0
   const words = stripTags(text).split(/\s+/).filter(Boolean).length
   return text
     .replace(/(?<![<[])\[([^[\]<>\n]{1,40})\](?!\])/gu, (_m, raw: string, at: number, all: string) => {
       const tag = raw.trim().toLowerCase()
       const before = all.slice(0, at).replace(/\s*(?<![<[])\[[^[\]<>\n]{1,40}\](?!\])\s*/gu, '').trim()
-      const start = before === ''
-      const boundary = start || /[.!?…]$/.test(before)
+      const start = before === '' && !mid
+      const boundary = before === '' || /[.!?…]$/.test(before)
       const fits = SOUNDS.includes(tag) ? boundary : SPEECH.includes(tag) ? start : tag === 'whispers' ? start && words <= WHISPER_WORDS : false
       if (!fits || ++n > max) return ' '
       return `[${tag}]`

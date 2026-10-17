@@ -11,20 +11,24 @@ import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Interest, Issue, IssueId, Offer, OpponentState, Scenario, TalkAct, Tone, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, issueWeight } from '../engine/utility'
 import { cached } from './cache'
-import type { LLM } from './llm'
+import type { JsonRequest, LLM } from './llm'
 import { WAIT } from './timeouts'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-const VOICE_VERSION = 'v13'
+const VOICE_VERSION = 'v14'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
-const Raw = z.object({
+/** Что модель заявила до самой реплики: по этому рамку проверяем раньше, чем реплика зазвучит. */
+const Header = z.object({
+  agrees: z.boolean().default(false),
+  terms: z.array(z.object({ issue: z.string(), option: z.number().int() })).default([]),
+  reveals: z.array(z.string()).default([]),
+})
+type Header = z.infer<typeof Header>
+const Raw = Header.extend({
   line: z.string().min(1).max(900),
   emotion: z.string().default('neutral'),
-  terms: z.array(z.object({ issue: z.string(), option: z.number().int() })).default([]),
-  agrees: z.boolean().default(false),
-  reveals: z.array(z.string()).default([]),
 })
 type Raw = z.infer<typeof Raw>
 
@@ -114,9 +118,9 @@ ${natural ? `${FOR_VOICE}\n` : ''}${marks ? `${STRESS_HINT}\n` : ''}
 Пункты сделки и номера вариантов (для поля terms):
 ${options}
 
-Ответ — только JSON:
-{"line": "реплика", "emotion": "${EMOTIONS.join('|')}", "terms": [{"issue": "id пункта", "option": номер}], "agrees": false, "reveals": ["id"]}
-terms — условия, которые ты в этой реплике называешь как своё предложение или на которые соглашаешься (чужую цифру, которую ты только повторил, чтобы возразить, не пиши). agrees — true, только если ты соглашаешься на всю сделку. reveals — id причин, о которых ты в этой реплике рассказал или напомнил; если ни о какой — пустой список.`
+Ответ — только JSON, поля в этом порядке: сначала реши, что скажешь по сделке, потом говори.
+{"agrees": false, "terms": [{"issue": "id пункта", "option": номер}], "reveals": ["id"], "line": "реплика", "emotion": "${EMOTIONS.join('|')}"}
+agrees — true, только если ты соглашаешься на всю сделку. terms — условия, которые ты в этой реплике назовёшь как своё предложение или на которые соглашаешься (чужую цифру, которую ты только повторишь, чтобы возразить, не пиши). reveals — id причин, о которых ты в этой реплике расскажешь или напомнишь; если ни о какой — пустой список. Реплика — ровно то, что ты заявил в этих полях.`
 }
 
 export const schema = (sc: Scenario) => ({
@@ -124,10 +128,9 @@ export const schema = (sc: Scenario) => ({
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['line', 'emotion', 'terms', 'agrees', 'reveals'],
+    required: ['agrees', 'terms', 'reveals', 'line', 'emotion'],
     properties: {
-      line: { type: 'string' },
-      emotion: { type: 'string', enum: EMOTIONS },
+      agrees: { type: 'boolean' },
       terms: {
         type: 'array',
         items: {
@@ -137,8 +140,9 @@ export const schema = (sc: Scenario) => ({
           properties: { issue: { type: 'string', enum: sc.issues.map((i) => i.id) }, option: { type: 'integer' } },
         },
       },
-      agrees: { type: 'boolean' },
       reveals: { type: 'array', items: { type: 'string' } },
+      line: { type: 'string' },
+      emotion: { type: 'string', enum: EMOTIONS },
     },
   },
 })
@@ -466,14 +470,13 @@ export interface CheckContext {
   mine: string[]
 }
 
-/** Сверяем реплику и то, что модель про неё заявила, с решением движка. */
-export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): Check {
+const isBargaining = (d: Decision) => (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
+
+/** Что модель заявила до реплики (согласие, условия, раскрытые причины) против решения движка. */
+export function checkHeader(sc: Scenario, frame: Frame, out: Header): string[] {
   const hard: string[] = []
-  const soft: string[] = []
   const d = frame.decision
-  const line = stripTags(unstress(out.line))
-  if (!line) return { hard: ['пустая реплика'], soft }
-  if (d.kind !== 'accept' && (out.agrees || saysYes(line))) hard.push('ты соглашаешься на сделку, а твоё решение — не соглашаться')
+  if (d.kind !== 'accept' && out.agrees) hard.push('ты соглашаешься на сделку, а твоё решение — не соглашаться')
   for (const t of out.terms) {
     const i = sc.issues.find((x) => x.id === t.issue)
     if (!i || !i.options[t.option]) continue
@@ -483,25 +486,31 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
       ? `ты называешь «${lc(i.title)}: ${i.options[t.option]}», а у тебя в решении «${i.options[want]}»`
       : `про «${lc(i.title)}» ты сейчас ничего не предлагаешь`)
   }
-  for (const n of strayNumbers(sc, frame, line, ctx.heard)) hard.push(`цифры «${n}» нет в твоём решении`)
-  const lockedIds = new Set(frame.locked.map((i) => i.id))
-  const outed = [...new Set([...out.reveals.filter((id) => lockedIds.has(id)), ...leaks(sc, frame, line, ctx.said).map((i) => i.id)])]
-  for (const id of outed) {
+  for (const id of new Set(out.reveals)) {
     const i = frame.locked.find((x) => x.id === id)
     if (i) hard.push(`ты рассказал «${i.text}» — это пока твоя тайна`)
   }
-  // решение — рассказать причину: она должна прозвучать (сама модель так сказала или в реплике её слова)
-  if (d.kind === 'reveal') {
-    const it = frame.allowed.find((i) => i.id === d.interestId)
-    if (it && !out.reveals.includes(it.id) && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
-  }
-  const bargaining = (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
-  if (bargaining && claimsFinal(line)) hard.push('торг не закончен, а ты говоришь, что это последнее слово')
+  return hard
+}
+
+/** Что нельзя произнести, по самому тексту: согласие, чужие цифры, тайна, «последнее слово», грубость, стороны. */
+function sayProblems(sc: Scenario, frame: Frame, line: string, ctx: CheckContext, before = ''): string[] {
+  const hard: string[] = []
+  const d = frame.decision
+  if (d.kind !== 'accept' && saysYes(line)) hard.push('ты соглашаешься на сделку, а твоё решение — не соглашаться')
+  for (const n of strayNumbers(sc, frame, line, ctx.heard)) hard.push(`цифры «${n}» нет в твоём решении`)
+  // тайну выдают и двумя фразами подряд: считаем по всему сказанному, нарушение — то, что добавил этот кусок
+  const was = new Set(before ? leaks(sc, frame, before, ctx.said).map((i) => i.id) : [])
+  for (const i of leaks(sc, frame, before ? `${before} ${line}` : line, ctx.said)) if (!was.has(i.id)) hard.push(`ты рассказал «${i.text}» — это пока твоя тайна`)
+  if (isBargaining(d) && claimsFinal(line)) hard.push('торг не закончен, а ты говоришь, что это последнее слово')
   if (isRude(line)) hard.push('без мата и оскорблений')
   if (mixesSides(sc, line)) hard.push('ты перепутал стороны сделки')
+  return hard
+}
 
-  const words = line.split(/\s+/).length
-  if (words > 55) soft.push('слишком длинно: скажи короче, как в жизни')
+/** Начало реплики: как у ассистента, канцелярит, тот же заход, что в прошлый раз. */
+function startProblems(sc: Scenario, line: string, ctx: CheckContext): string[] {
+  const soft: string[] = []
   if (OPENER.test(line)) soft.push('начало звучит как у ассистента')
   const low = ` ${line.toLowerCase()}`
   const own = (sc.opponent.character.speech ?? '').toLowerCase()
@@ -510,9 +519,36 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
   const prev = ctx.mine[ctx.mine.length - 1]
   if (ctx.mine.some((m) => norm(m) === norm(line))) soft.push('ты повторил свою прошлую реплику слово в слово')
   else if (prev && norm(prev).split(' ').slice(0, 3).join(' ') === norm(line).split(' ').slice(0, 3).join(' ')) soft.push('начни не так же, как прошлую реплику')
+  return soft
+}
+
+/** Сверяем реплику и то, что модель про неё заявила, с решением движка. */
+export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): Check {
+  const d = frame.decision
+  const line = stripTags(unstress(out.line))
+  if (!line) return { hard: ['пустая реплика'], soft: [] }
+  const hard = [...new Set([...checkHeader(sc, frame, { ...out, agrees: false }), ...sayProblems(sc, frame, line, ctx)])]
+  if (d.kind !== 'accept' && out.agrees && !hard.includes('ты соглашаешься на сделку, а твоё решение — не соглашаться')) hard.unshift('ты соглашаешься на сделку, а твоё решение — не соглашаться')
+  // решение — рассказать причину: она должна прозвучать (сама модель так сказала или в реплике её слова)
+  if (d.kind === 'reveal') {
+    const it = frame.allowed.find((i) => i.id === d.interestId)
+    if (it && !out.reveals.includes(it.id) && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
+  }
+  const soft = startProblems(sc, line, ctx)
+  if (line.split(/\s+/).length > 55) soft.unshift('слишком длинно: скажи короче, как в жизни')
   const listing = d.kind !== 'accept' && d.kind !== 'counter' && !(d.kind === 'reveal' && d.offer)
   if (listing && new Set(out.terms.map((t) => t.issue)).size >= 3) soft.push('не перечисляй условия, листок у него перед глазами')
   return { hard, soft }
+}
+
+/**
+ * Кусок реплики перед тем, как он уйдёт в голос: сказанное не вернуть, поэтому всё, что видно по тексту, — здесь.
+ * first — начало реплики: ещё и заход (как у ассистента, канцелярит, как в прошлый раз).
+ */
+export function checkPiece(sc: Scenario, frame: Frame, piece: string, ctx: CheckContext, before = '', first = false): Check {
+  const line = stripTags(unstress(piece))
+  if (!line) return { hard: [], soft: [] }
+  return { hard: sayProblems(sc, frame, line, ctx, stripTags(unstress(before))), soft: first ? startProblems(sc, line, ctx) : [] }
 }
 
 // ——— безопасный вариант ———
@@ -578,6 +614,183 @@ function pickEmotion(e: string, d: Decision, s: OpponentState, engine: Emotion):
   return EMOTIONS.includes(e as Emotion) && ok[e as Emotion] ? (e as Emotion) : engine
 }
 
+// ——— поток ———
+
+/**
+ * Ответ модели, пока он пишется: заголовок — поля до "line" (согласие, условия, причины), null — модель начала с
+ * реплики или заголовок не разобрать; line — сколько реплики уже написано; closed — реплика дописана.
+ */
+export function partialReply(text: string): { header?: Header | null; line: string; closed: boolean } {
+  const m = /"line"\s*:\s*"/.exec(text)
+  if (!m) return { line: '', closed: false }
+  const head = text.slice(0, m.index).replace(/,\s*$/, '').trim()
+  let header: Header | null = null
+  try {
+    const o = JSON.parse(`${head}}`) as Record<string, unknown>
+    if ('agrees' in o && 'terms' in o && 'reveals' in o) header = Header.parse(o)
+  } catch {
+    header = null
+  }
+  const from = m.index + m[0].length
+  let i = from
+  let end = from
+  let closed = false
+  while (i < text.length) {
+    if (text[i] === '\\') {
+      const need = text[i + 1] === 'u' ? 6 : 2
+      if (i + need > text.length) break
+      i += need
+      end = i
+      continue
+    }
+    if (text[i] === '"') {
+      closed = true
+      break
+    }
+    end = ++i
+  }
+  const raw = text.slice(from, end).replace(/\p{Cc}/gu, ' ')
+  let line = raw
+  try {
+    line = JSON.parse(`"${raw}"`) as string
+  } catch {
+    // недописанное экранирование отрезали выше; что-то ещё — берём как есть
+  }
+  return { header, line, closed }
+}
+
+/** Готовые фразы с позиции from: знак конца, пробел и начало новой фразы (заглавная, цифра, пометка) или конец реплики. */
+function readySentences(line: string, from: number, closed: boolean): { list: string[]; next: number } {
+  const list: string[] = []
+  const re = /[.!?…]+[»")\]]*\s+(?=[\p{Lu}\d«"[(—–-])/gu
+  re.lastIndex = from
+  let start = from
+  for (let m; (m = re.exec(line)); ) {
+    list.push(line.slice(start, m.index + m[0].length).trim())
+    start = m.index + m[0].length
+  }
+  if (closed && line.slice(start).trim()) {
+    list.push(line.slice(start).trim())
+    start = line.length
+  }
+  return { list: list.filter(Boolean), next: start }
+}
+
+const wordsOf = (t: string) => stripTags(unstress(t)).split(/\s+/).filter(Boolean).length
+/** Начало реплики, которое уходит в голос отдельно: не короче стольких слов («Ха!» одно звучит обрывком). */
+const FIRST_WORDS = 4
+
+/** Кусок реплики — как clean(), но пометки по месту куска в реплике: только начало может задать подачу. */
+const cleanPiece = (t: string, mid: boolean, tags: number) =>
+  normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim(), mid ? Math.max(0, 1 - tags) : 1, mid)
+const tagCount = (t: string) => (t.match(/\[[a-z ]+\]/g) ?? []).length
+
+interface Streamed {
+  /** ответ целиком; при обрыве — что успели (заголовок и начало) */
+  out?: Raw
+  /** заголовок или начало не прошли проверку — поток оборван, нужна переписка */
+  stop?: Check
+  /** начало реплики, которое уже ушло в голос: дальше реплику не переписать */
+  first?: string
+  /** фразы после начала, которые вырезала проверка */
+  dropped: string[]
+  ttft?: number
+  header?: number
+  firstAt?: number
+}
+
+/**
+ * Реплика потоком. Как только модель заявила условия, согласие и причины (они идут до текста), сверяем их с решением —
+ * не сходится, обрываем и переписываем, не дожидаясь текста. Дальше текст по фразам: начало (от FIRST_WORDS слов)
+ * проверяем и сразу отдаём в голос (speak), следующие фразы проверяем по одной и вырезаем то, что сказать нельзя.
+ * Без speak — только ранний обрыв по заголовку.
+ */
+async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ctx: CheckContext, speak?: (piece: string) => void, signal?: AbortSignal): Promise<Streamed> {
+  const t0 = Date.now()
+  const ac = new AbortController()
+  const stop = () => ac.abort(signal?.reason)
+  if (signal?.aborted) stop()
+  signal?.addEventListener('abort', stop, { once: true })
+  const r: Streamed = { dropped: [] }
+  const d = frame.decision
+  const must = d.kind === 'reveal' ? frame.allowed.find((i) => i.id === d.interestId) : undefined
+  let text = ''
+  let header: Header | null | undefined
+  let used = 0
+  let pending = ''
+  let said = ''
+  const halt = (check: Check, line: string) => {
+    r.stop = check
+    r.out = { ...(header ?? { agrees: false, terms: [], reveals: [] }), line: line || '…', emotion: 'neutral' }
+    ac.abort()
+    return r
+  }
+  try {
+    for await (const chunk of m.stream!(req, ac.signal)) {
+      text += chunk
+      r.ttft ??= Date.now() - t0
+      const p = partialReply(text)
+      if (header === undefined && p.header !== undefined) {
+        header = p.header
+        r.header = Date.now() - t0
+        if (header) {
+          const hard = checkHeader(sc, frame, header)
+          if (must && !header.reveals.includes(must.id)) hard.push(`ты не рассказал «${must.text}», а решение — рассказать`)
+          if (hard.length) return halt({ hard, soft: [] }, '')
+        }
+      }
+      if (!header || !speak) continue
+      const { list, next } = readySentences(p.line, used, p.closed)
+      used = next
+      for (const raw of list) {
+        if (r.first === undefined) {
+          pending = pending ? `${pending} ${raw}` : raw
+          if (wordsOf(pending) < FIRST_WORDS && !(p.closed && raw === list[list.length - 1])) continue
+          const piece = cleanPiece(pending, false, 0)
+          if (!stripTags(piece)) continue
+          const c = checkPiece(sc, frame, piece, ctx, '', true)
+          if (c.hard.length || c.soft.length) return halt(c, piece)
+          r.first = said = piece
+          r.firstAt = Date.now() - t0
+          speak(piece)
+          continue
+        }
+        const piece = cleanPiece(raw, true, tagCount(said))
+        if (!stripTags(piece)) continue
+        const c = checkPiece(sc, frame, piece, ctx, said)
+        if (c.hard.length || wordsOf(`${said} ${piece}`) > 55) {
+          r.dropped.push(`«${stripTags(piece)}»: ${c.hard.join('; ') || 'слишком длинно'}`)
+          continue
+        }
+        said = `${said} ${piece}`
+      }
+    }
+  } catch (e) {
+    // начало уже звучит, а поток оборвался (сеть, таймаут) — реплика то, что успели сказать; иначе — ошибка как есть
+    if (r.first === undefined || signal?.aborted) throw e
+    console.warn(`[voice] поток оборвался после начала: ${(e as Error).message}`)
+    text = ''
+  } finally {
+    signal?.removeEventListener('abort', stop)
+  }
+  if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new Error('Реплика больше не нужна')
+  let full: Raw | undefined
+  try {
+    full = Raw.parse(JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)))
+  } catch {
+    // JSON не дописан — соберём из того, что разобрали
+  }
+  if (r.first !== undefined) {
+    r.out = { ...(full ?? { ...header!, emotion: 'neutral' }), line: said }
+  } else if (full) r.out = full
+  else {
+    const p = partialReply(text)
+    if (!p.line.trim()) throw new Error('В ответе нет реплики')
+    r.out = Raw.parse({ ...(p.header ?? {}), line: p.line })
+  }
+  return r
+}
+
 // ——— реплика ———
 
 export interface VoiceResult {
@@ -591,6 +804,8 @@ export interface VoiceResult {
   /** что не понравилось проверке (для разбора и логов) */
   problems?: string[]
   attempts?: number
+  /** мс от начала: первые слова модели, заголовок (условия до текста), начало реплики ушло в голос, реплика целиком */
+  ms?: { ttft?: number; header?: number; first?: number; done: number }
 }
 
 export interface VoiceOptions {
@@ -602,11 +817,40 @@ export interface VoiceOptions {
   fallback?: LLM
   /** каждая попытка модели — для прогонов и разбора (в кэш не попадает) */
   trace?: (t: { model: string; attempt: number; line: string; hard: string[]; soft: string[]; ms: number }) => void
+  /**
+   * Начало реплики прошло проверку — его можно озвучивать, не дожидаясь конца. Реплика в ответе всегда начинается
+   * с него. Только у моделей с потоком; без него начало не озвучивают заранее и реплику можно переписать целиком.
+   */
+  onFirst?: (piece: string) => void
+  /** реплика больше не нужна (спекуляция не угадала): поток обрывается, запасную модель не зовём */
+  signal?: AbortSignal
 }
 
 // ремарки, которые модели иногда пишут вместо пометок для голоса: [[laughs]], *вздыхает*, (смеётся), длинное [в квадратных скобках]
 const STAGE = /\[\[[^\]\n]{1,60}\]\]|\*[^*\n]{1,40}\*|\([^()\n]{1,40}\)|\[[^\]\n]{41,200}\]/gu
 const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
+
+/** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
+export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks'> = {}) {
+  const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
+  const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
+  const frame = frameFor(sc, d, state, prev, stanceBefore)
+  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) }
+}
+
+/**
+ * Рамка, при которой реплика годится: решение, что можно назвать и рассказать, что он просит. Настроение (доверие,
+ * напряжение) сюда не входит: оно меняет только тон, а не то, что можно сказать.
+ */
+export const frameKey = (sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState) => {
+  const { frame } = voicePrompt(sc, history, playerText, d, state)
+  // «просто поговорить»: на что именно отвечать (шутка, вопрос, имя), модель видит в его словах — разбор тут не важен
+  const what = d.kind === 'respond' ? [d.kind, !!d.back] : [d, frame.text]
+  return JSON.stringify([...what, frame.position, frame.allowed.map((i) => i.id).sort(), [...frame.changed].sort(), frame.final, state.playerStance ?? {}], (_k, v: unknown) =>
+    // порядок пунктов в объекте не важен: {quiet, wifi} = {wifi, quiet}
+    v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v,
+  )
+}
 
 export async function voice(
   llm: LLM,
@@ -617,18 +861,16 @@ export async function voice(
   state: OpponentState,
   opts: VoiceOptions = {},
 ): Promise<VoiceResult> {
-  const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
-  const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
+  const t0 = Date.now()
+  const { prev, frame, sys, user } = voicePrompt(sc, history, playerText, d, state, opts)
   const fallback = templateLine(sc, d, state, prev)
   if (llm.name === 'offline') return { ...fallback, source: 'template' }
-  const frame = frameFor(sc, d, state, prev, stanceBefore)
-  const sys = system(sc, !!opts.natural, !!opts.marks)
-  const user = userPrompt(sc, history, playerText, frame, state, prev)
   const ctx: CheckContext = {
     said: [sc.opening, ...history.flatMap((h) => [h.playerText, h.opponentLine]), playerText].join('\n'),
     heard: [...history.map((h) => h.playerText), playerText].join('\n'),
     mine: history.map((h) => h.opponentLine),
   }
+  const ms: { ttft?: number; header?: number; first?: number } = {}
 
   const run = async (m: LLM) => {
     const spare = !!opts.fallback && opts.fallback !== m && opts.fallback.name !== 'offline'
@@ -638,34 +880,63 @@ export async function voice(
     const { value, hit } = await cached('voice', key, async () => {
       const started = Date.now()
       const tries: { out: Raw; check: Check }[] = []
-      for (let attempt = 0; attempt < 2; attempt++) {
+      // начало уже прозвучало: реплику больше не переписать, её можно только подрезать
+      let spoken: { first: string; dropped: string[] } | undefined
+      for (let attempt = 0; attempt < 2 && !spoken; attempt++) {
         const last = tries[tries.length - 1]
         const ask = last
           ? `${user}\n\nТвой прошлый вариант: «${stripTags(unstress(last.out.line))}». Не годится: ${[...last.check.hard, ...last.check.soft].join('; ')}. Скажи заново, живо и коротко, строго в своём решении.`
           : user
-        const t0 = Date.now()
+        const t1 = Date.now()
+        // зависшую модель долго не ждём: игрок смотрит на «…», а запасная модель ответит за секунду
+        const req: JsonRequest = { system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? wait * 0.75 : wait, schema: schema(sc) }
         let out: Raw
         try {
-          // зависшую модель долго не ждём: игрок смотрит на «…», а запасная модель ответит за секунду
-          out = Raw.parse(await m.json({ system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? wait * 0.75 : wait, schema: schema(sc) }))
+          if (m.stream) {
+            const got = await streamed(m, req, sc, frame, ctx, opts.onFirst, opts.signal)
+            ms.ttft ??= got.ttft === undefined ? undefined : t1 - t0 + got.ttft
+            ms.header ??= got.header === undefined ? undefined : t1 - t0 + got.header
+            if (got.stop) {
+              tries.push({ out: got.out!, check: got.stop })
+              opts.trace?.({ model: m.model, attempt, line: got.out!.line, ...got.stop, ms: Date.now() - t1 })
+              console.warn(`[voice] ${d.kind}: оборвал на ходу — ${[...got.stop.hard, ...got.stop.soft].join('; ')} — «${got.out!.line}»`)
+              if (Date.now() - started > 7000) break
+              continue
+            }
+            out = got.out!
+            if (got.first !== undefined) {
+              ms.first = t1 - t0 + got.firstAt!
+              spoken = { first: got.first, dropped: got.dropped }
+            }
+          } else out = Raw.parse(await m.json(req))
         } catch (e) {
-          if (!attempt) throw e
+          if (opts.signal?.aborted || !tries.length) throw e
           // переписка не удалась: живой вариант первой попытки берём, а с нарушением — пусть пишет запасная модель (не в кэш)
           if (tries[0].check.hard.length && spare) throw e
           break
         }
-        out.line = clean(out.line)
+        if (!spoken) out.line = clean(out.line)
         // пункт не из дела или номер варианта вне диапазона — не условие, а ошибка модели
         out.terms = out.terms.filter((t) => sc.issues.find((i) => i.id === t.issue)?.options[t.option] !== undefined)
         const check = checkLine(sc, frame, out, ctx)
+        if (spoken?.dropped.length) check.hard.push(...spoken.dropped.map((x) => `вырезано ${x}`))
         tries.push({ out, check })
-        opts.trace?.({ model: m.model, attempt, line: out.line, ...check, ms: Date.now() - t0 })
+        opts.trace?.({ model: m.model, attempt, line: out.line, ...check, ms: Date.now() - t1 })
         if (!check.hard.length && !check.soft.length) break
         if (check.hard.length) console.warn(`[voice] ${d.kind}: ${check.hard.join('; ')} — «${out.line}»`)
         // долго думала — вторую попытку не ждём, берём лучшее из того, что есть
         if (Date.now() - started > 7000) break
       }
-      const best = [...tries].sort((a, b) => a.check.hard.length - b.check.hard.length || a.check.soft.length - b.check.soft.length)[0]
+      if (spoken) {
+        // начало уже звучит: берём эту попытку как есть (вырезанное уже вырезано), а чего не хватает — дописываем
+        const { out, check } = tries[tries.length - 1]
+        const problems = [...check.hard, ...check.soft]
+        const rest = check.hard.some((h) => !h.startsWith('вырезано')) ? prune(sc, frame, out, ctx) : undefined
+        const line = rest?.startsWith(spoken.first) ? rest : out.line
+        return { line, emotion: pickEmotion(out.emotion, d, state, fallback.emotion), kind: check.hard.length ? ('safe' as const) : ('llm' as const), problems, attempts: tries.length }
+      }
+      const best = [...tries].filter((t) => t.out.line !== '…').sort((a, b) => a.check.hard.length - b.check.hard.length || a.check.soft.length - b.check.soft.length)[0]
+      if (!best) return { line: fallback.line, emotion: fallback.emotion, kind: 'template' as const, problems: tries.flatMap((t) => t.check.hard), attempts: tries.length }
       const problems = [...best.check.hard, ...best.check.soft]
       if (!best.check.hard.length)
         return { line: best.out.line, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'llm' as const, problems, attempts: tries.length }
@@ -682,6 +953,7 @@ export async function voice(
       ...(problems?.length ? { problems } : {}),
       attempts,
       ...(kind === 'template' ? { error: 'Реплика модели не прошла проверку' } : {}),
+      ms: { ...ms, done: Date.now() - t0 },
     }
   }
 
@@ -689,6 +961,7 @@ export async function voice(
     return await run(llm)
   } catch (e) {
     const err = (e as Error).message
+    if (opts.signal?.aborted) return { ...fallback, source: 'template', error: err, ms: { done: Date.now() - t0 } }
     if (opts.fallback && opts.fallback !== llm && opts.fallback.name !== 'offline') {
       try {
         return { ...(await run(opts.fallback)), error: `${llm.model}: ${err}` }
