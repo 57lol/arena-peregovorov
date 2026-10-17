@@ -9,7 +9,6 @@ export interface SynthReq {
   provider?: LabTts
   api?: 'v1' | 'v3'
   emotion?: string
-  instructions?: string
   natural?: boolean
   live?: boolean
 }

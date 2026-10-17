@@ -299,8 +299,6 @@ export interface LineOptions {
   /** провайдер озвучки; по умолчанию — что выбрано в лаборатории, иначе SpeechKit */
   provider?: LabTts
   api?: 'v1' | 'v3'
-  /** только OpenAI: как говорить (акцент, манера) */
-  instructions?: string
 }
 
 /** Тест голоса ElevenLabs по ссылке: ?tts=eleven включает до конца вкладки, ?tts=off выключает. */
@@ -329,14 +327,14 @@ export function ttsVoice(voice: string, o: LineOptions = {}) {
   const provider = o.provider ?? lab.tts ?? 'yandex'
   const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
   const female = FEMALE_VOICES.includes(voice)
-  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[provider][female ? 'female' : 'male']
+  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[female ? 'female' : 'male']
   // лаборатория: естественная речь и голоса livetts (свой на пол или пара, которую подберёт сервер)
   const own = provider === 'yandex' && lab.live ? (female ? lab.liveFemale : lab.liveMale) : undefined
   const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
   // лицо: его амплуа livetts и кто говорит (по нему сервер выбирает голос у внешнего провайдера, TTS_PROVIDER)
   const who = provider === 'yandex' && !own && speaker.persona?.voice === voice ? { who: speaker.id, ...(speaker.persona.role ? { role: speaker.persona.role } : {}) } : {}
   const test = provider === 'yandex' && !api && !Object.keys(nat).length && typeof window !== 'undefined' && elevenTest() ? { test: 'eleven' as const } : {}
-  return { voice: own ?? v, ...who, ...nat, ...test, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
+  return { voice: own ?? v, ...who, ...nat, ...test, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}) }
 }
 
 /** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
