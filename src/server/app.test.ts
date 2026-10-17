@@ -182,9 +182,9 @@ describe('запросы из браузера с потолками (аудит
     expect(bad.status).toBe(400)
   })
 
-  it('ходов в минуту на сессию — не больше лимита', async () => {
+  it('ходов в минуту на сессию — не больше лимита (без модели ход бесплатный и не считается)', async () => {
     vi.stubEnv('TURN_SESSION_MINUTE_LIMIT', '2')
-    const a = createApp(makeLLM('offline').llm)
+    const a = createApp({ name: 'yandex', model: 'x', json: () => Promise.reject(new Error('нет')) })
     const codes = []
     for (let i = 0; i < 3; i++) codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s1' })).status)
     codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s2' })).status)

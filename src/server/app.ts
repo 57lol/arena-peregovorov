@@ -251,8 +251,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     return c.json({ id })
   })
 
-  /** Ходов в минуту на сессию: человек больше не успеет, а бот за минуту сожжёт бюджет. */
-  const tooFast = (c: Context) => !count.take(`turn:${sessionOf(c)}`, limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
+  /** Ходов в минуту на сессию: человек больше не успеет, а бот за минуту сожжёт бюджет (без модели ход бесплатный). */
+  const tooFast = (c: Context) => llm.name !== 'offline' && !count.take(`turn:${sessionOf(c)}`, limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
 
   app.post('/api/turn', BODY, async (c) => {
     const body = TurnBody.parse(await c.req.json())
