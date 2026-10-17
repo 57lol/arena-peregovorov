@@ -208,6 +208,7 @@
 }
 @media (max-width: 599px) {
   .g-term {
-    font: 400 var(--fs-ui) / 1 var(--f-ui);
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+    white-space: normal;
   }
 }
