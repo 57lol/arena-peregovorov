@@ -196,6 +196,9 @@ export function stopAudio() {
 
 /** Реальный плеер, включая поток и фразы-паузы: печать текста может закончиться раньше звука. */
 export const speechPlaying = () => !!audio && !audio.paused && !audio.ended && !audio.error
+/** Для трассы живых прогонов: что сейчас в плеере. */
+export const audioState = () =>
+  audio && { src: audio.src.slice(-16), paused: audio.paused, ended: audio.ended, t: +audio.currentTime.toFixed(2), d: +audio.duration.toFixed(2) }
 
 export interface Prepared {
   url: string
@@ -520,6 +523,8 @@ function feed(src: string, stop: AbortSignal, part: (bytes: Uint8Array) => void)
   return { url: URL.createObjectURL(ms), all, ms }
 }
 
+const STUCK_MS = 8000
+
 /**
  * Живая катка 17.10 (Тимур, реплика из двух кусков): поток закрыт, звук доигран до конца буфера, а вместо ended —
  * waiting навсегда; speechPlaying() не отпускал, микрофон в ?voiceonly больше не включался. Сторож: дырка между
@@ -528,9 +533,21 @@ function feed(src: string, stop: AbortSignal, part: (bytes: Uint8Array) => void)
 function guardEnd(a: HTMLAudioElement, src: string, ms: MediaSource) {
   let played = false
   const until = performance.now() + 5 * 60_000
+  // звук стоит на месте так долго — поток не придёт (сервер не дописал остаток): считаем, что договорил.
+  // Остаток ElevenLabs синтезируется целиком, пауза между кусками бывает 2–4 с — порог с запасом
+  let at = -1, still = performance.now()
   const timer = setInterval(() => {
     played ||= !a.paused
     if (a.src !== src || a.ended || (played && a.paused) || performance.now() > until) return clearInterval(timer)
+    if (a.currentTime !== at) {
+      at = a.currentTime
+      still = performance.now()
+    } else if (played && performance.now() - still > STUCK_MS) {
+      clearInterval(timer)
+      a.pause()
+      a.dispatchEvent(new Event('ended'))
+      return
+    }
     if (a.paused || ms.readyState !== 'ended' || a.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA || !a.buffered.length) return
     for (let i = 0; i < a.buffered.length; i++) {
       if (a.buffered.start(i) > a.currentTime + 0.01) {

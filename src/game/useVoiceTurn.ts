@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { endOfTurnMs } from './endOfTurn'
 import { createListener, type Listener, type ListenPhase } from './listen'
 import { openMic, type MicStream } from './micStream'
-import { micError, recognize, speechEndedAt, speechRemainingMs, sttLangNow, SttError } from './speech'
+import { audioState, micError, recognize, speechEndedAt, speechRemainingMs, sttLangNow, SttError } from './speech'
 import { scribeOn } from './sttMode'
+import { voiceTrace as trace } from './trace'
 import { browserScribe } from './sttStream'
 import type { Meeting } from './useMeeting'
 
@@ -13,6 +14,8 @@ import type { Meeting } from './useMeeting'
 export const ECHO_GUARD_MS = 80
 /** Поток Scribe подключаем, когда собеседнику осталось говорить столько: подключение 0,9–1,5 с. */
 export const PREPARE_MS = 2500
+/** Реплика без голоса: столько ждём после «допечаталась», прежде чем слушать. */
+const TEXT_SETTLE_MS = 250
 /** Конец звука был не раньше стольких мс до «собеседник договорил» — считаем от него, иначе от «сейчас». */
 const END_FRESH_MS = 1500
 
@@ -29,11 +32,6 @@ export function listenFrom(now: number, endedAt: number) {
   return (now - endedAt <= END_FRESH_MS ? endedAt : now) + ECHO_GUARD_MS
 }
 
-type Trace = (kind: string, detail?: unknown) => void
-const trace: Trace = (kind, detail) => {
-  const w = window as unknown as { __voiceTrace?: unknown[] }
-  w.__voiceTrace?.push([Math.round(performance.now()), kind, detail])
-}
 
 export function useVoiceTurn(m: Meeting, paused: boolean) {
   const [phase, setPhase] = useState<ListenPhase>('idle')
@@ -90,8 +88,18 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
     return () => document.removeEventListener('visibilitychange', on)
   }, [])
 
+  // Реплика без голоса «дослушана», когда допечаталась. Но печать начинается эффектом на кадр позже, чем реплика
+  // появилась, — без выдержки микрофон на миг открывался и тут же закрывался (живая катка 18.10, первая фраза терялась)
+  const heardKey = m.heard ? `${m.lineKey}:${m.voicedLine ? 'v' : 't'}` : ''
+  const [settled, setSettled] = useState('')
+  useEffect(() => {
+    if (!heardKey || m.voicedLine) return
+    const t = setTimeout(() => setSettled(heardKey), TEXT_SETTLE_MS)
+    return () => clearTimeout(t)
+  }, [heardKey, m.voicedLine])
+  const heard = m.heard && (m.voicedLine || settled === heardKey)
   const active = !m.done && !paused && visible
-  const myTurn = active && m.heard
+  const myTurn = active && heard
   const wantMic = active && (keepMicOpen() || myTurn)
 
   useEffect(() => {
@@ -132,7 +140,7 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
     if (!listening) return l.close()
     const end = speechEndedAt()
     const at = listenFrom(performance.now(), end)
-    trace('their-end', { end: Math.round(end), at: Math.round(at) })
+    trace('their-end', { end: Math.round(end), at: Math.round(at), audio: audioState() })
     l.open(at)
   }, [listening])
 

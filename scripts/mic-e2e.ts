@@ -36,7 +36,7 @@ const check = (ok: boolean, what: string) => {
 }
 
 /** stt — что отвечает /api/stt на n-й запрос; gumDelay — сколько «висит окно разрешения». */
-async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; long?: boolean; gumDelay?: number; voiceonly?: boolean; voice?: boolean; phone?: boolean; deny?: boolean; echo?: boolean; say?: [number, number] } = {}) {
+async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; long?: boolean; mute?: boolean; gumDelay?: number; voiceonly?: boolean; voice?: boolean; phone?: boolean; deny?: boolean; echo?: boolean; say?: [number, number] } = {}) {
   const browser = await chromium.launch({
     args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   })
@@ -99,7 +99,7 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
   const page = await ctx.newPage()
   page.on('pageerror', (e) => check(false, `ошибка на странице: ${e.message}`))
   await page.route('**/api/health', (r) =>
-    r.fulfill({ json: { ok: true, mode: 'offline', provider: 'offline', model: 'rules', scenarios: 7, speech: { tts: true, stt: true } } }),
+    r.fulfill({ json: { ok: true, mode: 'offline', provider: 'offline', model: 'rules', scenarios: 7, speech: { tts: !o.mute, stt: true } } }),
   )
   await page.route('**/api/tts', async (r) => {
     await new Promise((ok) => setTimeout(ok, o.tts ?? 0))
@@ -278,6 +278,18 @@ for (const view of ['classic', '3d'] as const) {
     check((await gum(m.page)) === opened, 'микрофон не переоткрывали между ходами')
     await m.close()
   }
+}
+
+{
+  console.log('\n— голос: реплика без озвучки — слушаем, когда допечаталась, без ложного открытия до печати')
+  const m = await meeting('classic', { voice: true, mute: true })
+  await m.page.waitForFunction(() => (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace.some((e) => e[1] === 'open'), undefined, { timeout: 20_000 }).catch(() => {})
+  await m.page.waitForTimeout(1500)
+  const tr = await traceOf(m.page)
+  check(tr.filter((e) => e[1] === 'open').length === 1, `микрофон открыт для ответа один раз (открытий: ${tr.filter((e) => e[1] === 'open').length})`)
+  const typed = await m.page.evaluate(() => !document.querySelector('.px-dialog-box')?.textContent?.includes('▌'))
+  check(typed && (await m.page.locator('.g-voice-state.is-on').count()) === 1, 'реплика допечатана, лампа «Слушаю» горит')
+  await m.close()
 }
 
 {
