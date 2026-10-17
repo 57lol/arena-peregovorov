@@ -54,18 +54,22 @@ for (const [w, h] of [
   check((await p.textContent('.g-dossier-title'))?.includes(getScenario('dorm')!.title) ?? false, `${w}: пролог → бриф «${getScenario('dorm')!.title}»`)
   await shot('02-после-пролога-бриф')
 
-  // повторный «Сюжет» — карта недели без пролога
+  // повторный «Сюжет», первая глава не сыграна — снова пролог и её бриф; карты в «Сюжете» нет
   await p.goto(URL)
   await p.getByRole('button', { name: /Сюжет/ }).click()
   await p.waitForTimeout(600)
-  check((await p.locator('.cs-root').count()) === 0 && (await p.locator('.mp-map').count()) > 0, `${w}: второй раз «Сюжет» — сразу карта`)
+  check((await p.locator('.cs-root').count()) > 0 && (await p.locator('.mp-map').count()) === 0, `${w}: второй раз «Сюжет» — снова пролог, без карты`)
+  await p.keyboard.press('Escape')
+  await p.waitForSelector('.g-dossier')
 
   // ——— разбор главы в «Сюжете»: «Дальше» → переход → бриф следующей главы
   const dorm = getScenario('dorm')!
   await p.evaluate(
     (s) => sessionStorage.setItem('peregovorka.session.v1', JSON.stringify(s)),
-    { screen: 'report', current: { scenario: dorm, fromLibrary: true }, history: demoHistory(dorm), from: 'map' },
+    { screen: 'report', current: { scenario: dorm, fromLibrary: true }, history: demoHistory(dorm), from: 'story' },
   )
+  // игра стирает ?cutscenes=1 из адреса — вернуть, иначе после перезагрузки катсцен не будет
+  await p.evaluate(() => history.replaceState(null, '', '/?cutscenes=1'))
   await p.reload()
   await p.waitForSelector('text=Дальше')
   await shot('03-разбор-главы-дальше')
