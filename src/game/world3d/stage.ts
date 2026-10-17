@@ -8,6 +8,7 @@ import { Company } from './company'
 import { Head, YAW_MAX, type Pose } from './head'
 import { EYE, SEATS, SPRITE_M_PER_PX } from './layout'
 import { Desk, type PaperId } from './papers'
+import { SEATED_FACE_Y } from './people'
 import { PixelPipeline } from './post'
 import type { ExitPlan } from './exit'
 import type { RoomBuild } from './room'
@@ -214,14 +215,18 @@ export class World {
     this.head.look(p)
   }
 
-  /** Собеседник уходит — игрок провожает его взглядом до двери, а когда дверь за ним закрылась, смотрит на стол переговоров. */
+  /**
+   * Собеседник встал и уходит — игрок смотрит ему в лицо и провожает взглядом до двери (на телефоне кадр узкий, и без
+   * этого вставший уходит головой за верх экрана), а когда дверь за ним закрылась, смотрит на стол переговоров.
+   */
   private following = false
   private followExit() {
     const lead = this.company?.lead
-    if (lead?.walking) {
+    if (lead?.tracking) {
       const p = lead.exitAt
+      const dist = Math.hypot(p.x - EYE.x, p.z - EYE.z)
       this.head.ty = MathUtils.clamp(Math.atan2(EYE.x - p.x, EYE.z - p.z), -YAW_MAX, YAW_MAX)
-      this.head.tp = this.head.poses.face.pitch
+      this.head.tp = this.head.poses.face.pitch + Math.atan2(p.y - EYE.y, dist) - Math.atan2(SEATED_FACE_Y - EYE.y, OPP_DIST)
       this.following = true
     } else if (this.following && (lead?.exited || !lead?.leaving)) {
       this.following = false

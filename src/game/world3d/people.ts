@@ -261,6 +261,8 @@ const SHOE = 6
 const LOW = TORSO + LEGS + SHOE
 /** низ портрета у стоящего — над полом, м */
 const STAND_BOTTOM = LOW * M
+/** середина лица сидящего собеседника — от неё считается, насколько поднять взгляд на вставшего */
+export const SEATED_FACE_Y = BUST_BOTTOM + S * M * 0.6
 const WP = 2
 const FW = S + WP * 2
 /** шаг: кадр ног меняется через столько метров пути */
@@ -407,8 +409,11 @@ export class Person {
   private walkerHead: Mesh<PlaneGeometry, ShaderMaterial> | null = null
   private walkerBody: Mesh<PlaneGeometry, ShaderMaterial> | null = null
   private walkerTex: Texture | null = null
-  /** где сейчас уходящий (мир, x и z) — за ним поворачивается голова игрока; null — сидит */
+  /** где сейчас лицо уходящего (мир) — за ним поворачивается голова игрока */
   readonly exitAt = new Vector3()
+  /** встал и ещё виден — игрок смотрит на него */
+  tracking = false
+  /** идёт (не стоит у стола) */
   walking = false
   /** ушёл совсем: скрылся, дверь за ним закрылась */
   exited = false
@@ -556,7 +561,7 @@ export class Person {
     if (!this.leaving) {
       if (this.gone) this.door?.(0)
       this.gone = this.walk = this.doorOpen = 0
-      this.walking = this.exited = false
+      this.walking = this.tracking = this.exited = false
       w.visible = false
       this.body.visible = true
       return
@@ -570,13 +575,14 @@ export class Person {
     this.body.visible = false
     w.visible = !f.gone
     this.walking = this.walk > 0 && !f.gone
+    this.tracking = !f.gone
     this.exited = exitDone(this.exit, this.walk)
     // ноги: на ходу — кадр шага по пройденному пути и лёгкое покачивание вверх-вниз
     const phase = f.s / STRIDE
     const bob = f.moving ? Math.abs(Math.sin(phase * Math.PI)) * 0.018 : 0
     const p = this.group.position
     w.position.set(f.x - p.x, (BUST_BOTTOM - STAND_BOTTOM) * (1 - f.stand) + bob, f.z - p.z)
-    this.exitAt.set(f.x, STAND_BOTTOM + S * M * 0.6, f.z)
+    this.exitAt.set(f.x, w.position.y + STAND_BOTTOM + S * M * 0.6, f.z)
     // лицом к нам: биллборд по своему месту на полу, а не по стулу
     w.rotation.y = Math.atan2(cam.position.x - f.x, cam.position.z - f.z)
     w.rotation.z = emotionTilt(this.emotion) * Math.PI / 180 * (1 - f.stand)
