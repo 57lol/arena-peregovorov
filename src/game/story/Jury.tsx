@@ -16,6 +16,8 @@ import { loadProgress, markTutorialDone, resetTutorial, type Progress } from '..
 import { loadVoiceOn, saveVoiceOn } from '../speech'
 import { PORTRAITS, Button, PixelIcon } from '../ui'
 import { Method } from '../screens/Method'
+import { PauseSlider } from '../screens/VoiceSettings'
+import { saveInputMode, useVoiceSettings } from '../voiceSettings'
 import { demoHistory } from './demo'
 import './jury.css'
 
@@ -198,6 +200,7 @@ function Face({ sc }: { sc: Scenario }) {
 function Settings({ progress, server, onProgress }: Props) {
   const [hints, setHints] = useState(loadInstantOn)
   const [voice, setVoice] = useState(loadVoiceOn)
+  const answer = useVoiceSettings()
   const tts = !!server?.speech?.tts
   const mentor = !progress.tutorialDone
   const mode =
@@ -252,6 +255,25 @@ function Settings({ progress, server, onProgress }: Props) {
             </Toggle>
           </dd>
         </div>
+        <div>
+          <dt>Как отвечать во встрече</dt>
+          <dd className="jr-seg">
+            <Toggle on={answer.mode === 'voice'} onClick={() => saveInputMode('voice')}>
+              Голосом
+            </Toggle>
+            <Toggle on={answer.mode === 'text'} onClick={() => saveInputMode('text')}>
+              Текстом
+            </Toggle>
+          </dd>
+        </div>
+        {answer.mode === 'voice' && (
+          <div>
+            <dt>Сколько ждать, пока договорю</dt>
+            <dd className="jr-seg">
+              <PauseSlider className="jr-pause" />
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Реплики разбирает</dt>
           <dd className="jr-mode">{mode}</dd>

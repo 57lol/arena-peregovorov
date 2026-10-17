@@ -1,6 +1,6 @@
 // Параметры голоса — первыми, пока адрес не почистили
 import './game/sttMode'
-import './game/voiceOnly'
+import './game/voiceSettings'
 import './game/speech'
 // ?reset — первым делом, до App.tsx: он при загрузке читает сохранённую партию
 import { resetting } from './game/reset'

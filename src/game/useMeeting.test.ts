@@ -10,11 +10,12 @@ const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: fals
   effects: [] as (() => void)[], cleanups: [] as (() => void)[] }))
 const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn(),
   reaction: vi.fn(), live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false }))
-const mode = vi.hoisted(() => ({ voiceOnly: false }))
-vi.mock('./voiceOnly', () => mode)
+const settings = vi.hoisted(() => ({ snap: { mode: 'text', pause: 'medium' } }))
+vi.mock('./voiceSettings', () => ({ voiceSettings: { subscribe: () => () => {}, get: () => settings.snap }, saveInputMode: vi.fn(), savePause: vi.fn() }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
   useMemo: (fn: () => unknown) => fn(),
+  useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => get(),
   useState: (initial: unknown) => {
     const i = hooks.cursor++
     if (!(i in hooks.slots)) hooks.slots[i] = typeof initial === 'function' ? initial() : initial
@@ -44,7 +45,7 @@ vi.mock('./speech', () => ({
   informal: () => true, startReaction: speech.reaction,
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(),
-  speechPlaying: () => speech.playing,
+  speechPlaying: () => speech.playing, canRecord: () => true, onSpeechEnd: () => () => {},
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn() }))
 vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn }))
@@ -71,7 +72,7 @@ beforeEach(() => {
   hooks.slots = []; hooks.cursor = 0; hooks.effects = []; hooks.cleanups = []
   speech.reaction.mockReset(); speech.reaction.mockImplementation(() => ({ cancel: vi.fn(), done: Promise.resolve() }))
   speech.on = true; speech.prepare.mockReset(); speech.play.mockClear(); speech.stop.mockClear()
-  speech.playing = false; mode.voiceOnly = false
+  speech.playing = false; settings.snap = { mode: 'text', pause: 'medium' }
   speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
   speech.prepare.mockImplementation(() => new Promise((r) => { resolveAudio = r }))
   props = {
@@ -83,26 +84,62 @@ beforeEach(() => {
 })
 afterEach(() => { hooks.cleanups.forEach((fn) => fn?.()); vi.useRealTimers() })
 
-describe('только голос', () => {
-  it('авто-микрофон включён, запись ждёт подготовки, печати и конца настоящего звука', async () => {
-    mode.voiceOnly = true
+describe('голосовой режим', () => {
+  it('слушаем игрока, только когда реплика прозвучала до конца; печать текста озвученной реплики не держит', async () => {
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: true, stt: true }
     render()
-    expect(meeting.autoMic).toBe(true)
-    expect(meeting.micReady).toBe(false)
+    expect(meeting.voiceMode).toBe(true)
+    expect(meeting.heard).toBe(false)
     await advance()
     speech.playing = true
     resolveAudio(prepared)
     await advance()
     meeting.setTalking(false)
     await advance(100)
-    expect(meeting.micReady).toBe(false)
+    expect(meeting.heard).toBe(false)
     speech.playing = false
     meeting.setTalking(true)
     await advance(100)
-    expect(meeting.micReady).toBe(false)
-    meeting.setTalking(false)
+    expect(meeting.heard).toBe(true)
+  })
+
+  it('реплика без голоса: слушаем, когда она допечаталась', async () => {
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: false, stt: true }
     render()
-    expect(meeting.micReady).toBe(true)
+    meeting.setTalking(true)
+    await advance(100)
+    expect(meeting.heard).toBe(false)
+    meeting.setTalking(false)
+    await advance(100)
+    expect(meeting.heard).toBe(true)
+  })
+
+  it('голос выбран, но микрофон не дали или распознавания нет — текст и понятная причина', async () => {
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: true, stt: true }
+    render()
+    meeting.setMicBlocked('Нет доступа к микрофону.')
+    render()
+    expect(meeting.voiceMode).toBe(false)
+    expect(meeting.voiceNote).toBe('Нет доступа к микрофону.')
+    hooks.slots = []
+    props.speech = { tts: true, stt: false }
+    render()
+    expect(meeting.voiceMode).toBe(false)
+    expect(meeting.voiceNote).toMatch(/Распознавание речи сейчас недоступно/)
+    hooks.slots = []
+    props.speech = { tts: true, stt: false, scribe: true }
+    render()
+    expect(meeting.voiceMode).toBe(true)
+  })
+
+  it('выбран текст — поле ввода, без подписи о микрофоне', () => {
+    props.speech = { tts: true, stt: true }
+    render()
+    expect(meeting.voiceMode).toBe(false)
+    expect(meeting.voiceNote).toBeNull()
   })
 })
 

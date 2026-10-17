@@ -6,7 +6,8 @@ import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
 import { mentorLine, useTutorial } from '../tutorial'
 import { MicButton } from './Mic'
-import { VoiceOnly } from './VoiceOnly'
+import { TextModeNote, VoiceTurn } from './VoiceTurn'
+import { VoiceSettings2D } from './VoiceSettings'
 import { Margin, MarginOff } from './Margin'
 import { Mentor } from './Mentor'
 import { Notes, Slip, XRay } from './meetingParts'
@@ -38,7 +39,7 @@ export function Play(props: Props) {
   // первая встреча — обучающая: то же, что в 3D, только бумаги не на столе, а в колонке справа
   const tut = useTutorial(props.tutorial, props.onTutorialOff, m)
   const mentor = tut.on
-    ? mentorLine(tut.step, { sc, pose: 'desk', phone: false, held: null, theirs: theirsOnTable, batna: P.batna })
+    ? mentorLine(tut.step, { sc, pose: 'desk', phone: false, held: null, theirs: theirsOnTable, batna: P.batna, voice: m.voiceMode })
     : props.tutorial && done && history.length > 0
       ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
       : null
@@ -209,7 +210,7 @@ export function Play(props: Props) {
                     </Button>
                   </div>
                 )}
-                {m.voiceOnly ? <VoiceOnly m={m} /> : <SpeechField
+                {m.voiceMode ? <VoiceTurn m={m} /> : <SpeechField
                   label={pending ? `${name} думает…` : 'Ваша реплика'}
                   value={pending ?? draft}
                   disabled={!!pending}
@@ -228,11 +229,12 @@ export function Play(props: Props) {
                     {error}
                   </p>
                 )}
+                {!m.voiceMode && <TextModeNote m={m} />}
                 <div className="g-say-row">
-                  {!m.voiceOnly && <Button variant="brass" icon="send" type="submit" disabled={!!pending || !draft.trim()}>
+                  {!m.voiceMode && <Button variant="brass" icon="send" type="submit" disabled={!!pending || !draft.trim()}>
                     {pending ? 'Слушает…' : 'Сказать'}
                   </Button>}
-                  {!m.voiceOnly && canMic && (
+                  {!m.voiceMode && canMic && (
                     <MicButton
                       disabled={!!pending}
                       onStart={m.hush}
@@ -316,6 +318,7 @@ export function Play(props: Props) {
 
             {xray && <XRay sc={sc} state={state} last={last} name={name} onClose={() => setXray(false)} />}
 
+            {tut.shows('extras') && <VoiceSettings2D />}
             {history.length > 0 && tut.shows('extras') && (
               <details className="g-protocol">
                 <summary>
