@@ -171,7 +171,8 @@ async function play(kase: string, phone: boolean) {
     await page.locator('.mp-list button').filter({ hasText: CASES[kase].title }).click()
     await page.waitForTimeout(500)
     await shot(page, '00-карта-глава', true)
-    await page.locator('.mp-card').getByRole('button', { name: /Войти|Сыграть/ }).click()
+    // на телефоне «Войти» живёт в нижней полосе карты, на широком — в карточке главы
+    await page.getByRole('button', { name: /^(Войти|Сыграть|Ещё раз)/ }).filter({ visible: true }).first().click()
     await page.waitForTimeout(600)
     await shot(page, '01-бриф', true)
     await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).filter({ visible: true }).last().click()

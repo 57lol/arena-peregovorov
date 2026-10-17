@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Case } from '../../App'
-import { BEHAVIOR_DICT, MINUTES_PER_TURN, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
+import { BEHAVIOR_DICT, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
 import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { revealAt } from '../../engine/policy'
@@ -13,13 +13,13 @@ import { firstName, g, isFemale, plural, portraitFor, pts, sceneFor } from '../c
 import { countStars, loadProgress, recordRun, runLogOf, starsOf, storageOk, type Progress } from '../progress'
 import { baseCaseId } from '../../content/scenarios'
 import { SkillGain } from './Career'
-import { Button, PixelIcon, Portrait, toPortraitEmotion } from '../ui'
+import { Button, PixelIcon, Portrait, Row, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
 import { Finale } from './Finale'
 import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
-import { summarize } from '../summary'
+import { often, summarize } from '../summary'
 import { plainWords } from '../instant'
 import '../onboarding.css'
 
@@ -78,6 +78,8 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
 
   const stars = starsOf(report)
   const wide = useWide()
+  // жёстче — только после сделки лучше, чем без неё: в убыточной сначала стоит научиться не соглашаться
+  const harder = onHarder && report.outcome.status === 'deal' && report.outcome.playerPoints >= report.batna.player
   const [more, setMore] = useState(false)
   const moreRef = useRef<HTMLDetailsElement>(null)
   const openMore = () => {
@@ -96,7 +98,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
           {history.length > 0 && (
             <SkillGain run={run} before={career?.before} after={career?.after}>
-              {onHarder && report.outcome.status === 'deal' && (
+              {harder && (
                 <div className="g-gain-harder">
                   <p>
                     Сделка есть. Та же история, но {name} упрямее и откровенничает реже.
@@ -154,7 +156,7 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
           <Button variant="brass" icon="rewind" onClick={onAgain}>
             Сыграть это дело заново
           </Button>
-          {onHarder && report.outcome.status === 'deal' && (
+          {harder && (
             <Button variant="stamp" onClick={onHarder}>
               Сыграть жёстче
             </Button>
@@ -326,15 +328,6 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
 
 /** Термин для тех, кто знает теорию, — мелко после простых слов. */
 const Term = ({ children }: { children: React.ReactNode }) => <small className="g-term">({children})</small>
-
-function Row({ label, value, strong, tone }: { label: React.ReactNode; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
-  return (
-    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  )
-}
 
 const DECISION_RU: Record<string, string> = {
   accept: 'сделка',
@@ -617,13 +610,4 @@ export function Bench({ row, who = 'вы', n }: { row: ProfileRow; who?: string;
   )
 }
 
-/** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */
-export function often(x: number, unit: 'share' | 'per_hour' | 'reasons'): string {
-  const perTurn = unit === 'share' ? x / 100 : (x * MINUTES_PER_TURN) / 60
-  if (perTurn <= 0) return 'ни разу'
-  if (perTurn >= 0.75) return 'почти в каждой реплике'
-  if (perTurn >= 0.4) return 'примерно в каждой второй реплике'
-  const k = Math.round(1 / perTurn)
-  return `примерно раз в ${k} ${plural(k, 'реплику', 'реплики', 'реплик')}`
-}
 

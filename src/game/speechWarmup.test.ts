@@ -49,7 +49,7 @@ describe('кэш прогрева', () => {
     const others = await Promise.all([
       prepareLine('Привет', 'denis'), prepareLine('Пока', 'vasily'),
       prepareLine('Привет', 'vasily', 'angry'),
-      prepareLine('Привет', 'vasily', 'neutral', 4000, { provider: 'openai' }),
+      prepareLine('Привет', 'vasily', 'neutral', 4000, { provider: 'elevenlabs' }),
     ])
     expect(fetch).toHaveBeenCalledTimes(5)
     expect(await prepareLine('Привет', 'vasily')).toBe(p)

@@ -3,8 +3,7 @@
 /* ---------- стол, на котором лежит интерфейс ---------- */
 
 /* Деревянный забор: доски по 24 игровых пикселя со швом, светлой фаской под швом, через одну чуть темнее;
-   стыки досок вразбежку, гвозди у стыков и волокна — плиткой-SVG (полупрозрачные, годятся на любой цвет стола).
-   Старый забор (только швы) — класс fence-old на <html> или любом предке, или ?fence=old в адресе. */
+   стыки досок вразбежку, гвозди у стыков и волокна — плиткой-SVG (полупрозрачные, годятся на любой цвет стола). */
 .px-desk {
   --on-desk: var(--c-paper);
   --on-desk-muted: var(--c-mist);
@@ -20,15 +19,6 @@
     auto,
     auto;
   color: var(--on-desk);
-}
-.fence-old .px-desk,
-.fence-old.px-desk {
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent 0 calc(23 * var(--u)),
-    var(--desk-lo) calc(23 * var(--u)) calc(24 * var(--u))
-  );
-  background-size: auto;
 }
 [data-desk='office'].px-desk,
 [data-desk='office'] .px-desk {
@@ -249,6 +239,10 @@
 .px-dialog-text.is-clipped {
   mask-image: linear-gradient(#000 calc(100% - var(--lh-read)), rgb(0 0 0 / 0.35) calc(100% - var(--lh-read)));
 }
+/* «↑ ещё» встаёт в свою строку над текстом, а не поверх его первой строки */
+.px-dialog-box.is-up {
+  padding-top: calc(3 * var(--u) + var(--lh-ui));
+}
 .px-dialog-up {
   position: absolute;
   right: calc(4 * var(--u));
@@ -305,11 +299,6 @@
   color: var(--on-desk-muted);
 }
 /* на телефоне клавиатура сама подписывает «Отправить», а Shift там нет */
-@media (hover: none) and (pointer: coarse) {
-  .px-field-hint {
-    display: none;
-  }
-}
 @media (hover: none), (pointer: coarse) {
   .px-field-hint {
     display: none;

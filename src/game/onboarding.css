@@ -206,3 +206,9 @@
   font: 400 var(--fs-small) / 1 var(--f-read);
   white-space: nowrap;
 }
+@media (max-width: 599px) {
+  .g-term {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+    white-space: normal;
+  }
+}

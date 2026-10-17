@@ -3,6 +3,7 @@ import type { Prepared } from './speech'
 import type { MeetingProps } from './useMeeting'
 import { getScenario } from '../content/scenarios'
 import { initialState } from '../engine/turn'
+import type { TurnRecord } from '../engine/types'
 
 // Тот же неглубокий жизненный цикл hooks, что в App.test.tsx; сеть и аудиоустройство не нужны.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
@@ -39,6 +40,8 @@ vi.mock('./speech', () => ({
   prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: vi.fn(),
   informal: () => true, startFiller: () => ({ cancel: vi.fn(), done: Promise.resolve() }),
 }))
+const api = vi.hoisted(() => ({ turn: vi.fn() }))
+vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn }))
 import { useMeeting } from './useMeeting'
 
 let props: MeetingProps
@@ -133,3 +136,55 @@ describe('реплики в настоящем useMeeting', () => {
     expect(speech.play).not.toHaveBeenCalled()
   })
 })
+
+describe('гонки хода', () => {
+  const record = (turn: number, playerText: string): TurnRecord => ({ turn, playerText, opponentLine: `ответ ${turn}`, emotion: 'neutral',
+    analysis: { behaviors: [] } as unknown as TurnRecord['analysis'], deltas: [], decision: { kind: 'hold' } as TurnRecord['decision'],
+    stateAfter: { ...initialState(props.game.scenario), turn } })
+  let answer: (r: { record: TurnRecord; source: string }) => void
+  beforeEach(() => {
+    speech.on = false
+    api.turn.mockReset()
+    api.turn.mockImplementation(() => new Promise((r) => { answer = r }))
+  })
+
+  it('ответ, пришедший после «Переиграть с этого хода», не дописывается в новую историю', async () => {
+    props.history = [record(1, 'раз'), record(2, 'два')]
+    render()
+    void meeting.send('три'); render()
+    expect(meeting.pending).toBe('три')
+    meeting.rewind(1); render()
+    expect(props.history).toEqual([])
+    answer({ record: record(3, 'три'), source: 'llm' }); await advance()
+    expect(props.history).toEqual([])
+    expect(meeting.pending).toBeNull()
+  })
+
+  it('ответ, пришедший после ухода со встречи, не попадает в историю следующей', async () => {
+    render()
+    void meeting.send('привет'); render()
+    hooks.cleanups.forEach((fn) => fn?.())
+    hooks.cleanups = []
+    answer({ record: record(1, 'привет'), source: 'llm' }); await advance()
+    expect(props.history).toEqual([])
+  })
+
+  it('обычный ход дописывается', async () => {
+    render()
+    void meeting.send('привет'); render()
+    answer({ record: record(1, 'привет'), source: 'llm' }); await advance()
+    expect(props.history.map((h) => h.playerText)).toEqual(['привет'])
+  })
+})
+
+describe('микрофон', () => {
+  it('игрок взял микрофон, пока голос реплики качается: реплика печатается текстом и не звучит', async () => {
+    render(); await advance()
+    expect(meeting.lineWaiting).toBe(true)
+    meeting.hush(); render()
+    expect(meeting.lineWaiting).toBe(false)
+    resolveAudio(prepared); await advance()
+    expect(speech.play).not.toHaveBeenCalled()
+  })
+})
+

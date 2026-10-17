@@ -132,7 +132,7 @@ function ensure(): AudioContext | null {
  * Без жеста: пробуем завестись сразу при открытии. Chrome пускает звук без клика, если на сайте уже кликали
  * (перезагрузка, повторный заход, частый сайт); иначе контекст остаётся спящим и стартует в первом жесте (unlock).
  */
-export function tryAutostart() {
+function tryAutostart() {
   if (!settings.on || robot()) return
   const c = ensure()
   if (!c) return
@@ -141,7 +141,7 @@ export function tryAutostart() {
 }
 
 /** Внутри жеста: создать контекст, разбудить и пискнуть тишиной — так iOS разрешает звук и дальше. */
-export function unlock() {
+function unlock() {
   if (!settings.on) return
   if (ctx?.state === 'running') return
   if (!ensure() || !ctx) return

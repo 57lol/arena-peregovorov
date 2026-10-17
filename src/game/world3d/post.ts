@@ -110,6 +110,7 @@ export class PixelPipeline {
   private quad: Scene
   private quadCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private mat: ShaderMaterial
+  private geo = new PlaneGeometry(2, 2)
   w = 0
   h = 0
 
@@ -136,7 +137,7 @@ export class PixelPipeline {
       depthWrite: false,
     })
     this.quad = new Scene()
-    this.quad.add(new Mesh(new PlaneGeometry(2, 2), this.mat))
+    this.quad.add(new Mesh(this.geo, this.mat))
   }
 
   /** Размер кадра в «игровых» точках. Холст — того же размера, растягивает его CSS. */
@@ -165,16 +166,9 @@ export class PixelPipeline {
   dispose() {
     this.target.dispose()
     this.mat.dispose()
+    this.geo.dispose()
     this.renderer.dispose()
-  }
-}
-
-/** Есть ли WebGL вообще: без него — классический 2D-вид. */
-export function hasWebGL(): boolean {
-  try {
-    const c = document.createElement('canvas')
-    return !!(c.getContext('webgl2') || c.getContext('webgl'))
-  } catch {
-    return false
+    // dispose() не отпускает сам контекст: без этого каждая встреча оставляет живой WebGL-контекст
+    this.renderer.forceContextLoss()
   }
 }

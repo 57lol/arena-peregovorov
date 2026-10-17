@@ -108,28 +108,6 @@ export function Notebook({ title, children, footer }: NotebookProps) {
   )
 }
 
-interface SlipProps {
-  from: string
-  rows: { label: string; value: string }[]
-}
-
-/** «На столе»: последнее формальное предложение, как листок, придавленный стаканом. */
-export function OfferSlip({ from, rows }: SlipProps) {
-  return (
-    <aside className="px-slip" aria-label="Предложение на столе">
-      <p className="px-slip-from">{from}</p>
-      <dl className="px-slip-rows">
-        {rows.map((r) => (
-          <div key={r.label} className="px-slip-row">
-            <dt>{r.label}</dt>
-            <dd>{r.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </aside>
-  )
-}
-
 interface MeterProps {
   label: string
   value: number // 0..100
@@ -164,6 +142,16 @@ export function Stamp({ kind }: StampProps) {
   return (
     <div className={`px-stamp px-stamp--${kind}`} role="status">
       <span>{STAMP_TEXT[kind]}</span>
+    </div>
+  )
+}
+
+/** Строка итогов «название — значение» внутри <dl>: крупная (strong), зелёная или красная (tone). */
+export function Row({ label, value, strong, tone }: { label: ReactNode; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
+  return (
+    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>
   )
 }

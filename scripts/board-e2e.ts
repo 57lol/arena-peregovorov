@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
 import { tara } from '../src/content/scenarios/tara'
 import type { Offer } from '../src/engine/types'
+import { worstFirst } from '../src/game/ui/order'
 import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
@@ -105,9 +106,12 @@ async function setNotebook(page: Page, offer: Offer, mobile: boolean) {
     const row = page.locator('.px-issue').filter({ has: page.locator('.px-issue-title', { hasText: i.title }) })
     for (let guard = 0; guard < 8; guard++) {
       const now = (await row.locator('.px-issue-value').textContent())?.trim() ?? ''
-      const at = i.options.indexOf(now)
-      if (at === want) break
-      await row.getByRole('button', { name: at < want ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
+      // стрелки листают от худшего для игрока к лучшему
+      const ord = worstFirst(sc.player.profile.points[i.id])
+      const at = ord.indexOf(i.options.indexOf(now))
+      const to = ord.indexOf(want)
+      if (at === to) break
+      await row.getByRole('button', { name: at < to ? `${i.title}: следующий вариант` : `${i.title}: предыдущий вариант` }).click()
     }
   }
 }

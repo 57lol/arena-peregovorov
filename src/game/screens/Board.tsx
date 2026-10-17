@@ -9,7 +9,7 @@ import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { isFemale, plural } from '../cast'
 import { closeRoom, loadBoard, RoomError, teamLink } from '../rooms'
-import { Button } from '../ui'
+import { Button, Row } from '../ui'
 import { LinkField } from './Coach'
 import { Bench } from './Debrief'
 import { PlayerCard } from './PlayerCard'
@@ -36,7 +36,10 @@ const STATUS: Record<Attempt['status'], string> = { deal: 'сделка', walked
 /** Доска руководителя: журнал тренировки с результатами всех, кто сыграл по ссылке команды. */
 export function Board({ server, id, secret, onExit }: Props) {
   const [data, setData] = useState<BoardData | null>(null)
-  const [sc, setSc] = useState<Scenario | null>(null)
+  // своего дела нет в библиотеке — его один раз берём с сервера
+  const [custom, setCustom] = useState<Scenario | null>(null)
+  const caseId = data?.caseId
+  const sc = (caseId && getScenario(caseId)) || custom
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fetching = useRef(false)
@@ -47,32 +50,42 @@ export function Board({ server, id, secret, onExit }: Props) {
   const refresh = useCallback(async () => {
     if (fetching.current) return
     fetching.current = true
-    setBusy(true)
-    try {
-      const b = await loadBoard(id, secret)
-      setData(b)
-      setUpdated(new Date())
-      setError(null)
-      setSc((prev) => prev ?? getScenario(b.caseId) ?? null)
-      if (!getScenario(b.caseId)) {
-        const r = await fetch(`/api/scenarios/${encodeURIComponent(b.caseId)}`)
-        if (r.ok) setSc((await r.json()) as Scenario)
-      }
-    } catch (e) {
-      setError(
-        e instanceof RoomError && e.status === 403
-          ? 'Ссылка на доску неверная или обрезалась при копировании. Возьмите её целиком из кабинета, где открывали тренировку.'
-          : 'Сервер не ответил. Попробуйте обновить чуть позже.',
+    await loadBoard(id, secret)
+      .then((b) => {
+        setData(b)
+        setUpdated(new Date())
+        setError(null)
+      })
+      .catch((e) =>
+        setError(
+          e instanceof RoomError && e.status === 403
+            ? 'Ссылка на доску неверная или обрезалась при копировании. Возьмите её целиком из кабинета, где открывали тренировку.'
+            : 'Сервер не ответил. Попробуйте обновить чуть позже.',
+        ),
       )
-    } finally {
-      fetching.current = false
-      setBusy(false)
-    }
+    fetching.current = false
   }, [id, secret])
+  // «Обновляем…» на кнопке — только когда обновляет руководитель, фоновый опрос кнопкой не мигает
+  const refreshNow = async () => {
+    setBusy(true)
+    await refresh()
+    setBusy(false)
+  }
 
   useEffect(() => {
-    if (server) refresh()
+    if (server) void refresh()
   }, [server, refresh])
+  useEffect(() => {
+    if (!caseId || getScenario(caseId)) return
+    let on = true
+    fetch(`/api/scenarios/${encodeURIComponent(caseId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<Scenario>) : null))
+      .then((s) => on && s && setCustom(s))
+      .catch(() => {})
+    return () => {
+      on = false
+    }
+  }, [caseId])
   // доска живая: пока вкладка открыта, подтягиваем новые результаты раз в 4 секунды
   useEffect(() => {
     if (!server) return
@@ -100,7 +113,7 @@ export function Board({ server, id, secret, onExit }: Props) {
             К игре
           </Button>
           {data && (
-            <Button icon="rewind" onClick={refresh} disabled={busy} className="g-board-refresh">
+            <Button icon="rewind" onClick={refreshNow} disabled={busy} className="g-board-refresh">
               {busy ? 'Обновляем…' : 'Обновить'}
             </Button>
           )}
@@ -122,7 +135,7 @@ export function Board({ server, id, secret, onExit }: Props) {
       <section className="g-sheet g-order">
         <h1 className="g-sheet-title">Доска не открылась</h1>
         <p role="alert">{error}</p>
-        <Button onClick={refresh} disabled={busy}>
+        <Button onClick={refreshNow} disabled={busy}>
           Попробовать ещё раз
         </Button>
       </section>,
@@ -278,15 +291,6 @@ function TeamLedger({ sum }: { sum: ReturnType<typeof summarize> }) {
         )}
       </dl>
     </section>
-  )
-}
-
-function Row({ label, value, strong, tone }: { label: string; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
-  return (
-    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   )
 }
 

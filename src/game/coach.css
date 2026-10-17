@@ -534,8 +534,10 @@
     display: block;
     min-width: 0;
   }
-  /* подписи полей карточки — читаемые */
-  .g-roll-table td::before {
+  /* подписи полей карточки, финал и пометки — читаемые */
+  .g-roll-table td::before,
+  .g-roll-table .g-roll-ending,
+  .g-roll-table small {
     font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
 }

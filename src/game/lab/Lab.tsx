@@ -25,19 +25,15 @@ interface LabInfo {
 const LLM_RU: Record<LabLlm, string> = {
   yandex: 'YandexGPT, основная',
   'yandex-lite': 'YandexGPT Lite',
-  openai: 'OpenAI GPT',
-  anthropic: 'Claude',
-  gigachat: 'GigaChat',
+  aitunnel: 'Claude Sonnet 5.5',
   offline: 'Без нейросети',
 }
-const TTS_RU: Record<LabTts, string> = { yandex: 'SpeechKit', openai: 'OpenAI', elevenlabs: 'ElevenLabs', salute: 'SaluteSpeech' }
-type TtsChoice = 'yandex-v3' | 'yandex-v1' | Exclude<LabTts, 'yandex'>
+const TTS_RU: Record<LabTts, string> = { yandex: 'SpeechKit', elevenlabs: 'ElevenLabs' }
+type TtsChoice = 'yandex-v3' | 'yandex-v1' | 'elevenlabs'
 const TTS_CHOICES: { id: TtsChoice; provider: LabTts; label: string; api?: 'v1' | 'v3' }[] = [
   { id: 'yandex-v3', provider: 'yandex', label: 'SpeechKit v3', api: 'v3' },
   { id: 'yandex-v1', provider: 'yandex', label: 'SpeechKit v1', api: 'v1' },
-  { id: 'openai', provider: 'openai', label: 'OpenAI' },
   { id: 'elevenlabs', provider: 'elevenlabs', label: 'ElevenLabs' },
-  { id: 'salute', provider: 'salute', label: 'SaluteSpeech' },
 ]
 const choiceOf = (c: LabConfig): TtsChoice => (!c.tts || c.tts === 'yandex' ? (c.ttsApi === 'v1' ? 'yandex-v1' : 'yandex-v3') : c.tts)
 
@@ -114,7 +110,7 @@ export default function Lab() {
       const yv = voiceOf(face, PORTRAITS[face].female)
       const female = FEMALE_VOICES.includes(yv)
       const own = tts.provider === 'yandex' && cfg.live ? (female ? cfg.liveFemale : cfg.liveMale) : undefined
-      const voice = own ?? (tts.provider === 'yandex' ? yv : LAB_VOICE[tts.provider][female ? 'female' : 'male'])
+      const voice = own ?? (tts.provider === 'yandex' ? yv : LAB_VOICE[female ? 'female' : 'male'])
       const nat = tts.provider === 'yandex' ? { natural: cfg.natural, live: cfg.live && !own ? true : undefined } : {}
       const s = await say({ text: p.line, voice, provider: tts.provider, api: tts.api, emotion: p.emotion, ...nat })
       setProbe({ ...p, voice: `${TTS_RU[tts.provider]}${tts.api ? ' ' + tts.api : ''}, ${voice}: ${s.note}` })
@@ -366,7 +362,7 @@ export default function Lab() {
         </div>
         {Object.values(cfg).some((v) => v !== undefined) && (
           <Button variant="ghost" icon="cross" onClick={() => update({})}>
-            Вернуть основные YandexGPT и SpeechKit
+            Вернуть настройки сервера
           </Button>
         )}
       </section>

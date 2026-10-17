@@ -110,7 +110,9 @@
     grid-template-columns: 1fr;
   }
   .gl-lead,
-  .gl-to {
+  .gl-to,
+  .gl-len,
+  .gl-place {
     font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
 }

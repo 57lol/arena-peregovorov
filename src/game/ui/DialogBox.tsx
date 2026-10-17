@@ -1,30 +1,22 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PixelIcon } from './PixelIcon'
-
-/** Паузы после знаков препинания, мс: текст «дышит», как речь. */
-const PAUSE: Record<string, number> = { '.': 260, '!': 260, '?': 260, '…': 380, ',': 110, ';': 140, ':': 140, '—': 160 }
+import { PAUSE } from './typing'
 
 function reducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
-/** Скорость печати, чтобы реплика допечаталась вместе с озвучкой длиной sec секунд (с паузами на знаках). */
-export function cpsFor(text: string, sec: number): number {
-  let pauses = 0
-  for (const ch of text.slice(0, -1)) pauses += PAUSE[ch] ?? 0
-  const typing = Math.max(sec * 950 - pauses, sec * 400)
-  return Math.max(8, Math.min(60, (text.length * 1000) / typing))
-}
-
 /** Печатает текст по буквам. skip() — показать сразу весь. */
-export function useTypewriter(text: string, cps = 42) {
-  const [n, setN] = useState(0)
+function useTypewriter(text: string, cps = 42) {
+  const [n, setN] = useState(() => (reducedMotion() ? text.length : 0))
+  // новый текст — печать с начала (сброс прямо в рендере, без лишнего прохода через эффект)
+  const [typed, setTyped] = useState(text)
+  if (typed !== text) {
+    setTyped(text)
+    setN(reducedMotion() ? text.length : 0)
+  }
   const done = n >= text.length
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  useEffect(() => {
-    setN(reducedMotion() ? text.length : 0)
-  }, [text])
 
   useEffect(() => {
     if (done) return
@@ -109,7 +101,7 @@ export function DialogBox({ name, role, text, onTalkingChange, onNext, onSkip, c
         role={waiting ? 'status' : 'button'}
         tabIndex={waiting ? undefined : 0}
         aria-busy={waiting || undefined}
-        className="px-dialog-box"
+        className={`px-dialog-box${above && done && !waiting ? ' is-up' : ''}`}
         onClick={click}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

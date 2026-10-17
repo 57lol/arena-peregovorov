@@ -6,12 +6,8 @@ import { AXES, BEHAVIORS, behaviorById, type Axis } from '../engine/behaviors'
 import { ENDING_IDS } from '../engine/endings'
 import type { Scenario } from '../engine/types'
 import type { Progress, RunLog } from './progress'
+import { plural } from './cast'
 
-const RU = new Intl.PluralRules('ru')
-export function plural(n: number, one: string, few: string, many: string) {
-  const k = RU.select(n)
-  return k === 'one' ? one : k === 'few' ? few : many
-}
 const times = (n: number) => (n === 1 ? 'раз' : `${n} ${plural(n, 'раз', 'раза', 'раз')}`)
 
 // ——— звание ———
@@ -157,7 +153,7 @@ export function skillsOf(runs: RunLog[]): Record<Axis, Skill> {
 
 // ——— сильное и слабое ———
 
-export interface Habit {
+interface Habit {
   id: string
   title: string
   count: number
