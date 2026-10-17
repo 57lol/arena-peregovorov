@@ -10,7 +10,7 @@ export { YANDEX_VOICES, type VoiceInfo }
 
 export type TtsProvider = 'yandex' | 'elevenlabs'
 
-/** Стоковые голоса ElevenLabs для лаборатории (в игре у каждого лица свой, CAST). Свои — ELEVENLABS_VOICES="Имя:id:m,Имя:id:f". */
+/** Стоковые голоса ElevenLabs для лаборатории (в игре у каждого лица свой, CAST). */
 const ELEVEN_DEFAULT: VoiceInfo[] = [
   { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', female: false },
   { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', female: false },
@@ -29,17 +29,7 @@ const ELEVEN_DEFAULT: VoiceInfo[] = [
   { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', female: true },
   { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', female: true },
 ]
-function elevenVoices(env = process.env): VoiceInfo[] {
-  const own = (env.ELEVENLABS_VOICES ?? '')
-    .split(',')
-    .map((s) => s.trim().split(':'))
-    .filter((p) => p.length >= 2 && /^\w{10,40}$/.test(p[1]))
-    .map(([name, id, g]) => ({ id, name, female: g === 'f' }))
-  return own.length ? own : ELEVEN_DEFAULT
-}
-
-/** Какой ключ нужен провайдеру и есть ли он. */
-export const voicesOf = (p: TtsProvider, env = process.env): VoiceInfo[] => (p === 'yandex' ? YANDEX_VOICES : elevenVoices(env))
+export const voicesOf = (p: TtsProvider): VoiceInfo[] => (p === 'yandex' ? YANDEX_VOICES : ELEVEN_DEFAULT)
 
 export function ttsStatus(env = process.env) {
   const yandex = env.SPEECH !== 'off' && !!env.YANDEX_API_KEY
@@ -195,7 +185,7 @@ export function elevenRequest(q: TtsRequest, f: Fetch = fetch, env = process.env
         body: JSON.stringify({ ...body, voice_id: q.voice }),
         signal,
       })
-    : f(`${env.ELEVENLABS_BASE_URL ?? 'https://api.elevenlabs.io/v1'}/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=mp3_44100_64`, {
+    : f(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=mp3_44100_64`, {
         method: 'POST',
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY ?? '', 'content-type': 'application/json', accept: 'audio/mpeg' },
         body: JSON.stringify({ ...body, language_code: 'ru' }),
@@ -258,7 +248,7 @@ export function castFor(who: string | undefined, yandexVoice: string, env = proc
   const own = Object.fromEntries((env.TTS_CAST ?? '').split(',').map((s) => s.trim().split(':')).filter((x) => x.length === 2))
   const known = who ? own[who] ?? CAST[who] : undefined
   if (known) return known
-  const pool = elevenVoices(env)
+  const pool = ELEVEN_DEFAULT
   const female = YANDEX_VOICES.find((v) => v.id === yandexVoice)?.female ?? false
   const same = pool.filter((v) => v.female === female)
   let h = 0
