@@ -98,11 +98,13 @@ export function MicButton(props: Props) {
   if (state === 'busy')
     return (
       <>
+        {/* на телефоне подписи прячутся: остаются микрофон, секунды и крестик */}
         <Button className="g-mic" icon="mic" disabled aria-label="Распознаю запись">
-          Распознаю… {sec} с
+          <span className="g-mic-label">Распознаю… </span>
+          {sec} с
         </Button>
-        <Button className="g-mic" variant="ghost" icon="cross" aria-label="Отменить распознавание" onClick={() => mic.current?.cancel()}>
-          Отмена
+        <Button className="g-mic" variant="ghost" icon="cross" aria-label="Отменить распознавание" title="Отменить: запись останется" onClick={() => mic.current?.cancel()}>
+          <span className="g-mic-label">Отмена</span>
         </Button>
       </>
     )
