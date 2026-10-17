@@ -16,6 +16,8 @@ import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
 export const VOICE_VERSION = 'v9'
+/** сколько ждём модель реплики, мс (VOICE_TIMEOUT_MS); не уложилась — пишет основная модель */
+const VOICE_MS = Number(process.env.VOICE_TIMEOUT_MS ?? 8000)
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({
@@ -101,7 +103,7 @@ ${secrets}
 Как идёт игра. В каждом ходе ты видишь весь разговор и своё решение по сделке. Решение уже принято и не меняется: там сказано, что ты делаешь с условиями и что можно рассказать. Всё остальное твоё: слова, шутки, подколки, встречные вопросы.
 
 Как говорить:
-- Это устная речь, тебя озвучит голос. Обычно одна-три короткие фразы, иногда одно слово, а если рассказываешь о себе — чуть больше. Длина каждый раз своя.
+- Это устная речь, тебя озвучит голос, длинное не дослушают. Обычно одна-три короткие фразы, слов десять-двадцать пять, иногда одно слово, а если рассказываешь о себе — чуть больше. Длина каждый раз своя.
 - Сначала отвечаешь на то, что человек сказал: на шутку, вопрос, извинение, имя. Потом про дело, если есть что сказать.
 - Условия называешь, только когда они меняются или о них спросили. Что и так лежит на листке, вслух не перечисляешь: листок у собеседника перед глазами.
 - Причину, когда её можно рассказать, говоришь своими словами и с чувством, не так, как она записана выше.
@@ -214,7 +216,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const filled = said.length && completeProposal(sc, stance, prev)
         ? ` Пункт ${said.map((i) => `«${lc(i.title)}»`).join(', ')} он не назвал — считаешь как у тебя на листке (${said.map((i) => i.options[deal[i.id]!]).join(', ')}); можно мимоходом это уточнить.`
         : ''
-      text = `Соглашаешься. Сделка: ${terms(sc, deal)}. Скажи, что согласен, коротко и в характере. Весь список зачитывать не нужно: назови главное, о чём спорили.${filled}`
+      text = `Соглашаешься. Сделка: ${terms(sc, deal)}. Скажи, что согласен, коротко и в характере. Весь список зачитывать не нужно: назови главное, о чём спорили. Если он назвал цифру, которой нет среди вариантов, сделка — по условиям выше: так и скажи.${filled}`
       break
     }
     case 'counter': {
@@ -312,6 +314,11 @@ ${can}${last.length ? `\nТвои прошлые реплики начинали
 const AGREE = /(?<!\p{L})(договорились|по рукам|согласен на (всё|все|это|твои|ваши|ваше|твоё)|принимаю (ваше|твоё|ваши|твои|предложение|условия)|сделка заключена|фиксируем|оформляем|подписываем)/iu
 const IF = /(?<!\p{L})(если|раз|тогда|давай|давайте|при условии|только|когда)(?!\p{L})/iu
 const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*|цифр\p{L}*)|окончательн\p{L}*|финальн\p{L}*|крайн\p{L}* (предложени|цен|цифр)\p{L}*|тв[её]рдое слово|больше не (уступлю|двинусь|подвинусь|могу уступить)|дальше (не двинусь|не подвинусь|двигаться не)|(это|вот) мой предел|торга не будет|без торга|не обсуждается)/iu
+/** «Это моё последнее слово» — да; «это ещё не последнее слово» — нет. */
+function claimsFinal(line: string): boolean {
+  const m = FINAL.exec(line)
+  return !!m && !/(?<!\p{L})(не|ещё не|пока не)\s+$/iu.test(line.slice(Math.max(0, m.index - 12), m.index))
+}
 const OPENER = /^(конечно|отличный вопрос|хороший вопрос|понимаю (тебя|вас|твою|вашу)|давай(те)? разбер[её]мся|я рад|я ценю|звучит (хорошо|отлично))(?!\p{L})/iu
 const BANNED = [
   'не представляется возможным', 'в рамках', 'осуществ', 'данный', 'данная', 'данное', 'является', 'вышеуказ',
@@ -323,11 +330,18 @@ const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu
 const sentences = (t: string) => t.split(/(?<=[.!?…])\s+/u).map((s) => s.trim()).filter(Boolean)
 const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
 
-/** Предложение в реплике похоже на согласие на сделку (а не на «давай так — и по рукам?»). */
+/**
+ * Предложение в реплике похоже на согласие на всю сделку. Не согласие: «давай так — и по рукам?», «если…, то по рукам»,
+ * «по срокам договорились, но цена…» — это предложение или согласие по одному пункту.
+ */
 function saysYes(line: string): boolean {
-  return sentences(line).some((s) => {
+  const contrast = /(?<!\p{L})(но|однако|а вот|только)(?!\p{L})/iu
+  return sentences(line).some((s, n, all) => {
     const m = AGREE.exec(s)
-    return !!m && !s.endsWith('?') && !IF.test(s.slice(0, m.index)) && !/(не|нет)\s+$/iu.test(s.slice(0, m.index))
+    if (!m || s.endsWith('?')) return false
+    const before = s.slice(0, m.index)
+    if (IF.test(before) || /(не|нет)\s+$/iu.test(before) || /(?<!\p{L})по\s+\p{L}+/iu.test(before)) return false
+    return !contrast.test(s.slice(m.index)) && !contrast.test(all[n + 1] ?? '')
   })
 }
 
@@ -345,17 +359,33 @@ export function mixesSides(sc: Scenario, line: string): boolean {
   return false
 }
 
-const COMMON = new Set(['больш', 'всего', 'очень', 'сразу', 'чтобы', 'когда', 'потом', 'тольк', 'этого', 'такой', 'может', 'через', 'нужно', 'будет', 'просто', 'честн', 'сейча', 'сегод', 'котор', 'своей', 'своих', 'свой', 'прост', 'самом', 'перво', 'тебя', 'меня', 'вообщ', 'никак', 'всегд', 'много', 'немно', 'хочет', 'хочу'])
+// общие слова торга: по ним тайну не узнать («деньги», «важнее», «договор»)
+const COMMON = new Set([
+  'больш', 'всего', 'очень', 'сразу', 'чтобы', 'когда', 'потом', 'тольк', 'этого', 'такой', 'может', 'через', 'нужно', 'будет',
+  'просто', 'честн', 'сейча', 'сегод', 'котор', 'своей', 'своих', 'прост', 'самом', 'перво', 'вообщ', 'никак', 'всегд', 'много',
+  'немно', 'хочет', 'важне', 'важно', 'главн', 'деньг', 'рубле', 'рубля', 'догов', 'услов', 'предл', 'давай', 'можно', 'нужен',
+  'нужна', 'хорош', 'плохо', 'проще', 'удобн', 'меньш', 'лучше', 'норма', 'понят', 'знаеш', 'знаю', 'делат', 'сделк', 'цифры',
+  'сроки', 'срока', 'сейча', 'потому', 'поэто', 'тогда', 'вашим', 'ваших', 'наших', 'нашим', 'своим', 'другой', 'други',
+])
 const stems = (t: string) =>
   [...new Set((t.toLowerCase().replaceAll('ё', 'е').match(/\p{L}{5,}/gu) ?? []).map((w) => w.slice(0, 5)).filter((w) => !COMMON.has(w)))]
 
-/** Слова закрытой причины, которых в разговоре ещё не было: два из них в реплике — причина выдана. */
+/**
+ * Закрытая причина выдана, если в реплике её слова, которых в разговоре ещё не было, и хотя бы одно из них редкое —
+ * есть только в этой причине (не в других причинах, не в его целях и манере речи). «Деньги» и «длинный договор»
+ * — общие слова торга, а «лизинг» и «рассрочка» — сама тайна.
+ */
 export function leaks(sc: Scenario, frame: Frame, line: string, said: string): Interest[] {
+  const c = sc.opponent.character
   const open = new Set(stems([said, sc.opening, ...sc.issues.flatMap((i) => [i.title, ...i.options]), ...frame.allowed.map((i) => i.text)].join(' ')))
   const got = stems(line)
+  const hit = (ws: string[]) => ws.filter((w) => got.some((g) => g.startsWith(w) || w.startsWith(g))).length
   return frame.locked.filter((i) => {
     const own = stems(i.text).filter((w) => !open.has(w))
-    return own.filter((w) => got.some((g) => g.startsWith(w) || w.startsWith(g))).length >= 2
+    // биографию не считаем: тайны в ней часто пересказаны («сегодня у него первая смена»), а говорить их рано
+    const common = new Set(stems([c.speech, sc.opponent.brief, sc.player.role, ...sc.opponent.profile.interests.filter((x) => x.id !== i.id).map((x) => x.text)].join(' ')))
+    const rare = own.filter((w) => !common.has(w))
+    return (hit(own) >= 2 && hit(rare) >= 1) || hit(rare) >= 2
   })
 }
 
@@ -364,6 +394,8 @@ export function strayNumbers(sc: Scenario, frame: Frame, line: string, said: str
   const heard = quantities(said)
   const out: string[] = []
   for (const q of quantities(line)) {
+    // голое число словами меньше сотни («восьмидесяти пяти» → «пяти») — не условие, а обрывок счёта
+    if (q.dim === 'plain' && q.value < 100 && !/\d/.test(line.slice(q.at, q.end))) continue
     const hits = sc.issues.flatMap((i) =>
       i.options.map((o, n) => ({ i, n, v: optionQuantity(o) })).filter(({ v }) => v && v.dim !== 'plain' && (q.dim === v.dim || q.dim === 'plain') && Math.abs(v.value - q.value) <= Math.abs(v.value) * 0.01 + 1e-9),
     )
@@ -412,12 +444,12 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
     if (i) hard.push(`ты рассказал «${i.text}» — это пока твоя тайна`)
   }
   const bargaining = (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
-  if (bargaining && FINAL.test(line)) hard.push('торг не закончен, а ты говоришь, что это последнее слово')
+  if (bargaining && claimsFinal(line)) hard.push('торг не закончен, а ты говоришь, что это последнее слово')
   if (isRude(line)) hard.push('без мата и оскорблений')
   if (mixesSides(sc, line)) hard.push('ты перепутал стороны сделки')
 
   const words = line.split(/\s+/).length
-  if (words > 60) soft.push('слишком длинно: скажи короче, как в жизни')
+  if (words > 55) soft.push('слишком длинно: скажи короче, как в жизни')
   if (OPENER.test(line)) soft.push('начало звучит как у ассистента')
   const low = ` ${line.toLowerCase()}`
   const own = (sc.opponent.character.speech ?? '').toLowerCase()
@@ -456,7 +488,7 @@ export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): 
     if (bad.some((re) => re.test(clean))) return false
     if (strayNumbers(sc, frame, clean, ctx.said).length) return false
     if (leaks(sc, frame, clean, ctx.said).length) return false
-    if (FINAL.test(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
+    if (claimsFinal(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
     return !isRude(clean) && !mixesSides(sc, clean)
   })
   const text = keep.join(' ').trim()
@@ -507,6 +539,8 @@ export interface VoiceOptions {
   marks?: boolean
   /** запасная модель, если основная для реплики не ответила */
   fallback?: LLM
+  /** каждая попытка модели — для прогонов и разбора (в кэш не попадает) */
+  trace?: (t: { model: string; attempt: number; line: string; hard: string[]; soft: string[]; ms: number }) => void
 }
 
 const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(/\s{2,}/g, ' ').trim())
@@ -542,10 +576,19 @@ export async function voice(
         const ask = last
           ? `${user}\n\nТвой прошлый вариант: «${stripTags(unstress(last.out.line))}». Не годится: ${[...last.check.hard, ...last.check.soft].join('; ')}. Скажи заново, живо и коротко, строго в своём решении.`
           : user
-        const out = Raw.parse(await m.json({ system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: 12_000, schema: schema(sc) }))
+        const t0 = Date.now()
+        let out: Raw
+        try {
+          // зависшую модель долго не ждём: игрок смотрит на «…», а запасная модель ответит за секунду
+          out = Raw.parse(await m.json({ system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? VOICE_MS * 0.75 : VOICE_MS, schema: schema(sc) }))
+        } catch (e) {
+          if (!attempt) throw e
+          break // переписка не удалась — берём лучшее из того, что уже есть
+        }
         out.line = clean(out.line)
         const check = checkLine(sc, frame, out, ctx)
         tries.push({ out, check })
+        opts.trace?.({ model: m.model, attempt, line: out.line, ...check, ms: Date.now() - t0 })
         if (!check.hard.length && !check.soft.length) break
         if (check.hard.length) console.warn(`[voice] ${d.kind}: ${check.hard.join('; ')} — «${out.line}»`)
         // долго думала — вторую попытку не ждём, берём лучшее из того, что есть

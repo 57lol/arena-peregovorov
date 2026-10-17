@@ -289,6 +289,10 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     // модель округлила как придётся (196), правила — в пользу собеседника (204)
     const a = groundAnalysis(tara, text, { behaviors: [], offer: { price: 2, payment: 0, rush: 4, term: 2, schedule: 2 } })
     expect(a.offer?.price).toBe(1)
+    // модель цену вовсе пропустила (варианта «200» нет) — правила её возвращают, иначе осталась бы прошлая 196
+    expect(groundAnalysis(tara, text, { behaviors: [], offer: { payment: 0, rush: 4, term: 2, schedule: 2 } }).offer?.price).toBe(1)
+    // а отвергнутое точное число не добавляется
+    expect(groundAnalysis(tara, 'Ваши 212 — не вариант, давайте 48 часов и год.', { behaviors: [], offer: { rush: 4, term: 2 } }).offer?.price).toBeUndefined()
   })
 
   it('предложение без одного пункта принимается: недостающее берётся с его листка', async () => {

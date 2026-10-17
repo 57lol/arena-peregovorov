@@ -102,7 +102,7 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
 }
 
 /** side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника. */
-export function parseOffer(sc: Scenario, text: string, side?: 'player'): Offer {
+export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Set<IssueId>): Offer {
   const infos = issueInfo(sc)
   const offer: Offer = {}
   const lower = text.toLowerCase()
@@ -165,6 +165,10 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player'): Offer {
     if (!c) continue
     const n = nearest(c.info.values, c.value, side === 'player' ? sc.opponent.profile.points[c.info.issue.id] : undefined)
     if (n >= 0) offer[c.info.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
+    // число между вариантами («200» при 204 и 196) — такого варианта нет, модель такое условие часто пропускает
+    const v = c.info.values[n]
+    if (n >= 0 && v && Math.abs(v.value - c.value) > Math.abs(c.value) * 0.01) rounded?.add(c.info.issue.id)
+    else rounded?.delete(c.info.issue.id)
   }
 
   // 2. Текстовые варианты («по факту отгрузки», «квартира», «ведёт запуск») — по словам, которые есть

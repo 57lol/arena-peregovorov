@@ -11,13 +11,14 @@ const REFUSAL = new RegExp(String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отка�
  * Отказ предлагать/платить и отвергнутые условия не служат доказательством.
  */
 export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Offer {
+  const rounded = new Set<string>()
   const positive = text
     // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
     // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
     .split(CLAUSE)
     .map((part) => REFUSAL.test(part) ? '' : part)
     .join('')
-  const evidence = parseOffer(sc, positive, 'player')
+  const evidence = parseOffer(sc, positive, 'player', rounded)
   const out: Offer = {}
   for (const [id, option] of Object.entries(offer)) {
     const e = evidence[id]
@@ -26,6 +27,9 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
     // Соседний вариант по числу из слов игрока — это то же условие, берём округление правил.
     if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id))) out[id] = e
   }
+  // «Давайте 200 ровно, по факту, 48 часов, год»: варианта «200» нет, и модель цену пропустила — а в предложении
+  // из нескольких пунктов это главное. Число между вариантами берём по правилам (округление в пользу собеседника).
+  if (Object.keys(out).length >= 2) for (const id of rounded) if (out[id] === undefined && offer[id] === undefined && evidence[id] !== undefined) out[id] = evidence[id]
   return out
 }
 
