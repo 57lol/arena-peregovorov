@@ -15,6 +15,7 @@ import { scribeMode } from './sttMode'
 import { browserScribe } from './sttStream'
 import { capturePcm } from './pcmStream'
 import { SttError, type Recording } from './recording'
+import { ENV_STEP, envelopeOf, growingEnvelope, joinParts, mouthRhythm, mouthStep, mouthWants, type Mouth } from './lips'
 export { SttError, micError, type Recording } from './recording'
 
 export interface SpeechCaps {
@@ -184,14 +185,9 @@ export interface Prepared {
 
 // ---------- губы по звуку ----------
 
-/** Шаг огибающей, с. */
-const ENV_STEP = 0.02
 const envCache = new Map<string, Promise<Float32Array | null>>()
 
-/**
- * Огибающая громкости записи: RMS по 20 мс, быстрый подъём, плавный спад, нормировка по 95-му перцентилю.
- * Считаем по тем же байтам, что играет <audio>, — сам плеер через Web Audio не пускаем, звук не рискуем.
- */
+/** Огибающая громкости записи (lips.ts). Считаем по тем же байтам, что играет <audio>, — сам плеер через Web Audio не пускаем, звук не рискуем. */
 async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null> {
   try {
     const W = window as unknown as { OfflineAudioContext?: typeof OfflineAudioContext; webkitOfflineAudioContext?: typeof OfflineAudioContext }
@@ -201,23 +197,7 @@ async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null
     if (!Off) return null
     const ctx = new Off(1, 1, 44100)
     const ab = await new Promise<AudioBuffer>((res, rej) => ctx.decodeAudioData(buf, res, rej))
-    const ch = ab.getChannelData(0)
-    const w = Math.max(1, Math.floor(ab.sampleRate * ENV_STEP))
-    const env = new Float32Array(Math.ceil(ch.length / w))
-    const power = new Float32Array(env.length)
-    let prev = 0
-    for (let k = 0; k < env.length; k++) {
-      let e = 0
-      const end = Math.min(ch.length, (k + 1) * w)
-      for (let i = k * w; i < end; i++) e += ch[i] * ch[i]
-      power[k] = e / Math.max(1, end - k * w)
-      const rms = Math.sqrt(power[k])
-      prev = rms > prev ? rms : prev * 0.35 + rms * 0.65
-      env[k] = prev
-    }
-    const sorted = Array.from(env).sort((a, b) => a - b)
-    const top = sorted[Math.floor(sorted.length * 0.95)] || 1
-    for (let k = 0; k < env.length; k++) env[k] = Math.min(1, env[k] / top)
+    const { env, power } = envelopeOf(ab.getChannelData(0), ab.sampleRate)
     gains.set(env, gainFor(power))
     return env
   } catch {
@@ -245,7 +225,7 @@ const setGain = (g: number) => {
   applyVolume()
 }
 
-function envelopeOf(src: string): Promise<Float32Array | null> {
+function envelopeAt(src: string): Promise<Float32Array | null> {
   let p = envCache.get(src)
   if (!p) {
     p = envelope(fetch(src).then((r) => r.arrayBuffer()))
@@ -255,17 +235,38 @@ function envelopeOf(src: string): Promise<Float32Array | null> {
 }
 
 /** Что сейчас звучит в нашем <audio> и его огибающая. null — голос молчит. */
-let lip: { src: string; env: Float32Array | null; open: boolean; at: number; line: boolean; endedAt: number } | null = null
+interface LipTrack extends Mouth {
+  src: string
+  env: Float32Array | null
+  line: boolean
+  endedAt: number
+}
+let lip: LipTrack | null = null
 
-function trackLip(a: HTMLAudioElement, env: Promise<Float32Array | null>, line: boolean) {
-  const me = { src: a.src, env: null as Float32Array | null, open: false, at: 0, line, endedAt: 0 }
+function trackLip(a: HTMLAudioElement, env: Promise<Float32Array | null> | null, line: boolean): LipTrack {
+  const me: LipTrack = { src: a.src, env: null, open: false, at: 0, line, endedAt: 0 }
   lip = me
-  env.then((e) => (me.env = e))
+  void env?.then((e) => {
+    // огибающая потока могла прийти раньше по кускам — целая не короче её
+    if (e && (!me.env || e.length >= me.env.length)) me.env = e
+  })
+  return me
+}
+
+/** Огибающая потока по мере прихода кусков: рот говорит с первых байт, а не когда скачается вся реплика. */
+function growLip(me: LipTrack) {
+  return growingEnvelope(
+    (bytes) => envelope(Promise.resolve(bytes.slice().buffer)),
+    (e) => {
+      if (!me.env || e.length >= me.env.length) me.env = e
+    },
+  )
 }
 
 /**
  * Рот собеседника по реальному звуку. 'off' — голоса нет, рот живёт по печати текста;
- * 'open'/'closed' — голос звучит (реплика или фраза-пауза), рот открыт, пока громкость выше порога.
+ * 'open'/'closed' — голос звучит (реплика, поток, реакция, фраза-пауза), рот открыт на слогах (lips.ts).
+ * Огибающей ещё нет — рот всё равно шевелится в ритме слогов, пока звук идёт; поток ждёт данных — рот закрыт.
  * После конца реплики ещё полторы секунды 'closed': дописывающийся текст рот не шевелит.
  */
 export function lipState(): 'off' | 'open' | 'closed' {
@@ -277,21 +278,12 @@ export function lipState(): 'off' | 'open' | 'closed' {
     l.endedAt ||= performance.now()
     return performance.now() - l.endedAt < 1500 ? 'closed' : 'off'
   }
-  if (a.paused || !l.env) return 'off'
-  // рот открыт на слогах: громкость выше порога и близко к местному пику (±80 мс); между слогами и в паузах — закрыт.
-  // Кадр держится не меньше 70 мс, чтобы рот не дрожал
-  const e = l.env
-  const k = Math.floor(a.currentTime / ENV_STEP)
-  const v = e[k] ?? 0
-  let peak = 0
-  for (let j = k - 4; j <= k + 4; j++) peak = Math.max(peak, e[j] ?? 0)
-  const want = v > 0.22 && v >= 0.7 * peak
+  if (a.paused) return 'off'
   const now = performance.now()
-  if (want !== l.open && now - l.at >= 70) {
-    l.open = want
-    l.at = now
-  }
-  return l.open ? 'open' : 'closed'
+  // поток ждёт данных (readyState < HAVE_FUTURE_DATA) — звука нет
+  const sounding = !(a.readyState < 3)
+  const want = !sounding ? false : l.env ? mouthWants(l.env, a.currentTime) : mouthRhythm(now)
+  return mouthStep(l, want, now) ? 'open' : 'closed'
 }
 
 /** Длительность из метаданных, если сервер её не сообщил (OpenAI отдаёт mp3 с неизвестным битрейтом). */
@@ -431,7 +423,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   stopAudio()
   url = p.url
   a.src = p.url
-  const env = p.env ?? envelopeOf(p.url)
+  const env = p.env ?? envelopeAt(p.url)
   trackLip(a, env, true)
   pace(a, p.voice ?? '')
   const g = await levelOf(env)
@@ -462,8 +454,8 @@ export const liveCps = (text: string) => cpsFor(text, text.length / LIVE_CHARS_P
 const streamable = () => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')
 let liveStop: AbortController | null = null
 
-/** Скачивать звук по кускам в MediaSource; в конце — весь звук (для губ и громкости). */
-function feed(src: string, stop: AbortSignal): { url: string; all: Promise<ArrayBuffer>; ms: MediaSource } {
+/** Скачивать звук по кускам в MediaSource; part — всё пришедшее после каждого куска (губы), в конце — весь звук. */
+function feed(src: string, stop: AbortSignal, part: (bytes: Uint8Array) => void): { url: string; all: Promise<ArrayBuffer>; ms: MediaSource } {
   const ms = new MediaSource()
   const all = new Promise<ArrayBuffer>((resolve, reject) => {
     ms.addEventListener('sourceopen', async () => {
@@ -490,11 +482,10 @@ function feed(src: string, stop: AbortSignal): { url: string; all: Promise<Array
           parts.push(value)
           if (buf.updating) await new Promise((ok) => buf.addEventListener('updateend', ok, { once: true }))
           buf.appendBuffer(value)
+          part(joinParts(parts))
         }
         await close()
-        const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
-        parts.reduce((at, p) => (out.set(p, at), at + p.length), 0)
-        resolve(out.buffer)
+        resolve(joinParts(parts).buffer as ArrayBuffer)
       } catch (e) {
         // поток оборвался не по нашей воле — доиграть то, что пришло, и закончить обычным ended
         await close(stop.aborted || !sb?.buffered.length ? 'network' : undefined)
@@ -542,14 +533,28 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
   live = me
   if (streamable()) {
     liveStop = new AbortController()
-    const got = feed(src, liveStop.signal)
+    let grow: (bytes: Uint8Array) => void = () => {}
+    const got = feed(src, liveStop.signal, (bytes) => grow(bytes))
     url = got.url
     a.src = got.url
     guardEnd(a, got.url, got.ms)
-    trackLip(a, envelope(got.all), true)
+    grow = growLip(trackLip(a, envelope(got.all), true))
   } else {
+    // без MediaSource (iPhone) звук играет по ссылке, а губы считаем по второму чтению того же потока, тоже по кускам
     a.src = src
-    trackLip(a, envelope(fetch(src).then((r) => r.arrayBuffer())), true)
+    const grow = growLip(trackLip(a, null, true))
+    const stop = (liveStop = new AbortController())
+    void fetch(src, { signal: stop.signal }).then(async (r) => {
+      if (!r.ok || !r.body) return
+      const parts: Uint8Array[] = []
+      const reader = r.body.getReader()
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        parts.push(value)
+        grow(joinParts(parts))
+      }
+    }).catch(() => {})
   }
   pace(a, '')
   return new Promise<boolean>((resolve) => {
@@ -629,7 +634,7 @@ export function warmFillers(voice: string, casual: boolean) {
   if (elevenOn()) warmReactions(speaker.id)
   for (const id of fillerIds(casual)) {
     const src = new URL(`${dir}${id}.mp3`, location.href).href
-    void envelopeOf(src).then((e) => e && fillerSec.set(src, e.length * ENV_STEP))
+    void envelopeAt(src).then((e) => e && fillerSec.set(src, e.length * ENV_STEP))
   }
 }
 /** Длина скачанных фраз-пауз, с: реплика ждёт, пока фраза договорит, поэтому длинные (до 3 с) — только если нет коротких (до 1,8 с: у каждого лица есть две-три). */
@@ -690,7 +695,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     const guard = setTimeout(end, 3500)
     for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
     a.src = reactionPath && reactionReady.has(reactionPath) ? reactionPath : `${src}${id}.mp3`
-    const env = envelopeOf(a.src)
+    const env = envelopeAt(a.src)
     trackLip(a, env, false)
     pace(a, eleven ? '' : voice)
     // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
