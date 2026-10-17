@@ -15,10 +15,12 @@ const SAID = 'Добрый день, давай договоримся'
 const OUT = join(homedir(), 'Arena-materials', 'shots', 'mic')
 mkdirSync(OUT, { recursive: true })
 
-type W = { gum: number; tracks: MediaStreamTrack[]; plays: string[] }
+type W = { gum: number; tracks: MediaStreamTrack[]; plays: [string, number][]; mark: number }
 const live = (p: Page) => p.evaluate(() => (window as unknown as W).tracks.filter((t) => t.readyState === 'live').length)
 const gum = (p: Page) => p.evaluate(() => (window as unknown as W).gum)
-const plays = (p: Page) => p.evaluate(() => (window as unknown as W).plays.slice())
+/** что заиграло после отметки mark() — приветствие, успевшее зазвучать до микрофона, не в счёт */
+const mark = (p: Page) => p.evaluate(() => void ((window as unknown as W).mark = performance.now()))
+const playsSince = (p: Page) => p.evaluate(() => (window as unknown as W).plays.filter(([, t]) => t >= (window as unknown as W).mark).map(([s]) => s))
 const field = (p: Page) => p.locator('#px-speech').inputValue()
 const btn = (p: Page, name: string) => p.getByRole('button', { name, exact: true })
 
@@ -52,7 +54,8 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
     const play = HTMLMediaElement.prototype.play
     HTMLMediaElement.prototype.play = function () {
       const src = this.src.startsWith('data:') ? 'silent' : this.src.includes('voice-fillers') ? 'filler' : 'speech'
-      return play.call(this).then(() => void window.plays.push(src))
+      const at = performance.now()
+      return play.call(this).then(() => void window.plays.push([src, at]))
     }
   `)
   const page = await ctx.newPage()
@@ -160,14 +163,16 @@ for (const view of ['classic', '3d'] as const) {
 {
   console.log('\n— игрок взял микрофон, пока голос реплики качается (2,5 с)')
   const m = await meeting('classic', { tts: 2500 })
+  await mark(m.page)
   await btn(m.page, 'Сказать голосом').click()
   await btn(m.page, 'Остановить запись и распознать').waitFor()
   await m.page.waitForTimeout(3500)
-  check(!(await plays(m.page)).includes('speech'), 'собеседник не заговорил поверх записи')
+  check(!(await playsSince(m.page)).includes('speech'), 'собеседник не заговорил поверх записи')
+  check((await m.page.evaluate(() => (window as unknown as { __lipState: () => string }).__lipState())) === 'off', 'во время записи голос собеседника не звучит')
   check((await m.page.locator('.px-dialog').innerText()).length > 20, 'реплика напечатана текстом')
   await btn(m.page, 'Остановить запись и распознать').click()
   await m.page.waitForTimeout(1500)
-  check(!(await plays(m.page)).includes('speech'), 'и после записи старая реплика не заиграла')
+  check(!(await playsSince(m.page)).includes('speech'), 'и после записи старая реплика не заиграла')
   await m.close()
 }
 
