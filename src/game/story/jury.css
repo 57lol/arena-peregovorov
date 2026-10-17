@@ -274,6 +274,17 @@
   display: flex;
   gap: 0;
 }
+.jr-pause {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u));
+}
+.jr-pause input {
+  min-width: 160px;
+  min-height: 40px;
+  accent-color: var(--c-stamp);
+}
 .jr-toggle {
   appearance: none;
   min-height: 40px;

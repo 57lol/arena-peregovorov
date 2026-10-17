@@ -10,9 +10,7 @@ import { REACTION_RECORDINGS } from '../content/reactions'
 import type { Reaction } from './reactions'
 import { PERSONAS, type Persona } from '../content/voices'
 import { cpsFor } from './ui/typing'
-import { speechPause } from './silence'
-import { endOfTurnMs } from './endOfTurn'
-import { scribeMode } from './sttMode'
+import { scribeOn } from './sttMode'
 import { browserScribe } from './sttStream'
 import { capturePcm } from './pcmStream'
 import { SttError, type Recording } from './recording'
@@ -23,6 +21,8 @@ export interface SpeechCaps {
   stt: boolean
   /** сервер говорит голосами ElevenLabs */
   eleven?: boolean
+  /** у сервера есть поток Scribe */
+  scribe?: boolean
 }
 
 // ---------- настройка «Голос» ----------
@@ -94,9 +94,32 @@ export function setVolume(v: number) {
 
 /** Наш единственный <audio>, сразу с нужной громкостью. На iPhone volume не меняется — там громкость только кнопками. */
 function player(): HTMLAudioElement {
-  audio ??= new Audio()
+  if (!audio) {
+    audio = new Audio()
+    // голосовой режим ловит конец звука собеседника по событию, а не опросом: микрофон принимает с этой точки
+    for (const e of ['ended', 'pause', 'error']) audio.addEventListener(e, (ev) => {
+      endedAt = ev.timeStamp || performance.now()
+      endWatchers.forEach((f) => f())
+    })
+  }
   applyVolume()
   return audio
+}
+
+let endedAt = 0
+const endWatchers = new Set<() => void>()
+/** Когда наш <audio> замолчал в последний раз (конец, пауза, ошибка) — время performance.now. */
+export const speechEndedAt = () => endedAt
+/** Подписка на конец звука; вернёт отписку. */
+export function onSpeechEnd(f: () => void) {
+  endWatchers.add(f)
+  return () => void endWatchers.delete(f)
+}
+/** Сколько ещё звучать, мс; null — не звучит или длина неизвестна. У потока — до конца того, что уже пришло. */
+export function speechRemainingMs(): number | null {
+  const a = audio
+  if (!a || a.paused || a.ended || !Number.isFinite(a.duration)) return null
+  return Math.max(0, ((a.duration - a.currentTime) * 1000) / (a.playbackRate || 1))
 }
 
 // ---------- озвучка ----------
@@ -730,19 +753,22 @@ export function canRecord(): boolean {
 /** Язык распознавания — язык дела: в деле на английском игрок говорит по-английски (useMeeting ставит при встрече). */
 let sttLang: Lang = 'ru'
 export const setSttLang = (sc: Pick<Scenario, 'lang'>) => void (sttLang = langOf(sc))
+export const sttLangNow = () => sttLang
 
 /** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
 let recording: MediaStream | null = null
 
-export async function startRecording(options?: { onSilence?: () => void; maxMs?: number; onPartial?: (text: string) => void }): Promise<Recording> {
+/**
+ * Запись по кнопке «Голосом» в текстовом режиме: до «Стоп» или минуты, текст — в поле. Scribe (если есть) даёт
+ * текст потоком, MediaRecorder пишет всю реплику для Яндекса. Голосовой режим встречи — useVoiceTurn.ts.
+ */
+export async function startRecording(options?: { onPartial?: (text: string) => void }): Promise<Recording> {
   // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
   // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
   let meter: AudioContext | undefined
   let source: MediaStreamAudioSourceNode | undefined
-  let poll: ReturnType<typeof setInterval> | undefined
-  let limit: ReturnType<typeof setTimeout> | undefined
   let live: ReturnType<typeof browserScribe> | undefined
   let stopCapture: ((flush?: boolean) => void) | undefined
   let finalText: Promise<string | null> | undefined
@@ -750,8 +776,6 @@ export async function startRecording(options?: { onSilence?: () => void; maxMs?:
   const release = () => {
     if (released) return
     released = true
-    clearInterval(poll)
-    clearTimeout(limit)
     stopCapture?.()
     source?.disconnect()
     void meter?.close().catch(() => {})
@@ -773,38 +797,16 @@ export async function startRecording(options?: { onSilence?: () => void; maxMs?:
         resolve(new Blob(chunks, { type: rec.mimeType }))
       }
     })
-    if (options?.onSilence || scribeMode) {
-      const Ctx = AC()!
-      meter = new Ctx()
-      source = meter.createMediaStreamSource(stream)
-      void meter.resume().catch(() => {})
-      if (scribeMode) {
-        try {
-          // Подключение (0,9–1,5 с) идёт параллельно с загрузкой worklet; звук до готовности копится в очереди.
-          live = browserScribe((text) => options?.onPartial?.(text), options?.maxMs === 30_000 ? 30 : 60, sttLang)
-          stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
-        } catch { live?.cancel(); live = undefined /* MediaRecorder продолжит без потока */ }
-      }
-      if (options?.onSilence) {
-        const analyser = meter.createAnalyser()
-        analyser.fftSize = 2048
-        source.connect(analyser)
+    if (scribeOn()) {
+      try {
+        const Ctx = AC()!
+        meter = new Ctx()
+        source = meter.createMediaStreamSource(stream)
         void meter.resume().catch(() => {})
-        const samples = new Float32Array(analyser.fftSize)
-        const paused = speechPause(() => endOfTurnMs(live?.text))
-        let stopped = false
-        const autoStop = () => {
-          if (stopped) return
-          stopped = true
-          options.onSilence?.()
-        }
-        poll = setInterval(() => {
-          analyser.getFloatTimeDomainData(samples)
-          const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length)
-          if (paused(rms, performance.now())) autoStop()
-        }, 80)
-        limit = setTimeout(autoStop, options.maxMs ?? 30_000)
-      }
+        // Подключение (0,9–1,5 с) идёт параллельно с загрузкой worklet; звук до готовности копится в очереди.
+        live = browserScribe((text) => options?.onPartial?.(text), 60, sttLang)
+        stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
+      } catch { live?.cancel(); live = undefined /* MediaRecorder продолжит без потока */ }
     }
     rec.start()
   } catch (e) {

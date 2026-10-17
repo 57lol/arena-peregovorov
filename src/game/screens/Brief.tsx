@@ -9,7 +9,8 @@ import { chapterOf } from '../../content/story'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait, worstFirst } from '../ui'
 import { ShareButton } from './ShareButton'
-import { loadVoiceOn, voiceFor, warmLine, type SpeechCaps } from '../speech'
+import { canRecord, loadVoiceOn, voiceFor, warmLine, type SpeechCaps } from '../speech'
+import { useVoiceSettings } from '../voiceSettings'
 
 interface Props {
   game: Case
@@ -21,6 +22,8 @@ interface Props {
 
 /** Бриф: папка дела открыта. Здесь игрок узнаёт всё, что знает его персонаж, — и только это. */
 export function Brief({ game, onStart, onBack, backLabel = 'К делам', speech }: Props) {
+  const answer = useVoiceSettings()
+  const byVoice = answer.mode === 'voice' && canRecord() && (speech ? speech.stt || !!speech.scribe : true)
   const sc = game.scenario
   useEffect(() => {
     if (speech?.tts && loadVoiceOn()) void warmLine(sc.opening, voiceFor(sc))
@@ -98,6 +101,12 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам', spee
               На встречу — {sc.turnLimit} {plural(sc.turnLimit, 'реплика', 'реплики', 'реплик')}. Цели и выгода будут у вас в
               блокноте на столе.
             </p>
+            {byVoice && (
+              <p className="g-muted g-brief-voice">
+                Отвечаете голосом: когда собеседник замолчит, микрофон слушает сам, пауза отправляет реплику. Писать текстом
+                можно в меню встречи.
+              </p>
+            )}
           </footer>
 
           {/* подробности — для тех, кому интересно */}

@@ -38,7 +38,7 @@ p.on('requestfinished', (q) => {
   const u = r.url()
   if (u.includes('/api/turn') || u.includes('/api/tts')) net.push({ u: u.split('/api/')[1], t: Date.now() })
 })
-await p.goto(`http://localhost:5173/?case=${CASE}`, { waitUntil: 'domcontentloaded' })
+await p.goto(`http://localhost:5173/?case=${CASE}&view=classic&text`, { waitUntil: 'domcontentloaded' })
 await p.waitForTimeout(2500)
 await p.getByText('К делу').first().click()
 await p.waitForTimeout(1500)

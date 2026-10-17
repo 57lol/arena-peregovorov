@@ -20,7 +20,8 @@ import { World } from '../world3d/stage'
 import { Margin } from './Margin'
 import { Mentor } from './Mentor'
 import { MicButton } from './Mic'
-import { VoiceOnly } from './VoiceOnly'
+import { TextModeNote, VoiceTurn } from './VoiceTurn'
+import { VoiceMenuItems } from './VoiceSettings'
 import { VolumeSlider } from './Volume'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
@@ -28,8 +29,8 @@ import '../world3d/world3d.css'
 import '../world3d/play3d.css'
 
 type Props = MeetingProps & {
-  /** в классический 2D-вид: выбор игрока или устройство не тянет */
-  onClassic: (why: 'choice' | 'slow') => void
+  /** в запасной 2D-вид: WebGL отвалился или устройство не тянет (сам игрок вид не выбирает) */
+  onClassic: (why: 'slow') => void
 }
 
 const reduced = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -305,7 +306,7 @@ export default function Play3D(props: Props) {
   const newOffer = canAccept && pose === 'face' && slipOn
   // что сейчас говорит наставник и что подсвечивает
   const mentor = tut.on
-    ? mentorLine(tut.step, { sc, pose, phone: !!world?.portrait, held, theirs: m.theirsOnTable, batna: m.P.batna })
+    ? mentorLine(tut.step, { sc, pose, phone: !!world?.portrait, held, theirs: m.theirsOnTable, batna: m.P.batna, voice: m.voiceMode })
     : props.tutorial && done && history.length > 0
       ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
       : null
@@ -462,7 +463,7 @@ export default function Play3D(props: Props) {
             </div>
           </div>
         ) : (
-          <SayForm m={m} />
+          <SayForm m={m} paused={menu} />
         )}
         {pose === 'desk' && !held && !done && world?.portrait && !tut.on && (
           <p className="w3-hint w3-hint--desk" aria-hidden="true">
@@ -483,7 +484,6 @@ export default function Play3D(props: Props) {
         <Menu
           m={m}
           onClose={() => setMenu(false)}
-          onClassic={() => onClassic('choice')}
           onQuit={onQuit}
           onXray={toggleXray}
         />
@@ -547,7 +547,7 @@ function MeetingTime({ turn, limit, clock }: { turn: number; limit: number; cloc
 }
 
 /** Поле ввода и «Сказать» — парят над миром. */
-function SayForm({ m }: { m: Meeting }) {
+function SayForm({ m, paused }: { m: Meeting; paused: boolean }) {
   // сказали с клавиатуры — после ответа курсор снова в поле: пишем дальше, не хватаясь за мышь
   const byKey = useRef(false)
   const wasPending = useRef(false)
@@ -564,7 +564,7 @@ function SayForm({ m }: { m: Meeting }) {
         m.send(m.draft)
       }}
     >
-      {m.voiceOnly ? <VoiceOnly m={m} /> : <SpeechField
+      {m.voiceMode ? <VoiceTurn m={m} paused={paused} /> : <SpeechField
         label={m.pending ? `${m.name} думает…` : 'Ваша реплика'}
         value={m.pending ?? m.draft}
         disabled={!!m.pending}
@@ -581,10 +581,10 @@ function SayForm({ m }: { m: Meeting }) {
         onPointerDown={() => (byKey.current = false)}
       />}
       <div className="w3-say-row">
-        {!m.voiceOnly && <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
+        {!m.voiceMode && <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
           {m.pending ? 'Слушает…' : 'Сказать'}
         </Button>}
-        {!m.voiceOnly && m.canMic && (
+        {!m.voiceMode && m.canMic && (
           <MicButton
             disabled={!!m.pending}
             onStart={m.hush}
@@ -603,6 +603,7 @@ function SayForm({ m }: { m: Meeting }) {
           {m.error}
         </p>
       )}
+      {!m.voiceMode && <TextModeNote m={m} />}
       {m.source === 'local' && <p className="w3-source">Играем офлайн: сервер недоступен</p>}
     </form>
   )
@@ -828,8 +829,8 @@ function TurnToasts({ fb, tip, dim, onMore, onExample }: { fb: TurnFeedback | nu
   )
 }
 
-/** Меню по Esc: протокол с перемоткой, настройки, классический вид, выход. */
-function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: () => void; onClassic: () => void; onQuit: () => void; onXray: () => void }) {
+/** Меню по Esc: протокол с перемоткой, настройки, выход. */
+function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void; onQuit: () => void; onXray: () => void }) {
   const [quit, setQuit] = useState(false)
   const card = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => card.current?.querySelector('button')?.focus(), [])
@@ -867,11 +868,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
               <VolumeSlider />
             </li>
           )}
-          <li>
-            <button type="button" className="w3-menu-item" onClick={onClassic}>
-              <PixelIcon name="notebook" px={2} /> Классический вид
-            </button>
-          </li>
+          <VoiceMenuItems />
           <li>
             <button type="button" className={`w3-menu-item is-stamp${quit ? ' is-sure' : ''}`} onClick={() => (quit ? onQuit() : setQuit(true))}>
               <PixelIcon name="leave" px={2} /> {quit ? 'Точно? Встреча не сохранится' : 'Выйти к папке дел'}

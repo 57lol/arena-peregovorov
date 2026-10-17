@@ -1,7 +1,7 @@
 // Логика встречи без вёрстки: реплики, блокнот, «Принять», «Уйти», голос, подсказки на ходу.
 // Ей пользуются оба вида встречи — классический 2D (screens/Play.tsx) и 3D (screens/Play3D.tsx).
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react'
 import type { Case } from '../App'
 import { initialState } from '../engine/turn'
 import { buttonLines } from '../engine/lang'
@@ -14,11 +14,11 @@ import { firstName, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, saveVoiceOn, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
-import { voiceOnly } from './voiceOnly'
+import { saveInputMode, savePause, voiceSettings } from './voiceSettings'
 
 export interface MeetingProps {
   game: Case
@@ -61,7 +61,9 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const [instantOn, setInstantOn] = useState(loadInstantOn)
   const [source, setSource] = useState<string>('')
   const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
-  const [autoMic, setAutoMic] = useState(voiceOnly)
+  const settings = useSyncExternalStore(voiceSettings.subscribe, voiceSettings.get, voiceSettings.get)
+  // микрофон не дали или его нет: встреча идёт текстом, причина — над полем
+  const [micBlocked, setMicBlocked] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const voiceRef = useRef(voiceOn)
   const [delivery, setDelivery] = useState<{ text: string; record: TurnRecord | undefined; cps?: number } | null>(null)
@@ -85,7 +87,17 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   // сервер ещё не ответил про голос (медленный /api/health) — считаем, что голос есть: реплика без звука просто печатается.
   // Раньше тут было !!speech?.tts, и при долгом ответе /api/health собеседник молчал всю встречу
   const canVoice = (speech ? speech.tts : true) && online
-  const canMic = !!speech?.stt && online && !micOff
+  // как и с голосом: пока /api/health не ответил, считаем, что распознавание есть; отказ сервера выключит микрофон
+  const canMic = (speech ? speech.stt || !!speech.scribe : true) && online && !micOff
+  // голосовой режим — основной: без поля ввода, микрофон слушает сам с конца реплики собеседника
+  const voiceMode = settings.mode === 'voice' && canMic && canRecord() && !micBlocked
+  const voiceNote =
+    settings.mode !== 'voice' || voiceMode
+      ? null
+      : (micBlocked ??
+        (!canRecord()
+          ? 'Микрофон в этом браузере недоступен — пишите текстом.'
+          : 'Распознавание речи сейчас недоступно — пишите текстом.'))
   const theirsForMe = isComplete(sc, state.lastOpponentOffer) ? score(P, state.lastOpponentOffer) : null
   const stamp: 'deal' | 'timeout' | 'walked' | null =
     state.status === 'deal' ? 'deal' : state.status === 'timeout' ? 'timeout' : state.status === 'walked_away' ? 'walked' : null
@@ -150,13 +162,20 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const lineCps = pending ? early?.cps : delivered ? delivery.cps : undefined
 
   useEffect(() => {
-    if (!voiceOnly) return
+    if (!voiceMode) return
     const poll = () => setAudioPlaying(speechPlaying())
     poll()
+    // конец звука — сразу по событию, опрос — страховка
+    const off = onSpeechEnd(poll)
     const timer = setInterval(poll, 100)
-    return () => clearInterval(timer)
-  }, [])
-  const micReady = !pending && !done && delivered && !talking && !lineWaiting && !audioPlaying && !speechPlaying()
+    return () => {
+      off()
+      clearInterval(timer)
+    }
+  }, [voiceMode])
+  // Собеседник договорил: реплика прозвучала до конца (или напечаталась, если без голоса). Тогда слушаем игрока
+  const voicedLine = delivered && delivery.cps !== undefined
+  const heard = !pending && !done && delivered && !lineWaiting && !audioPlaying && !speechPlaying() && (voicedLine || !talking)
 
   // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
   useEffect(() => {
@@ -319,7 +338,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
-    voiceOnly, autoMic, setAutoMic, micReady,
+    voiceMode, voiceNote, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
     send, putOnTable, accept, walk, rewind, undo, hush,
   }
 }

@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 // Телефоны: вся игра на 390×844, 375×667, 360×800, 430×932 (+ встреча лёжа 844×390) и контрольный десктоп 1440×900.
+// Встреча — текстом (прогоны Playwright) и голосом (?voiceonly, часть voice: панель микрофона и меню).
 // На каждом экране проверяем: нет горизонтальной прокрутки, ничего не вылезает за край и не обрезано,
 // кнопки не меньше 44 px и не перекрыты липкими панелями, текст не налезает друг на друга, читаемый текст не мельче 14 px.
 // Снимки — в ~/Arena-materials/final/mobile-shots/<метка>/<браузер>-<вьюпорт>/.
@@ -22,7 +23,7 @@ const URL = arg('url', 'http://localhost:5173')
 await requireOffline(URL)
 const TAG = arg('tag', 'after')
 const ROOT = join(homedir(), 'Arena-materials', 'final', 'mobile-shots', TAG)
-const ONLY = new Set(arg('only', 'static,meeting,story,board').split(','))
+const ONLY = new Set(arg('only', 'static,meeting,voice,story,board').split(','))
 
 interface Vp {
   id: string
@@ -518,6 +519,37 @@ async function meetingRun(page: Page, vp: Vp, dir: string, tag: string) {
   }
 }
 
+// ——— голосовой режим (основной): поле ввода нет, панель микрофона ———
+
+async function voiceRun(page: Page, vp: Vp, dir: string, tag: string) {
+  const shot = shooter(page, dir, tag, vp)
+  // офлайн-сервер без ключей распознавания: говорим игре, что оно есть; гудки фейкового микрофона — «не расслышал»
+  await page.route('**/api/health', (r) => r.fulfill({ json: { ok: true, mode: 'offline', provider: 'offline', model: 'rules', scenarios: 7, speech: { tts: false, stt: true } } }))
+  await page.route('**/api/stt', (r) => r.fulfill({ json: { text: '' } }))
+  for (const view of ['3d', 'classic'] as const) {
+    try {
+      await fresh(page, `/?case=tara&view=${view}&voiceonly`)
+      await page.getByRole('button', { name: 'К делу' }).click()
+      await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).filter({ visible: true }).last().click()
+      await page.waitForSelector('.g-voiceonly', { timeout: 40_000 })
+      await page.waitForTimeout(2500)
+      if ((await page.locator('textarea').count()) > 0) fail(`${tag} голос ${view}: есть поле ввода`)
+      await shot(`v-${view}-голос`)
+      // меню встречи: «голосом / текстом» и пауза
+      if (view === '3d') {
+        await page.locator('.w3-menu-btn').click()
+        await page.waitForTimeout(300)
+        // модальное меню перекрывает встречу нарочно — снимок без проверки налезаний
+        await page.screenshot({ path: join(dir, 'v-3d-меню.png') })
+        await page.getByRole('button', { name: /Вернуться за стол/ }).click()
+      }
+    } catch (e) {
+      fail(`${tag} голос ${view}: ${why(e)}`)
+      await shooter(page, dir, tag)(`v-${view}-ошибка`).catch(() => {})
+    }
+  }
+}
+
 // ——— сюжет с катсценами ———
 
 async function storyRun(page: Page, vp: Vp, dir: string, tag: string) {
@@ -640,13 +672,15 @@ async function runVp(bid: string, vp: Vp) {
   const parts: [string, (page: Page) => Promise<void>][] = [
     ['static', (page) => staticScreens(page, vp, dir, tag)],
     ['meeting', (page) => meetingRun(page, vp, dir, tag)],
+    ['voice', (page) => voiceRun(page, vp, dir, tag)],
     ['story', (page) => storyRun(page, vp, dir, tag)],
     ['board', (page) => boardRun(page, vp, dir, tag)],
   ]
   for (const [part, run] of parts) {
     if (!ONLY.has(part) || (landscape && (part === 'static' || part === 'board'))) continue
-    const b = await bt.launch(bt === chromium ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : {})
+    const b = await bt.launch(bt === chromium ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } : {})
     const ctx = await context(b, vp)
+    if (part === 'voice' && bt === chromium) await ctx.grantPermissions(['microphone'], { origin: new globalThis.URL(URL).origin })
     const page = await ctx.newPage()
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(String(e)))

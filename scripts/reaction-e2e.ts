@@ -71,7 +71,7 @@ try {
     })
     await page.route('**/assets/voice-reactions/**', (r) => mode === 'missing'
       ? r.fulfill({ status: 404, body: '' }) : r.fulfill({ body: audio, contentType: 'audio/mpeg' }))
-    await page.goto(`${base}/?case=dorm&view=${view}`)
+    await page.goto(`${base}/?case=dorm&view=${view}&text`)
     await page.locator('button.g-big').first().click()
     await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
     const field = page.locator('#px-speech')

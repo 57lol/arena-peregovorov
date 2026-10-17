@@ -23,6 +23,7 @@ import { stripTags } from './tags'
 import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
 import { looksEnglish } from '../engine/lang'
+import { streamConfigured } from './sttStream'
 import { castFor, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -182,6 +183,32 @@ function noId3(b: Uint8Array): Uint8Array {
 }
 const glue = (parts: Uint8Array[]) => new Uint8Array(Buffer.concat(parts))
 
+/**
+ * Что осталось озвучить, когда начало реплики уже звучит. Сравниваем по словам: регистр, знаки, «ё», ударения
+ * и пометки [..] не в счёт (их правят после первого куска, и раньше из-за этого начало звучало дважды).
+ * Конец начала переписан — говорим со следующей фразы; переписано почти всё — весь текст, как раньше.
+ */
+export function spokenTail(whole: string, start: string): string {
+  if (whole.startsWith(start)) return whole.slice(start.length).trim()
+  const norm = (w: string) => w.toLowerCase().replaceAll('ё', 'е').replace(/[^\p{L}\p{N}]+/gu, '')
+  const said = stripTags(unstress(start)).split(/\s+/).map(norm).filter(Boolean)
+  if (!said.length) return whole.trim()
+  const words = [...stripTagsKeep(whole).matchAll(/\S+/gu)].map((m) => ({ w: norm(unstress(m[0])), end: m.index + m[0].length })).filter((x) => x.w)
+  let k = 0
+  while (k < said.length && k < words.length && words[k].w === said[k]) k++
+  if (k === words.length) return ''
+  if (k === said.length) return whole.slice(words[k - 1].end).trim()
+  if (k < Math.max(2, said.length * 0.6)) return whole
+  // хвост начала переписан: пропускаем до конца фразы, на которой кончилось сказанное
+  const after = words[Math.min(said.length, words.length) - 1].end
+  const stop = /[.!?…]+/gu
+  stop.lastIndex = after - 1
+  const m = stop.exec(whole)
+  return m ? whole.slice(m.index + m[0].length).trim() : ''
+}
+/** Пометки [..] — пробелами той же длины: позиции слов совпадают с исходной строкой. */
+const stripTagsKeep = (t: string) => t.replace(/(?<![<[])\[[^[\]<>\n]{1,40}\](?!\])/gu, (m) => ' '.repeat(m.length))
+
 export function makeSpeech(opts: SpeechOptions = {}) {
   const env = process.env
   const key = opts.key ?? (env.SPEECH === 'off' ? undefined : env.YANDEX_API_KEY)
@@ -221,7 +248,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   // кто сейчас говорит: eleven — браузер берёт фразы-паузы ElevenLabs и не меняет темп голоса
   const status = () => {
     const voice = elevenOn() ? 'elevenlabs' : yandexTtsReady() ? 'speechkit' : null
-    return { tts: !!voice || !!primaryTts(), stt: !!key && !denied.stt, voice, ...(voice === 'elevenlabs' ? { eleven: true } : {}) }
+    return { tts: !!voice || !!primaryTts(), stt: !!key && !denied.stt, voice, ...(voice === 'elevenlabs' ? { eleven: true } : {}), ...(streamConfigured(env) ? { scribe: true } : {}) }
   }
 
   // Тексты, которые сервер выдал сам: реплики /api/turn, вступления дел, собранные дела. ElevenLabs озвучивает только их.
@@ -473,7 +500,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           complete = true
           if (piece) {
             const w = await whole
-            remaining = w.text.startsWith(start) ? w.text.slice(start.length).trim() : w.text
+            remaining = spokenTail(w.text, start)
             if (stripTags(remaining)) {
               // Остаток отдаём целиком: при обрыве его заменит SpeechKit без повтора полуслов.
               const chunks: Uint8Array[] = []

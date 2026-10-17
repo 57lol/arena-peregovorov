@@ -101,6 +101,10 @@ export function createScribe(io: StreamIO) {
     },
     cancel: () => end(null),
     get text() { return text },
+    /** поток подключён (воркер прислал ready) */
+    get ready() { return ready },
+    /** поток закончен: финал, сбой или отмена — им больше не пользоваться */
+    get ended() { return ended },
   }
 }
 

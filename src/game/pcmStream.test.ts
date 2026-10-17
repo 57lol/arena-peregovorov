@@ -50,4 +50,12 @@ describe('захват PCM', () => {
     expect(node.port.onmessage).toBeNull()
     expect(c.fallback).not.toHaveBeenCalled()
   })
+  it('кадр несёт время своего первого отсчёта: блок кончился «сейчас», хвост в ресемплере ещё не ушёл', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(10_000)
+    const c = context(), push = vi.fn()
+    await capturePcm(c.ctx, c.source, push, 320)
+    // 1000 отсчётов 16 кГц = 62,5 мс: три кадра по 20 мс и 40 отсчётов в ресемплере
+    c.processor.onaudioprocess?.({ inputBuffer: { getChannelData: () => new Float32Array(1000).fill(0.5) } })
+    expect(push.mock.calls.map(([, t]) => t)).toEqual([10_000 - 62.5, 10_000 - 42.5, 10_000 - 22.5])
+  })
 })
