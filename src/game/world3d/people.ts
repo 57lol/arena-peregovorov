@@ -3,6 +3,8 @@
 // Руки нарисованы слоем поверх спрайта (плечо → предплечье → сложенные кисти), цвета рукавов и кожи — с самого портрета.
 // Собеседник всегда смотрит на нас. Массовка молчит: моргает, смотрит в бумаги, поворачивается к говорящему
 // и иногда поглядывает на нас. Плоский спрайт при повороте сужается — это и читается как поворот головы.
+// Уходит собеседник во весь рост: голова из того же листа, ниже — торс, руки и ноги, дорисованные по цветам портрета
+// (ходьба — два кадра шага). Путь и дверь — exit.ts; к нам он всё время лицом, как и за столом.
 
 import {
   CanvasTexture,
@@ -20,6 +22,7 @@ import {
 } from 'three'
 import { emotionTilt, spriteEmotion, EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
 import { SPRITE_M_PER_PX as M, TABLE, SEATED_FORWARD, seatedTurn, seatYaw } from './layout'
+import { exitDone, exitFrame, STAND_S, type ExitPlan } from './exit'
 import { lipState } from '../speech'
 
 const S = PORTRAIT_SIZE
@@ -68,6 +71,8 @@ interface Sheet {
   left: number[]
   right: number[]
   torso: { l: number; r: number }
+  /** нижняя строка портрета (RGBA) — по ней дорисовывается торс того, кто встал и уходит */
+  bottom: Uint8ClampedArray
 }
 
 const sheets = new Map<PortraitId, Promise<Sheet>>()
@@ -163,7 +168,8 @@ function loadSheet(id: PortraitId): Promise<Sheet> {
     }
     const torso = { l: left[S - 1] < S ? left[S - 1] : 4, r: right[S - 1] >= 0 ? right[S - 1] : S - 5 }
 
-    return { canvas: out, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9', left, right, torso }
+    const bottom = sd.slice((S - 1) * im.width * 4, (S - 1) * im.width * 4 + S * 4)
+    return { canvas: out, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9', left, right, torso, bottom }
   })
   sheets.set(id, p)
   return p
@@ -248,6 +254,97 @@ function armsTexture(s: Sheet, gesture: boolean) {
   return t
 }
 
+/** Ниже портрета у вставшего: торс до пояса, ноги, обувь — в точках спрайта. */
+const TORSO = 44
+const LEGS = 120
+const SHOE = 6
+const LOW = TORSO + LEGS + SHOE
+/** низ портрета у стоящего — над полом, м */
+const STAND_BOTTOM = LOW * M
+const WP = 2
+const FW = S + WP * 2
+/** шаг: кадр ног меняется через столько метров пути */
+const STRIDE = 0.34
+
+/** Цвет темнее на долю k. */
+function darker(hex: string, k: number) {
+  const n = parseInt(hex.slice(1), 16)
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v * (1 - k)))
+  return `rgb(${c.join(',')})`
+}
+
+/**
+ * Тот, кто встал и уходит, — во весь рост: торс продолжает нижнюю строку портрета и сужается к поясу, руки висят
+ * вдоль него, ниже брюки (у женщин — юбка и тёмные колготки) и обувь. Три кадра: стоит, шаг левой, шаг правой
+ * (поднятая нога короче на 5 точек).
+ */
+function walkerTexture(s: Sheet, female: boolean) {
+  const c = document.createElement('canvas')
+  c.width = FW * 3
+  c.height = LOW + WP * 2
+  const g = c.getContext('2d')!
+  const cx = Math.round((s.torso.l + s.torso.r + 1) / 2)
+  const legs = female ? '#341c27' : s.jacketDark
+  const shoe = '#10141f'
+  for (let f = 0; f < 3; f++) {
+    const R = (x: number, y: number, w: number, h: number, col: string) => {
+      if (w <= 0 || h <= 0) return
+      g.fillStyle = col
+      g.fillRect(f * FW + WP + x, WP + y, w, h)
+    }
+    // торс: столбцы — цветами нижней строки портрета, края сходятся к поясу
+    for (let y = 0; y < TORSO; y++) {
+      const k = y / (TORSO - 1)
+      const l = Math.round(s.torso.l + (cx - 24 - s.torso.l) * k)
+      const r = Math.round(s.torso.r + (cx + 23 - s.torso.r) * k)
+      for (let x = l; x <= r; x++) {
+        const i = x * 4
+        if (s.bottom[i + 3] < 128) continue
+        R(x, y, 1, 1, `rgb(${s.bottom[i]},${s.bottom[i + 1]},${s.bottom[i + 2]})`)
+      }
+    }
+    R(cx - 24, TORSO - 1, 48, 1, s.jacketDark) // низ пиджака
+    // руки висят от плеч вдоль торса; поднятая на шаге сторона — рука чуть вперёд (на точку выше)
+    for (const side of [-1, 1] as const) {
+      const lift = (f === 1 && side === 1) || (f === 2 && side === -1) ? 1 : 0
+      const x0 = side < 0 ? s.torso.l : s.torso.r - 9
+      const len = TORSO - 4 - lift
+      R(x0, 0, 10, len, side < 0 ? s.jacket : s.jacketDark)
+      R(side < 0 ? x0 + 9 : x0, 2, 1, len - 2, darker(s.jacketDark, 0.3))
+      R(x0 + 1, len, 8, 2, s.cuff)
+      R(x0 + 1, len + 2, 8, 7, s.skin)
+      R(x0 + 1, len + 8, 8, 1, s.skinDark)
+    }
+    // ноги: у мужчин брюки цветом тени пиджака, у женщин — юбка до колен и колготки
+    let top = TORSO
+    if (female) {
+      for (let y = 0; y < 34; y++) {
+        const w = 24 + Math.round(y / 8)
+        R(cx - w, TORSO + y, w * 2, 1, y === 33 ? darker(s.jacketDark, 0.3) : s.jacketDark)
+      }
+      top = TORSO + 34
+    }
+    const half = female ? 9 : 18
+    const gap = female ? 4 : 3
+    for (const side of [-1, 1] as const) {
+      const up = (f === 1 && side === -1) || (f === 2 && side === 1) ? 5 : 0
+      const x = side < 0 ? cx - gap - half : cx + gap
+      const bottom = LOW - SHOE - up
+      R(x, top, half, bottom - top, legs)
+      R(side < 0 ? x : x + half - 1, top, 1, bottom - top, darker(female ? '#341c27' : s.jacketDark, 0.35))
+      // обувь носком наружу
+      const sw = half + (female ? 3 : 4)
+      const sx = side < 0 ? x - (sw - half) : x
+      R(sx, bottom, sw, SHOE, shoe)
+      R(sx + 1, bottom, sw - 2, 1, '#202e37')
+    }
+  }
+  const t = new CanvasTexture(c)
+  t.magFilter = NearestFilter
+  t.minFilter = LinearMipmapLinearFilter
+  return t
+}
+
 function spriteMaterial(tex: Texture) {
   return new ShaderMaterial({
     vertexShader: VERT,
@@ -272,6 +369,9 @@ export interface PersonOpts {
   lead?: boolean
   /** куда повёрнут, когда не смотрит на нас: точка на столе */
   focus?: { x: number; z: number }
+  /** собеседнику — как уйти из этой комнаты и какой дверью (exit.ts, RoomBuild.door) */
+  exit?: ExitPlan
+  door?: (open: number) => void
 }
 
 export class Person {
@@ -297,7 +397,23 @@ export class Person {
   private facing: number
   private jolt = 0
   private prevEmotion: PortraitEmotion = 'neutral'
+  /** уход: секунды с начала (встаёт) и секунды ходьбы (0 — ещё стоит у стола, договаривает) */
   private gone = 0
+  private walk = 0
+  private readonly exit?: ExitPlan
+  private readonly door?: (open: number) => void
+  /** во весь рост: голова из листа портретов и торс с ногами */
+  private walker: Group | null = null
+  private walkerHead: Mesh<PlaneGeometry, ShaderMaterial> | null = null
+  private walkerBody: Mesh<PlaneGeometry, ShaderMaterial> | null = null
+  private walkerTex: Texture | null = null
+  /** где сейчас уходящий (мир, x и z) — за ним поворачивается голова игрока; null — сидит */
+  readonly exitAt = new Vector3()
+  walking = false
+  /** ушёл совсем: скрылся, дверь за ним закрылась */
+  exited = false
+  /** насколько открыта дверь, в которую он уходит (для прогонов) */
+  doorOpen = 0
   leaving = false
   flip = false
 
@@ -305,6 +421,8 @@ export class Person {
     this.id = o.id
     this.lead = !!o.lead
     this.focus = o.focus ?? { x: 0, z: -0.3 }
+    this.exit = o.exit
+    this.door = o.door
     this.facing = this.turn = seatYaw(o.x)
     this.group.position.set(o.x + Math.sin(this.facing) * SEATED_FORWARD, 0, o.z + Math.cos(this.facing) * SEATED_FORWARD)
     loadSheet(o.id).then((s) => this.build(s))
@@ -332,6 +450,20 @@ export class Person {
     this.hands = new Mesh(geo, spriteMaterial(this.handFrames[0]))
     this.hands.position.z = 0.004
     this.body.add(this.hands)
+
+    // собеседник, который может уйти, — ещё и во весь рост: голова того же листа, торс и ноги своей текстурой
+    if (this.exit) {
+      const w = (this.walker = new Group())
+      const head = new PlaneGeometry(S * M, S * M).translate(0, (S * M) / 2, 0)
+      this.walkerHead = new Mesh(head, spriteMaterial(tex))
+      this.walkerHead.position.y = STAND_BOTTOM
+      this.walkerTex = walkerTexture(s, PORTRAITS[this.id].female)
+      const low = new PlaneGeometry(S * M, LOW * M).translate(0, (LOW * M) / 2, 0)
+      this.walkerBody = new Mesh(low, spriteMaterial(this.walkerTex))
+      w.add(this.walkerHead, this.walkerBody)
+      w.visible = false
+      this.group.add(w)
+    }
   }
 
   setFrameUV() {
@@ -344,6 +476,8 @@ export class Person {
     const v0 = 1 - (row * CH + PAD + S + EXT) / s.h
     this.body.material.uniforms.frame.value = [u0, v0, S / s.w, (S + EXT) / s.h]
     this.body.material.uniforms.flip.value = this.flip ? 1 : 0
+    // голова вставшего — только портрет, без пиджака под стол
+    if (this.walkerHead) this.walkerHead.material.uniforms.frame.value = [u0, 1 - (row * CH + PAD + S) / s.h, S / s.w, S / s.h]
   }
 
   update(t: number, dt: number, cam: Camera, stir: boolean) {
@@ -393,34 +527,14 @@ export class Person {
       const d = MathUtils.euclideanModulo(toFocus - toCam + Math.PI, Math.PI * 2) - Math.PI
       want = toCam + MathUtils.clamp(d, -0.75, 0.75)
     }
-    // уходит: разворачивается боком к двери (она слева в обеих комнатах) — плоский спрайт сужается, как при повороте
-    if (this.leaving && this.gone > 0.35) want = toCam - 0.55
-    else want = seatedTurn(want, this.facing)
+    want = seatedTurn(want, this.facing)
     const d = MathUtils.euclideanModulo(want - this.turn + Math.PI, Math.PI * 2) - Math.PI
-    this.turn += d * (1 - Math.exp(-dt * (this.leaving ? 5 : this.lead ? 20 : 5)))
+    this.turn += d * (1 - Math.exp(-dt * (this.lead ? 20 : 5)))
     this.body.rotation.y = this.turn
     this.body.rotation.z = emotionTilt(this.emotion) * Math.PI / 180
+    this.body.position.y = BUST_BOTTOM - EXT * M + (this.jolt > 0 ? M : 0)
 
-    // уходит из-за стола: встаёт, поворачивается и идёт к двери ровным шагом, покачиваясь, пока не скроется из кадра.
-    // Назад от стола не отступает: низ спрайта прячется за столешницей, иначе «бюст» висит в воздухе
-    if (this.leaving) {
-      this.gone += dt
-      const up = MathUtils.smoothstep(this.gone, 0, 0.45)
-      // разгон за полсекунды, дальше ровно 1,3 м/с
-      const w = Math.max(0, this.gone - 0.55)
-      const away = w < 0.5 ? (1.3 * w * w) / (2 * 0.5) : 1.3 * (w - 0.25)
-      const step = w > 0 ? Math.abs(Math.sin(w * 8)) * 0.025 : 0
-      this.body.position.y = BUST_BOTTOM - EXT * M + up * 0.16 + step
-      this.body.position.z = -up * 0.2
-      this.body.position.x = -away
-      this.body.visible = away < 6
-    } else {
-      this.body.position.y = BUST_BOTTOM - EXT * M + (this.jolt > 0 ? M : 0)
-      this.body.position.x = 0
-      this.body.position.z = 0
-      this.gone = 0
-      this.body.visible = true
-    }
+    this.updateExit(dt, cam, lip !== 'off' || this.talking)
 
     // руки: во время речи иногда жест (речь — печать текста или голос, который уже звучит, пока ход ещё идёт)
     if (this.hands && this.handFrames.length) {
@@ -428,6 +542,52 @@ export class Person {
       const u = this.hands.material.uniforms
       u.map.value = this.handFrames[gesture ? 1 : 0]
       u.flip.value = this.flip ? 1 : 0
+    }
+  }
+
+  /**
+   * Уход (exit.ts): встаёт, договаривает (не дольше 3,5 с), идёт по пути к двери, темнеет в проёме и скрывается;
+   * дверь комнаты открывается перед ним и закрывается за ним. Всё время к нам лицом, как вырезка-биллборд.
+   * Отменили уход (переиграли ход) — сразу снова сидит, дверь закрыта.
+   */
+  private updateExit(dt: number, cam: Camera, speaking: boolean) {
+    const w = this.walker
+    if (!this.exit || !w || !this.body) return
+    if (!this.leaving) {
+      if (this.gone) this.door?.(0)
+      this.gone = this.walk = this.doorOpen = 0
+      this.walking = this.exited = false
+      w.visible = false
+      this.body.visible = true
+      return
+    }
+    this.gone += dt
+    if (!this.walk && this.gone > STAND_S + 0.3 && (!speaking || this.gone > 3.5)) this.walk = 1e-6
+    else if (this.walk) this.walk += dt
+    const f = exitFrame(this.exit, this.gone, this.walk)
+    this.door?.(f.door)
+    this.doorOpen = f.door
+    this.body.visible = false
+    w.visible = !f.gone
+    this.walking = this.walk > 0 && !f.gone
+    this.exited = exitDone(this.exit, this.walk)
+    // ноги: на ходу — кадр шага по пройденному пути и лёгкое покачивание вверх-вниз
+    const phase = f.s / STRIDE
+    const bob = f.moving ? Math.abs(Math.sin(phase * Math.PI)) * 0.018 : 0
+    const p = this.group.position
+    w.position.set(f.x - p.x, (BUST_BOTTOM - STAND_BOTTOM) * (1 - f.stand) + bob, f.z - p.z)
+    this.exitAt.set(f.x, STAND_BOTTOM + S * M * 0.6, f.z)
+    // лицом к нам: биллборд по своему месту на полу, а не по стулу
+    w.rotation.y = Math.atan2(cam.position.x - f.x, cam.position.z - f.z)
+    w.rotation.z = emotionTilt(this.emotion) * Math.PI / 180 * (1 - f.stand)
+    const col = f.moving ? 1 + (Math.floor(phase) % 2) : 0
+    const u = this.walkerBody!.material.uniforms
+    u.frame.value = [(col * FW + WP) / (FW * 3), WP / (LOW + WP * 2), S / (FW * 3), LOW / (LOW + WP * 2)]
+    // в тёмном проёме (и на вечерней улице за витриной) темнеет
+    const k = 1 - f.dark * 0.85
+    for (const m of [this.walkerHead!, this.walkerBody!]) {
+      m.material.uniforms.tint.value.set(k, k, k * 1.05)
+      m.material.uniforms.flip.value = this.flip ? 1 : 0
     }
   }
 
@@ -444,5 +604,10 @@ export class Person {
     this.body?.material.dispose()
     this.hands?.material.dispose()
     for (const t of this.handFrames) t.dispose()
+    this.walkerTex?.dispose()
+    for (const m of [this.walkerHead, this.walkerBody]) {
+      m?.geometry.dispose()
+      m?.material.dispose()
+    }
   }
 }
