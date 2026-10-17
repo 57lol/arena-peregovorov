@@ -23,7 +23,6 @@ import { MicButton } from './Mic'
 import { VolumeSlider } from './Volume'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
-import { elevenTest } from '../speech'
 import '../world3d/world3d.css'
 import '../world3d/play3d.css'
 
@@ -721,7 +720,7 @@ function ActionCard({
   const extras = tut.shows('extras')
   const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean; lit?: string }[] = [
     { icon: 'eye', label: 'Что чувствует', on: m.xray, click: onXray, lit: lit('feel') },
-    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? (elevenTest() ? 'Голос: ElevenLabs' : 'Голос вкл') : 'Голос выкл', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
+    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? 'Голос вкл' : 'Голос выкл', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
     { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn), show: extras },
     { icon: 'rewind', label: 'Запись разговора', click: onProtocol, show: m.history.length > 0 && extras },
     { icon: 'menu', label: 'Меню', click: onMenu, show: extras },
