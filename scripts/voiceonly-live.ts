@@ -70,6 +70,9 @@ await ctx.addInitScript(`
 `)
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('pageerror', e.message))
+// прод за воротами: сначала вход по ключу жюри (--key), потом сама катка
+const key = opt('key', '')
+if (key) await page.goto(`${base}/?key=${key}`)
 await page.goto(`${base}/?case=${caseId}&voiceonly&stt=scribe${view ? `&view=${view}` : ''}`)
 await page.locator('button.g-big').first().click()
 await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
