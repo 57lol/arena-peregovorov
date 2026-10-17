@@ -1,29 +1,37 @@
 # Голос и LLM для «Переговорки»: цены, доступ из РФ, что брать
 
-Дата: 29.09.2026. Курс ЦБ на 29.09.2026: **1 $ = 84,41 ₽** ([cbr.ru][cbr]). Все цены ниже с НДС, если провайдер российский; у зарубежных — без налогов.
-
 ## Что стоит сейчас (17.10.2026)
 
-Ниже исследование от 29.09. С тех пор схема поменялась:
+**Модели.**
+- Разметка реплики игрока — YandexGPT 5.1 Pro (`YANDEX_ANALYZE_MODEL`), temperature 0, строгий JSON, кэш.
+- Реплику собеседника пишет Claude Sonnet 5.5 через AITunnel — по умолчанию, если есть `AITUNNEL_API_KEY`. AITunnel — OpenAI-совместимый посредник с рублёвой оплатой, с нашего сервера отвечает. Рассуждение выключаем (`reasoning_effort` по модели), иначе реплика тормозит. Не ответила за 8 с — пишет YandexGPT 5.1 Pro, дальше заготовка. `VOICE_LLM=main` — всё на Яндексе, без ключей — правила и заготовки. Зависла три раза подряд — 2 минуты ход идёт запасным путём.
+- Всё под общим бюджетом `LLM_TOTAL_RUB` (6000 ₽): с 80% модели Яндекса переходят на Lite, со 100% — офлайн и без голоса. Цену хода AITunnel берём из ответа (`usage.cost_rub`).
+- Модель реплики можно выбрать на запрос (`?llm=`, заголовок `x-voice-llm`): по умолчанию разрешены `aitunnel:claude-sonnet-5.5`, `aitunnel:gpt-6.1-sol`, `yandex:yandexgpt-5.1` (`VOICE_LLM_ALLOWED`), 200 таких ходов в сутки на IP. В лаборатории `/?lab` — YandexGPT Pro, Lite, AITunnel и офлайн. GigaChat, Claude CLI, Anthropic и OpenAI напрямую, SaluteSpeech из кода удалены.
 
-- **Реплику пишет `gpt-6.1-sol` через AITunnel** (`VOICE_LLM`, по умолчанию, если есть `AITUNNEL_API_KEY`). AITunnel — OpenAI-совместимый посредник с рублёвой оплатой, с нашего сервера отвечает, цену хода сам пишет в `usage.cost_rub`, и она идёт в общий бюджет `LLM_TOTAL_RUB`. Рассуждение выключаем (`reasoning_effort` minimal или none по модели): оно тормозило реплику и однажды съело весь лимит токенов. У Claude включён кэш системного промпта.
-- **YandexGPT 5.1 Pro** — переключаемый вариант: `VOICE_LLM=main` или `VOICE_LLM=yandex:yandexgpt-5.1`. Он же пишет реплику, если модель реплики не ответила за `VOICE_TIMEOUT_MS` (8 с). Разметка по-прежнему на Яндексе (`ANALYZE_LLM` или `YANDEX_ANALYZE_MODEL`).
-- Модель реплики можно выбрать на запрос для сравнения: заголовок `x-voice-llm: aitunnel:claude-sonnet-5.5` или поле `voiceLlm` в `/api/turn`, только из `VOICE_LLM_ALLOWED`. Какая модель ответила — `sources.voiceModel` в ответе и `voiceModel` в `/api/health`.
+**Промпт реплики.** Модель играет живого человека, движок даёт рамку: карточка персонажа (биография, характер, манера, примеры речи), что ему важно в сделке словами без очков, весь разговор и решение движка на этот ход. Закрытые причины модель не видит, пока движок не разрешит их рассказать. Ответ — JSON `{line, emotion, terms, agrees, reveals}`.
 
-**Промпт реплики.** Модель играет живого человека, движок даёт рамку. В промпте карточка персонажа (биография, характер, манера, 3–5 примеров речи из сценария), что ему важно в сделке словами без очков (о совместимом пункте — только намёк), его скрытые причины, весь разговор с начала и решение движка на этот ход: что можно предложить, на что согласиться, о чём рассказать. Ответ — JSON `{line, emotion, terms, agrees, reveals}`.
+**Проверка.** Сверяем заявленное с решением движка: условия, согласие, раскрытые причины. Поверх ловим выдуманные цифры (в том числе между вариантами), выданные тайны, «рассказать причину» без причины, мат, путаницу сторон. Не прошло — одна переписка, потом безопасный вариант, потом заготовка. Код — `src/server/voice.ts`, живая партия с записью попыток и рублей — `scripts/dialog-live.ts` (платно, `--live`).
 
-**Проверка.** Сверяем то, что модель сама заявила, с решением движка: названные условия, согласие, раскрытые причины. Поверх — страховки на то, что модель могла не заявить: новые цифры, которых не было в разговоре; закрытая причина, узнанная по редким словам; «последнее слово» не на последнем ходу; мат; путаница сторон. Есть мягкие замечания по стилю: длина, «Конечно!», повтор начала, перечень условий списком. Не прошло — одна переписка с подсказкой; снова нет — та же реплика без предложения-нарушителя, заготовка только в крайнем случае. Код — `src/server/voice.ts`, живая партия с записью попыток и рублей — `scripts/dialog-live.ts` (платно, `--live`).
+**Голос.**
+- Основной — ElevenLabs v4 Turbo через свой воркер Cloudflare (`TTS_PROVIDER=elevenlabs`, `ELEVEN_RELAY_URL`). Ключ живёт только в воркере, браузер к ElevenLabs не ходит. У каждого лица свой голос из библиотеки (`CAST` в `src/server/tts.ts`), свой seed, stability 0,6. Вступления и фразы-паузы записаны заранее на `eleven_v4`.
+- ElevenLabs озвучивает только тексты, которые выдал сервер (реплики хода, вступления дел, собранные дела). Лимиты: 60 синтезов в час на вход, 300 в сутки на IP, 20 000 символов в сутки на сайт (`ELEVEN_DAILY_CHARS`), повторы из кэша бесплатны. Очередь по потокам тарифа (`ELEVEN_CONCURRENCY`, 5 на Creator), на 429 — один повтор. Новые голоса прогреваются при старте сервера.
+- Запасной — SpeechKit: livetts-голоса у лиц, ударения и паузы (`NATURAL_SPEECH=voices+`). Говорит он, если у ElevenLabs лимит, очередь, первый байт позже 2,5 с или три сбоя подряд (тогда пауза 5 минут); опоздавший звук ElevenLabs ложится в кэш. Кто говорит сейчас — `/api/health` → `speech.voice`.
+- Голос OpenAI на проде запрещён и из кода убран, голоса AITunnel тоже.
+- Ударения: словарь `src/content/stress-dict.ts` и правила, омографы — YandexGPT Lite (ждём 0,5 с). SpeechKit получает «+», ElevenLabs — знак ударения U+0301. Англицизмы и сокращения пишем как говорят (вайфай, О-Э-З, Камаз). Пометки вроде `[sighs]` ставит модель, на экране и у SpeechKit их вырезаем (`src/server/tags.ts`).
+- Распознавание — SpeechKit: попытка 8 с и один повтор (10–15% запросов зависают), каждый запрос — строка в журнале без текста речи.
 
-**Пометки для голоса.** Модель сама ставит 0–2 пометки ElevenLabs на реплику (`[laughs]`, `[sighs]` и т. п.). На экране и в голосах OpenAI и SpeechKit их вырезаем (`src/server/tags.ts`).
+**Цена партии** ≈ 15–20 ₽: модели ≈ 12 ₽ (разметка Pro ~1 ₽ и реплика Sonnet ~1 ₽ за ход), голос ElevenLabs ≈ 1000 символов по 8 ₽ за 1000. Живой замер 17.10: три хода с голосом и прогревом — 12,4 ₽ (модели 7,1, голос 5,3).
 
 ## Исследование 29.09
+
+Дальше — как было 29.09: цены, доступ и выводы того дня. Курс ЦБ на 29.09.2026: **1 $ = 84,41 ₽** ([cbr.ru][cbr]). Цены с НДС, если провайдер российский; у зарубежных — без налогов. С тех пор ElevenLabs заработал через свой воркер, Claude — через AITunnel, а Сбер, OpenAI и Anthropic напрямую из кода ушли.
 
 Что проверено руками, а не только по докам:
 - с нашего сервера на рег.ру (IP 31.31.197.49, страна RU) 29.09 дёрнул API всех провайдеров без ключа;
 - нашим ключом Яндекса синтезировал фразу в SpeechKit v1 и v3, включая голоса `alena`, `madirus` и новую модель `livetts`;
 - токенизацию русского сравнил на 4000 символах из README: YandexGPT 957 токенов, OpenAI `o200k` 1175 (×1,23), `cl100k` 1819 (×1,9).
 
-## Коротко
+### Коротко
 
 1. **OpenAI, Anthropic и ElevenLabs с нашего сервера не работают.** OpenAI отвечает `403 unsupported_country_region_territory`, Anthropic — `403 Request not allowed`, ElevenLabs редиректит на страницу про санкционные страны. России нет в списках поддерживаемых стран ни у [OpenAI][oa-countries], ни у [Anthropic][ant-countries]. Российской картой у них тоже не заплатить: Visa/MC, выпущенные в РФ, за рубежом не работают с марта 2022 ([Visa][visa]). Работать с ними можно только через российского посредника (ProxyAPI), это примерно ×3 к цене.
 2. **Сбер закрывает двери для новых физлиц.** SaluteSpeech с 15.07.2026 не продаёт пакеты физлицам и не продлевает им Freemium ([тарифы][salute-ind]). У GigaChat новые клиенты с 01.09.2026 платят только через cloud.ru ([тарифы][giga-ind]). Если у капитана нет старого проекта в Studio, на Сбер не рассчитываем.
@@ -31,7 +39,7 @@
 4. **Голос почти бесплатный** при любом выборе: 0,3–2,8 ₽ за партию. Исключение — ElevenLabs (7–14 ₽), но он всё равно заблокирован.
 5. **SpeechKit v3 дешевле v1 на наших коротких репликах**: v3 берёт 0,1626 ₽ за каждые начатые 250 символов, v1 — 1342 ₽ за млн символов. Реплика в 150 символов стоит 0,16 ₽ против 0,20 ₽.
 
-## Допущения по объёму
+### Допущения по объёму
 
 | | Значение |
 |---|---|
@@ -40,7 +48,7 @@
 | Озвучка | 11 реплик × ~150 символов = 1 700 символов, ~2 минуты звука |
 | Распознавание | 10 × 8 с = 80 с |
 
-## Голос (TTS)
+### Голос (TTS)
 
 | Провайдер / модель | Цена | ₽ за партию | С сервера в РФ | Оплата картой РФ | Русский (субъективно) |
 |---|---|---|---|---|---|
@@ -59,7 +67,7 @@
 
 Про ElevenLabs отдельно: даже мой европейский VPN-IP (дата-центр в Дании) получает тот же редирект. Судя по всему, они режут и «подозрительные» облака, так что ретранслятор тоже не гарантия. Условия сервиса прямо запрещают доступ из РФ, поэтому как рабочий вариант его не рассматриваю.
 
-### Голоса SpeechKit (русские)
+#### Голоса SpeechKit (русские)
 
 Из [списка голосов][sk-voices] на 29.09.2026:
 
@@ -85,17 +93,17 @@
 
 `alena` и `madirus` из таблицы пропали, но **работают**: 29.09 синтезировал оба в v1, `alena/good` ещё и в v3. Похоже, их просто убрали из витрины. Для кастинга надёжнее перейти на голоса из таблицы, а alena держать как запасной. Для «строгого» переговорщика подходят `kirill`/`julia`/`masha` с амплуа `strict`, для «раздражённого» — `jane`/`omazh` с `evil`.
 
-### SaluteSpeech: голоса
+#### SaluteSpeech: голоса
 
 Из [списка голосов][salute-voices]: Наталья `Nec_24000`, Марфа `May_24000`, Александра `Ost_24000` (ж); Борис `Bys_24000`, Тарас `Tur_24000`, Сергей `Pon_24000` (м). У каждого есть вариант `_8000` для телефонии. Амплуа нет, интонацией управляют через SSML.
 
-### OpenAI: акцент и голоса
+#### OpenAI: акцент и голоса
 
 - Поле `instructions` официально управляет «Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering» ([гайд][oa-tts]). Значит, «говори по-русски с лёгким китайским акцентом» — законный запрос. Насколько убедительно это звучит, не проверял: ключа нет, а с сервера API закрыт.
 - Голоса: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, verse, marin, cedar. Для качества OpenAI советует `marin` или `cedar`.
 - `instructions` не работает с `tts-1` и `tts-1-hd`.
 
-## Распознавание (STT), если включим
+### Распознавание (STT), если включим
 
 | Провайдер | Цена | ₽ за партию (10 × 8 с) |
 |---|---|---|
@@ -104,7 +112,7 @@
 | OpenAI `gpt-4o-mini-transcribe` | $0,003/мин ([pricing][oa-price]) | 0,34, но 403 из РФ |
 | ElevenLabs Scribe v2 | $0,22/час | 0,41, но заблокирован |
 
-## LLM для собеседника
+### LLM для собеседника
 
 | Модель | Цена за 1K токенов (вход / выход) | ₽ за партию | С сервера в РФ | Оплата картой РФ | Русский (субъективно) |
 |---|---|---|---|---|---|
@@ -129,7 +137,6 @@
 
 Заметки:
 - Haiku 4.5 уходит на пенсию «не раньше 15.10.2026» ([models][ant-models]), то есть сразу после окна жюри. До 14.10 доживёт, но впритык.
-- `ANTHROPIC_API_KEY` у нас зашит на `https://api.anthropic.com` (`llm.ts:56`). Для посредника понадобится `ANTHROPIC_BASE_URL`.
 - **Микс, который стоит попробовать.** Примерно 25k/3k токенов за партию уходит на разметку (JSON, temperature 0), 18k/1,5k — на реплики.
   - Lite на разметку + Pro 5.1 на реплики: ≈ 5,6 + 15,6 = **21 ₽**.
   - Alice Flash на разметку + Alice AI LLM на реплики: ≈ 3,1 + 10,8 = **14 ₽**.
@@ -137,14 +144,14 @@
 - Внешние бенчмарки русского (MERA и т.п.) я видел только в пересказах, первоисточник не открывал. Поэтому качество оценено субъективно.
 - Стартовый грант Yandex Cloud для новых аккаунтов в РФ — от 4 000 ₽ и действует на любые сервисы ([billing][ya-grant]). Сколько он действует, не проверял.
 
-## Соответствие ТЗ
+### Соответствие ТЗ
 
 - Ключи из env: у всех провайдеров так и есть, в коде уже сделано.
 - Офлайн-режим при падении провайдера: есть, от провайдера не зависит.
 - Внешний API с сервера: у российских (Яндекс, Сбер) работает напрямую. У OpenAI и Anthropic — только через посредника с `*_BASE_URL`. ElevenLabs и Google/Azure отпадают.
 - Сбер: Node 22 по умолчанию не доверяет сертификату Минцифры (`SELF_SIGNED_CERT_IN_CHAIN` на сервере). При этом системное хранилище AlmaLinux его уже содержит. Проверил: `node --use-system-ca` и `NODE_EXTRA_CA_CERTS=/etc/pki/tls/certs/ca-bundle.crt` оба дают нормальный ответ. `NODE_TLS_REJECT_UNAUTHORIZED=0`, который предлагает дока Сбера, не нужен.
 
-## Рекомендации
+### Рекомендации
 
 **Голос**
 - Лучшее качество из того, что реально работает: **SpeechKit v3 `livetts`** (sofia/vera/irina/vasily/sergey/denis) или v3 `general` с `kirill`/`dasha`/`masha` и амплуа. Стоит ~2–3 ₽ за партию, ключ уже есть. Livetts надо один раз послушать: модель вышла пять дней назад.
@@ -158,18 +165,7 @@
 - Самое дешёвое: **YandexGPT Lite** (9,5 ₽) или Alice Flash (5,2 ₽). Если у капитана живой Freemium GigaChat — GigaChat 2 Lite/Pro бесплатно.
 - Бюджет: поднять `LLM_DAILY_RUB` до реального. 150 ₽ — это ~4 партии на Pro, ~7 на миксе, ~16 на Lite.
 
-## Какие ключи нужны от капитана
-
-| Переменная | Где взять | Роли и скоупы, заметки |
-|---|---|---|
-| `YANDEX_API_KEY`, `YANDEX_FOLDER_ID` | уже есть | 29.09 ключ отработал на YandexGPT, SpeechKit v1 и v3, включая livetts. Для STT нужна роль `ai.speechkit-stt.user` на сервисном аккаунте. |
-| `GIGACHAT_AUTH_KEY` (+`GIGACHAT_SCOPE=GIGACHAT_API_PERS`, `GIGACHAT_MODEL=GigaChat-2` / `GigaChat-2-Pro` / `GigaChat-2-Max`) | developers.sber.ru → Studio → проект GigaChat API → «Настройки API» → «Получить ключ». Ключ показывают один раз. | Нужна роль «Владелец» или «Администратор» в проекте ([доки][giga-quick]). Новым клиентам оплата только через cloud.ru; Freemium для новых не подтверждён. |
-| `SALUTE_AUTH_KEY` (+`SALUTE_SCOPE=SALUTE_SPEECH_PERS`) | там же, проект SaluteSpeech API → «Настройки API» | Имеет смысл, только если у капитана уже есть проект с остатком Freemium или пакета: новым физлицам с 15.07.2026 не продают. |
-| `OPENAI_API_KEY` (+`OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1`, `OPENAI_TTS_MODEL=gpt-4o-mini-tts`) | proxyapi.ru: регистрация, пополнение российской картой, ключ в кабинете | Прямой ключ OpenAI с сервера в РФ бесполезен (403). ProxyAPI берёт примерно ×3 к цене OpenAI. |
-| `ANTHROPIC_API_KEY` | то же, через ProxyAPI | В коде нужен `ANTHROPIC_BASE_URL`. Прямой ключ даёт 403. |
-| `ELEVENLABS_API_KEY` (+`ELEVENLABS_MODEL`) | не просим | Блокируют РФ по санкционным причинам, карта РФ не проходит. |
-
-## Для разработчика
+### Для разработчика
 
 **SpeechKit v3 REST** (проверено запросом 29.09)
 - `POST https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis`
@@ -186,44 +182,6 @@
 - Документация: [utteranceSynthesis][sk-v3].
 - v1 для сравнения: `POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize`, form-urlencoded `text, lang=ru-RU, voice, emotion, speed, format=mp3|oggopus|lpcm, folderId`.
 
-**SaluteSpeech**
-- Токен: `POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth`.
-  - Заголовки: `Authorization: Basic <Authorization key>`, `RqUID: <uuid4>`, `Content-Type: application/x-www-form-urlencoded`.
-  - Тело: `scope=SALUTE_SPEECH_PERS` (или `SALUTE_SPEECH_CORP` / `SALUTE_SPEECH_B2B`).
-  - Ответ: `{access_token, expires_at}`, токен живёт 30 минут ([auth][salute-auth]).
-- Синтез: `POST https://smartspeech.sber.ru/rest/v1/text:synthesize?format=opus&voice=Nec_24000`.
-  - Заголовки: `Authorization: Bearer <token>`, `Content-Type: application/text` (или `application/ssml`). Тело — сам текст, до 4 000 символов ([sync][salute-sync]).
-  - Ответ — бинарное аудио.
-  - `format`: `wav16`, `pcm16`, `opus` (Ogg). `alaw`, `g729` встречаются только в сторонних SDK. mp3 нет.
-- Замечание к `saluteTts`: частоту для `wav16` лучше читать из WAV-заголовка, а не считать, что там 24 кГц. Официально это не описано.
-- TLS: цепочка `Russian Trusted Sub CA → Root CA`. Нужны `node --use-system-ca` или `NODE_EXTRA_CA_CERTS`. Файл лежит на https://gu-st.ru/content/Other/doc/russian_trusted_root_ca.cer (отдаёт 200).
-
-**GigaChat**
-- OAuth такой же: `https://ngw.devices.sberbank.ru:9443/api/v2/oauth`, `scope=GIGACHAT_API_PERS|GIGACHAT_API_B2B|GIGACHAT_API_CORP`.
-- Чат: `POST https://api.giga.chat/v1/chat/completions` — единый URL с 16.07.2026 ([changelog][giga-log]), у него тот же сертификат Минцифры. Старый `https://gigachat.devices.sberbank.ru/api/v1/chat/completions` пока жив, им и пользуется `llm.ts:220`.
-- Тело в стиле OpenAI: `{model, messages, temperature, top_p, max_tokens}`.
-- Модели: `GigaChat-2`, `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Ultra` (последняя только во Freemium). Алиасы `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` указывают на них же ([тарифы][giga-ind]).
-- Структурный вывод: `response_format: {type:"json_schema", schema:{…}, strict:false}`. Работает в бете и не на всех моделях; `anyOf`/`oneOf` не поддерживаются (по [SDK][giga-sdk]).
-
-**OpenAI `/v1/audio/speech`**
-- `POST {OPENAI_BASE_URL}/audio/speech`, `Authorization: Bearer <key>`.
-- Тело: `model` (`gpt-4o-mini-tts` — сейчас это снапшот `gpt-4o-mini-tts-2025-12-15`; `tts-1`, `tts-1-hd`), `input` (до 4 096 символов), `voice`, `instructions` (не для `tts-1*`), `response_format` (`mp3|opus|aac|flac|wav|pcm`), `speed` (0.25–4.0), `stream_format` (`sse|audio`, `sse` не для `tts-1*`) ([reference][oa-ref]).
-- Голоса: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse, marin, cedar. Лучшие по мнению OpenAI — marin и cedar.
-- Ответ — бинарное аудио. В нашем `OPENAI_VOICES` нет alloy, ballad и fable; это не ошибка.
-
-**ElevenLabs `/v1/text-to-speech/{voice_id}`** (по архиву доков от 28.09; живьём не проверить — блок)
-- `POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128`
-- Заголовок: `xi-api-key: <key>`.
-- Тело: `{"text":"…","model_id":"eleven_multilingual_v2"}`.
-  - `language_code` (ISO 639-1) поддерживают flash и v3, но не `multilingual_v2`.
-  - Модели: `eleven_v3` (до 5 000 символов), `eleven_v3_conversational`, `eleven_multilingual_v2` (до 10 000), `eleven_flash_v2_5` (до 40 000). `turbo_v2_5` устарела, вместо неё flash. Русский есть во всех четырёх ([models][el-models]).
-- Голоса из официального репозитория `elevenlabs/skills`:
-  - `JBFqnCBsd6RMkjVDRZzb` George (м);
-  - `onwK4e9ZLuTAKqWW03F9` Daniel (м);
-  - `EXAVITQu4vr4xnSDxMaL` Sarah (ж);
-  - `XB0fDUnXU5powFXDhCwa` Charlotte (ж).
-- Как они звучат по-русски, не проверено. Brian `nPczCjzI2devNBz1zQrb` и Matilda `XrExE9yKIg1WjnnlVkGX` из нашего `tts.ts` в официальных репозиториях не нашёл; Alice `Xb7hH8MSUJpSbSDYk0k2` есть в README `elevenlabs-js`.
-
 [cbr]: https://www.cbr.ru/scripts/XML_daily.asp?date_req=29/09/2026
 [sk-price]: https://aistudio.yandex.ru/docs/ru/speechkit/pricing
 [sk-voices]: https://aistudio.yandex.ru/docs/ru/speechkit/tts/voices
@@ -233,20 +191,13 @@
 [salute-ind]: https://developers.sber.ru/docs/ru/salutespeech/tariffs/individual-tariffs
 [salute-legal]: https://developers.sber.ru/docs/ru/salutespeech/tariffs/legal-tariffs
 [salute-voices]: https://developers.sber.ru/docs/ru/salutespeech/guides/synthesis/voices
-[salute-auth]: https://developers.sber.ru/docs/ru/salutespeech/api/authentication
-[salute-sync]: https://developers.sber.ru/docs/ru/salutespeech/guides/synthesis/synthesis-sync
 [giga-ind]: https://developers.sber.ru/docs/ru/gigachat/tariffs/individual-tariffs
 [giga-legal]: https://developers.sber.ru/docs/ru/gigachat/tariffs/legal-tariffs
-[giga-quick]: https://developers.sber.ru/docs/ru/gigachat/quickstart/ind-using-api
-[giga-log]: https://developers.sber.ru/docs/ru/gigachat/changelog
-[giga-sdk]: https://github.com/ai-forever/gigachat
 [oa-price]: https://developers.openai.com/api/docs/pricing
 [oa-tts]: https://developers.openai.com/api/docs/guides/text-to-speech
-[oa-ref]: https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create
 [ant-price]: https://platform.claude.com/docs/en/about-claude/pricing
 [ant-models]: https://platform.claude.com/docs/en/about-claude/models/overview
 [el-price]: https://web.archive.org/web/20260920155037/https://elevenlabs.io/pricing/api
-[el-models]: https://web.archive.org/web/20260924104240/https://elevenlabs.io/docs/overview/models
 [el-geo]: https://help.elevenlabs.io/hc/en-us/articles/22497891312401-Do-you-restrict-access-to-the-service-and-platform-for-any-specific-countries
 [g-price]: https://cloud.google.com/text-to-speech/pricing
 [cloud-ru]: https://techcrunch.com/2022/03/10/amazon-microsoft-and-google-have-suspended-cloud-sales-in-russia

@@ -6,7 +6,7 @@ import { initialState } from '../engine/turn'
 import type { Decision, Offer, OpponentState, Scenario } from '../engine/types'
 import type { LLM } from './llm'
 import { normalizeTags, stripTags } from './tags'
-import { checkLine, frameFor, prune, system, voice } from './voice'
+import { checkLine, frameFor, prune, system, userPrompt, voice } from './voice'
 
 const dorm = dormCase.scenario
 const stop = stopCase.scenario
@@ -14,7 +14,7 @@ const stop = stopCase.scenario
 interface Said { terms?: { issue: string; option: number }[]; agrees?: boolean; reveals?: string[] }
 function check(sc: Scenario, d: Decision, state: OpponentState, line: string, said: Said = {}, prev?: Offer, heard = '') {
   const frame = frameFor(sc, d, state, prev ?? state.lastOpponentOffer ?? {})
-  return checkLine(sc, frame, { line, emotion: 'neutral', terms: said.terms ?? [], agrees: !!said.agrees, reveals: said.reveals ?? [] }, { said: `${sc.opening}\n${heard}`, mine: [] })
+  return checkLine(sc, frame, { line, emotion: 'neutral', terms: said.terms ?? [], agrees: !!said.agrees, reveals: said.reveals ?? [] }, { said: `${sc.opening}\n${heard}`, heard, mine: [] })
 }
 const ok = (...a: Parameters<typeof check>) => check(...a).hard.length === 0
 
@@ -120,7 +120,7 @@ describe('безопасный вариант: убираем только пр�
     const offer = { wifi: 1, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }
     const frame = frameFor(dorm, { kind: 'counter', offer }, initialState(dorm), prev)
     const out = { line: 'Ха, плойка, конечно. Ладно, по рукам!', emotion: 'happy', terms: [], agrees: true, reveals: [] }
-    const safe = prune(dorm, frame, out, { said: dorm.opening, mine: [] })!
+    const safe = prune(dorm, frame, out, { said: dorm.opening, heard: "", mine: [] })!
     expect(safe).toMatch(/^Ха, плойка, конечно\./)
     expect(safe).not.toMatch(/по рукам/)
     expect(safe).toMatch(/450/)
@@ -132,7 +132,7 @@ describe('безопасный вариант: согласие и причин�
     const deal = { price: 1, payment: 0, rush: 4, term: 2, schedule: 2 }
     const s = { ...initialState(tara), deal, status: 'deal' as const }
     const frame = frameFor(tara, { kind: 'accept' }, s, deal)
-    const safe = prune(tara, frame, { line: 'Ну вы и жук. По рукам на ста девяноста шести.', emotion: 'happy', terms: [{ issue: 'price', option: 2 }], agrees: true, reveals: [] }, { said: tara.opening, mine: [] })!
+    const safe = prune(tara, frame, { line: 'Ну вы и жук. По рукам на ста девяноста шести.', emotion: 'happy', terms: [{ issue: 'price', option: 2 }], agrees: true, reveals: [] }, { said: tara.opening, heard: "", mine: [] })!
     expect(safe).toMatch(/^Ну вы и жук\./)
     expect(safe).toMatch(/Договорились: цена за короб — 204/)
   })
@@ -163,11 +163,17 @@ describe('пометки для голоса', () => {
 })
 
 describe('промпт реплики', () => {
-  it('карточка: характер, примеры речи, скрытые причины; без слов, которые модели повторяют', () => {
+  it('карточка: характер и примеры речи; закрытых причин модель не видит, открытые — в ходе', () => {
     const s = system(stop)
     expect(s).toContain('Серый Кудрявцев')
     expect(s).toContain('это инвестиция')
-    expect(s).toContain('[s_first]')
+    const first = stop.opponent.profile.interests.find((i) => i.id === 's_first')!
+    expect(s).not.toContain(first.text)
+    const st = initialState(stop)
+    const hold = { kind: 'hold', reason: 'no_offer' } as const
+    expect(userPrompt(stop, [], 'Привет', frameFor(stop, hold, st, st.lastOpponentOffer ?? {}), st, st.lastOpponentOffer ?? {})).not.toContain(first.text)
+    const told = { ...st, revealed: ['s_first'] }
+    expect(userPrompt(stop, [], 'Привет', frameFor(stop, hold, told, st.lastOpponentOffer ?? {}), told, st.lastOpponentOffer ?? {})).toContain('[s_first]')
     // в его собственной первой фразе «по-людски» есть — это его слова, а в описании их нет
     expect(s.replace(stop.opening, '')).not.toMatch(/по-человечески|по-людски/)
   })
@@ -248,7 +254,7 @@ describe('проверка реплики: своё число — не нова
     const r = check(tara, reveal, opened, line)
     expect(r.hard.filter((h) => h.includes('цифр'))).toEqual([])
     const frame = frameFor(tara, reveal, opened, opened.lastOpponentOffer ?? {})
-    expect(prune(tara, frame, { line, emotion: 'neutral', terms: [], agrees: false, reveals: [] }, { said: tara.opening, mine: [] })).toContain(line.split(/[.:—]/)[0])
+    expect(prune(tara, frame, { line, emotion: 'neutral', terms: [], agrees: false, reveals: [] }, { said: tara.opening, heard: "", mine: [] })).toContain(line.split(/[.:—]/)[0])
   })
 
   it('та же цифра, пока причина закрыта и в разговоре её не было, — новая', () => {
@@ -268,5 +274,45 @@ describe('проверка реплики: своё число — не нова
     const carded = { ...stop, opponent: { ...stop.opponent, character: { ...c, bio: `${c.bio} Кроссы брал за пятьсот рублей на распродаже.` } } }
     expect(check(carded, hold, s, line).hard).toEqual([])
     expect(check(carded, hold, s, 'Я их за 500 ₽ брал, а ты тут заливаешь.').hard).toEqual([])
+  })
+})
+
+describe('проверка реплики: аудит 17.10', () => {
+  it('выдуманные цены между вариантами и вне их — нарушение; своя прошлая цифра — тоже, кроме «было X, теперь Y»', () => {
+    const s = initialState(tara)
+    const hold = { kind: 'hold', reason: 'no_movement' } as const
+    expect(check(tara, hold, s, 'Моя цена 9999 рублей за короб.').hard.join()).toMatch(/цифры/)
+    expect(check(tara, hold, s, 'Отдам по 199 рублей, так и быть.').hard.join()).toMatch(/цифры/)
+    const offer = { ...s.lastOpponentOffer, price: 1, schedule: 0 }
+    const d = { kind: 'counter', offer } as const
+    expect(check(tara, d, { ...s, lastOpponentOffer: offer }, 'Давайте всё-таки двести двенадцать за короб.', {}, s.lastOpponentOffer).hard.join()).toMatch(/цифры/)
+    expect(check(tara, d, { ...s, lastOpponentOffer: offer }, 'Было двести двенадцать, теперь двести четыре — шаг навстречу.', {}, s.lastOpponentOffer).hard).toEqual([])
+    // Серый: «тысячи» нет на листке и в решении
+    const stopOffer = { phone: 1, money: 1, sorry: 3, bus: 2 }
+    const st = initialState(stop)
+    for (const line of ['Давай за тысячу, и разошлись.', 'Давай за 1000, и разошлись.', 'Косарь — и разошлись.'])
+      expect(check(stop, { kind: 'counter', offer: stopOffer }, { ...st, lastOpponentOffer: stopOffer }, line).hard.join(), line).toMatch(/цифры/)
+    // цифру игрока повторить можно
+    expect(check(tara, hold, s, 'Сто девяносто девять? Нет.', {}, undefined, 'Давайте 199.').hard).toEqual([])
+  })
+
+  it('решение «рассказать» — причина должна прозвучать', () => {
+    const s = { ...initialState(tara), revealed: ['m_leasing'] }
+    const d = { kind: 'reveal', interestId: 'm_leasing' } as const
+    expect(check(tara, d, s, 'Погода сегодня хорошая.').hard.join()).toMatch(/не рассказал/)
+    expect(ok(tara, d, s, 'Мы новый агрегат в лизинг взяли, каждый месяц платёж — поэтому деньги нужны сразу.')).toBe(true)
+    expect(ok(tara, d, s, 'Есть у нас обязательства перед банком, вот и всё.', { reveals: ['m_leasing'] })).toBe(true)
+  })
+})
+
+describe('ремарки модели не доходят ни до экрана, ни до голоса (аудит C, 17.10)', () => {
+  it('[[laughs]], *вздыхает*, (смеётся), длинная пометка — вырезаются; [chuckles] остаётся', async () => {
+    const s = { ...initialState(dorm), turn: 1, playerStance: { wifi: 2 } }
+    const offer = { wifi: 1, quiet: 0, cleaning: 0, guests: 3, kitty: 2 }
+    const line = '[[laughs]] Триста? *вздыхает* Не, давай четыреста пятьдесят (смеётся). [this is a very long stage direction that should not be read aloud] [chuckles] Ладно.'
+    const m: LLM = { name: 'aitunnel', model: `fake-${Math.random()}`, json: async () => ({ line, emotion: 'neutral', terms: [{ issue: 'wifi', option: 1 }], agrees: false, reveals: [] }) }
+    const v = await voice(m, dorm, [], 'Давай 300 за вай-фай', { kind: 'counter', offer }, s)
+    expect(v.line).not.toMatch(/laughs|вздыхает|смеётся|stage/)
+    expect(v.line).toContain('[chuckles]')
   })
 })

@@ -9,7 +9,6 @@
  */
 const SOUNDS = ['laughs', 'chuckles', 'sighs', 'exhales']
 const SPEECH = ['sarcastic', 'curious', 'thoughtful', 'softly', 'nervously', 'annoyed', 'excited']
-export const VOICE_TAGS = [...SOUNDS, ...SPEECH, 'whispers'] as const
 /** шёпот — не длиннее стольких слов */
 const WHISPER_WORDS = 12
 

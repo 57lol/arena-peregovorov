@@ -42,6 +42,7 @@ describe('движок', () => {
 
   it('оппонент никогда не соглашается ниже своей BATNA', () => {
     const deals = allDeals(sc)
+    let closed = 0
     for (const d of [1, 2, 3] as Difficulty[]) {
       const s = withDifficulty(d)
       for (const p of deals) {
@@ -51,12 +52,15 @@ describe('движок', () => {
         )
         const h = playAnalyses(s, moves, testDict)
         const last = h[h.length - 1].stateAfter
+        if (last.status === 'deal') closed++
         if (last.status === 'deal') expect(score(s.opponent.profile, last.deal as never)).toBeGreaterThanOrEqual(s.opponent.profile.batna)
         // И сам оппонент ничего ниже BATNA не предлагает.
         for (const t of h)
           if (t.decision.kind === 'counter') expect(score(s.opponent.profile, t.decision.offer as never)).toBeGreaterThanOrEqual(s.opponent.profile.batna)
       }
     }
+    // проверка не пустая: сделки в переборе были
+    expect(closed).toBeGreaterThan(0)
   })
 
   it('разменный пакет эффективнее, чем «всё посередине»', () => {
@@ -184,14 +188,15 @@ describe('вежливый исследователь в «Таре»', () => {
     expect(h[h.length - 1].stateAfter.revealed).toEqual(h[h.length - 2].stateAfter.revealed)
   })
 
-  it('общий вопрос раскрывает главное доступное и помечается как общий', async () => {
+  it('общий вопрос раскрывает главное доступное и помечается как общий, ловушку не выдаёт', async () => {
     const { tara } = await import('../content/scenarios/tara')
     const { BEHAVIOR_DICT } = await import('./behaviors')
-    const h = playAnalyses(tara, [
-      { text: '', analysis: { behaviors: [{ id: 'ask_interest', quote: 'почему' }], asksAbout: ['price', 'payment', 'rush', 'term'] } },
-    ], BEHAVIOR_DICT)
-    const d = h[0].decision
-    if (d.kind === 'reveal') expect(d.general).toBe(true)
+    const general = { behaviors: [{ id: 'ask_interest', quote: 'что для вас главное' }], asksAbout: ['price', 'payment', 'rush', 'term'] }
+    // в начале доверия хватает только на склад (совместимый график) — его на общий вопрос не выдают
+    expect(step(tara, initialState(tara), general, BEHAVIOR_DICT).decision).toEqual({ kind: 'hold', reason: 'not_ready_to_reveal' })
+    // при доверии — про самый весомый для него пункт с причиной (отсрочка, лизинг), а не про склад («наушники»)
+    const d = step(tara, { ...initialState(tara), trust: 80 }, general, BEHAVIOR_DICT).decision
+    expect(d).toEqual({ kind: 'reveal', interestId: 'm_leasing', general: true })
   })
 })
 
@@ -266,7 +271,8 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     const { BEHAVIOR_DICT } = await import('./behaviors')
     const r = step(tara, initialState(tara), { behaviors: [{ id: 'ask_interest', quote: 'что главное' }, { id: 'rapport', quote: 'образцы отличные' }], asksAbout: ['price', 'payment', 'rush', 'term', 'schedule'] }, BEHAVIOR_DICT)
     expect(r.state.revealed).not.toContain('m_warehouse')
-    if (r.decision.kind === 'reveal') expect(tara.issues.find((i) => i.id === tara.opponent.profile.interests.find((x) => x.id === (r.decision as { interestId: string }).interestId)?.issue)?.kind).not.toBe('compatible')
+    // рассказывает про срочные (склад отгрузок — совместимый график — остаётся тайной)
+    expect(r.decision).toEqual({ kind: 'reveal', interestId: 'm_stock', general: true })
     // а спросили прямо про график — расскажет
     const r2 = step(tara, initialState(tara), { behaviors: [{ id: 'ask_interest', quote: 'как вам удобнее возить' }], asksAbout: ['schedule'] }, BEHAVIOR_DICT)
     expect(r2.decision).toMatchObject({ kind: 'reveal', interestId: 'm_warehouse' })
@@ -355,7 +361,8 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     ]) {
       const r = step(tara, before, groundAnalysis(tara, text, { behaviors: [], offer: all }), BEHAVIOR_DICT)
       expect(r.state.playerStance?.price, text).toBe(1)
-      if (r.decision.kind === 'accept') expect(r.state.deal?.price, text).toBeLessThanOrEqual(1)
+      expect(r.decision.kind, text).toBe('accept')
+      expect(r.state.deal?.price, text).toBe(1)
     }
   })
 
@@ -369,14 +376,31 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     expect(h.map((r) => r.decision.kind)).not.toContain('accept')
   })
 
-  it('предложение без одного пункта принимается: недостающее берётся с его листка', async () => {
+  it('недостающее берётся с его листка только по слову игрока: «остальное как у вас», а не «назвал четыре из пяти»', async () => {
     const { dormCase } = await import('../content/scenarios/story/dorm')
+    const { tara } = await import('../content/scenarios/tara')
     const { BEHAVIOR_DICT } = await import('./behaviors')
+    const { groundAnalysis } = await import('./offerEvidence')
     const sc = dormCase.scenario
     const before = { ...initialState(sc), trust: 75, tension: 10, turn: 6, lastOpponentOffer: { wifi: 1, quiet: 3, cleaning: 2, guests: 3, kitty: 2 }, playerStance: {} }
-    const r = step(sc, before, { behaviors: [], offer: { wifi: 1, quiet: 3, cleaning: 2, kitty: 2 } }, BEHAVIOR_DICT)
+    const four = { wifi: 1, quiet: 3, cleaning: 2, kitty: 2 }
+    expect(step(sc, before, { behaviors: [], offer: four }, BEHAVIOR_DICT).decision.kind).not.toBe('accept')
+    const r = step(sc, before, { behaviors: [], offer: four, rest: true }, BEHAVIOR_DICT)
     expect(r.decision.kind).toBe('accept')
-    expect(r.state.deal).toEqual({ wifi: 1, quiet: 3, cleaning: 2, kitty: 2, guests: 3 })
+    expect(r.state.deal).toEqual({ ...four, guests: 3 })
+    // «остальное как у вас» дописывает и несколько пунктов сразу
+    const one = step(sc, before, { behaviors: [], offer: { wifi: 1 }, rest: true }, BEHAVIOR_DICT)
+    expect(one.decision.kind).toBe('accept')
+    expect(one.state.deal).toEqual(before.lastOpponentOffer)
+    // Codex 17.10: четыре пункта и «график пока не согласован» — график сам не дописывается
+    const text = 'Предлагаю 212 рублей, оплату по факту отгрузки, срочные за 10 дней, договор на 2 года. График отгрузок пока не согласован.'
+    const a = groundAnalysis(tara, text, { behaviors: [], offer: { price: 0, payment: 0, rush: 0, term: 3 } })
+    expect(a.rest).toBeUndefined()
+    const t0 = { ...initialState(tara), trust: 80, tension: 5, turn: 5 }
+    expect(step(tara, t0, a, BEHAVIOR_DICT).decision.kind).not.toBe('accept')
+    expect(groundAnalysis(tara, 'Цена 204, в остальном согласен.', { behaviors: [] }).rest).toBe(true)
+    expect(groundAnalysis(tara, 'Цена 204, остальное обсудим потом.', { behaviors: [] }).rest).toBeUndefined()
+    expect(groundAnalysis(tara, 'Цена 204, остальное не устраивает.', { behaviors: [] }).rest).toBeUndefined()
   })
 
   it('шутка, извинение, вопрос о жизни — ход «ответить человеку», сделка на месте; два таких подряд — назад к делу', async () => {

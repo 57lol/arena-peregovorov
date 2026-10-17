@@ -64,11 +64,13 @@ const PART = /[,;:—–]|\s-\s|[.!?\n]+(?!\d)/u
 function ownNumber(sc: Scenario, text: string, m: Mention): boolean {
   const s = bounds(text, m.at, m.end, SENTENCE)
   const sentence = text.slice(s.start, s.stop)
-  if (proposes(text.slice(s.start, m.at), sentence)) return true
   const p = bounds(text, m.at, m.end, PART)
   const before = text.slice(p.start, m.at), after = text.slice(m.end, p.stop)
   const clause = `${before} ${after}`
-  if (NEG.test(clause) || THIRD.test(clause)) return false
+  // чужая цифра в своём куске фразы — не его, даже если в начале предложения «предлагаю»: «Предлагаю 196, а у конкурента 180»
+  if (THIRD.test(clause)) return false
+  if (proposes(text.slice(s.start, m.at), sentence)) return true
+  if (NEG.test(clause)) return false
   if (/(?<!\p{L})(?:ровно|по)\s*$/iu.test(before) || /^\s*ровно(?!\p{L})/iu.test(after)) return true
   const words = clause.toLowerCase().match(/\p{L}+/gu) ?? []
   const bare = words.every((w) => FILLER.has(w) || mentionedIssues(sc, w).includes(m.id))
@@ -85,8 +87,16 @@ function proposes(before: string, sentence: string): boolean {
 
 const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))
 
+// «остальное как у вас», «в остальном согласен», «по остальному — как договорились»; «остальное обсудим» — нет
+const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по остальному)(?!\p{L})(?![^.!?]{0,20}(?<!\p{L})не\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:как|соглас|устраива|подход|годит|ок(?!\p{L})|окей|пойд[её]т|принима|норм|по-вашему|ваш|тво[её])/iu
+
+/**
+ * Разбор хода, подтверждённый словами игрока: условия — только названные им (explicitOffer);
+ * rest — он сам сказал «остальное как у вас», и недостающие пункты движок берёт с листка собеседника.
+ */
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis): MoveAnalysis {
-  const { offer, ...rest } = analysis
+  const { offer, ...other } = analysis
+  delete other.rest
   const supported = explicitOffer(sc, text, offer)
-  return Object.keys(supported).length ? { ...rest, offer: supported } : rest
+  return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

@@ -120,3 +120,68 @@ describe('числа словами в вариантах', () => {
     expect(parseOffer(client, 'Прошлый год показал, что формула нужна.')).toEqual({})
   })
 })
+
+describe('аудит 17.10: числа, чужие цены, отказ и уход', () => {
+  it('разговорные суммы: тысяча, тыща, косарь, пятихатка, сотка; «2 к понедельнику» — не тысячи', () => {
+    const v = (t: string) => quantities(t).map((q) => q.value)
+    expect(v('Дам тысячу, и разошлись')).toEqual([1000])
+    expect(v('Тыщу дам')).toEqual([1000])
+    expect(v('Косарь дам')).toEqual([1000])
+    expect(v('Пятихатку дам на химчистку')).toEqual([500])
+    expect(v('Сотку накину')).toEqual([100])
+    expect(v('двадцать одну тысячу')).toEqual([21000])
+    expect(v('тысячу двести рублей')).toEqual([1200])
+    expect(v('две тысячи')).toEqual([2000])
+    expect(v('Даю 2к')).toEqual([2000])
+    expect(v('Отгрузим 2 к понедельнику')).toEqual([2])
+  })
+
+  it('число между вариантами засчитывается, только если оно рядом с вариантом', async () => {
+    const { stopCase } = await import('../../content/scenarios/story/stop')
+    const { tara } = await import('../../content/scenarios/tara')
+    const { client } = await import('../../content/scenarios/client')
+    const stop = stopCase.scenario
+    // у Серого 2000 / 500 / 150: «тысяча» — такого варианта нет, засчитать 2000 нельзя
+    expect(parseOffer(stop, 'За кроссы давай 1000 рублей', 'player').money).toBeUndefined()
+    expect(parseOffer(stop, 'Дам тысячу, и разошлись', 'player').money).toBeUndefined()
+    expect(parseOffer(stop, 'Пятихатку дам на химчистку', 'player').money).toBe(1)
+    // «200» при 204 и 196 — по-прежнему 204, «две недели» отсрочки — 15 дней, «5%» скидки — 6% (в пользу собеседника)
+    expect(parseOffer(tara, 'Давайте 200 ровно', 'player').price).toBe(1)
+    expect(parseOffer(tara, 'Отсрочка две недели', 'player').payment).toBe(1)
+    expect(parseOffer(client, 'Скидка 5%', 'player').price).toBe(2)
+    expect(parseOffer(tara, 'Давайте 300 за короб', 'player').price).toBeUndefined()
+  })
+
+  it('Серый: «давай 1000» не закрывает сделку на 2000', async () => {
+    const { stopCase } = await import('../../content/scenarios/story/stop')
+    const { BEHAVIOR_DICT } = await import('../behaviors')
+    const stop = stopCase.scenario
+    const h: TurnRecord[] = []
+    for (const t of [
+      'Извини, случайно вышло. Телефон не дам, могу на громкой набрать, извинюсь нормально, и давай успеем на 7:52.',
+      'За кроссы давай 1000 рублей, и закрыли вопрос. Телефон на громкой, извинюсь при пацанах, успеваем на 7:52.',
+    ]) h.push(offlineTurn(stop, h, t, BEHAVIOR_DICT))
+    expect(h[1].analysis.offer?.money).toBeUndefined()
+    expect(h[1].stateAfter.deal?.money).not.toBe(0)
+  })
+
+  it('чужая цена после своей не перезаписывает свою', async () => {
+    const { tara } = await import('../../content/scenarios/tara')
+    const { groundAnalysis } = await import('../offerEvidence')
+    expect(groundAnalysis(tara, 'Предлагаю 196 рублей, а у конкурента 180 рублей.', { behaviors: [], offer: { price: 2 } }).offer?.price).toBe(2)
+    expect(groundAnalysis(tara, 'Предлагаю 196 рублей, а у конкурента 180 рублей.', { behaviors: [] }).offer?.price).toBe(2)
+  })
+
+  it('«отказываюсь от предоплаты» — условие, а не уход; «заткнуть дыру» — не грубость', async () => {
+    const { tara } = await import('../../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('../behaviors')
+    const a = (t: string) => analyzeOffline(tara, t, BEHAVIOR_DICT)
+    expect(a('Я отказываюсь от предоплаты, давайте по факту отгрузки.').walksAway).toBeUndefined()
+    expect(a('Мы отказываемся от срочной допоставки, взамен цена 196.').walksAway).toBeUndefined()
+    expect(a('Сделки не будет без отсрочки.').walksAway).toBeUndefined()
+    expect(a('Я отказываюсь. Всего доброго.').walksAway).toBe(true)
+    expect(a('Сделки не будет.').walksAway).toBe(true)
+    expect(a('Заткнуть дыру в графике поможете?').toneViolation).toBeUndefined()
+    expect(a('Заткнись уже.').toneViolation).toBe(true)
+  })
+})

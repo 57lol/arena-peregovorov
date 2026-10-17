@@ -9,8 +9,6 @@ import { baseCaseId } from './scenarios/harder'
 import { STORY_ENDINGS } from './scenarios/story'
 import { TITLE } from './endingTitles'
 
-export { TITLE }
-
 export type EndingTone = 'good' | 'mixed' | 'bad'
 
 export interface EndingCard {

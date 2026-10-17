@@ -24,7 +24,7 @@ interface Item { who: string; voice: string; id: string; text: string; file: str
 function items(): Item[] {
   const out: Item[] = []
   const add = (who: string, id: string, text: string, file: string) => {
-    const voice = CAST.elevenId[who]
+    const voice = CAST[who]
     if (!voice) return
     out.push({ who, voice, id, text, file, body: elevenBody({ text: (LEAD[id] ?? '') + spoken(text), voice, who }, { ...process.env, ELEVENLABS_MODEL: MODEL }) })
   }

@@ -18,6 +18,7 @@ if (Number(process.versions.node.split('.')[0]) >= 22) {
 } else {
   try {
     if (fs.statSync(LOG).size > 5e6) fs.renameSync(LOG, LOG + '.1')
+    // eslint-disable-next-line no-unused-vars -- под node 10 catch без параметра не пишем
   } catch (e) {}
   var log = fs.openSync(LOG, 'a')
   // Passenger ограничивает виртуальную память, а WebAssembly в V8 резервирует её гигабайтами
