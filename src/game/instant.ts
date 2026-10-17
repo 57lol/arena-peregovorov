@@ -4,6 +4,7 @@
 // Первую встречу ведёт наставник (tutorial.ts), поэтому здесь советов про интерфейс нет — только про разговор.
 
 import { behaviorById } from '../engine/behaviors'
+import { isEn } from '../engine/lang'
 import type { OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { initialState } from '../engine/turn'
 import { isComplete, score } from '../engine/utility'
@@ -198,13 +199,15 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   const last = history[history.length - 1]
   const state: OpponentState = last?.stateAfter ?? initialState(sc)
   const out: Tip[] = []
+  // пример реплики вставляется в поле — в деле на английском он по-английски, сам совет остаётся русским
+  const ex = (ru: string, en: string) => (isEn(sc) ? en : ru)
   if (state.status !== 'open') return out
 
   if (!history.length) {
     out.push({
       id: 'start',
       text: `Пишите как в жизни. Для начала спросите, что для ${g(sc, 'него', 'неё')} в этой сделке главное и почему: вопрос стоит дёшево, а узнать можно много.`,
-      example: 'Добрый день. Прежде чем обсуждать цифры, хочу понять: что для вас в этой договорённости главное и почему?',
+      example: ex('Добрый день. Прежде чем обсуждать цифры, хочу понять: что для вас в этой договорённости главное и почему?', "Good afternoon. Before we talk numbers, I'd like to understand: what matters most to you in this deal, and why?"),
       short: `Спросите, что для ${g(sc, 'него', 'неё')} главное и почему`,
     })
     return out
@@ -233,14 +236,14 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
     out.push({
       id: 'tone',
       text: `Ещё одна резкость — и ${n} уйдёт. Сбавьте тон: признайте, что в ${g(sc, 'его', 'её')} словах есть резон, и вернитесь к делу.`,
-      example: 'Извините, это было лишнее. Давайте вернёмся к делу: что для вас сейчас главное?',
+      example: ex('Извините, это было лишнее. Давайте вернёмся к делу: что для вас сейчас главное?', "Sorry, that was too much. Let's get back to business: what matters most to you right now?"),
     })
 
   if (state.tension >= 60)
     out.push({
       id: 'tension',
       text: `${n} на взводе. Сейчас давление сорвёт встречу. Спросите, что ${g(sc, 'его', 'её')} беспокоит, или перескажите ${g(sc, 'его', 'её')} позицию своими словами.`,
-      example: 'Похоже, вас что-то в нашем разговоре беспокоит. Правильно ли я понимаю, что для вас сейчас главное — ',
+      example: ex('Похоже, вас что-то в нашем разговоре беспокоит. Правильно ли я понимаю, что для вас сейчас главное — ', 'It seems something in our conversation worries you. Do I understand correctly that the main thing for you is '),
     })
 
   if (last.decision.kind === 'reveal')
@@ -268,7 +271,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       out.push({
         id: 'ask',
         text: `Вы ещё ни разу не спросили, зачем ${him} то, что ${he} просит. Например, почему ${him} важно «${ask.option}» в пункте «${ask.title}».`,
-        example: `${ask.title}: почему для вас важно именно «${ask.option}»?`,
+        example: ex(`${ask.title}: почему для вас важно именно «${ask.option}»?`, `${ask.title}: why is "${ask.option}" so important for you?`),
       })
   }
 
@@ -284,14 +287,14 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
     out.push({
       id: 'trade',
       text: `Вы уже знаете, что ${him} важно, — это в блокноте. Предложите обмен: уступите там, где ${him} важнее, а взамен попросите своё.`,
-      example: 'Если вы берёте на себя ',
+      example: ex('Если вы берёте на себя ', 'If you can '),
     })
 
   if (history.length >= 5 && !history.slice(-4).some((h) => used(h, 'summarize')))
     out.push({
       id: 'summary',
       text: 'Давно не подводили итог. Скажите, о чём уже договорились и что осталось открытым: так видно, что ещё можно разменять.',
-      example: 'Давайте сверимся, на чём мы сейчас: ',
+      example: ex('Давайте сверимся, на чём мы сейчас: ', "Let's check where we are: "),
     })
 
   // запасные — если в реплике не нашлось ни одного приёма и больше сказать нечего
@@ -299,12 +302,12 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
     out.push({
       id: 'priority',
       text: `Скажите, что вам важно, а что не очень. Тогда ${n} поймёт, что вам можно предложить.`,
-      example: 'Скажу честно: для нас главное — ',
+      example: ex('Скажу честно: для нас главное — ', 'To be honest, the main thing for us is '),
     })
   out.push({
     id: 'check',
     text: `Перескажите своими словами, как вы поняли ${g(sc, 'его', 'её')} позицию, и спросите, так ли это.`,
-    example: 'Правильно ли я понимаю, что для вас главное — ',
+    example: ex('Правильно ли я понимаю, что для вас главное — ', 'Do I understand correctly that the main thing for you is '),
   })
   return out
 }
