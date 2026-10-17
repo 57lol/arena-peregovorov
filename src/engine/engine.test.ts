@@ -314,6 +314,9 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     expect(h[0].decision).toEqual({ kind: 'respond', to: ['joke', 'personal'] })
     expect(h[0].stateAfter.tableOffer).toEqual(initialState(sc).tableOffer)
     expect(h[1].decision).toMatchObject({ kind: 'respond', back: true })
+    // выпад с риторическим вопросом — не разговор: отвечать шуткой не на что
+    const rude = step(sc, initialState(sc), { behaviors: [{ id: 'attack', quote: 'вы что, издеваетесь' }], talk: ['question'] }, BEHAVIOR_DICT)
+    expect(rude.decision.kind).not.toBe('respond')
     // и воспроизводимо: та же история — то же решение
     expect(playAnalyses(sc, [{ text: '', analysis: { ...chat, talk: [...chat.talk] } }], BEHAVIOR_DICT)[0]).toEqual(h[0])
   })

@@ -67,6 +67,14 @@
   Маркировка, калиброванные вопросы «как/что», «никогда не делите пополам». Это практика бывшего переговорщика ФБР, а не исследование; используем как источник формулировок.
 - **Lieberman, M. D., et al. (2007).** Putting feelings into words. *Psychological Science*, 18(5), 421–428. https://doi.org/10.1111/j.1467-9280.2007.01916.x
   Называние эмоции снижает реакцию миндалины. Косвенная опора для маркировки: там люди называли свои эмоции, а не чужие.
+- **Brooks, A. W., Dai, H., & Schweitzer, M. E. (2014).** I'm sorry about the rain! Superfluous apologies demonstrate empathic concern and increase trust. *Social Psychological and Personality Science*, 5(4), 467–474. https://doi.org/10.1177/1948550613506122
+  Извинение даже за то, в чём не виноват, повышает доверие. Основание для «Личного контакта».
+- **Morris, M., Nadler, J., Kurtzberg, T., & Thompson, L. (2002).** Schmooze or lose: social friction and lubrication in e-mail negotiations. *Group Dynamics*, 6(1), 89–100. https://doi.org/10.1037/1089-2699.6.1.89
+  Короткий разговор не о деле перед переговорами по почте снижает долю тупиков. «Личный контакт» и ход «ответить человеку».
+- **Kurtzberg, T. R., Naquin, C. E., & Belkin, L. Y. (2009).** Humor as a relationship-building tool in online negotiations. *International Journal of Conflict Management*, 20(4), 377–397. https://doi.org/10.1108/10444060910991075
+  Шутка в начале онлайн-переговоров добавляет доверия и удовлетворённости исходом. «Личный контакт».
+- **Drolet, A. L., & Morris, M. W. (2000).** Rapport in conflict resolution. *JESP*, 36(1), 26–50. https://doi.org/10.1006/jesp.1999.1395
+  Взаимопонимание между сторонами помогает найти соглашение, выгодное обоим. «Личный контакт».
 - **Hilty, J. A., & Carnevale, P. J. (1993).** Black-hat/white-hat strategy in bilateral negotiation. *OBHDP*, 55(3), 444–469. https://doi.org/10.1006/obhd.1993.1039
   «Сначала жёстко, потом мягко» сближает позиции лучше всего — форма кривой уступок оппонента. Проверено по вторичным описаниям.
 

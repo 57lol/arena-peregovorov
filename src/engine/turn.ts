@@ -265,7 +265,9 @@ export function step(
 
   // Игрок шутит, извиняется, спрашивает о деле или о жизни — собеседник отвечает человеку, сделка стоит на месте.
   // Два таких хода подряд или под конец встречи — после ответа он сам возвращает разговор к делу.
-  const talk = analysis.talk?.length && !newOffer && !analysis.accepts && !isLast ? analysis.talk : undefined
+  // С выпадом или ультиматумом это не разговор, а давление: «Вы что, издеваетесь?» — не вопрос, на него не отвечают шуткой.
+  const pressing = analysis.behaviors.some((b) => dict[b.id]?.kind === 'bad')
+  const talk = analysis.talk?.length && !newOffer && !analysis.accepts && !isLast && !pressing ? analysis.talk : undefined
   const respond = (): StepResult => {
     const back = chatOnly(past[past.length - 1]) || turn >= sc.turnLimit - 2
     return end({ kind: 'respond', to: talk!, ...(back ? { back: true as const } : {}) }, {})

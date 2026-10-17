@@ -273,7 +273,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   }
 
   const anyOffer = history.some(offered)
-  if (!anyOffer && (history.length >= 3 || (last.decision.kind === 'hold' && last.decision.reason === 'no_offer')))
+  if (!anyOffer && (history.length >= 3 || (last.decision.kind === 'hold' && last.decision.reason === 'no_offer') || (last.decision.kind === 'respond' && !!last.decision.back)))
     out.push({
       id: 'offer',
       text: `${n} ждёт конкретики. Соберите в блокноте условия сразу по всем пунктам и нажмите «Предложить»: так проще менять одно на другое.`,
