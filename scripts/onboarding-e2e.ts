@@ -82,15 +82,17 @@ async function run(phone: boolean) {
     await page.locator('.tt-btn.is-story').click()
     await page.waitForTimeout(700)
     // карта кампании: у первой главы большая кнопка «Войти»
-    if (await visible(page, '.mp-card-actions')) {
+    // (на телефоне она в нижней полосе карты)
+    if (await visible(page, '.mp-map')) {
       await page.screenshot({ path: join(OUT, `${tag}-02-карта-целиком.png`), fullPage: true })
       await shot(page, tag, 'карта')
-      await page.locator('.mp-card-actions .px-btn--brass').first().click()
+      await page.getByRole('button', { name: /^(Войти|Сыграть|Ещё раз)/ }).filter({ visible: true }).first().click()
       await page.waitForTimeout(700)
     }
     await page.screenshot({ path: join(OUT, `${tag}-02-бриф-целиком.png`), fullPage: true })
     await shot(page, tag, 'бриф')
-    await page.locator('.g-dossier-foot .px-btn--brass, .g-brief-go').first().click()
+    // на телефоне видна только кнопка в шапке брифа, на широком — внизу листа
+    await page.getByRole('button', { name: /^(Войти в переговорку|Начать разговор)$/ }).filter({ visible: true }).first().click()
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
     await page.waitForTimeout(2600)
     await shot(page, tag, 'встреча-начало')

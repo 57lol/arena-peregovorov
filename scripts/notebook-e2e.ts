@@ -26,9 +26,10 @@ async function open(page: Page, view: '3d' | 'classic', tutorial: boolean) {
   await page.goto(q)
   await page.waitForTimeout(900)
   // титул по ссылке на дело → бриф → встреча
-  await page.locator('.tt-btn, .px-btn--brass').first().click()
+  await page.getByRole('button', { name: 'К делу' }).click()
   await page.waitForTimeout(900)
-  await page.locator('.g-dossier-foot .px-btn--brass').first().click()
+  // на телефоне видна только кнопка в шапке брифа, на широком — внизу листа
+  await page.getByRole('button', { name: /^(Войти в переговорку|Начать разговор)$/ }).filter({ visible: true }).first().click()
 }
 
 /** Лист блокнота попадает в кадр: ищем его точку через мир (как палец новичка). */
