@@ -8,7 +8,8 @@ import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
+import { analyzeOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
+import { groundAnalysis } from '../engine/offerEvidence'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
@@ -20,7 +21,7 @@ import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
-import { voice } from './voice'
+import { frameKey, voice } from './voice'
 import { stripTags } from './tags'
 import { roomsApi } from './rooms'
 
@@ -95,6 +96,8 @@ const TurnBody = z.object({
   tts: z.object({ voice: str(60) }).passthrough().optional(),
   /** модель реплики на этот ход («aitunnel:claude-sonnet-5.5») — для страницы сравнения; то же заголовком x-voice-llm */
   voiceLlm: str(80).optional(),
+  /** ответ потоком (строки JSON): line — начало реплики и ссылка на звук, как только они готовы; done — ход целиком */
+  stream: z.boolean().optional(),
 })
 const ReportBody = z.object({ scenario: ScenarioInput.optional(), scenarioId: Id.optional(), history: History })
 const BODY = bodyLimit({ maxSize: 200 * 1024 })
@@ -263,16 +266,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
-    const t0 = Date.now()
 
-    // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
-    const a: { analysis: MoveAnalysis; source: string; error?: string } = body.walkAway
-      ? { analysis: walkAwayMove(), source: 'button' }
-      : await analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
-    const tA = Date.now()
-    let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, fitOffer(sc, body.offer)), before, history, dict)
-    if (body.accept) analysis = { ...analysis, accepts: true }
-    const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
+    const t0 = Date.now()
+    const ms: Record<string, number | string> = {}
+    // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
+    let emit: ((ev: object) => void) | undefined
     // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
     const nh = process.env.LAB === 'off' ? undefined : c.req.header('x-lab-natural')
     const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
@@ -281,35 +279,123 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
     const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), ip)
     const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
-    const said = await voice(speaker, sc, history, body.playerText, r.decision, r.state, { natural, marks, fallback: llm })
-    const tV = Date.now()
-    // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
-    const v = { ...said, line: stripTags(unstress(said.line)) }
-    rememberSpoken(v.line, said.line)
-    speech.issue(v.line)
-    if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, c)
-    const record: TurnRecord = {
-      turn: r.state.turn,
-      playerText: body.playerText,
-      analysis,
-      deltas: r.deltas,
-      decision: r.decision,
-      opponentLine: v.line,
-      emotion: v.emotion,
-      stateAfter: r.state,
+    // голос включён: сервер озвучивает реплику сам, с первой фразы; игра берёт звук по ссылке или тем же /api/tts
+    const sound = body.tts ? speech.live(body.tts, c) : undefined
+
+    /** Разбор → решение движка. Уход по кнопке — служебная реплика: разбор как есть, без контекста. */
+    const decide = (found: MoveAnalysis) => {
+      let analysis = body.walkAway ? found : withContext(withFormalOffer(found, fitOffer(sc, body.offer)), before, history, dict)
+      if (body.accept) analysis = { ...analysis, accepts: true }
+      return { analysis, r: step(sc, before, analysis, dict, history.map((h) => h.analysis)) }
     }
-    const done = r.state.status !== 'open'
-    return c.json({
-      analysis,
-      deltas: r.deltas,
-      decision: r.decision,
-      opponentLine: v.line,
-      emotion: v.emotion,
-      state: r.state,
-      record,
-      ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
-      sources: { ms: { analyze: tA - t0, voice: tV - tA }, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
+    /** Реплика по решению. Её начало уходит в голос и в поток, только когда решение подтверждено (open). */
+    const speak = (r: ReturnType<typeof step>) => {
+      const ac = new AbortController()
+      const at = Date.now() - t0
+      let first: string | undefined
+      let open = false
+      let sent = false
+      const release = () => {
+        if (sent || !open || first === undefined) return
+        sent = true
+        ms.first = Date.now() - t0
+        sound?.first(first)
+        emit?.({ t: 'line', text: stripTags(unstress(first)), ...(sound ? { audio: sound.url } : {}) })
+      }
+      const said = voice(speaker, sc, history, body.playerText, r.decision, r.state, {
+        natural,
+        marks,
+        fallback: llm,
+        signal: ac.signal,
+        onFirst: (piece) => {
+          first = piece
+          release()
+        },
+      })
+      return { at, said, ac, key: frameKey(sc, history, body.playerText, r.decision, r.state), open: () => ((open = true), release()) }
+    }
+
+    const turn = async () => {
+      // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
+      const analyzing: Promise<{ analysis: MoveAnalysis; source: string; error?: string }> = body.walkAway
+        ? Promise.resolve({ analysis: walkAwayMove(), source: 'button' })
+        : analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
+      // Спекуляция: пока Pro размечает ход (~1 с), реплику уже пишет модель — по разбору правил. Рамка реплики та же,
+      // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда Pro.
+      let guess: ReturnType<typeof speak> | undefined
+      if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.name !== 'offline') {
+        const quick = await Promise.race([analyzing.then(() => true), new Promise<boolean>((r) => setTimeout(r, 15, false))])
+        if (!quick) guess = speak(decide(groundAnalysis(sc, body.playerText, analyzeOffline(sc, body.playerText, dict))).r)
+      }
+      const a = await analyzing
+      ms.analyze = Date.now() - t0
+      sound?.connect()
+      const { analysis, r } = decide(a.analysis)
+      let run = guess
+      if (guess && guess.key !== frameKey(sc, history, body.playerText, r.decision, r.state)) {
+        guess.ac.abort()
+        run = undefined
+      }
+      if (guess) ms.spec = run ? 'hit' : 'miss'
+      run ??= speak(r)
+      run.open()
+      const said = await run.said
+      for (const [k, x] of Object.entries(said.ms ?? {})) if (x !== undefined && k !== 'first') ms[k] = run.at + x
+      // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
+      const v = { ...said, line: stripTags(unstress(said.line)) }
+      rememberSpoken(v.line, said.line)
+      speech.issue(v.line)
+      sound?.finish(said.line, v.emotion)
+      if (ms.first === undefined) emit?.({ t: 'line', text: v.line, ...(sound ? { audio: sound.url } : {}) })
+      const record: TurnRecord = {
+        turn: r.state.turn,
+        playerText: body.playerText,
+        analysis,
+        deltas: r.deltas,
+        decision: r.decision,
+        opponentLine: v.line,
+        emotion: v.emotion,
+        stateAfter: r.state,
+      }
+      const done = r.state.status !== 'open'
+      return {
+        analysis,
+        deltas: r.deltas,
+        decision: r.decision,
+        opponentLine: v.line,
+        emotion: v.emotion,
+        state: r.state,
+        record,
+        ...(sound ? { audio: sound.url } : {}),
+        ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
+        sources: { ms, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
+      }
+    }
+
+    if (!body.stream) return c.json(await turn())
+    const enc = new TextEncoder()
+    const out = new ReadableStream<Uint8Array>({
+      start(ctl) {
+        emit = (ev) => {
+          try {
+            ctl.enqueue(enc.encode(`${JSON.stringify(ev)}\n`))
+          } catch {
+            // игрок ушёл со страницы — ход всё равно доигрываем: он в кэше, звук оплачен
+          }
+        }
+        turn().then(
+          (j) => emit!({ t: 'done', ...j }),
+          (e: Error) => emit!({ t: 'error', error: e.message }),
+        ).finally(() => {
+          try {
+            ctl.close()
+          } catch {
+            // поток уже закрыт
+          }
+        })
+      },
     })
+    return c.body(out, 200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' })
   })
 
   app.post('/api/report', BODY, async (c) => {

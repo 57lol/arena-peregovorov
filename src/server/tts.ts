@@ -193,6 +193,17 @@ export function elevenRequest(q: TtsRequest, f: Fetch = fetch, env = process.env
       })
 }
 
+/**
+ * Соединение с воркером заранее: TLS до workers.dev — 0,1–0,3 с, а соединение живёт ~4 с. Зовём в начале хода и после
+ * разметки — к первой фразе реплики канал уже открыт. Воркер без секрета сразу отвечает 401.
+ */
+let connectedAt = 0
+export function elevenConnect(f: Fetch = fetch, env = process.env) {
+  if (!env.ELEVEN_RELAY_URL || Date.now() - connectedAt < 1500) return
+  connectedAt = Date.now()
+  void f(env.ELEVEN_RELAY_URL, { method: 'GET', signal: AbortSignal.timeout(3000) }).then((r) => r.arrayBuffer()).catch(() => undefined)
+}
+
 /** Длительность mp3 по кадрам (у OpenAI битрейт заранее неизвестен) — для печати текста в такт голосу. */
 export function mp3Ms(b: Uint8Array): number {
   const BR1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
