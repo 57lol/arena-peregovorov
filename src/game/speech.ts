@@ -170,7 +170,7 @@ export function stopAudio() {
 }
 
 /** Реальный плеер, включая поток и фразы-паузы: печать текста может закончиться раньше звука. */
-export const speechPlaying = () => !!audio && !audio.paused && !audio.ended
+export const speechPlaying = () => !!audio && !audio.paused && !audio.ended && !audio.error
 
 export interface Prepared {
   url: string
@@ -463,12 +463,22 @@ const streamable = () => typeof MediaSource !== 'undefined' && MediaSource.isTyp
 let liveStop: AbortController | null = null
 
 /** Скачивать звук по кускам в MediaSource; в конце — весь звук (для губ и громкости). */
-function feed(src: string, stop: AbortSignal): { url: string; all: Promise<ArrayBuffer> } {
+function feed(src: string, stop: AbortSignal): { url: string; all: Promise<ArrayBuffer>; ms: MediaSource } {
   const ms = new MediaSource()
   const all = new Promise<ArrayBuffer>((resolve, reject) => {
     ms.addEventListener('sourceopen', async () => {
+      let sb: SourceBuffer | undefined
+      // endOfStream при updating бросает, и MediaSource остаётся «open»: <audio> ждёт данных вечно, не приходит ни ended,
+      // ни пауза — speechPlaying() навсегда true, и в ?voiceonly микрофон больше не включается (живая катка 17.10).
+      const close = async (error?: 'network') => {
+        try {
+          if (sb?.updating) await new Promise((ok) => sb!.addEventListener('updateend', ok, { once: true }))
+          if (ms.readyState === 'open') ms.endOfStream(error)
+        } catch { /* уже закрыт или отсоединён */ }
+      }
       try {
-        const sb = ms.addSourceBuffer('audio/mpeg')
+        const buf = ms.addSourceBuffer('audio/mpeg')
+        sb = buf
         const r = await fetch(src, { signal: stop })
         if (!r.ok || !r.body) throw new Error(`звук: ${r.status}`)
         noteVoice({ api: r.headers.get('x-tts-api') ?? '', ...(r.headers.has('x-tts-fallback') ? { fallback: '1' } : {}) })
@@ -478,21 +488,46 @@ function feed(src: string, stop: AbortSignal): { url: string; all: Promise<Array
           const { value, done } = await reader.read()
           if (done) break
           parts.push(value)
-          if (sb.updating) await new Promise((ok) => sb.addEventListener('updateend', ok, { once: true }))
-          sb.appendBuffer(value)
+          if (buf.updating) await new Promise((ok) => buf.addEventListener('updateend', ok, { once: true }))
+          buf.appendBuffer(value)
         }
-        if (sb.updating) await new Promise((ok) => sb.addEventListener('updateend', ok, { once: true }))
-        if (ms.readyState === 'open') ms.endOfStream()
+        await close()
         const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
         parts.reduce((at, p) => (out.set(p, at), at + p.length), 0)
         resolve(out.buffer)
       } catch (e) {
-        if (ms.readyState === 'open') ms.endOfStream('network')
+        // поток оборвался не по нашей воле — доиграть то, что пришло, и закончить обычным ended
+        await close(stop.aborted || !sb?.buffered.length ? 'network' : undefined)
         reject(e)
       }
     }, { once: true })
   })
-  return { url: URL.createObjectURL(ms), all }
+  return { url: URL.createObjectURL(ms), all, ms }
+}
+
+/**
+ * Живая катка 17.10 (Тимур, реплика из двух кусков): поток закрыт, звук доигран до конца буфера, а вместо ended —
+ * waiting навсегда; speechPlaying() не отпускал, микрофон в ?voiceonly больше не включался. Сторож: дырка между
+ * кусками — перескочить, конец буфера — считать, что договорил.
+ */
+function guardEnd(a: HTMLAudioElement, src: string, ms: MediaSource) {
+  let played = false
+  const until = performance.now() + 5 * 60_000
+  const timer = setInterval(() => {
+    played ||= !a.paused
+    if (a.src !== src || a.ended || (played && a.paused) || performance.now() > until) return clearInterval(timer)
+    if (a.paused || ms.readyState !== 'ended' || a.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA || !a.buffered.length) return
+    for (let i = 0; i < a.buffered.length; i++) {
+      if (a.buffered.start(i) > a.currentTime + 0.01) {
+        a.currentTime = a.buffered.start(i)
+        return
+      }
+    }
+    if (a.currentTime < a.buffered.end(a.buffered.length - 1) - 0.3) return
+    clearInterval(timer)
+    a.pause()
+    a.dispatchEvent(new Event('ended'))
+  }, 250)
 }
 
 /**
@@ -510,6 +545,7 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
     const got = feed(src, liveStop.signal)
     url = got.url
     a.src = got.url
+    guardEnd(a, got.url, got.ms)
     trackLip(a, envelope(got.all), true)
   } else {
     a.src = src
