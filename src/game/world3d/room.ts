@@ -19,7 +19,7 @@ import {
   SphereGeometry,
 } from 'three'
 import { CLOCK, ROOM, SEATS, TABLE, seatYaw } from './layout'
-import { F, type Faces, Kit, Soup, at, faceEye, flatY as flat, planeZ as plane, quads } from './roomkit'
+import { F, type Faces, Kit, Soup, at, faceEye, flatY as flat, planeZ as plane, quads, SwingDoor } from './roomkit'
 import { ATLAS, PLACE } from './room3d.gen'
 
 export type RoomKind = 'factory' | 'office'
@@ -30,6 +30,8 @@ export interface RoomBuild {
   clock: { hour: Object3D; minute: Object3D }
   /** мелкая жизнь комнаты: облака за окном, пар над чаем; t — секунды */
   update?: (t: number, dt: number) => void
+  /** дверь, в которую уходит собеседник (exit.ts): 0 — закрыта, 1 — открыта */
+  door?: (open: number) => void
   dispose?: () => void
 }
 
@@ -45,6 +47,8 @@ export function buildRoom(kind: RoomKind): RoomBuild {
 
   // примитивы, которые сразу уходят в суп
   const { box, cyl, art, sprite } = soup.tools()
+  /** дверь в левой стене — своим мешем, чтобы открывалась, когда собеседник уходит */
+  let door: SwingDoor | undefined
 
   // ------------------------------------------------------------------ стены, пол, потолок
   // мипмапы только полу: он уходит далеко под острым углом; стены и потолок чище без них
@@ -252,7 +256,8 @@ export function buildRoom(kind: RoomKind): RoomBuild {
     sprite(0.5, 0.79, 'jacket', rx + 0.1, 0.94, rz + 0.04)
     const [dz0, dz1, dh] = F_.door
     const dm = (dz0 + dz1) / 2
-    box(dz1 - dz0, dh, 0.05, F('door', 'c12'), -HW + 0.025, 0, dm, PI / 2)
+    door = new SwingDoor(soup, -HW, dz0, dz1, dh)
+    door.tools.box(dz1 - dz0, dh, 0.05, F('door', 'c12'), -HW + 0.025, 0, dm, PI / 2)
     box(dz1 - dz0 + 0.16, 0.08, 0.03, 'paint', -HW + 0.015, dh, dm, PI / 2)
     for (const zz of [dz0 - 0.04, dz1 + 0.04]) box(0.08, dh, 0.03, 'paint', -HW + 0.015, 0, zz, PI / 2)
     art(0.08, 0.08, 'switch', -HW + 0.003, 1.35, dz0 - 0.2, PI / 2, 1)
@@ -325,7 +330,8 @@ export function buildRoom(kind: RoomKind): RoomBuild {
     // левая стена: дверь, картина, тренч
     const [dz0, dz1, dh] = O.door
     const dm = (dz0 + dz1) / 2
-    box(dz1 - dz0, dh, 0.05, F('door', 'c20'), -HW + 0.025, 0, dm, PI / 2)
+    door = new SwingDoor(soup, -HW, dz0, dz1, dh)
+    door.tools.box(dz1 - dz0, dh, 0.05, F('door', 'c20'), -HW + 0.025, 0, dm, PI / 2)
     box(dz1 - dz0 + 0.12, 0.06, 0.025, 'c42', -HW + 0.013, dh, dm, PI / 2)
     for (const zz of [dz0 - 0.03, dz1 + 0.03]) box(0.06, dh, 0.025, 'c42', -HW + 0.013, 0, zz, PI / 2)
     art(0.08, 0.08, 'switch', -HW + 0.003, 1.3, dz0 - 0.18, PI / 2, 1)
@@ -349,6 +355,7 @@ export function buildRoom(kind: RoomKind): RoomBuild {
   // ------------------------------------------------------------------ собрать суп
   const maps = [0, 1, 2].map((k) => kit.mat(kit.tex(`${kind}_atlas${k}`), true))
   for (const m of soup.build(kit, maps)) g.add(m)
+  if (door) g.add(door.build(kit, maps))
 
   // пар над чаем и над трубой за окном
   const steamTex = kit.tex('steam', { repeat: true })
@@ -381,5 +388,5 @@ export function buildRoom(kind: RoomKind): RoomBuild {
     dead.visible = f > 12.1 && Math.sin(t * 47) > -0.2
   }
 
-  return { group: g, clock: { hour, minute }, update, dispose: () => kit.dispose() }
+  return { group: g, clock: { hour, minute }, update, door: (k) => door?.open(k), dispose: () => kit.dispose() }
 }

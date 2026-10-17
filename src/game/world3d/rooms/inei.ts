@@ -8,7 +8,7 @@
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, CylinderGeometry, DirectionalLight, Group, Object3D, PlaneGeometry } from 'three'
 import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
-import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads } from '../roomkit'
+import { F, type Faces, Kit, Soup, at, flatY, planeZ, quads, SwingDoor } from '../roomkit'
 import type { StoryRoom } from './index'
 import { ATLAS, PLACE } from './inei.gen'
 
@@ -177,7 +177,8 @@ function buildInei(): RoomBuild {
   sprite(0.9, 1.35, 'ficus', fcx, 0.38, fcz, 0.8)
   const [dz0, dz1, dh] = P.door
   const dm = (dz0 + dz1) / 2
-  box(dz1 - dz0, dh, 0.05, F('door_w', 'c14'), -HW + 0.025, 0, dm, PI / 2)
+  const door = new SwingDoor(soup, -HW, dz0, dz1, dh)
+  door.tools.box(dz1 - dz0, dh, 0.05, F('door_w', 'c14'), -HW + 0.025, 0, dm, PI / 2)
   box(dz1 - dz0 + 0.12, 0.05, 0.025, 'c43', -HW + 0.013, dh, dm, PI / 2)
   for (const zz of [dz0 - 0.03, dz1 + 0.03]) box(0.05, dh, 0.025, 'c43', -HW + 0.013, 0, zz, PI / 2)
   art(0.08, 0.08, 'switch', -HW + 0.003, 1.3, dz0 - 0.18, PI / 2, 1)
@@ -267,6 +268,7 @@ function buildInei(): RoomBuild {
 
   // ------------------------------------------------------------------ собрать суп
   for (const m of soup.build(kit, maps)) g.add(m)
+  g.add(door.build(kit, maps))
 
   // свет — для Lambert-материалов людей и рук, как в room.ts
   g.add(new AmbientLight(0xffffff, 2.4))
@@ -285,7 +287,7 @@ function buildInei(): RoomBuild {
     a.lamp.visible = t % 1.1 < 0.55
     b.lamp.visible = (t + 0.4) % 1.3 < 0.6
   }
-  return { group: g, clock: { hour, minute }, update, dispose: () => kit.dispose() }
+  return { group: g, clock: { hour, minute }, update, door: (k) => door.open(k), dispose: () => kit.dispose() }
 }
 
 export const ROOM: StoryRoom = { kind: 'inei', build: buildInei }

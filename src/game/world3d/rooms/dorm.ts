@@ -7,7 +7,7 @@
 import { AmbientLight, BoxGeometry, type BufferGeometry, CircleGeometry, DirectionalLight, Group, Mesh, Object3D, PlaneGeometry, SphereGeometry } from 'three'
 import { CLOCK, ROOM as SIZE, SEATS, TABLE, seatYaw } from '../layout'
 import type { RoomBuild } from '../room'
-import { F, type Faces, Kit, Soup, at, faceEye, flatY, planeZ, quads } from '../roomkit'
+import { F, type Faces, Kit, Soup, at, faceEye, flatY, planeZ, quads, SwingDoor } from '../roomkit'
 import type { StoryRoom } from './index'
 import { ATLAS, PLACE } from './dorm.gen'
 
@@ -227,11 +227,13 @@ function buildDorm(): RoomBuild {
   sprite(0.4, 0.13, 'sneakers', -HW + 0.28, 0, hz0 + 0.4)
   const [dz0, dz1, dh] = P.door
   const dm = (dz0 + dz1) / 2
-  box(dz1 - dz0, dh, 0.05, F('door_d', 'c41'), -HW + 0.025, 0, dm, PI / 2)
+  // полотно с номером и графиком дежурств — своим мешем: открывается, когда собеседник уходит
+  const door = new SwingDoor(soup, -HW, dz0, dz1, dh)
+  door.tools.box(dz1 - dz0, dh, 0.05, F('door_d', 'c41'), -HW + 0.025, 0, dm, PI / 2)
   box(dz1 - dz0 + 0.16, 0.07, 0.025, 'c43', -HW + 0.013, dh, dm, PI / 2)
   for (const zz of [dz0 - 0.04, dz1 + 0.04]) box(0.07, dh, 0.025, 'c43', -HW + 0.013, 0, zz, PI / 2)
-  art(0.2, 0.11, 'num214', -HW + 0.052, 1.86, dm, PI / 2)
-  art(0.6, 0.77, 'schedule', -HW + 0.053, 1.3, dm + 0.03, PI / 2)
+  door.tools.art(0.2, 0.11, 'num214', -HW + 0.052, 1.86, dm, PI / 2)
+  door.tools.art(0.6, 0.77, 'schedule', -HW + 0.053, 1.3, dm + 0.03, PI / 2)
   art(0.08, 0.08, 'switch', -HW + 0.003, 1.35, dz0 - 0.2, PI / 2, 1)
 
   // ------------------------------------------------------------------ правая стена: этажерка, умывальник, зеркало
@@ -348,6 +350,7 @@ function buildDorm(): RoomBuild {
   // ------------------------------------------------------------------ собрать суп
   const maps = [0, 1, 2].map((k) => kit.mat(kit.tex(`dorm_atlas${k}`), true))
   for (const m of soup.build(kit, maps)) g.add(m)
+  g.add(door.build(kit, maps))
   const garland = lit.map((s) => s.build(kit, maps))
   for (const ms of garland) g.add(...ms)
 
@@ -374,7 +377,7 @@ function buildDorm(): RoomBuild {
     // огонёк на трубе за окном
     beacon.visible = t % 1.6 < 0.7
   }
-  return { group: g, clock: { hour, minute }, update, dispose: () => kit.dispose() }
+  return { group: g, clock: { hour, minute }, update, door: (k) => door.open(k), dispose: () => kit.dispose() }
 }
 
 export const ROOM: StoryRoom = { kind: 'dorm', build: buildDorm }
