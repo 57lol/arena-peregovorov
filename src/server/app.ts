@@ -10,6 +10,7 @@ import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecor
 import { checkScenario } from '../engine/validate'
 import { groundedOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
+import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
 import { CACHE_DIR, hashOf } from './cache'
@@ -40,6 +41,7 @@ const Profile = z.object({
 /** Своё дело из браузера: 3–6 пунктов по 2–6 вариантов, до 20 ходов, тексты с запасом против библиотеки и сборщика дел. */
 const ScenarioInput = z.object({
   id: Id,
+  lang: z.enum(['ru', 'en']).optional(),
   title: str(300),
   sphere: str(100),
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
@@ -327,7 +329,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
       const analyzing: Promise<{ analysis: MoveAnalysis; source: string; error?: string }> = body.walkAway
         ? Promise.resolve({ analysis: walkAwayMove(), source: 'button' })
-        : analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
+        : analyzeMove(lab ? llm : ((isEn(sc) && llm.analyzerEn) || llm.analyzer || llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
       // Спекуляция: пока Pro размечает ход (~1 с), реплику уже пишет модель — по разбору правил. Рамка реплики та же,
       // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда Pro.
       let guess: ReturnType<typeof speak> | undefined

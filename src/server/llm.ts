@@ -25,6 +25,8 @@ export interface LLM {
   stream?(req: JsonRequest, signal?: AbortSignal): AsyncGenerator<string>
   /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL или ANALYZE_LLM) */
   analyzer?: LLM
+  /** разбор реплики в деле на английском (ANALYZE_LLM_EN); нет — тот же analyzer */
+  analyzerEn?: LLM
   /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
   voice?: LLM
 }
@@ -407,7 +409,7 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
     return { llm: offline, error: (e as Error).message }
   }
   if (llm.name === 'offline') return { llm }
-  const attach = (field: 'analyzer' | 'voice', spec: string | undefined) => {
+  const attach = (field: 'analyzer' | 'analyzerEn' | 'voice', spec: string | undefined) => {
     if (!spec || spec === 'main') return
     try {
       llm[field] = llmFromSpec(spec, env)
@@ -416,6 +418,7 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
     }
   }
   attach('analyzer', env.ANALYZE_LLM)
+  attach('analyzerEn', env.ANALYZE_LLM_EN)
   attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
   return { llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
 }
