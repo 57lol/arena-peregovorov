@@ -9,7 +9,7 @@ import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { isFemale, plural } from '../cast'
 import { closeRoom, loadBoard, RoomError, teamLink } from '../rooms'
-import { Button } from '../ui'
+import { Button, Row } from '../ui'
 import { LinkField } from './Coach'
 import { Bench } from './Debrief'
 import { PlayerCard } from './PlayerCard'
@@ -278,15 +278,6 @@ function TeamLedger({ sum }: { sum: ReturnType<typeof summarize> }) {
         )}
       </dl>
     </section>
-  )
-}
-
-function Row({ label, value, strong, tone }: { label: string; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
-  return (
-    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   )
 }
 

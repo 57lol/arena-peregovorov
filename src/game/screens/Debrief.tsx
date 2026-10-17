@@ -13,7 +13,7 @@ import { firstName, g, isFemale, plural, portraitFor, pts, sceneFor } from '../c
 import { countStars, loadProgress, recordRun, runLogOf, starsOf, storageOk, type Progress } from '../progress'
 import { baseCaseId } from '../../content/scenarios'
 import { SkillGain } from './Career'
-import { Button, PixelIcon, Portrait, toPortraitEmotion } from '../ui'
+import { Button, PixelIcon, Portrait, Row, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
 import { Finale } from './Finale'
 import { Method } from './Method'
@@ -326,15 +326,6 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
 
 /** Термин для тех, кто знает теорию, — мелко после простых слов. */
 const Term = ({ children }: { children: React.ReactNode }) => <small className="g-term">({children})</small>
-
-function Row({ label, value, strong, tone }: { label: React.ReactNode; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
-  return (
-    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  )
-}
 
 const DECISION_RU: Record<string, string> = {
   accept: 'сделка',

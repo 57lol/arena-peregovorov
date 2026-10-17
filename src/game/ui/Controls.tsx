@@ -145,3 +145,13 @@ export function Stamp({ kind }: StampProps) {
     </div>
   )
 }
+
+/** Строка итогов «название — значение» внутри <dl>: крупная (strong), зелёная или красная (tone). */
+export function Row({ label, value, strong, tone }: { label: ReactNode; value: string | number; strong?: boolean; tone?: 'good' | 'bad' }) {
+  return (
+    <div className={`g-row${strong ? ' is-strong' : ''}${tone ? ` is-${tone}` : ''}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  )
+}
