@@ -99,7 +99,7 @@ if (cmd === 'turn') {
   ses.turns.push({ playerText: text, record, spoken: s.v.line, voice: { model: s.v.model, source: s.v.source, problems: s.v.problems, error: s.v.error, attempts: s.attempts }, ms: { analyze: msA, voice: s.ms }, rub: { analyze: rubA, voice: s.rub } })
   writeFileSync(path(file), JSON.stringify(ses, null, 1))
   console.log(`ход ${record.turn}: ${JSON.stringify({ b: analysis.behaviors.map((b) => b.id), offer: analysis.offer, ask: analysis.asksAbout, talk: analysis.talk, acc: analysis.accepts })}`)
-  console.log(`  решение: ${decisionText(sc, r.decision)} | доверие ${r.state.trust} напряж. ${r.state.tension} | разметка ${a.source} ${msA} мс ${rubA.toFixed(2)} ₽`)
+  console.log(`  решение: ${decisionText(sc, r.decision)} | доверие ${r.state.trust} напряж. ${r.state.tension} | разметка ${a.source} ${msA} мс ${rubA.toFixed(2)} ₽${a.error ? ` (${a.error.slice(0, 160)})` : ""}`)
   for (const x of s.attempts) if (x.hard.length || x.soft.length) console.log(`  попытка ${x.attempt + 1} (${x.ms} мс): «${x.line}» — ${[...x.hard.map((h) => '!' + h), ...x.soft].join('; ')}`)
   console.log(`  ${sc.opponent.character.name} [${s.v.source}, ${s.v.model}, ${s.ms} мс, ${s.rub.toFixed(2)} ₽]: ${s.v.line}`)
 }

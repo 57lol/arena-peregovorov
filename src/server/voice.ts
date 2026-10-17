@@ -232,11 +232,18 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
         : ' Назови главное своими словами, а не перечнем через запятую.'
       const agreed = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === d.offer[i.id] && changed.includes(i.id))
       const yes = agreed.length ? ` По ${agreed.map((i) => `«${lc(i.title)}»`).join(', ')} ты сходишься с тем, что он просил, — так и скажи, как согласие по этому пункту.` : ''
+      // что он просил, а ты не даёшь: самое важное для тебя — коротко отказать, иначе непонятно, что его вариант не прошёл
+      const opp = sc.opponent.profile
+      const no = sc.issues
+        .filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && !changed.includes(i.id))
+        .sort((a, b) => issueWeight(opp, b.id) - issueWeight(opp, a.id))
+        .slice(0, 2)
+      const refuse = no.length ? ` Его ${no.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} ты не принимаешь — скажи это коротко, своими словами; своё по этому пункту можешь назвать.` : ''
       const back = backSteps(sc, d.offer, prev, stance)
       const trade = back.length ? ` По ${back.map((i) => `«${lc(i.title)}»`).join(', ')} ты отходишь от того, что он просил: подай это как размен («раз…, то…»).` : ''
       const feigned = d.feigned?.length ? ` Хитрость: ${d.feigned.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')} подай как свою уступку, будто она тебе чего-то стоит. Что тебе самому так удобно, не признавайся.` : ''
       const fin = d.final ? ' Время встречи кончается: скажи, что это твоё последнее предложение, дальше только да или нет.' : ' Торг не закончен: не называй это последним словом.'
-      text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${trade}${feigned}${fin}${reasons}`
+      text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${refuse}${trade}${feigned}${fin}${reasons}`
       break
     }
     case 'reveal': {

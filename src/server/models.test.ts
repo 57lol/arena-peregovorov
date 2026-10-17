@@ -47,7 +47,8 @@ describe('/api/turn: реплика своей моделью', () => {
   const body = (extra: object = {}) => ({
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ scenarioId: 'dorm', history: [], playerText: 'Ахах, а приставка у тебя какая? Плойка?', ...extra }),
+    // свой текст на каждый прогон: разбор и реплика кэшируются на диске
+    body: JSON.stringify({ scenarioId: 'dorm', history: [], playerText: `Ахах, а приставка у тебя какая? Плойка? ${Math.random().toString(36).slice(2, 6)}`, ...extra }),
   })
   const analysis = { behaviors: [], offer: [], accepts: false, walksAway: false, asksAbout: [], toneViolation: false, talk: ['joke', 'question'] }
 
