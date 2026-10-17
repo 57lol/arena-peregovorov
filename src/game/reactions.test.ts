@@ -14,6 +14,28 @@ const examples = [
   ['Иначе говоря, надо подумать', 'neutral'], ['Вы что хотели предложить?', 'neutral'],
 ] as const
 
+const english = [
+  ['Are you crazy? This is bullshit.', 'rude'], ['This is my final offer, take it or leave it.', 'pressure'],
+  ['Haha, nice one!', 'friendly'], ['Thank you, nice to meet you.', 'thanks'], ['Sorry, my mistake.', 'apology'],
+  ['What is most important to you?', 'interest'], ['I can pay 440,000 euros.', 'offer'],
+  ['How about four hundred thousand?', 'offer'], ['Tell me about the oven.', 'neutral'],
+] as const
+
+describe('мгновенная реакция по-английски (дело на английском)', () => {
+  it.each(english)('%s → %s', (text, tone) => expect(classifyTone(text)).toBe(tone))
+
+  it('Эмре отвечает английскими записями', () => {
+    const mood = { trust: 55, tension: 20 }
+    expect(chooseReaction('I can pay 440,000 euros.', mood, 'emre')).toMatchObject({ type: 'surprise', face: 'emre', path: expect.stringMatching(/^\/assets\/voice-reactions\/emre\/surprise-[12]\.mp3$/) })
+    expect(chooseReaction('This is bullshit.', mood, 'emre')?.type).toBe('hurt')
+    expect(chooseReaction('This is bullshit.', { ...mood, tension: 80 }, 'emre')?.type).toBe('anger')
+    expect(chooseReaction('Haha, you got me', mood, 'emre')?.type).toBe('chuckle')
+    expect(chooseReaction('Thanks a lot', mood, 'emre')?.type).toBe('warmth')
+    expect(chooseReaction('Final offer.', mood, 'emre')?.type).toBe('suspicion')
+    for (const [text] of english) expect(chooseReaction(text, mood, 'emre')!.text).not.toMatch(/[а-яё]/iu)
+  })
+})
+
 describe('мгновенная реакция', () => {
   it.each(examples)('%s → %s', (text, tone) => expect(classifyTone(text)).toBe(tone))
 
