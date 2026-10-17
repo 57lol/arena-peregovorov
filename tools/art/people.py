@@ -214,8 +214,9 @@ def person(P, emotion, frame):
 
     bl, br = BROWS[emotion]
     bc, bt = P['brow']
-    line(c, [(eyL + dx, ey - 4 + dy) for dx, dy in bl], bc, thick=bt)
-    line(c, [(eyR + dx, ey - 4 + dy) for dx, dy in br], bc, thick=bt)
+    bdy = P.get('brow_dy', 0)  # брови ниже — взгляд тяжелее
+    line(c, [(eyL + dx, ey - 4 + bdy + dy) for dx, dy in bl], bc, thick=bt)
+    line(c, [(eyR + dx, ey - 4 + bdy + dy) for dx, dy in br], bc, thick=bt)
 
     nx, nose = NOSES[P.get('nose', 'straight')]
     put(c, CX + nx, ey + 3, nose, E)
@@ -234,7 +235,8 @@ def person(P, emotion, frame):
     if P['female']:
         put(c, CX - 3, my, (TALK_F if frame == 'talk' else MOUTH_F)[emotion], E)
     else:
-        put(c, CX - 4, my, (TALK_M if frame == 'talk' else MOUTH_M)[emotion], E)
+        idle_m, talk_m = P.get('mouths', (MOUTH_M, TALK_M))
+        put(c, CX - 4, my, (talk_m if frame == 'talk' else idle_m)[emotion], E)
 
     if 'moustache' in P:
         P['moustache'](c, P, emotion)

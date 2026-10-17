@@ -1,9 +1,14 @@
 """Портреты оппонентов: собираются из частей по сетке 96x96, как лица в Papers, Please.
 Одно лицо — все эмоции (меняются только брови, глаза, рот), поэтому персонаж узнаваем.
 
-Запуск: ~/Arena-materials/.venv/bin/python tools/art/portraits.py
-Выход: public/assets/portraits/<id>.png — лист 3 кадра x 4 эмоции (idle, talk, blink),
-плюс превью в tools/art/out/.
+Запуск: ~/Arena-materials/.venv/bin/python tools/art/portraits.py [id ...] [--rinat old|v1|v2|v3]
+Выход: public/assets/portraits/<id>.png — лист 3 кадра (idle, talk, blink) x 6 эмоций,
+плюс превью в tools/art/out/. Без id — все листы.
+
+Марат (rinat): --rinat выбирает лицо из marat.py, по умолчанию old — прежнее build_rinat.
+  portraits.py rinat --rinat v2     — записать в игру вариант v2
+  portraits.py --rinat-variants     — только tools/art/out/rinat_v1..v3.png и сравнение rinat_variants.png,
+                                      public/ не трогает
 """
 import os
 import sys
@@ -275,26 +280,64 @@ def build_olga(emotion, frame):
 
 
 from people import PEOPLE  # noqa: E402
+import marat  # noqa: E402
 
 CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, **PEOPLE}
 
 
-def main():
+def make_sheet(fn):
+    sheet = Image.new('RGBA', (W * len(FRAMES), H * len(EMOTIONS)), (0, 0, 0, 0))
+    for r, emo in enumerate(EMOTIONS):
+        for k, fr in enumerate(FRAMES):
+            sheet.paste(to_image(fn(emo, fr)), (k * W, r * H))
+    return sheet
+
+
+def rinat_variants(prev_dir):
+    """Варианты Марата в out/: полный лист каждого и сравнение — строка на вариант, последняя — текущий лист."""
+    sheets = {}
+    for v in marat.VARIANTS:
+        sheets[v] = make_sheet(marat.builder(v))
+        sheets[v].save(os.path.join(prev_dir, f'rinat_{v}.png'))
+        print('ok', f'out/rinat_{v}.png')
+    cur = os.path.join(ROOT, 'public', 'assets', 'portraits', 'rinat.png')
+    rows = list(sheets.values()) + [Image.open(cur).convert('RGBA')]
+    pad = 4
+    cmp_ = Image.new('RGBA', (len(EMOTIONS) * (W + pad) - pad, len(rows) * (H + pad) - pad), RGB[40] + (255,))
+    for r, sh in enumerate(rows):
+        for k in range(len(EMOTIONS)):
+            tile = Image.new('RGBA', (W, H), RGB[41] + (255,))
+            tile.alpha_composite(sh.crop((0, k * H, W, (k + 1) * H)))
+            cmp_.alpha_composite(tile, (k * (W + pad), r * (H + pad)))
+    cmp_.resize((cmp_.width * 3, cmp_.height * 3), Image.NEAREST).save(os.path.join(prev_dir, 'rinat_variants.png'))
+    return sheets
+
+
+def main(argv):
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('ids', nargs='*')
+    ap.add_argument('--rinat', default='old', choices=['old', *marat.VARIANTS])
+    ap.add_argument('--rinat-variants', action='store_true')
+    a = ap.parse_args(argv)
     out_dir = os.path.join(ROOT, 'public', 'assets', 'portraits')
     prev_dir = os.path.join(os.path.dirname(__file__), 'out')
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(prev_dir, exist_ok=True)
-    for cid, fn in CHARACTERS.items():
-        sheet = Image.new('RGBA', (W * len(FRAMES), H * len(EMOTIONS)), (0, 0, 0, 0))
-        for r, emo in enumerate(EMOTIONS):
-            for k, fr in enumerate(FRAMES):
-                sheet.paste(to_image(fn(emo, fr)), (k * W, r * H))
+    if a.rinat_variants:
+        rinat_variants(prev_dir)
+        return
+    if a.rinat != 'old':
+        CHARACTERS['rinat'] = marat.builder(a.rinat)
+    for cid in a.ids or list(CHARACTERS):
+        sheet = make_sheet(CHARACTERS[cid])
         sheet.save(os.path.join(out_dir, f'{cid}.png'))
         bg = Image.new('RGBA', sheet.size, RGB[41] + (255,))
         bg.alpha_composite(sheet)
         bg.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(os.path.join(prev_dir, f'{cid}_x4.png'))
         print('ok', cid)
-    contact_sheet(prev_dir)
+    if not a.ids:
+        contact_sheet(prev_dir)
 
 
 def contact_sheet(prev_dir, scale=2):
@@ -322,4 +365,4 @@ def contact_sheet(prev_dir, scale=2):
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
