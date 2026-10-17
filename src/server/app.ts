@@ -30,25 +30,25 @@ const ROOMS = join(CACHE_DIR, 'rooms')
 // Всё, что приходит от браузера, — с потолками: дело и история уходят в промпт модели, а это деньги.
 const str = (max: number) => z.string().max(max)
 const Id = z.string().regex(/^[\w-]{1,40}$/)
-const Interest = z.object({ id: Id, text: str(500), issue: Id.optional(), trustToReveal: z.number().min(0).max(100) })
+const Interest = z.object({ id: Id, text: str(1000), issue: Id.optional(), trustToReveal: z.number().min(0).max(100) })
 const Profile = z.object({
   points: z.record(Id, z.array(z.number().min(-1000).max(1000)).max(6)),
   batna: z.number().min(-1000).max(1000),
-  batnaText: str(500),
+  batnaText: str(1000),
   interests: z.array(Interest).max(8),
 })
-/** Своё дело из браузера: 3–6 пунктов по 2–6 вариантов, до 20 ходов, тексты не длиннее карточек библиотеки ×3. */
+/** Своё дело из браузера: 3–6 пунктов по 2–6 вариантов, до 20 ходов, тексты с запасом против библиотеки и сборщика дел. */
 const ScenarioInput = z.object({
   id: Id,
-  title: str(200),
-  sphere: str(80),
+  title: str(300),
+  sphere: str(100),
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   harder: z.union([z.literal(0), z.literal(1)]).optional(),
   turnLimit: z.number().int().min(4).max(20),
   issues: z.array(z.object({
     id: Id,
-    title: str(120),
-    options: z.array(str(120)).min(2).max(6),
+    title: str(200),
+    options: z.array(str(200)).min(2).max(6),
     kind: z.enum(['distributive', 'integrative', 'compatible']),
     preferences: z.object({ player: z.number().int(), opponent: z.number().int() }).optional(),
   })).min(3).max(6),
@@ -56,17 +56,17 @@ const ScenarioInput = z.object({
   opponent: z.object({
     character: z.object({
       name: str(80), role: str(200), company: str(200), tone: z.enum(['friendly', 'neutral', 'cold', 'aggressive', 'evasive']),
-      portrait: str(40), speech: str(2000), bio: str(2000),
-      lines: z.record(str(30), z.array(str(400)).max(10)).optional(),
-      voiceExamples: z.array(str(300)).max(8).optional(),
+      portrait: str(40), speech: str(3000), bio: str(3000),
+      lines: z.record(str(30), z.array(str(500)).max(10)).optional(),
+      voiceExamples: z.array(str(500)).max(8).optional(),
     }),
-    brief: str(2000),
+    brief: str(3000),
     profile: Profile,
   }),
-  opening: str(1000),
-  blurb: str(300).optional(),
-  goals: z.array(str(300)).max(10).optional(),
-  lessons: z.array(str(300)).max(10).optional(),
+  opening: str(1500),
+  blurb: str(500).optional(),
+  goals: z.array(str(500)).max(10).optional(),
+  lessons: z.array(str(500)).max(10).optional(),
 })
 const Analysis = z.object({
   behaviors: z.array(z.object({ id: str(40), quote: str(300) })).max(20).default([]),
