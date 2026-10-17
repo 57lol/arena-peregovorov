@@ -66,6 +66,7 @@ export class World {
   /** текстуры комнаты и лица загрузились — можно проявлять кадр из темноты */
   private ready = false
   private texturesLeft = 1
+  private loaded = () => void (this.texturesLeft = 0)
   private fpsT = 0
   private fpsN = 0
   /** средний fps за последние секунды — экран встречи решает, не пора ли в 2D */
@@ -87,10 +88,10 @@ export class World {
     this.cssLayer.addEventListener('scroll', () => this.cssLayer.scrollTo(0, 0))
     el.appendChild(this.cssLayer)
     // пока грузятся текстуры и листы лиц, держим экран тёмным (но не дольше 3 секунд)
-    DefaultLoadingManager.onStart = () => void (this.texturesLeft = 1)
-    DefaultLoadingManager.onProgress = (_u, loaded, total) => void (this.texturesLeft = total - loaded)
-    DefaultLoadingManager.onLoad = () => void (this.texturesLeft = 0)
-    DefaultLoadingManager.onError = () => void (this.texturesLeft = 0)
+    const lm = DefaultLoadingManager
+    lm.onStart = () => void (this.texturesLeft = 1)
+    lm.onProgress = (_u, loaded, total) => void (this.texturesLeft = total - loaded)
+    lm.onLoad = lm.onError = this.loaded
     this.room = buildAnyRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
@@ -241,6 +242,9 @@ export class World {
     this.company?.dispose()
     this.desk.dispose()
     this.room.dispose?.()
+    // менеджер загрузки глобальный: его обработчики держали бы весь мир; если новый мир уже повесил свои — не трогаем
+    const lm = DefaultLoadingManager
+    if (lm.onLoad === this.loaded) lm.onStart = lm.onProgress = lm.onLoad = lm.onError = () => {}
     this.pipe.dispose()
     this.canvas.remove()
     this.cssLayer.remove()
