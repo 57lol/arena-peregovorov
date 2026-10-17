@@ -3,6 +3,31 @@
 
 import type { Offer, Scenario, TurnRecord } from '../src/engine/types'
 import { bestOption, formatOffer, isComplete, score, type FullOffer } from '../src/engine/utility'
+import { isEn } from '../src/engine/lang'
+
+// Те же стили по-английски — для дел на английском.
+const EN = {
+  rude: [
+    (o: string) => `Listen. ${o}. If you don't like it, get lost.`,
+    () => 'Are you kidding me? This is nonsense, not an offer. I want normal numbers.',
+    (o: string) => `Are you an idiot or just pretending? ${o}, I said.`,
+    () => 'Stop talking rubbish. Last time I repeat it.',
+    () => 'What a stupid conversation, you moron.',
+  ],
+  start: (o: string) => `Let's start with our position: ${o}.`,
+  tired: 'Okay, I am tired of bargaining. I accept your offer.',
+  middle: (o: string) => `Let's be fair and meet in the middle: ${o}.`,
+  ask: (t: string) => `And why is ${t.toLowerCase()} so important for you? What is behind it?`,
+  first: 'Good afternoon! Before we bargain, I want to understand your situation. What matters most to you in this deal, and why?',
+  heard: (t: string) => `So if I understand correctly: ${t}? That's important, thank you. `,
+  ok: 'I see. ',
+  deal: 'Great, this works for both of us. Deal.',
+  pkg: (o: string) => `Look, here is my proposal, based on what you told me: ${o}. You get what matters to you, we get what matters to us.`,
+  step: (o: string) => `Okay, I move on the money: ${o}.`,
+  lastYes: 'Okay, I accept what you offered. Deal.',
+  lastNo: 'Then no deal. Thank you for the meeting, goodbye.',
+  hold: (o: string) => `I understand you, but our offer stays: ${o}. You get what matters to you, we get what matters to us.`,
+}
 
 export type Player = (sc: Scenario, h: TurnRecord[]) => string
 
@@ -12,6 +37,7 @@ const theirLast = (h: TurnRecord[]) => h[h.length - 1]?.stateAfter.lastOpponentO
 
 // 1. Грубиян: требует всё и хамит.
 export const rude: Player = (sc, h) => {
+  if (isEn(sc)) return EN.rude[Math.min(h.length, EN.rude.length - 1)](say(sc, myBest(sc)))
   const lines = [
     `Значит так. ${say(sc, myBest(sc))}. Не нравится — идите лесом.`,
     'Вы что, издеваетесь? Это бред, а не предложение. Я жду нормальных цифр.',
@@ -25,7 +51,7 @@ export const rude: Player = (sc, h) => {
 // 2. Торгаш «давайте посередине»: не спрашивает, делит разницу пополам, соглашается, когда устал.
 export const splitter: Player = (sc, h) => {
   const theirs = theirLast(h)
-  if (!h.length || !isComplete(sc, theirs)) return `Начнём с нашей позиции: ${say(sc, myBest(sc))}.`
+  if (!h.length || !isComplete(sc, theirs)) return isEn(sc) ? EN.start(say(sc, myBest(sc))) : `Начнём с нашей позиции: ${say(sc, myBest(sc))}.`
   const mine = h[h.length - 1].stateAfter.playerStance ?? myBest(sc)
   const mid: Offer = {}
   for (const i of sc.issues) {
@@ -34,8 +60,8 @@ export const splitter: Player = (sc, h) => {
     mid[i.id] = Math.round((a + b) / 2)
   }
   const mp = score(sc.player.profile, theirs)
-  if (h.length >= 6 && mp >= sc.player.profile.batna) return 'Ладно, устал торговаться. Согласен на ваше предложение.'
-  return `Давайте по-честному, посередине: ${say(sc, mid)}.`
+  if (h.length >= 6 && mp >= sc.player.profile.batna) return isEn(sc) ? EN.tired : 'Ладно, устал торговаться. Согласен на ваше предложение.'
+  return isEn(sc) ? EN.middle(say(sc, mid)) : `Давайте по-честному, посередине: ${say(sc, mid)}.`
 }
 
 // 3. Исследователь: сначала спрашивает об интересах и пересказывает услышанное, потом собирает размен
@@ -45,14 +71,14 @@ export const explorer: Player = (sc, h) => {
   const O = sc.opponent.profile
   const asks = sc.issues
     .filter((i) => i.kind !== 'distributive')
-    .map((i) => `А почему для вас так важен пункт «${i.title.toLowerCase()}»? Что за этим стоит?`)
+    .map((i) => (isEn(sc) ? EN.ask(i.title) : `А почему для вас так важен пункт «${i.title.toLowerCase()}»? Что за этим стоит?`))
   const n = h.length
-  if (n === 0) return 'Добрый день! Прежде чем торговаться, хочу понять вашу ситуацию. Что для вас в этой сделке главное и почему?'
+  if (n === 0) return isEn(sc) ? EN.first : 'Добрый день! Прежде чем торговаться, хочу понять вашу ситуацию. Что для вас в этой сделке главное и почему?'
   const last = h[n - 1]
-  const heard =
-    last.decision.kind === 'reveal'
-      ? `Правильно понимаю: ${O.interests.find((i) => i.id === (last.decision as { interestId: string }).interestId)?.text.split(/[.,:]/)[0]}? Это важно, спасибо. `
-      : 'Понимаю. '
+  const told = last.decision.kind === 'reveal' ? O.interests.find((i) => i.id === (last.decision as { interestId: string }).interestId)?.text.split(/[.,:]/)[0] : undefined
+  const heard = isEn(sc)
+    ? told ? EN.heard(told) : EN.ok
+    : told ? `Правильно понимаю: ${told}? Это важно, спасибо. ` : 'Понимаю. '
   if (n <= asks.length) return heard + asks[n - 1]
 
   const revealed = new Set(last.stateAfter.revealed)
@@ -79,7 +105,8 @@ export const explorer: Player = (sc, h) => {
   }
   const theirs = last.stateAfter.lastOpponentOffer
   if (tries > 0 && isComplete(sc, theirs) && score(P, theirs) >= score(P, pkg as FullOffer) - 5)
-    return 'Отлично, так нам обоим хорошо. Договорились.'
+    return isEn(sc) ? EN.deal : 'Отлично, так нам обоим хорошо. Договорились.'
+  if (isEn(sc)) return tries === 0 ? EN.pkg(say(sc, pkg)) : EN.step(say(sc, pkg))
   return tries === 0
     ? `Смотрите, что предлагаю с учётом того, что вы рассказали: ${say(sc, pkg)}. Вы получаете то, что важно вам, мы — то, что важно нам.`
     : `Хорошо, иду навстречу по деньгам: ${say(sc, pkg)}.`
@@ -93,9 +120,10 @@ export const patient: Player = (sc, h) => {
   const theirs = last?.stateAfter.lastOpponentOffer
   if (last?.stateAfter.lastCall)
     return isComplete(sc, theirs) && score(sc.player.profile, theirs) >= sc.player.profile.batna
-      ? 'Хорошо, согласен на то, что вы предложили. Договорились.'
-      : 'Тогда без сделки. Спасибо за встречу, всего доброго.'
+      ? isEn(sc) ? EN.lastYes : 'Хорошо, согласен на то, что вы предложили. Договорились.'
+      : isEn(sc) ? EN.lastNo : 'Тогда без сделки. Спасибо за встречу, всего доброго.'
   const asks = sc.issues.filter((i) => i.kind !== 'distributive').length
   if (h.length <= asks + 1) return explorer(sc, h)
+  if (isEn(sc)) return EN.hold(say(sc, last.stateAfter.playerStance ?? {}))
   return `Понимаю вас, но наше предложение прежнее: ${say(sc, last.stateAfter.playerStance ?? {})}. Вы получаете то, что важно вам, мы — то, что важно нам.`
 }
