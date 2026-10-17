@@ -53,7 +53,7 @@ Apollo от AdamCYounis (lospec.com/palette-list/apollo), 46 цветов. Вс�
 
 ## Кит
 
-Компоненты лежат в `src/game/ui/`, общий экспорт в `index.ts`. Посмотреть все можно на `/?showcase`. Лицензии перечислены в `public/assets/LICENSES.md`.
+Компоненты лежат в `src/game/ui/`, общий экспорт в `index.ts`. Лицензии перечислены в `public/assets/LICENSES.md`.
 
 ## 3D-встреча
 
