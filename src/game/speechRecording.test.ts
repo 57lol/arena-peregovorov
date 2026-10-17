@@ -49,9 +49,9 @@ describe('запись с остановкой по громкости', () => {
     level = 0.08
     await vi.advanceTimersByTimeAsync(640)
     level = 0
-    await vi.advanceTimersByTimeAsync(1120)
+    await vi.advanceTimersByTimeAsync(880)
     expect(onSilence).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(80)
+    await vi.advanceTimersByTimeAsync(160)
     expect(onSilence).toHaveBeenCalledOnce()
     expect(stop).toHaveBeenCalled()
     expect(close).toHaveBeenCalledOnce()

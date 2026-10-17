@@ -848,6 +848,14 @@ body {
 .g-mic {
   font-variant-numeric: tabular-nums;
 }
+.g-mic-transcript {
+  flex-basis: 100%;
+  min-width: 0;
+  max-height: 6em;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  color: var(--on-desk-muted);
+}
 /* Разговорный режим: подписи микрофона видны и на телефоне. */
 .g-voiceonly {
   position: relative;

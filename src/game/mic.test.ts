@@ -183,3 +183,36 @@ describe('голосовой ввод', () => {
     t.mic.dispose()
   })
 })
+
+describe('Scribe и запасная запись', () => {
+  it('финал потока отправляет текст без декодирования и Яндекса', async () => {
+    const t = setup()
+    const rec = { ...t.rec, transcript: async () => 'По рукам' }
+    void t.mic.begin(); t.gum.resolve(rec); await tick()
+    await t.mic.finish()
+    expect(t.io.onText).toHaveBeenCalledWith('По рукам')
+    expect(t.io.toPcm).not.toHaveBeenCalled()
+    expect(t.io.recognize).not.toHaveBeenCalled()
+  })
+  it('сбой потока отправляет полную запись в Яндекс', async () => {
+    const t = setup()
+    const rec = { ...t.rec, transcript: async () => null }
+    void t.mic.begin(); t.gum.resolve(rec); await tick()
+    const p = t.mic.finish(); await tick()
+    expect(t.io.toPcm).toHaveBeenCalledWith(await t.rec.stop.mock.results[0].value)
+    t.stt().resolve('Полная реплика')
+    await p
+    expect(t.io.onText).toHaveBeenCalledWith('Полная реплика')
+  })
+  it('уход в ожидании commit закрывает поток, поздний финал игнорируется', async () => {
+    const t = setup(), final = deferred<string | null>()
+    const rec = { ...t.rec, transcript: () => final.promise }
+    void t.mic.begin(); t.gum.resolve(rec); await tick()
+    const p = t.mic.finish(); await tick()
+    t.mic.dispose()
+    expect(rec.cancel).toHaveBeenCalledOnce()
+    final.resolve('Поздно'); await p
+    expect(t.io.onText).not.toHaveBeenCalled()
+    expect(t.io.recognize).not.toHaveBeenCalled()
+  })
+})

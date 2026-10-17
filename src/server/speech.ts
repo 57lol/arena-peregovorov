@@ -21,6 +21,7 @@ import type { Emotion } from '../engine/types'
 import { accent, render, resolveStress, unstress, type AskJson } from './stress'
 import { stripTags } from './tags'
 import { WAIT } from './timeouts'
+import { hedge, hedgeDelay } from './sttHedge'
 import { castFor, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
@@ -713,9 +714,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   }
 
   /** Одна попытка распознавания. Зависла, сеть или 5xx — пробуем ещё раз; 401/403 и 4xx — нет. */
-  const recognize = async (pcm: Uint8Array<ArrayBuffer>): Promise<string> => {
+  const recognize = async (pcm: Uint8Array<ArrayBuffer>, signal: AbortSignal): Promise<string> => {
     const q = new URLSearchParams({ lang: 'ru-RU', format: 'lpcm', sampleRateHertz: '16000' })
-    const r = await f(`${STT_URL}?${q}`, { method: 'POST', body: pcm, headers: { Authorization: `Api-Key ${key}`, 'content-type': 'application/octet-stream' }, signal: AbortSignal.timeout(WAIT.stt()) })
+    const r = await f(`${STT_URL}?${q}`, { method: 'POST', body: pcm, headers: { Authorization: `Api-Key ${key}`, 'content-type': 'application/octet-stream' }, signal })
     deny('stt', r.status)
     if (!r.ok) throw Object.assign(new Error(`SpeechKit stt → ${r.status}`), { status: r.status })
     return ((await r.json()) as { result?: string }).result ?? ''
@@ -730,20 +731,30 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const notes: string[] = []
     const answer = async (): Promise<Response> => {
       if (!status().stt) return c.json({ error: 'Распознавание выключено' }, 503)
+      if (pcm.length > 30 * 32000 || pcm.length % 2) return c.json({ error: 'Нужен PCM 16 кГц, до 30 секунд' }, 400)
       if (pcm.length < 16000 * 2 * 0.3) return c.json({ error: 'Слишком короткая запись' }, 400)
       if (!take('stt', ip)) return c.json({ error: 'Лимит распознавания на сегодня' }, 429)
       if (!(await quota.sttAllowed())) return c.json({ error: 'Распознавание на сегодня закончилось' }, 429)
-      for (let attempt = 1; ; attempt++) {
-        try {
-          const text = await recognize(pcm)
-          // SpeechKit считает распознавание кусками по 15 секунд
-          await quota.addStt(Math.ceil(pcm.length / 32000 / 15) * 15)
-          return c.json({ text: tidyTranscript(text) })
-        } catch (e) {
-          const st = (e as { status?: number }).status
-          notes.push(`попытка ${attempt}: ${(e as Error).message}`)
-          if (attempt >= 2 || (st !== undefined && st < 500)) return c.json({ error: (e as Error).message }, 502)
-        }
+      try {
+        const text = await hedge(async (signal, attempt) => {
+          try {
+            signal.throwIfAborted()
+            const sec = Math.ceil(pcm.length / 32000 / 15) * 15
+            // Списываем и отменённую попытку: провайдер мог уже принять звук.
+            if (!(await quota.reserveStt(sec))) throw Object.assign(new Error('Бюджет STT исчерпан'), { status: 429 })
+            signal.throwIfAborted()
+            return await recognize(pcm, signal)
+          } catch (e) {
+            notes.push(`попытка ${attempt}: ${(e as Error).message}`)
+            throw e
+          }
+        }, {
+          delayMs: hedgeDelay(pcm.length / 32000), timeoutMs: WAIT.stt(), signal: c.req.raw.signal,
+          retry: (e) => (e as { status?: number }).status === undefined || (e as { status: number }).status >= 500,
+        })
+        return c.json({ text: tidyTranscript(text) })
+      } catch (e) {
+        return c.json({ error: (e as Error).message }, (e as { status?: number }).status === 429 ? 429 : 502)
       }
     }
     const r = await answer()

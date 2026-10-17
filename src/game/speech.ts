@@ -8,6 +8,12 @@ import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
 import { PERSONAS, type Persona } from '../content/voices'
 import { cpsFor } from './ui/typing'
 import { speechPause } from './silence'
+import { endOfTurnMs } from './endOfTurn'
+import { scribeMode } from './sttMode'
+import { browserScribe } from './sttStream'
+import { capturePcm } from './pcmStream'
+import { SttError, type Recording } from './recording'
+export { SttError, micError, type Recording } from './recording'
 
 export interface SpeechCaps {
   tts: boolean
@@ -649,17 +655,11 @@ export function canRecord(): boolean {
   return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined' && !!AC()
 }
 
-export interface Recording {
-  /** закончить и получить запись */
-  stop: () => Promise<Blob>
-  /** бросить без распознавания */
-  cancel: () => void
-}
 
 /** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
 let recording: MediaStream | null = null
 
-export async function startRecording(options?: { onSilence: () => void; maxMs?: number }): Promise<Recording> {
+export async function startRecording(options?: { onSilence?: () => void; maxMs?: number; onPartial?: (text: string) => void }): Promise<Recording> {
   // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
   // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
@@ -668,12 +668,16 @@ export async function startRecording(options?: { onSilence: () => void; maxMs?: 
   let source: MediaStreamAudioSourceNode | undefined
   let poll: ReturnType<typeof setInterval> | undefined
   let limit: ReturnType<typeof setTimeout> | undefined
+  let live: ReturnType<typeof browserScribe> | undefined
+  let stopCapture: ((flush?: boolean) => void) | undefined
+  let finalText: Promise<string | null> | undefined
   let released = false
   const release = () => {
     if (released) return
     released = true
     clearInterval(poll)
     clearTimeout(limit)
+    stopCapture?.()
     source?.disconnect()
     void meter?.close().catch(() => {})
     meter = undefined
@@ -694,32 +698,42 @@ export async function startRecording(options?: { onSilence: () => void; maxMs?: 
         resolve(new Blob(chunks, { type: rec.mimeType }))
       }
     })
-    rec.start()
-    if (options) {
+    if (options?.onSilence || scribeMode) {
       const Ctx = AC()!
       meter = new Ctx()
       source = meter.createMediaStreamSource(stream)
-      const analyser = meter.createAnalyser()
-      analyser.fftSize = 2048
-      source.connect(analyser)
       void meter.resume().catch(() => {})
-      const samples = new Float32Array(analyser.fftSize)
-      const paused = speechPause()
-      let stopped = false
-      const autoStop = () => {
-        if (stopped) return
-        stopped = true
-        options.onSilence()
+      if (scribeMode) {
+        try {
+          stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
+          live = browserScribe((text) => options?.onPartial?.(text), options?.maxMs === 30_000 ? 30 : 60)
+        } catch { /* MediaRecorder продолжит без потока */ }
       }
-      poll = setInterval(() => {
-        analyser.getFloatTimeDomainData(samples)
-        const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length)
-        if (paused(rms, performance.now())) autoStop()
-      }, 80)
-      limit = setTimeout(autoStop, options.maxMs ?? 30_000)
+      if (options?.onSilence) {
+        const analyser = meter.createAnalyser()
+        analyser.fftSize = 2048
+        source.connect(analyser)
+        void meter.resume().catch(() => {})
+        const samples = new Float32Array(analyser.fftSize)
+        const paused = speechPause(() => endOfTurnMs(live?.text))
+        let stopped = false
+        const autoStop = () => {
+          if (stopped) return
+          stopped = true
+          options.onSilence?.()
+        }
+        poll = setInterval(() => {
+          analyser.getFloatTimeDomainData(samples)
+          const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length)
+          if (paused(rms, performance.now())) autoStop()
+        }, 80)
+        limit = setTimeout(autoStop, options.maxMs ?? 30_000)
+      }
     }
+    rec.start()
   } catch (e) {
     // микрофон уже включён — без записи его надо отпустить, иначе точка в браузере горит до закрытия вкладки
+    live?.cancel()
     release()
     if (rec && rec.state !== 'inactive') rec.stop()
     throw e
@@ -731,8 +745,13 @@ export async function startRecording(options?: { onSilence: () => void; maxMs?: 
     release()
   }
   return {
-    stop: () => (end(), done),
-    cancel: end,
+    stop: () => {
+      end()
+      finalText = live?.finish()
+      return done
+    },
+    transcript: () => finalText ?? Promise.resolve(null),
+    cancel: () => { live?.cancel(); end() },
   }
 }
 
@@ -785,17 +804,6 @@ function downsample(buf: AudioBuffer, secs: number): Float32Array {
   return out
 }
 
-export class SttError extends Error {
-  /** распознавание на сервере выключено — кнопку прячем */
-  off: boolean
-  /** сбой сети или сервера: запись стоит отправить ещё раз */
-  retry: boolean
-  constructor(message: string, { off = false, retry = false } = {}) {
-    super(message)
-    this.off = off
-    this.retry = retry
-  }
-}
 
 /** Сколько ждём распознавание одного куска. Сервер сам повторяет зависший запрос к SpeechKit, это с запасом на повтор. */
 const STT_WAIT_MS = 20_000
@@ -860,18 +868,6 @@ export async function recognize(pcm: ArrayBuffer, signal?: AbortSignal): Promise
   return texts.map((t) => t.trim()).filter(Boolean).join(' ')
 }
 
-/** Понятное сообщение об ошибке микрофона. */
-export function micError(e: unknown): string {
-  const { name, message } = (e ?? {}) as { name?: string; message?: string }
-  // «Permission denied by system»: браузер разрешил, а macOS не даёт ему микрофон
-  if (name === 'NotAllowedError' && /system/i.test(message ?? ''))
-    return 'Система не даёт браузеру микрофон: Системные настройки → Конфиденциальность и безопасность → Микрофон. Или напишите реплику текстом.'
-  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Нет доступа к микрофону. Разрешите его для этого сайта в настройках браузера — или напишите реплику текстом.'
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Микрофон не найден. Подключите его или напишите реплику текстом.'
-  if (name === 'NotReadableError') return 'Микрофон занят другой программой.'
-  if (e instanceof SttError) return e.message
-  return 'Не получилось записать звук. Напишите реплику текстом.'
-}
 
 // проверка губ из прогонов на dev-сервере (scripts/): window.__lipState()
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __lipState: typeof lipState }).__lipState = lipState

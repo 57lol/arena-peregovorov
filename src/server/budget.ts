@@ -80,6 +80,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
   let day: Day = empty('')
   let total: Total | undefined
   let writing = Promise.resolve()
+  let reserving = Promise.resolve()
   const totalFile = join(dir, 'total.json')
 
   /** Общий счёт: один раз с диска, дальше из памяти. Нет файла — начинаем с нуля и сразу пишем. */
@@ -177,13 +178,29 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       t.rub = r4(t.rub + rub)
       await save()
     },
+    /** Атомарно занимаем секунды и деньги до запроса, включая параллельные попытки. */
+    reserveStt(sec: number, rub = sttPrice(sec, env)): Promise<boolean> {
+      const job = reserving.then(async () => {
+        const [d, t] = await both()
+        const l = limits(env)
+        if (sec < 0 || rub < 0 || !Number.isFinite(sec + rub) || d.sttSec + sec > l.sttSec || t.rub + rub > l.total || d.rub + rub > l.rub) return false
+        d.sttSec = Math.round((d.sttSec + sec) * 10) / 10
+        t.sttSec = Math.round((t.sttSec + sec) * 10) / 10
+        t.sttRub = r4(t.sttRub + rub)
+        t.rub = r4(t.rub + rub)
+        d.rub = r4(d.rub + rub)
+        await save()
+        return true
+      })
+      reserving = job.then(() => {}, () => {})
+      return job
+    },
     async sttAllowed() {
       const [d] = await both()
       return modeNow() !== 'offline' && d.sttSec < limits(env).sttSec
     },
-    async addStt(sec: number) {
+    async addStt(sec: number, rub = sttPrice(sec, env)) {
       const [d, t] = await both()
-      const rub = sttPrice(sec, env)
       d.sttSec = Math.round((d.sttSec + sec) * 10) / 10
       t.sttSec = Math.round((t.sttSec + sec) * 10) / 10
       t.sttRub = r4(t.sttRub + rub)
