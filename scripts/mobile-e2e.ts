@@ -147,7 +147,7 @@ function auditPage(opts: { phone: boolean; scope?: string }): Finding[] {
     }
     if (ownText(el)) {
       const fs = parseFloat(getComputedStyle(el).fontSize)
-      if (opts.phone && fs < 12.5) out.push({ kind: 'font', what: `${label(el)} ${fs}px` })
+      if (opts.phone && fs < 14) out.push({ kind: 'font', what: `${label(el)} ${fs}px` })
       // текст режется многоточием или выходит за свою рамку
       const he = el as HTMLElement
       const s = getComputedStyle(el)
@@ -666,7 +666,7 @@ await Promise.all(
 )
 
 if (report.length) {
-  console.log(`\nМелкое (шрифт < 12.5 px, кнопки < 44 px) — ${report.length}:`)
+  console.log(`\nМелкое (шрифт < 14 px, кнопки < 44 px) — ${report.length}:`)
   for (const r of [...new Set(report.map((r) => r.replace(/^\S+ \S+ /, '')))].slice(0, 200)) console.log('  ', r)
 }
 console.log(problems.length ? `\nПроблем: ${problems.length}` : '\nВсё чисто')

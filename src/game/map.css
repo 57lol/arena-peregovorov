@@ -454,6 +454,16 @@
   font: 400 var(--fs-small) / 16px var(--f-read);
   color: var(--c-mist);
 }
+/* телефон: время в полосе — Pixeloid ×2 вместо мелкого Ark ×1; подписей на карте нет — крупные закрыли бы соседние точки,
+   а номер точки и так ведёт к списку глав под картой */
+@media (max-width: 599px) {
+  .mp-dock-text small {
+    font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  }
+  .mp-pin-label {
+    display: none;
+  }
+}
 .mp-dock .px-btn {
   flex: none;
   margin-right: 0;

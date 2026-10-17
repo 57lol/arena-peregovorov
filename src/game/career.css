@@ -175,6 +175,7 @@
 }
 /* телефон: подсказку читают — Pixeloid ×2 вместо мелкого Ark ×1 */
 @media (max-width: 599px) {
+  .g-ladder-at,
   .g-skill-hint {
     font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   }
