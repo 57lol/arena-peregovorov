@@ -240,7 +240,7 @@ export function mainTts(env = process.env): MainTts | undefined {
  * (~/Arena-materials/final/VOICE_FIX_REPORT.md). Своё — TTS_CAST="sosed:<id>,gopnik:<id>" в .env.
  */
 export const CAST: Record<string, string> = {
-  sosed: 'RHuRuXY6LScWFuyHhxzS', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n',
+  sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 
 /** Голос ElevenLabs для лица; нового лица в таблице нет — стоковый голос его пола, всегда один и тот же. */

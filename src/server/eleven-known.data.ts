@@ -26,7 +26,7 @@ export const ELEVEN_KNOWN: KnownLine[] = [
   },
   {
     who: 'sosed',
-    voice: 'RHuRuXY6LScWFuyHhxzS',
+    voice: 'kwajW3Xh5svCeKU5ky2S',
     text: 'О-о, сосед! Тимур, будем знакомы. Давай сразу договоримся, чтобы потом без обид. Роутер мой — с тебя 600 ₽ в месяц за вай-фай. Уборка — по настроению, мы же не в музее. По шуму без правил: я в наушниках, ты в наушниках. А в выходные допоздна у меня пацаны с приставкой. Идёт?',
     file: 'assets/voice-eleven/sosed/opening-dorm.mp3'
   },
