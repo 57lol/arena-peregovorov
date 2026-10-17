@@ -82,7 +82,7 @@ await ctx.addInitScript(`
   const f = window.fetch
   window.fetch = (u, o) => {
     const p = String(u instanceof Request ? u.url : u)
-    if (p.includes('/api/turn')) { let text = ''; try { text = JSON.parse(o.body).text } catch {} ; log('turn', text) }
+    if (p.includes('/api/turn')) { let text = ''; try { text = JSON.parse(o.body).playerText } catch {} ; log('turn', text) }
     else if (p.includes('/api/stt')) log('fetch', p.replace(location.origin, ''))
     return f(u, o)
   }
