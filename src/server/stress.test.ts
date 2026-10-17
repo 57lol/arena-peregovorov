@@ -107,7 +107,7 @@ describe('нейросеть для омографов', () => {
 describe('как ударение получает движок', () => {
   const t = 'Догов+ор на кварт+ал, ещё «Сем+ёрочка».'
   it('SpeechKit — «+», ElevenLabs — U+0301 после гласной, OpenAI и Gemini — без разметки; над «ё» знака нет', () => {
-    expect(render(t, 'speechkit')).toBe(t)
+    expect(render(t, 'speechkit')).toBe('Догов+ор на кварт+ал, ещё «Семёрочка».')
     expect(render(t, 'eleven')).toBe('Догово́р на кварта́л, ещё «Семёрочка».')
     expect(render(t, 'openai')).toBe('Договор на квартал, ещё «Семёрочка».')
     expect(render(t, 'gemini')).toBe('Договор на квартал, ещё «Семёрочка».')

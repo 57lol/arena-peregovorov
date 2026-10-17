@@ -291,10 +291,10 @@ export function stressPrompt(a: Accented): string {
 export type AskJson = (system: string, user: string, ms: number) => Promise<unknown>
 
 /**
- * Омографы, которые правила не решили, — вопрос быстрой модели (YandexGPT Lite отвечает за ~0,25 с).
+ * Омографы, которые правила не решили, — вопрос быстрой модели (YandexGPT Lite: медиана 0,29 с, 90% — до 0,5 с).
  * Не ответила за ms или ответила не по формату — вариант по умолчанию.
  */
-export async function resolveStress(a: Accented, ask?: AskJson, ms = 450): Promise<string> {
+export async function resolveStress(a: Accented, ask?: AskJson, ms = 500): Promise<string> {
   if (!a.open.length || !ask) return settle(a)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -325,9 +325,9 @@ export type StressEngine = 'speechkit' | 'openai' | 'eleven' | 'gemini'
  *   разметку не шлём; Gemini — тоже без разметки.
  */
 export function render(text: string, engine: StressEngine): string {
-  if (engine === 'speechkit') return forSpeechKit(text)
   // «ё» ударна сама: знак над ней не нужен
   text = text.replace(/\+(?=[ёЁ])/g, '')
+  if (engine === 'speechkit') return forSpeechKit(text)
   if (engine === 'eleven') return text.replace(new RegExp(`\\+([${VOWEL}])`, 'gu'), `$1${ACUTE}`)
   return unstress(text)
 }

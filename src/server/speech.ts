@@ -59,8 +59,10 @@ export interface SpeechOptions {
 }
 
 /**
- * Омографы в незнакомой реплике решает YandexGPT Lite (выбор из вариантов: ~0,25 с, на тесте 50 из 60 верно —
- * ~/Arena-materials/final/stress/data/llm_latency.json). STRESS_LLM=off — без неё, тогда вариант по умолчанию.
+ * Омографы в незнакомой реплике, которые не решили правила, решает YandexGPT Lite: выбор из вариантов с пояснениями,
+ * 24 из 24 на трудных фразах, медиана 0,29 с (~/Arena-materials/final/stress/data/ask_eval.json). Нужна редко: в 713
+ * репликах из кэшей правила решили всё сами. Не ответила за STRESS_LLM_MS (500 мс) — вариант по умолчанию.
+ * STRESS_LLM=off — без неё.
  */
 export function stressAsk(env = process.env): AskJson | undefined {
   if (env.STRESS_LLM === 'off' || env.LLM_PROVIDER !== 'yandex' || !env.YANDEX_API_KEY || !env.YANDEX_FOLDER_ID) return undefined
@@ -123,7 +125,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   const status = () => ({ tts: yandexTtsReady() || !!primaryTts(), stt: !!key && !denied.stt })
 
   const ask = opts.stressAsk === undefined ? stressAsk(env) : opts.stressAsk ?? undefined
-  const stressMs = Number(env.STRESS_LLM_MS ?? 450)
+  const stressMs = Number(env.STRESS_LLM_MS ?? 500)
   // реплика → она же с ударениями «+» (словарь, правила, нейросеть для омографов); прогрев и запрос клиента ждут одно и то же
   const accents = new Map<string, Promise<string>>()
   const speakable = (text: string): Promise<string> => {
@@ -246,7 +248,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     // на экране реплика остаётся как есть, размечаем только текст для синтеза; ударения «+» — везде, кроме
     // режиссёра речи и явных настроек лаборатории (там сравнивают голос как есть)
     const plain = b.text.replace(/[«»"]/g, '')
-    const marked = yandexOnly && !natural && b.natural === undefined ? (await speakable(b.text)).replace(/[«»"]/g, '') : plain
+    const marked = yandexOnly && !natural && b.natural === undefined ? render((await speakable(b.text)).replace(/[«»"]/g, ''), 'speechkit') : plain
     const text = natural ? direct(plain, b.emotion) : neat ? polish(marked, b.emotion) : marked
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
