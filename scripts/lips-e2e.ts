@@ -4,6 +4,7 @@
 // обходом navigator.webdriver = false. Реплика идёт потоком (MediaSource) кусками медленнее реального времени.
 // Запуск: vite на любом порту (API не нужен), затем
 //   npx tsx scripts/lips-e2e.ts [--url http://localhost:5391] [--view 3d|classic] [--mode eleven|speechkit] [--video папка] [--out файл.json]
+// --video: ролик ответа собеседника (реакция и реплика потоком, ~13 с) со звуком — mp3 наложены ffmpeg по времени кадров.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -181,6 +182,23 @@ const INIT = (mode: string) => `
   requestAnimationFrame(tick)
 `
 
+/** Наложить на немой ролик Playwright те mp3, что звучали, — с того момента записи, где плеер их начал. */
+function withSound(webm: string, samples: Sample[], fileOf: (s: Sample) => string | undefined, sec: (t: number) => number, from: number, out: string) {
+  const starts = new Map<string, { file: string; at: number }>()
+  for (const s of samples) {
+    const file = fileOf(s)
+    if (!s.playing || !file || starts.has(s.src)) continue
+    starts.set(s.src, { file, at: sec(s.at - s.ct * 1000) })
+  }
+  const parts = [...starts.values()]
+  const inputs = parts.flatMap((p) => ['-i', join(PUB, p.file)])
+  const delays = parts.map((p, i) => `[${i + 1}:a]adelay=${Math.max(0, Math.round(p.at * 1000))}:all=1[a${i}]`).join(';')
+  const mix = `${parts.map((_, i) => `[a${i}]`).join('')}amix=inputs=${parts.length}:normalize=0[a]`
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', webm, ...inputs, '-filter_complex', `${delays};${mix}`, '-map', '0:v', '-map', '[a]',
+    '-ss', String(Math.max(0, from)), '-t', '13', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-c:a', 'aac', out])
+  console.log(`  ролик со звуком: ${out}`)
+}
+
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const report: Record<string, Segment[]> = {}
 let failed = false
@@ -188,8 +206,12 @@ try {
   for (const view of VIEWS) for (const mode of MODES) {
     const name = `${view}-${mode}`
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...(VIDEO ? { recordVideo: { dir: join(VIDEO, name), size: { width: 1280, height: 800 } } } : {}) })
+    // программный рендер (тем более с записью видео) даёт мало кадров — проверку «не тянет 3D» выключаем, как в play3d-e2e
+    await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
     await ctx.addInitScript(INIT(mode))
     const page = await ctx.newPage()
+    // запись видео идёт с открытия страницы: по этому времени кладём звук на дорожку
+    const videoStart = Date.now()
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
     await page.route('**/api/**', async (r) => {
@@ -218,6 +240,7 @@ try {
     await page.waitForFunction(() => { const a = (window as unknown as { __a?: HTMLAudioElement }).__a; return !!a && a.ended }, undefined, { timeout: 30_000 })
     await page.waitForTimeout(500)
     await field.fill(SAY)
+    const sentAt = (await page.evaluate('performance.now()')) as number
     await field.press('Enter')
     // ответ: реакция или фраза-пауза, затем реплика (потоком или обычным звуком) — ждём её конца
     await page.waitForFunction(() => {
@@ -247,7 +270,10 @@ try {
       console.log(`  ${ok ? 'ок  ' : 'ПЛОХО'} ${s.kind.padEnd(8)} ${s.file.split('/').slice(-2).join('/').padEnd(28)} кадров ${String(s.frames).padStart(4)}  рот открыт ${(s.moving * 100).toFixed(0).padStart(3)}%  смен ${String(s.flips).padStart(3)}  r=${s.r.toFixed(2)}  лучший сдвиг ${s.lagMs} мс (r=${s.rLag.toFixed(2)})  первые 3 с: смен ${s.head.flips}, r=${s.head.r.toFixed(2)}`)
     }
     if (OUT) writeFileSync(OUT.replace(/\.json$/, `-${name}-samples.json`), JSON.stringify(samples.map((s) => ({ ...s, file: fileOf(s) }))))
+    const origin = (await page.evaluate('performance.timeOrigin')) as number
+    const video = page.video()
     await ctx.close()
+    if (video) withSound(await video.path(), samples, fileOf, (t) => (origin + t - videoStart) / 1000, (origin + sentAt - videoStart) / 1000 - 0.8, join(VIDEO, `${name}.mp4`))
   }
 } finally {
   await browser.close()
