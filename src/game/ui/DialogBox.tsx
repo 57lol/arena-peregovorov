@@ -8,13 +8,15 @@ function reducedMotion() {
 
 /** Печатает текст по буквам. skip() — показать сразу весь. */
 function useTypewriter(text: string, cps = 42) {
-  const [n, setN] = useState(0)
+  const [n, setN] = useState(() => (reducedMotion() ? text.length : 0))
+  // новый текст — печать с начала (сброс прямо в рендере, без лишнего прохода через эффект)
+  const [typed, setTyped] = useState(text)
+  if (typed !== text) {
+    setTyped(text)
+    setN(reducedMotion() ? text.length : 0)
+  }
   const done = n >= text.length
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  useEffect(() => {
-    setN(reducedMotion() ? text.length : 0)
-  }, [text])
 
   useEffect(() => {
     if (done) return
