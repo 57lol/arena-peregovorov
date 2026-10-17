@@ -9,9 +9,6 @@ import { importChunk, installChunkRecovery } from './game/chunkRecovery'
 
 installChunkRecovery()
 
-// ?fence=old — прежний фон-забор (только швы досок), чтобы сравнить или откатиться; см. .fence-old в ui/ui.css
-if (new URLSearchParams(location.search).get('fence') === 'old') document.documentElement.classList.add('fence-old')
-
 // ?world=factory|office — 3D-комната без игры, для разработки графики
 const WorldPreview = lazy(() => importChunk(() => import('./game/world3d/Preview.tsx')))
 const worldPreview = new URLSearchParams(location.search).has('world')
