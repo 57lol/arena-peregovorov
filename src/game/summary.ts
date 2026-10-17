@@ -1,11 +1,11 @@
 // Главное в разборе — три строки: чем кончилось, что получилось, что попробовать в следующий раз.
 // Считается из того же отчёта, что и подробный разбор, без нейросети: тот же ход — те же строки.
 
-import { behaviorById } from '../engine/behaviors'
+import { MINUTES_PER_TURN, behaviorById } from '../engine/behaviors'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { isComplete, maxScore, score } from '../engine/utility'
-import { firstName, g } from './cast'
+import { firstName, g, plural } from './cast'
 import { fragment, plainWords } from './instant'
 import { worseWithout } from '../content/scenarios/story'
 
@@ -78,4 +78,14 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   else if (!deal && r.zopa) next = `Предложите условия по всем пунктам сразу: так ${him} проще согласиться, а вам — обменять одно на другое.`
   else next = sc.lessons?.[0] ?? sc.goals?.[0] ?? 'Попробуйте сыграть это дело жёстче.'
   return { result, good: plainWords(good), quote, next: plainWords(next) }
+}
+
+/** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */
+export function often(x: number, unit: 'share' | 'per_hour' | 'reasons'): string {
+  const perTurn = unit === 'share' ? x / 100 : (x * MINUTES_PER_TURN) / 60
+  if (perTurn <= 0) return 'ни разу'
+  if (perTurn >= 0.75) return 'почти в каждой реплике'
+  if (perTurn >= 0.4) return 'примерно в каждой второй реплике'
+  const k = Math.round(1 / perTurn)
+  return `примерно раз в ${k} ${plural(k, 'реплику', 'реплики', 'реплик')}`
 }

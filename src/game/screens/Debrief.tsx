@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Case } from '../../App'
-import { BEHAVIOR_DICT, MINUTES_PER_TURN, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
+import { BEHAVIOR_DICT, SOURCES, behaviorById, type Behavior } from '../../engine/behaviors'
 import type { ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import { revealAt } from '../../engine/policy'
@@ -19,7 +19,7 @@ import { Finale } from './Finale'
 import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
-import { summarize } from '../summary'
+import { often, summarize } from '../summary'
 import { plainWords } from '../instant'
 import '../onboarding.css'
 
@@ -617,13 +617,4 @@ export function Bench({ row, who = 'вы', n }: { row: ProfileRow; who?: string;
   )
 }
 
-/** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */
-export function often(x: number, unit: 'share' | 'per_hour' | 'reasons'): string {
-  const perTurn = unit === 'share' ? x / 100 : (x * MINUTES_PER_TURN) / 60
-  if (perTurn <= 0) return 'ни разу'
-  if (perTurn >= 0.75) return 'почти в каждой реплике'
-  if (perTurn >= 0.4) return 'примерно в каждой второй реплике'
-  const k = Math.round(1 / perTurn)
-  return `примерно раз в ${k} ${plural(k, 'реплику', 'реплики', 'реплик')}`
-}
 

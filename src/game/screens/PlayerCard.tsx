@@ -5,7 +5,7 @@ import type { PlayerRow, ShareState, TalkLine } from '../../engine/team'
 import { plural } from '../cast'
 import { askTalk, loadTalk } from '../rooms'
 import { Button } from '../ui'
-import { often } from './Debrief'
+import { often } from '../summary'
 
 interface Props {
   room: string
