@@ -103,11 +103,11 @@ export function userPrompt(sc: Scenario, history: TurnRecord[], text: string, la
 
 const norm = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\d]+/gu, ' ').trim()
 
-/** Цитата должна реально быть в реплике — иначе это выдумка модели. */
+/** Цитата должна реально быть в реплике — иначе это выдумка модели. Без цитаты индикатор не засчитывается. */
 function quoteFits(quote: string, text: string): boolean {
   const q = norm(quote)
   const t = norm(text)
-  if (!q) return true
+  if (!/\p{L}/u.test(q)) return false
   if (t.includes(q)) return true
   const words = q.split(' ')
   const hits = words.filter((w) => t.includes(w)).length

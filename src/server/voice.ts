@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import { isRude, quantities, templateLine } from '../engine/offline'
 import { optionQuantity } from '../engine/offline/numbers'
-import { completeProposal, initialState } from '../engine/turn'
+import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Interest, IssueId, Offer, OpponentState, Scenario, TalkAct, Tone, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, issueWeight } from '../engine/utility'
 import { cached } from './cache'
@@ -213,7 +213,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const deal = state.deal ?? state.tableOffer
       position = deal
       const said = sc.issues.filter((i) => typeof stance[i.id] !== 'number')
-      const filled = said.length && completeProposal(sc, stance, prev)
+      const filled = said.length
         ? ` Пункт ${said.map((i) => `«${lc(i.title)}»`).join(', ')} он не назвал — считаешь как у тебя на листке (${said.map((i) => i.options[deal[i.id]!]).join(', ')}); можно мимоходом это уточнить.`
         : ''
       text = `Соглашаешься. Сделка: ${terms(sc, deal)}. Скажи, что согласен, коротко и в характере. Весь список зачитывать не нужно: назови главное, о чём спорили. Если он назвал цифру, которой нет среди вариантов, сделка — по условиям выше: так и скажи.${filled}`

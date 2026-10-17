@@ -109,3 +109,13 @@ describe('предложения подтверждаются словами и�
     }
   })
 })
+
+describe('цитата обязательна (аудит 17.10)', () => {
+  it('индикатор с пустой цитатой или без букв не засчитывается', async () => {
+    const { validate } = await import('./analyze')
+    const { BEHAVIOR_DICT } = await import('../engine/behaviors')
+    const { tara } = await import('../content/scenarios/tara')
+    const raw = { behaviors: [{ id: 'ask_interest', quote: '' }, { id: 'label', quote: '...' }, { id: 'summarize', quote: '«»' }], offer: [], accepts: false, walksAway: false, asksAbout: [], toneViolation: false, talk: [] }
+    expect(validate(tara, BEHAVIOR_DICT, 'Цена 212 это дорого, давайте 196.', raw).behaviors).toEqual([])
+  })
+})
