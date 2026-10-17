@@ -228,8 +228,8 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
         scenario: r.scenario,
       })
     } catch (e) {
-      // вход истёк, лимит — пишем как есть; 400 тут только от несовпадения схемы, игроку она ничего не скажет
-      setFallback({ message: shownError(e) && e.status !== 400 ? e.message : noServer.message, scenario: pickFromLibrary(req, SCENARIOS) })
+      // вход истёк, лимит, неверный бриф — сервер пишет причину по-русски, её и показываем
+      setFallback({ message: shownError(e) ? e.message : noServer.message, scenario: pickFromLibrary(req, SCENARIOS) })
     } finally {
       setBusy(false)
     }
