@@ -506,3 +506,144 @@ describe('распознавание (аудит C 17.10: SpeechKit зависа
     expect(lines[1]).toMatch(/попытка 2/)
   })
 })
+
+describe('любой отказ ElevenLabs подхватывает SpeechKit', () => {
+  const frame = Uint8Array.from({ length: 417 }, (_, i) => i === 0 ? 0xff : i === 1 ? 0xfb : i === 2 ? 0x90 : 0)
+  const frames = new Uint8Array([...frame, ...frame])
+  afterEach(() => vi.unstubAllEnvs())
+  const configure = () => {
+    for (const [k, v] of Object.entries({ TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: 'https://reaction-relay.test', ELEVEN_RELAY_SECRET: 's', ELEVEN_DAILY_CHARS: '100000' })) vi.stubEnv(k, v)
+  }
+  const failures = [
+    { name: '429 дважды', status: 429, body: 'busy', calls: 2 },
+    { name: '401', status: 401, body: 'unauthorized', calls: 1 },
+    { name: '402', status: 402, body: 'payment required', calls: 1 },
+    { name: 'daily cap', status: 403, body: 'daily cap exceeded', calls: 1 },
+    { name: 'daily cap с HTTP 200', status: 200, body: 'daily cap exceeded', calls: 1 },
+    { name: 'лимит символов', status: 400, body: 'character limit exceeded', calls: 1 },
+  ]
+  it.each(failures)('$name: обычная реплика и живой поток', async ({ status, body, calls }) => {
+    configure()
+    for (const live of [false, true]) {
+      const sk: string[] = []
+      let eleven = 0
+      const f = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === 'GET') return new Response('')
+        if (String(url).includes('reaction-relay')) { eleven++; return new Response(body, { status }) }
+        sk.push(String(init?.body))
+        return new Response(v3Line())
+      })
+      const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+      const app = createApp(offline, undefined, speech)
+      const text = `Проверка ${live} ${status} ${Math.random()}`
+      speech.issue(text)
+      let response: Response
+      if (live) {
+        app.get('/test-live', (c) => {
+          const sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+          sound.finish(text)
+          return c.json({ url: sound.url })
+        })
+        const { url } = await (await app.request('/test-live')).json() as { url: string }
+        response = await app.request(url)
+      } else response = await tts(app, { text, voice: 'sergey', who: 'gopnik' })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-tts-fallback')).toBeTruthy()
+      expect(response.headers.get('x-tts-api')).toBe('v3')
+      expect((await response.arrayBuffer()).byteLength).toBe(mp3.byteLength)
+      expect(eleven).toBe(calls)
+      expect(sk).toHaveLength(1)
+      expect(JSON.parse(sk[0]).text.replace(/\+/g, '')).toBe(text)
+    }
+  })
+
+  it.each(['402', 'обрыв'] as const)('остаток: %s → тот же остаток SpeechKit, начало не повторяется', async (failure) => {
+    configure()
+    let eleven = 0
+    const sk: string[] = []
+    const f = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('')
+      if (!String(url).includes('reaction-relay')) { sk.push(String(init?.body)); return new Response(v3Line()) }
+      if (++eleven === 1) return new Response(frames)
+      if (failure === '402') return new Response('daily cap', { status: 402 })
+      return new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(frames)
+          setTimeout(() => controller.error(new Error('connection reset')), 5)
+        },
+      }))
+    })
+    const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+    const app = createApp(offline, undefined, speech)
+    const start = `Начало ${Math.random()}.`
+    const rest = `Остаток ${Math.random()}.`
+    const text = `${start} ${rest}`
+    let sound: ReturnType<typeof speech.live>
+    app.get('/test-rest', (c) => {
+      sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+      sound.first(start)
+      sound.finish(text)
+      return c.json({ url: sound.url })
+    })
+    const { url } = await (await app.request('/test-rest')).json() as { url: string }
+    const response = await app.request(url)
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    expect(bytes.length).toBe(frames.length + mp3.length)
+    expect(bytes.slice(0, frames.length)).toEqual(frames)
+    expect(bytes.slice(frames.length)).toEqual(mp3)
+    expect(eleven).toBe(2)
+    expect(sk).toHaveLength(1)
+    expect(JSON.parse(sk[0]).text.replace(/\+/g, '')).toBe(rest)
+    expect(sound!.voice?.fallback).toBeTruthy()
+    // После начала потока HTTP-заголовки уже отправлены; повтор получает итоговые метаданные.
+    const warmed = await app.request(url, { headers: { range: 'bytes=0-' } })
+    expect(warmed.headers.get('x-tts-fallback')).toBeTruthy()
+    expect(warmed.headers.get('x-tts-api')).toBe('v3')
+    expect(new Uint8Array(await warmed.arrayBuffer())).toEqual(bytes)
+  })
+
+  it('обрыв первого куска после байт → SpeechKit произносит весь текст, поздние байты не вклеиваются', async () => {
+    configure()
+    const sk: string[] = []
+    const f = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('')
+      if (!String(url).includes('reaction-relay')) { sk.push(String(init?.body)); return new Response(v3Line()) }
+      return new Response(new ReadableStream<Uint8Array>({ start(c) { c.enqueue(frames); setTimeout(() => c.error(new Error('broken stream')), 5) } }))
+    })
+    const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+    const app = createApp(offline, undefined, speech)
+    const text = `Полная реплика ${Math.random()}.`
+    app.get('/test-broken', (c) => {
+      const sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+      sound.first(text.slice(0, 6)); sound.finish(text)
+      return c.json({ url: sound.url })
+    })
+    const { url } = await (await app.request('/test-broken')).json() as { url: string }
+    expect((await (await app.request(url)).arrayBuffer()).byteLength).toBe(frames.length + mp3.length)
+    expect(JSON.parse(sk[0]).text.replace(/\+/g, '')).toBe(text)
+  })
+})
+
+describe('локальный лимит символов ElevenLabs в живом потоке', () => {
+  afterEach(() => vi.unstubAllEnvs())
+  it('SpeechKit озвучивает всю реплику, ElevenLabs не вызывается', async () => {
+    for (const [k, v] of Object.entries({ TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: 'https://chars-relay.test', ELEVEN_RELAY_SECRET: 's', ELEVEN_DAILY_CHARS: '1' })) vi.stubEnv(k, v)
+    const f = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('')
+      expect(String(url)).not.toContain('chars-relay')
+      return new Response(v3Line())
+    })
+    const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+    const app = createApp(offline, undefined, speech)
+    app.get('/test-chars', (c) => {
+      const sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+      sound.finish(`Лимит символов ${Math.random()}`)
+      return c.json({ url: sound.url })
+    })
+    const { url } = await (await app.request('/test-chars')).json() as { url: string }
+    const response = await app.request(url)
+    expect(response.headers.get('x-tts-api')).toBe('v3')
+    expect(decodeURIComponent(response.headers.get('x-tts-fallback')!)).toContain('символы')
+    expect((await response.arrayBuffer()).byteLength).toBe(mp3.byteLength)
+  })
+})

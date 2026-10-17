@@ -204,3 +204,23 @@ describe('запросы из браузера с потолками (аудит
     expect(second).toMatch(/лимит/)
   })
 })
+
+describe('реакция не меняет оценку и решение', () => {
+  it('с реакцией и без неё весь ход движка одинаков, в том числе после повторного хода', async () => {
+    const request = async (history: TurnRecord[], reaction?: string) => {
+      const r = await app.request('/api/turn', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scenarioId: 'tara', history, playerText: 'Предлагаю цену 196 рублей', reaction }) })
+      expect(r.status).toBe(200)
+      return (await r.json() as { record: TurnRecord }).record
+    }
+    const first = await request([])
+    expect(await request([], 'Хм, неожиданная цифра…')).toEqual(first)
+    const next = await request([first])
+    expect(await request([first], 'А к чему такой нажим?')).toEqual(next)
+  })
+  it('реакция длиннее 80 символов не проходит схему', async () => {
+    const r = await app.request('/api/turn', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scenarioId: 'tara', history: [], playerText: 'Привет', reaction: 'а'.repeat(81) }) })
+    expect(r.status).toBe(400)
+  })
+})

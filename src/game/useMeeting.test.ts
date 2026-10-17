@@ -9,7 +9,7 @@ import type { TurnRecord } from '../engine/types'
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
   effects: [] as (() => void)[], cleanups: [] as (() => void)[] }))
 const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn(),
-  live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false }))
+  reaction: vi.fn(), live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false }))
 const mode = vi.hoisted(() => ({ voiceOnly: false }))
 vi.mock('./voiceOnly', () => mode)
 vi.mock('react', async (original) => ({
@@ -41,7 +41,7 @@ vi.mock('./audio/scene', () => ({ useMeetingSounds: () => {} }))
 vi.mock('./speech', () => ({
   loadVoiceOn: () => speech.on, saveVoiceOn: vi.fn(), voiceFor: () => 'vasily', ttsVoice: () => ({ voice: 'vasily' }),
   prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: vi.fn(),
-  informal: () => true, startFiller: () => ({ cancel: vi.fn(), done: Promise.resolve() }),
+  informal: () => true, startReaction: speech.reaction,
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(),
   speechPlaying: () => speech.playing,
@@ -69,6 +69,7 @@ async function advance(ms = 0) { await vi.advanceTimersByTimeAsync(ms); render()
 beforeEach(() => {
   vi.useFakeTimers()
   hooks.slots = []; hooks.cursor = 0; hooks.effects = []; hooks.cleanups = []
+  speech.reaction.mockReset(); speech.reaction.mockImplementation(() => ({ cancel: vi.fn(), done: Promise.resolve() }))
   speech.on = true; speech.prepare.mockReset(); speech.play.mockClear(); speech.stop.mockClear()
   speech.playing = false; mode.voiceOnly = false
   speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
@@ -263,5 +264,27 @@ describe('ход потоком: начало реплики звучит ран
     void meeting.send('привет'); render(); await advance(); await advance()
     expect(meeting.line).toBe(record.opponentLine)
     expect(speech.prepare).toHaveBeenCalledWith(record.opponentLine, 'vasily', 'neutral', 4000)
+  })
+})
+
+
+describe('мгновенная реакция в useMeeting', () => {
+  it('лицо меняется до ответа; сервер получает текст; ответ ждёт окончания записи и забирает эмоцию', async () => {
+    render(); resolveAudio(prepared); await advance()
+    let finish!: () => void
+    const done = new Promise<void>((r) => { finish = r })
+    speech.reaction.mockReturnValue({ text: 'Ого, вот это цифра…', cancel: vi.fn(), done })
+    let answer!: (r: { record: TurnRecord; source: string }) => void
+    api.turn.mockImplementation(() => new Promise((r) => { answer = r }))
+    void meeting.send('давай 1000'); render()
+    expect(meeting.emotion).toBe('surprised')
+    expect(api.turn.mock.calls.at(-1)?.[0]).toMatchObject({ reaction: 'Ого, вот это цифра…' })
+    const record: TurnRecord = { turn: 1, playerText: 'давай 1000', opponentLine: 'Дай что-нибудь взамен.', emotion: 'annoyed',
+      analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold', reason: 'no_movement' }, stateAfter: initialState(props.game.scenario) }
+    answer({ record, source: 'llm' }); await advance()
+    expect(meeting.emotion).toBe('annoyed')
+    expect(props.history).toHaveLength(0)
+    finish(); await advance()
+    expect(props.history).toHaveLength(1)
   })
 })

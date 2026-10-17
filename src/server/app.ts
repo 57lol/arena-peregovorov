@@ -88,6 +88,7 @@ const TurnBody = z.object({
   scenarioId: Id.optional(),
   history: History,
   playerText: z.string().trim().min(1).max(1500),
+  reaction: z.string().trim().max(80).optional(),
   offer: OfferBody.optional(),
   // Кнопки интерфейса: «принять то, что на столе» и «встать и уйти» — без угадывания по тексту.
   accept: z.boolean().optional(),
@@ -305,6 +306,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const said = voice(speaker, sc, history, body.playerText, r.decision, r.state, {
         natural,
         marks,
+        reaction: body.reaction,
         fallback: llm,
         signal: ac.signal,
         onFirst: (piece) => {

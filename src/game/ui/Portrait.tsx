@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from './assets'
+import { emotionTilt, spriteEmotion, EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from './assets'
 import { lipState } from '../speech'
 
 interface Props {
@@ -90,7 +90,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
     return () => clearTimeout(t)
   }, [emotion])
 
-  const row = EMOTIONS.indexOf(emotion)
+  const row = EMOTIONS.indexOf(spriteEmotion(emotion))
   const col = FRAMES[frame]
   const s = PORTRAIT_SIZE * scale
   return (
@@ -104,13 +104,16 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
         backgroundImage: `url(${PORTRAITS[id].sheet})`,
         backgroundSize: `${s * 3}px ${s * EMOTIONS.length}px`,
         backgroundPosition: `${-col * s}px ${-row * s}px`,
-        transform: jolt ? `translateY(${-scale}px)` : undefined,
+        transform: `translateY(${jolt ? -scale : 0}px) rotate(${emotionTilt(emotion)}deg)`,
       }}
     />
   )
 }
 
 const EMOTION_RU: Record<PortraitEmotion, string> = {
+  hurt: 'обида',
+  surprised: 'удивление',
+  suspicious: 'подозрение',
   neutral: 'спокойствие',
   pleased: 'удовольствие',
   happy: 'радость',

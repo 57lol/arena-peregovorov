@@ -253,6 +253,14 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   const send = (c: Context, clip: Pick<Clip, 'audio' | 'ms'>, extra: Record<string, string>) =>
     c.body(clip.audio, 200, { ...HEADERS, ...(clip.ms ? { 'x-audio-ms': String(clip.ms) } : {}), ...extra })
 
+  // Воркеры иногда возвращают daily cap текстом даже с кодом 200.
+  async function checkEleven(r: Response) {
+    const mime = r.headers.get('content-type') ?? ''
+    if (!r.ok || /json|text\//i.test(mime)) {
+      throw Object.assign(new Error(`ElevenLabs → ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`), { status: r.ok ? 502 : r.status })
+    }
+  }
+
   /**
    * Синтез ElevenLabs одного файла: кэш, лимиты (charge — с кого списать), место в очереди до deadline, «занято» (429) —
    * один повтор. first — ElevenLabs начал отвечать (или звук уже в кэше), done — звук целиком в кэше и в бюджете.
@@ -280,7 +288,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
             await new Promise((ok) => setTimeout(ok, 400))
             continue
           }
-          if (!r.ok) throw Object.assign(new Error(`ElevenLabs → ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`), { status: r.status })
+          await checkEleven(r)
           started(true)
           const first = Date.now() - t0
           const audio = new Uint8Array(await r.arrayBuffer())
@@ -328,7 +336,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           await new Promise((ok) => setTimeout(ok, 400))
           continue
         }
-        if (!r.ok) throw Object.assign(new Error(`ElevenLabs → ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`), { status: r.status })
+        await checkEleven(r)
         let bytes = 0
         for await (const u of r.body!) {
           bytes += u.length
@@ -396,40 +404,34 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const whole = new Promise<{ text: string; emotion?: Emotion }>((r) => (gotWhole = r))
     let known: Awaited<LiveSound['head']> | undefined
     let setHead!: (h: Awaited<LiveSound['head']>) => void
-    const head = new Promise<Awaited<LiveSound['head']>>((r) => (setHead = (h) => r((known = h))))
+    const head = new Promise<Awaited<LiveSound['head']>>((r) => (setHead = (h) => {
+      known = known ? Object.assign(known, h) : h
+      r(known)
+    }))
 
     // мс от начала синтеза: подготовка текста (ударения), первый байт ElevenLabs
     const took: number[] = []
     const play = async (): Promise<Clip | undefined> => {
       let reason = ''
+      let remaining: string | undefined
       if (el) {
         const start = await Promise.race([firstP, whole.then((w) => w.text)])
         const piece = firstText === start
-        // реплика целиком сразу (из кэша реплик, заготовка) и её звук уже есть — повтор партии ничего не стоит
-        const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(start), env) }))
-        if (ready) {
-          setHead({ api: 'elevenlabs', voice })
-          out.push(ready)
-          out.end()
-          return { audio: ready, ms: mp3Ms(ready), cache: 'hit' }
-        }
         let dead = false
-        // остаток реплики синтезируется, пока звучит начало; приклеиваем его, когда начало кончилось
-        const later: Uint8Array[] = []
-        let joined = false
-        let lead = true
-        const put2 = (u: Uint8Array) => {
-          if (lead) {
-            u = noId3(u)
-            lead = false
-          }
-          if (joined) out.push(u)
-          else later.push(u)
-        }
+        let complete = false
         try {
+          // Подготовка и кэш тоже могут отказать — запасной голос подхватит весь текст.
+          const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(start), env) }))
+          if (ready) {
+            setHead({ api: 'elevenlabs', voice })
+            out.push(ready)
+            out.end()
+            return { audio: ready, ms: mp3Ms(ready), cache: 'hit' }
+          }
           const t0 = Date.now()
           let heard!: () => void
           const firstByte = new Promise<boolean>((r) => (heard = () => r(true)))
+          // Ошибка обработана сразу: whole может прийти заметно позже первого куска.
           const p1 = prep(start).then((q) => {
             took.push(Date.now() - t0)
             return elevenPiece(q, (u) => {
@@ -438,40 +440,47 @@ export function makeSpeech(opts: SpeechOptions = {}) {
               heard()
               out.push(u)
             }, t0 + WAIT.elevenFirst(), charge)
-          })
+          }).then(() => ({ error: undefined }), (error: unknown) => ({ error }))
           let timer: ReturnType<typeof setTimeout> | undefined
           const ok = await Promise.race([firstByte, p1.then(() => false), new Promise<boolean>((r) => (timer = setTimeout(r, WAIT.elevenFirst(), false)))])
           clearTimeout(timer)
           if (!ok) {
-            dead = true
-            p1.catch(() => {})
-            throw new Refusal(out.chunks.length ? 'ElevenLabs: пустой ответ' : 'ElevenLabs не успел', 503)
+            const settled = await Promise.race([p1, Promise.resolve(undefined)])
+            throw settled?.error ?? new Refusal('ElevenLabs не успел', 503)
           }
           setHead({ api: 'elevenlabs', voice, took: took.join(',') })
-          let p2: Promise<void> | undefined
+          const first = await p1
+          if (first.error) throw first.error
+          complete = true
           if (piece) {
             const w = await whole
-            const rest = w.text.startsWith(start) ? w.text.slice(start.length).trim() : ''
-            if (!w.text.startsWith(start)) console.warn(`[speech] реплика не начинается с озвученного начала: «${start}» / «${w.text}»`)
-            if (stripTags(rest)) p2 = prep(rest).then((q) => elevenPiece(q, put2, Date.now() + WAIT.eleven(), charge))
+            remaining = w.text.startsWith(start) ? w.text.slice(start.length).trim() : w.text
+            if (stripTags(remaining)) {
+              // Остаток отдаём целиком: при обрыве его заменит SpeechKit без повтора полуслов.
+              const chunks: Uint8Array[] = []
+              await elevenPiece(await prep(remaining), (u) => chunks.push(u), Date.now() + WAIT.eleven(), charge)
+              out.push(noId3(glue(chunks)))
+            }
           }
-          await p1
-          joined = true
-          later.splice(0).forEach((u) => out.push(u))
-          await p2?.catch((e: Error) => console.warn(`[speech] остаток реплики не озвучен: ${e.message}`))
         } catch (e) {
+          dead = true
           reason = (e as Error).message
-          if (out.chunks.length) console.warn(`[speech] голос оборвался: ${reason}`)
+          // Без подтверждённого куска нельзя узнать озвученные слова: повторяем весь текст.
+          if (!complete) remaining = undefined
+          console.warn(`[speech] запасной голос: ${reason}`)
         }
       }
-      if (!out.chunks.length) {
+      if (!el || reason) {
         const w = await whole
+        const text = remaining ?? w.text
         try {
-          const clip = await yandexClip(ip, { ...b, text: stripTags(unstress(w.text)), emotion: w.emotion })
+          if (!yandexTtsReady()) throw new Refusal('Озвучка временно недоступна', 503)
+          const clip = await yandexClip(ip, { ...b, text: stripTags(unstress(text)), emotion: w.emotion })
           setHead({ api: clip.api ?? 'speechkit', voice: clip.voice, ...(reason ? { fallback: reason } : {}) })
-          out.push(clip.audio)
+          out.push(out.chunks.length ? noId3(clip.audio) : clip.audio)
           out.end()
-          return clip
+          const audio = glue(out.chunks)
+          return { ...clip, audio, ms: mp3Ms(audio) || clip.ms }
         } catch (e) {
           setHead({ api: 'none', voice, error: (e as Error).message })
           out.end()
@@ -642,7 +651,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const wants = lab || (asIs && (elevenOn() || (b.test === 'eleven' && elevenReady())))
     let fallback = ''
     if (wants) {
-      const r = await sayEleven(c, b, lab)
+      const r = await sayEleven(c, b, lab).catch((e: Error) => new Refusal(e.message, 503))
       if (r instanceof Response) return r
       if (lab) return c.json({ error: r.message }, r.status)
       fallback = r.message

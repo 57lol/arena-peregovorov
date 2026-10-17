@@ -30,7 +30,8 @@ export function extrasFor(caseId: string, opponent: PortraitId): PortraitId[] {
 
 /** Как массовка отзывается на настроение собеседника — тише, чем он сам. */
 function echo(e: PortraitEmotion, k: number): PortraitEmotion {
-  if (e === 'angry' || e === 'annoyed') return k % 2 ? 'thinking' : 'annoyed'
+  if (e === 'angry' || e === 'annoyed' || e === 'hurt' || e === 'suspicious') return k % 2 ? 'thinking' : 'annoyed'
+  if (e === 'surprised') return k % 2 ? 'thinking' : 'surprised'
   if (e === 'happy') return k % 2 ? 'pleased' : 'happy'
   if (e === 'pleased') return k % 3 === 0 ? 'neutral' : 'pleased'
   return k === 2 ? 'thinking' : 'neutral'

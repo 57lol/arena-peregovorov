@@ -2,7 +2,12 @@
 
 /** Порядок строк в листе портрета (совпадает с Emotion из движка). */
 export const EMOTIONS = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry'] as const
-export type PortraitEmotion = (typeof EMOTIONS)[number]
+type SpriteEmotion = (typeof EMOTIONS)[number]
+export type PortraitEmotion = SpriteEmotion | 'hurt' | 'surprised' | 'suspicious'
+
+// Новые реакции используют готовые кадры и отдельный наклон головы.
+export const spriteEmotion = (e: PortraitEmotion): SpriteEmotion => e === 'hurt' ? 'annoyed' : e === 'surprised' || e === 'suspicious' ? 'thinking' : e
+export const emotionTilt = (e: PortraitEmotion) => e === 'hurt' ? -3 : e === 'surprised' ? 3 : e === 'suspicious' ? -5 : 0
 
 /** Кадры в строке: обычный, рот открыт, моргание. */
 export const FRAMES = { idle: 0, talk: 1, blink: 2 } as const

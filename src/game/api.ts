@@ -38,6 +38,7 @@ export interface TurnInput {
   fromLibrary: boolean
   history: TurnRecord[]
   text: string
+  reaction?: string
   offer?: Offer
   accept?: boolean
   walkAway?: boolean
@@ -128,6 +129,7 @@ export async function playTurn(t: TurnInput, onLine?: (l: TurnLine) => void): Pr
     ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
     history: t.history,
     playerText: t.text,
+    ...(t.reaction ? { reaction: t.reaction } : {}),
     ...(t.offer ? { offer: t.offer } : {}),
     ...(t.accept ? { accept: true } : {}),
     ...(t.walkAway ? { walkAway: true } : {}),

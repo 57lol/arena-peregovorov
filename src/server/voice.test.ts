@@ -316,3 +316,17 @@ describe('ремарки модели не доходят ни до экрана
     expect(v.line).toContain('[chuckles]')
   })
 })
+
+describe('начало ответа уже прозвучало', () => {
+  it('реакция передаётся только в промпт реплики, рамка сделки та же', async () => {
+    const { voicePrompt, frameKey } = await import('./voice')
+    const state = initialState(tara)
+    const d = { kind: 'hold', reason: 'no_movement' } as const
+    const before = voicePrompt(tara, [], 'давайте 1000', d, state)
+    const after = voicePrompt(tara, [], 'давайте 1000', d, state, { reaction: 'Хм, неожиданная цифра…' })
+    expect(after.user).toContain('Ты уже начал вслух: «Хм, неожиданная цифра…» — продолжай с этого места, не повторяй')
+    expect(after.frame).toEqual(before.frame)
+    expect(after.sys).toBe(before.sys)
+    expect(frameKey(tara, [], 'давайте 1000', d, state)).toBe(frameKey(tara, [], 'давайте 1000', d, { ...state }))
+  })
+})

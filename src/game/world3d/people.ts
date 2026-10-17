@@ -18,7 +18,7 @@ import {
   type Camera,
   type Texture,
 } from 'three'
-import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
+import { emotionTilt, spriteEmotion, EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
 import { SPRITE_M_PER_PX as M, TABLE, SEATED_FORWARD, seatedTurn, seatYaw } from './layout'
 import { lipState } from '../speech'
 
@@ -337,7 +337,7 @@ export class Person {
   setFrameUV() {
     if (!this.body || !this.sheet) return
     const s = this.sheet
-    const row = EMOTIONS.indexOf(this.emotion)
+    const row = EMOTIONS.indexOf(spriteEmotion(this.emotion))
     const col = FRAMES[this.frame]
     const u0 = (col * CW + PAD) / s.w
     // CanvasTexture переворачивает по Y: строка сверху листа — большие v
@@ -399,6 +399,7 @@ export class Person {
     const d = MathUtils.euclideanModulo(want - this.turn + Math.PI, Math.PI * 2) - Math.PI
     this.turn += d * (1 - Math.exp(-dt * (this.leaving ? 5 : this.lead ? 20 : 5)))
     this.body.rotation.y = this.turn
+    this.body.rotation.z = emotionTilt(this.emotion) * Math.PI / 180
 
     // уходит из-за стола: встаёт, поворачивается и идёт к двери ровным шагом, покачиваясь, пока не скроется из кадра.
     // Назад от стола не отступает: низ спрайта прячется за столешницей, иначе «бюст» висит в воздухе

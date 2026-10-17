@@ -5,6 +5,8 @@ import type { Emotion, Scenario } from '../engine/types'
 import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
+import { REACTION_RECORDINGS } from '../content/reactions'
+import type { Reaction } from './reactions'
 import { PERSONAS, type Persona } from '../content/voices'
 import { cpsFor } from './ui/typing'
 import { speechPause } from './silence'
@@ -581,6 +583,7 @@ function fillerDir(voice: string): string | false {
 export function warmFillers(voice: string, casual: boolean) {
   const dir = typeof window === 'undefined' ? false : fillerDir(voice)
   if (!dir) return
+  if (elevenOn()) warmReactions(speaker.id)
   for (const id of fillerIds(casual)) {
     const src = new URL(`${dir}${id}.mp3`, location.href).href
     void envelopeOf(src).then((e) => e && fillerSec.set(src, e.length * ENV_STEP))
@@ -590,8 +593,33 @@ export function warmFillers(voice: string, casual: boolean) {
 const fillerSec = new Map<string, number>()
 const SHORT_FILLER = 1.8
 
-export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY): Filler {
+// Проверяем записи заранее: Vite вместо отсутствующего mp3 может вернуть HTML.
+const reactionReady = new Set<string>()
+const reactionLoads = new Set<string>()
+function warmReactions(face: string) {
+  for (const r of REACTION_RECORDINGS.filter((r) => r.face === face)) {
+    if (reactionLoads.has(r.path)) continue
+    reactionLoads.add(r.path)
+    void fetch(r.path).then(async (res) => {
+      if (!res.ok || !res.headers.get('content-type')?.startsWith('audio/')) return
+      const bytes = await res.arrayBuffer()
+      if (!bytes.byteLength) return
+      envCache.set(new URL(r.path, location.href).href, envelope(Promise.resolve(bytes)))
+      reactionReady.add(r.path)
+    }).catch(() => {})
+  }
+}
+
+/** Без ElevenLabs остаются прежние фразы-паузы. */
+export function startReaction(voice: string, casual: boolean, allowed: () => boolean, reaction?: Reaction): Filler & { text?: string } {
+  if (!elevenOn() || !reaction) return startFiller(voice, casual, allowed)
+  warmReactions(reaction.face)
+  return { ...startFiller(voice, casual, allowed, 320, reaction.path), text: reaction.text }
+}
+
+export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY, reactionPath?: string): Filler {
   let started = false
+  let cancelled = false
   let finish!: () => void
   const done = new Promise<void>((r) => (finish = r))
   const eleven = elevenOn()
@@ -602,7 +630,6 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
   }
   const timer = setTimeout(() => {
     if (!allowed() || recording) return finish()
-    started = true
     // не повторяем прошлую фразу; короткие — первыми: реплика начнётся, только когда фраза договорит
     const fresh = fillerIds(casual).filter((id) => id !== lastFiller)
     const short = fresh.filter((id) => (fillerSec.get(new URL(`${src}${id}.mp3`, location.href).href) ?? Infinity) <= SHORT_FILLER)
@@ -619,16 +646,22 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     // «ended» бывает не приходит (вкладка в фоне) — фразу больше трёх с половиной секунд не держим (у ElevenLabs «Так... дайте подумать» — 2,9 с)
     const guard = setTimeout(end, 3500)
     for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, end)
-    a.src = `${src}${id}.mp3`
+    a.src = reactionPath && reactionReady.has(reactionPath) ? reactionPath : `${src}${id}.mp3`
     const env = envelopeOf(a.src)
     trackLip(a, env, false)
     pace(a, eleven ? '' : voice)
     // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
     const me = lip
-    void levelOf(env, 120).then((g) => (lip === me && !recording ? (setGain(g), a.play().catch(end)) : end()))
+    void levelOf(env, reactionPath ? 0 : 120).then((g) => {
+      if (lip !== me || recording || cancelled || !allowed()) return end()
+      started = true
+      setGain(g)
+      void a.play().catch(end)
+    })
   }, delay)
   return {
     cancel: () => {
+      cancelled = true
       clearTimeout(timer)
       if (!started) finish()
     },

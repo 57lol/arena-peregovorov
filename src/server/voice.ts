@@ -809,6 +809,8 @@ export interface VoiceResult {
 }
 
 export interface VoiceOptions {
+  /** уже выбранное начало ответа; только для реплики, не для оценки */
+  reaction?: string
   /** естественная речь: промпт «для голоса» (FOR_VOICE) */
   natural?: boolean
   /** ударения «+» в омографах (voices+) */
@@ -831,11 +833,11 @@ const STAGE = /\[\[[^\]\n]{1,60}\]\]|\*[^*\n]{1,40}\*|\([^()\n]{1,40}\)|\[[^\]\n
 const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 /** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
-export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks'> = {}) {
+export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction'> = {}) {
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
   const frame = frameFor(sc, d, state, prev, stanceBefore)
-  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) }
+  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + (opts.reaction ? `\nТы уже начал вслух: «${opts.reaction}» — продолжай с этого места, не повторяй.` : '') }
 }
 
 /**
