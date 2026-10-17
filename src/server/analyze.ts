@@ -10,7 +10,7 @@ import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 
-export const PROMPT_VERSION = 'a12'
+export const PROMPT_VERSION = 'a13'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),

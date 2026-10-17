@@ -6,16 +6,16 @@
 
 import { z } from 'zod'
 import { isRude, quantities, templateLine } from '../engine/offline'
-import { optionQuantity } from '../engine/offline/numbers'
+import { optionQuantity, type Dim, type Quantity } from '../engine/offline/numbers'
 import { initialState } from '../engine/turn'
-import type { Decision, Emotion, Interest, IssueId, Offer, OpponentState, Scenario, TalkAct, Tone, TurnRecord } from '../engine/types'
+import type { Decision, Emotion, Interest, Issue, IssueId, Offer, OpponentState, Scenario, TalkAct, Tone, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, issueWeight } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-export const VOICE_VERSION = 'v11'
+export const VOICE_VERSION = 'v12'
 /** сколько ждём модель реплики, мс (VOICE_TIMEOUT_MS); не уложилась — пишет основная модель */
 const VOICE_MS = Number(process.env.VOICE_TIMEOUT_MS ?? 8000)
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
@@ -62,7 +62,7 @@ function priorities(sc: Scenario): string {
     .sort((a, b) => b.w - a.w)
     .map(({ i, w }) => {
       if (i.kind === 'compatible')
-        return `- «${i.title}»: тут у тебя свой интерес, он среди причин ниже. Пока о нём нельзя говорить, ничем его не выдавай и сам этот пункт не предлагай.`
+        return `- «${i.title}»: тут у тебя свой интерес. Пока о нём нельзя говорить, ничем его не выдавай и сам этот пункт не предлагай.`
       const p = opp.points[i.id]
       const best = i.options[bestOption(opp, i.id)]
       const worst = i.options[p.indexOf(Math.min(...p))]
@@ -77,7 +77,6 @@ export function system(sc: Scenario, natural = false, marks = false): string {
   const c = sc.opponent.character
   const p = sc.opponent.profile
   const examples = c.voiceExamples?.length ? `\nТак ты звучишь (для настроя и ритма, дословно не повторяй):\n${c.voiceExamples.map((e) => `— ${e}`).join('\n')}\n` : ''
-  const secrets = p.interests.map((i) => `- [${i.id}] ${tame(i.text)}`).join('\n')
   const options = sc.issues.map((i) => `- ${i.id} «${i.title}»: ${i.options.map((o, n) => `${n} = ${o}`).join('; ')}`).join('\n')
   return `Ты играешь живого человека в игре-тренажёре переговоров. Ты не ассистент и не диктор: у тебя свой характер, своя жизнь и свои причины.
 
@@ -91,8 +90,7 @@ ${c.speech ? `Как говоришь: ${c.speech}\n` : ''}${examples}
 Что тебе важно в сделке (вслух это не перечисляешь, по этому ты торгуешься):
 ${priorities(sc)}
 
-О чём собеседник пока не знает. Это твоя жизнь, она объясняет, как ты держишься, но вслух ты рассказываешь только то, что разрешит ход:
-${secrets}
+У тебя есть свои причины держаться за условия. Какие из них уже можно рассказывать, сказано в каждом ходе; остальных ты сейчас не касаешься.
 
 Как идёт игра. В каждом ходе ты видишь весь разговор и своё решение по сделке. Решение уже принято и не меняется: там сказано, что ты делаешь с условиями и что можно рассказать. Всё остальное твоё: слова, шутки, подколки, встречные вопросы.
 
@@ -119,7 +117,7 @@ ${options}
 
 Ответ — только JSON:
 {"line": "реплика", "emotion": "${EMOTIONS.join('|')}", "terms": [{"issue": "id пункта", "option": номер}], "agrees": false, "reveals": ["id"]}
-terms — условия, которые ты в этой реплике называешь как своё предложение или на которые соглашаешься (чужую цифру, которую ты только повторил, чтобы возразить, не пиши). agrees — true, только если ты соглашаешься на всю сделку. reveals — id причин из списка выше, о которых ты в этой реплике рассказал или напомнил; если ни о какой — пустой список.`
+terms — условия, которые ты в этой реплике называешь как своё предложение или на которые соглашаешься (чужую цифру, которую ты только повторил, чтобы возразить, не пиши). agrees — true, только если ты соглашаешься на всю сделку. reveals — id причин, о которых ты в этой реплике рассказал или напомнил; если ни о какой — пустой список.`
 }
 
 export const schema = (sc: Scenario) => ({
@@ -141,7 +139,7 @@ export const schema = (sc: Scenario) => ({
         },
       },
       agrees: { type: 'boolean' },
-      reveals: { type: 'array', items: { type: 'string', enum: sc.opponent.profile.interests.map((i) => i.id) } },
+      reveals: { type: 'array', items: { type: 'string' } },
     },
   },
 })
@@ -160,6 +158,8 @@ export interface Frame {
   final: boolean
   /** пункты, которые изменились во встречном: их надо назвать */
   changed: IssueId[]
+  /** его прошлое предложение: «было X, теперь Y» */
+  prev: Offer
 }
 
 const terms = (sc: Scenario, o: Offer) => formatOffer(sc, o)
@@ -295,7 +295,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       text = 'Уходишь: разговор окончен, сделки не будет. Одна-две фразы.'
       break
   }
-  return { decision: d, text, position, allowed, locked, final: d.kind === 'counter' && !!d.final, changed }
+  return { decision: d, text, position, allowed, locked, final: d.kind === 'counter' && !!d.final, changed, prev }
 }
 
 export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: string, frame: Frame, state: OpponentState, prev: Offer): string {
@@ -303,7 +303,7 @@ export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: stri
   const stance = state.playerStance ?? {}
   const sheet = Object.keys(prev).length ? `На листке у собеседника твоё предложение: ${terms(sc, prev)}.` : ''
   const his = Object.keys(stance).length ? ` Он со своей стороны просит: ${terms(sc, stance)}.` : ''
-  const can = frame.allowed.length ? `Можно рассказывать: ${frame.allowed.map((i) => `[${i.id}]`).join(', ')}.` : 'Из своих причин пока ничего не рассказываешь.'
+  const can = frame.allowed.length ? `Причины, которые уже можно рассказывать:\n${frame.allowed.map((i) => `- [${i.id}] ${tame(i.text)}`).join('\n')}` : 'Из своих причин пока ничего не рассказываешь.'
   const last = history.slice(-2).map((h) => `«${h.opponentLine.split(/\s+/).slice(0, 4).join(' ')}…»`)
   return `Разговор с начала:
 ${talk}
@@ -396,30 +396,56 @@ export function leaks(sc: Scenario, frame: Frame, line: string, said: string): I
   })
 }
 
+/** В реплике есть слова этой причины (хотя бы одно не из общих слов торга). */
+const tells = (it: Interest, line: string) => {
+  const own = stems(it.text)
+  return stems(line).some((g) => own.some((w) => g.startsWith(w) || w.startsWith(g)))
+}
+
 /** Близкие значения: «двое суток» = «48 часов» = «двух суток», «пятьсот» = «полтыщи». */
 const same = (a: number, b: number) => Math.abs(a - b) <= Math.abs(b) * 0.01 + 1e-9
+const valueOf = (sc: Scenario, id: IssueId, n: number | undefined) => (n === undefined ? undefined : optionQuantity(sc.issues.find((i) => i.id === id)?.options[n] ?? ''))
 
 /**
- * Числа-условия в реплике, которых нет ни в решении, ни в разговоре, ни в том, что он о себе знает и может сказать:
- * собеседник выдумал новую цифру. Своё — карточка героя, его бриф и уже открытые (или открываемые сейчас) причины:
- * «за двое суток отгрузим» из причины, которую он как раз рассказывает, — не новая цифра. Форма не важна: цифры,
- * слова, падежи. Варианты с листка целиком сюда не входят — иначе проверка не ловила бы ни одной чужой цены.
+ * Пункты, о которых может быть это число: деньги — о денежном пункте всегда («9999 рублей» тоже); остальное — той же
+ * размерности и в разбросе вариантов (от половины меньшего до двойного большего); голое число («двести», «199») —
+ * о цене или проценте в том же разбросе.
  */
-export function strayNumbers(sc: Scenario, frame: Frame, line: string, said: string): string[] {
-  const heard = quantities(said)
+function issuesFor(sc: Scenario, q: Quantity): Issue[] {
+  return sc.issues.filter((i) => {
+    const vs = i.options.map(optionQuantity).filter((v) => v && v.dim !== 'plain') as { value: number; dim: Dim }[]
+    if (!vs.length) return false
+    const dim = vs[0].dim
+    const lo = Math.min(...vs.map((v) => v.value)), hi = Math.max(...vs.map((v) => v.value))
+    const inRange = q.value >= lo / 2 && q.value <= hi * 2
+    if (q.dim === 'plain') return (dim === 'money' || dim === 'percent') && inRange
+    return q.dim === dim && (dim === 'money' || inRange)
+  })
+}
+
+/**
+ * Числа-условия в реплике, которых нет в решении: собеседник выдумал цифру. Цифра условия — это вариант его позиции
+ * по этому пункту; ещё можно повторить цифру игрока (heard — только его слова), сказать «было X, теперь Y» про то,
+ * что меняется, и то, что он знает о себе (карточка, бриф, запасной вариант, открытые причины). Свои прошлые цифры —
+ * нет: «давайте всё-таки двести двенадцать», когда решение 204, — нарушение. Форма не важна: цифры, слова, падежи.
+ */
+export function strayNumbers(sc: Scenario, frame: Frame, line: string, heard: string): string[] {
+  const his = quantities(heard)
   const c = sc.opponent.character
   // в карточке размерность важна: «шесть ярусов» не разрешает «6 месяцев», а «двое суток» разрешает «48 часов»
-  const own = quantities([c.bio, c.speech, ...(c.voiceExamples ?? []), sc.opponent.brief, ...frame.allowed.map((i) => i.text)].join('\n'))
+  const own = quantities([c.bio, c.speech, ...(c.voiceExamples ?? []), sc.opponent.brief, sc.opponent.profile.batnaText, ...frame.allowed.map((i) => i.text)].join('\n'))
+  const said = quantities(line)
   const out: string[] = []
-  for (const q of quantities(line)) {
+  for (const q of said) {
     // голое число словами меньше сотни («восьмидесяти пяти» → «пяти») — не условие, а обрывок счёта
     if (q.dim === 'plain' && q.value < 100 && !/\d/.test(line.slice(q.at, q.end))) continue
-    const hits = sc.issues.flatMap((i) =>
-      i.options.map((o, n) => ({ i, n, v: optionQuantity(o) })).filter(({ v }) => v && v.dim !== 'plain' && (q.dim === v.dim || q.dim === 'plain') && Math.abs(v.value - q.value) <= Math.abs(v.value) * 0.01 + 1e-9),
-    )
-    if (!hits.length) continue
-    if (hits.some(({ i, n }) => frame.position[i.id] === n)) continue
-    if (heard.some((h) => same(h.value, q.value))) continue
+    const about = issuesFor(sc, q)
+    if (!about.length) continue
+    const is = (id: IssueId, n: number | undefined) => { const v = valueOf(sc, id, n); return !!v && same(v.value, q.value) }
+    if (about.some((i) => is(i.id, frame.position[i.id]))) continue
+    // «было двести двенадцать, теперь двести четыре»: прошлое значение — только вместе с новым
+    if (about.some((i) => frame.changed.includes(i.id) && is(i.id, frame.prev[i.id]) && said.some((x) => x !== q && same(valueOf(sc, i.id, frame.position[i.id])?.value ?? NaN, x.value)))) continue
+    if (his.some((h) => same(h.value, q.value))) continue
     // голое число в карточке («за пятьсот брал») — от сотни и выше, мелкие («двое детей») ничего не разрешают
     if (own.some((h) => same(h.value, q.value) && (h.dim === q.dim || q.dim === 'plain' || (h.dim === 'plain' && h.value >= 100)))) continue
     out.push(line.slice(q.at, q.end))
@@ -435,6 +461,8 @@ export interface Check {
 export interface CheckContext {
   /** всё, что уже звучало: открытие, реплики игрока и собеседника */
   said: string
+  /** что говорил игрок: его цифры собеседник может повторить */
+  heard: string
   /** прошлые реплики собеседника */
   mine: string[]
 }
@@ -456,12 +484,17 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
       ? `ты называешь «${lc(i.title)}: ${i.options[t.option]}», а у тебя в решении «${i.options[want]}»`
       : `про «${lc(i.title)}» ты сейчас ничего не предлагаешь`)
   }
-  for (const n of strayNumbers(sc, frame, line, ctx.said)) hard.push(`цифры «${n}» нет в твоём решении`)
+  for (const n of strayNumbers(sc, frame, line, ctx.heard)) hard.push(`цифры «${n}» нет в твоём решении`)
   const lockedIds = new Set(frame.locked.map((i) => i.id))
   const outed = [...new Set([...out.reveals.filter((id) => lockedIds.has(id)), ...leaks(sc, frame, line, ctx.said).map((i) => i.id)])]
   for (const id of outed) {
     const i = frame.locked.find((x) => x.id === id)
     if (i) hard.push(`ты рассказал «${i.text}» — это пока твоя тайна`)
+  }
+  // решение — рассказать причину: она должна прозвучать (сама модель так сказала или в реплике её слова)
+  if (d.kind === 'reveal') {
+    const it = frame.allowed.find((i) => i.id === d.interestId)
+    if (it && !out.reveals.includes(it.id) && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
   }
   const bargaining = (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
   if (bargaining && claimsFinal(line)) hard.push('торг не закончен, а ты говоришь, что это последнее слово')
@@ -508,7 +541,7 @@ export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): 
     const clean = stripTags(unstress(s))
     if (d.kind !== 'accept' && saysYes(clean)) return false
     if (bad.some((has) => has(clean))) return false
-    if (strayNumbers(sc, frame, clean, ctx.said).length) return false
+    if (strayNumbers(sc, frame, clean, ctx.heard).length) return false
     if (leaks(sc, frame, clean, ctx.said).length) return false
     if (claimsFinal(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
     return !isRude(clean) && !mixesSides(sc, clean)
@@ -518,8 +551,7 @@ export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): 
   if (d.kind === 'accept' && !saysYes(stripTags(text))) text = `${text} Договорились: ${terms(sc, frame.position)}.`
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-    const own = it ? stems(it.text) : []
-    if (it && !stems(text).some((w) => own.includes(w))) text = `${text} Скажу как есть: ${lowerFirst(tame(it.text))}.`
+    if (it && !tells(it, text)) text = `${text} Скажу как есть: ${lowerFirst(tame(it.text))}.`
   }
   // во встречном главное — что изменилось: если это выпало вместе с нарушением, договариваем коротко
   if (frame.changed.length && (d.kind === 'counter' || (d.kind === 'reveal' && d.offer))) {
@@ -593,6 +625,7 @@ export async function voice(
   const user = userPrompt(sc, history, playerText, frame, state, prev)
   const ctx: CheckContext = {
     said: [sc.opening, ...history.flatMap((h) => [h.playerText, h.opponentLine]), playerText].join('\n'),
+    heard: [...history.map((h) => h.playerText), playerText].join('\n'),
     mine: history.map((h) => h.opponentLine),
   }
 
