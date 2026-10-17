@@ -1,10 +1,16 @@
 /// <reference lib="dom" />
 // Голос после отмены хода: ход → «Переиграть с этого хода» → восстановленная реплика звучит снова → следующий ход тоже.
-// Оба вида (классика и 3D). Запуск: dev на 5173, потом npx tsx scripts/undo-voice-e2e.ts [--url http://localhost:5173]
+// Оба вида (классика и 3D). Запуск: dev на 5173, потом npx tsx scripts/undo-voice-e2e.ts [--url http://localhost:5173] [--live]
+// Без --live голос подменён: /api/health говорит «озвучка есть», /api/tts отдаёт готовый mp3 из фраз-пауз —
+// проверяется логика клиента без платного синтеза. С --live — настоящий синтез сервера (нужен ключ озвучки).
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { chromium, type Page } from 'playwright'
 
 const i = process.argv.indexOf('--url')
 const URL = i > 0 ? process.argv[i + 1] : 'http://localhost:5173'
+const LIVE = process.argv.includes('--live')
+const MP3 = readFileSync(join(import.meta.dirname, '../public/assets/voice-fillers/vera/v3.mp3'))
 
 type W = { plays: string[] }
 const plays = (p: Page) => p.evaluate(() => (window as unknown as W).plays.slice())
@@ -24,6 +30,14 @@ async function run(view: 'classic' | '3d') {
       return orig.call(this).then(() => void window.plays.push(src + ':ok'), (e) => { window.plays.push(src + ':' + e.name); throw e })
     }
   `)
+  if (!LIVE) {
+    await page.route('**/api/health', async (r) => {
+      const res = await r.fetch()
+      const h = await res.json()
+      await r.fulfill({ response: res, json: { ...h, speech: { ...h.speech, tts: true } } })
+    })
+    await page.route('**/api/tts', (r) => r.fulfill({ contentType: 'audio/mpeg', body: MP3 }))
+  }
   const tts: string[] = []
   page.on('request', (r) => r.url().endsWith('/api/tts') && tts.push(JSON.parse(r.postData() ?? '{}').text?.slice(0, 30)))
   await page.goto(`${URL}/?view=${view}`)
@@ -32,8 +46,8 @@ async function run(view: 'classic' | '3d') {
     localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
   })
   await page.reload()
-  await page.getByRole('button', { name: 'Все дела' }).click()
-  await page.getByText('Тара к запуску').first().click()
+  await page.getByRole('button', { name: /Для жюри/ }).click()
+  await page.getByRole('button', { name: /^Тара к запуску/ }).click()
   await page.getByRole('button', { name: 'Войти в переговорку' }).click()
   await page.waitForSelector('textarea', { timeout: 60_000 })
   await waitSpeech(page, 1) // приветствие
