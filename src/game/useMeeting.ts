@@ -6,12 +6,12 @@ import type { Case } from '../App'
 import { initialState } from '../engine/turn'
 import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type FullOffer } from '../engine/utility'
-import { ApiError, playTurn } from './api'
+import { ApiError, playTurn, type TurnLine } from './api'
 import { firstName } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type Filler, type SpeechCaps } from './speech'
+import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -58,12 +58,16 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
   const voiceRef = useRef(voiceOn)
   const [delivery, setDelivery] = useState<{ text: string; record: TurnRecord | undefined; cps?: number } | null>(null)
+  // начало реплики, пока ход ещё идёт: печатается вместе со звуком, который сервер уже синтезирует (ход потоком)
+  const [early, setEarly] = useState<{ text: string; cps: number } | null>(null)
   const playback = useRef<ReturnType<typeof startLinePlayback> | null>(null)
   const [micOff, setMicOff] = useState(false)
   const [lowSure, setLowSure] = useState(false)
   const [acceptSure, setAcceptSure] = useState(false)
 
-  const line = pending ? '…' : last?.opponentLine || sc.opening
+  const line = pending ? (early?.text ?? '…') : last?.opponentLine || sc.opening
+  // окно реплики не пересоздаётся, когда к началу реплики приходит она целиком: печать продолжается
+  const lineKey = pending && !early ? 'pending' : `t${history.length + (pending ? 1 : 0)}`
   const emotion = pending ? 'thinking' : toPortraitEmotion(last?.emotion)
   const theirsOnTable = sameOffer(state.tableOffer, state.lastOpponentOffer)
   const canAccept = !done && theirsOnTable && isComplete(sc, state.lastOpponentOffer)
@@ -82,11 +86,23 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   // Один запуск на появление реплики, включая приветствие и перемотку.
   // Готовность голоса и его выключатель не меняют идентичность уже напечатанной реплики.
   useEffect(() => {
-    stopAudio()
     if (pending) {
+      // начало реплики уже звучит по потоку — не обрываем
+      if (!liveNow()) stopAudio()
       setDelivery(null)
       return
     }
+    // реплика уже прозвучала (звучит) по потоку с первой фразы: не скачиваем и не играем заново, только печать
+    const heard = takeLive(line)
+    if (heard) {
+      setDelivery({ text: line, record: last, cps: heard.playing ? liveCps(line) : undefined })
+      const current = { silent: stopAudio, cancel: () => {} }
+      playback.current = current
+      return () => {
+        if (playback.current === current) playback.current = null
+      }
+    }
+    stopAudio()
     const current = startLinePlayback({
       prepare: canVoice && voiceRef.current
         ? () => prepareLine(line, voiceFor(sc), last?.emotion ?? 'neutral', LINE_WAIT_MS)
@@ -124,7 +140,13 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   )
   const delivered = delivery?.text === line && delivery.record === last
   const lineWaiting = !pending && voiceOn && canVoice && !delivered
-  const lineCps = delivered ? delivery.cps : undefined
+  const lineCps = pending ? early?.cps : delivered ? delivery.cps : undefined
+
+  // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
+  useEffect(() => {
+    if (canVoice && voiceOn) warmFillers(voiceFor(sc), informal(sc))
+    // голос ElevenLabs становится известен из /api/health позже: тогда качаем его фразы
+  }, [sc, canVoice, voiceOn, speech?.eleven])
 
   // штамп концовки и новое предложение собеседника на столе — звуком
   useMeetingSounds(stamp, JSON.stringify(state.lastOpponentOffer ?? null))
@@ -175,14 +197,32 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
-    // ответа нет дольше секунды — собеседник говорит «Хм, секунду», пока думает
+    // ответа нет дольше 0,6 с — собеседник говорит «Хм, секунду», пока думает
     const f = (filler.current = withVoice ? startFiller(voiceFor(sc), informal(sc), () => voiceRef.current) : null)
     const g = gen.current
+    // Начало реплики приходит раньше хода целиком: звук — с первых байт (фраза-пауза договаривает), текст печатается,
+    // когда звук пошёл. Не пошёл — реплика прозвучит обычным путём, когда придёт ход.
+    let started: Promise<boolean> | undefined
+    const onLine = (l: TurnLine) => {
+      started ??= (async () => {
+        const audible = withVoice && !!l.audio && voiceRef.current
+        if (audible) {
+          f?.cancel()
+          await f?.done
+        }
+        if (g !== gen.current) return false
+        const ok = audible && (await playLive(l.audio!, () => voiceRef.current && g === gen.current))
+        if (g === gen.current) setEarly({ text: l.text, cps: liveCps(l.text) })
+        return ok
+      })()
+    }
     try {
-      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
-      // Дожидаемся только фразы-паузы. Реплика получит единый лимит ожидания в эффекте выше.
+      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
+      noteVoice(r.audioVoice)
+      // Дожидаемся только фразы-паузы и начала звука по потоку. Реплика получит единый лимит ожидания в эффекте выше.
       f?.cancel()
       await f?.done
+      if (started && (await started)) liveIs(r.record.opponentLine)
       if (g !== gen.current) return
       setHistory((h) => [...h, r.record])
       setSource(r.source)
@@ -195,6 +235,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
       setPending(null)
+      setEarly(null)
     }
   }
 
@@ -244,7 +285,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
     voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
-    line, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
+    line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     send, putOnTable, accept, walk, rewind, undo, hush,
   }

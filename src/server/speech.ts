@@ -394,8 +394,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const firstP = new Promise<string>((r) => (gotFirst = r))
     let gotWhole!: (w: { text: string; emotion?: Emotion }) => void
     const whole = new Promise<{ text: string; emotion?: Emotion }>((r) => (gotWhole = r))
+    let known: Awaited<LiveSound['head']> | undefined
     let setHead!: (h: Awaited<LiveSound['head']>) => void
-    const head = new Promise<Awaited<LiveSound['head']>>((r) => (setHead = r))
+    const head = new Promise<Awaited<LiveSound['head']>>((r) => (setHead = (h) => r((known = h))))
 
     // мс от начала синтеза: подготовка текста (ударения), первый байт ElevenLabs
     const took: number[] = []
@@ -404,6 +405,14 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (el) {
         const start = await Promise.race([firstP, whole.then((w) => w.text)])
         const piece = firstText === start
+        // реплика целиком сразу (из кэша реплик, заготовка) и её звук уже есть — повтор партии ничего не стоит
+        const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(start), env) }))
+        if (ready) {
+          setHead({ api: 'elevenlabs', voice })
+          out.push(ready)
+          out.end()
+          return { audio: ready, ms: mp3Ms(ready), cache: 'hit' }
+        }
         let dead = false
         // остаток реплики синтезируется, пока звучит начало; приклеиваем его, когда начало кончилось
         const later: Uint8Array[] = []
@@ -480,6 +489,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     void sound.done.finally(() => setTimeout(() => lives.delete(id), 5 * 60_000).unref?.())
     return {
       url: `/api/tts/live/${id}`,
+      /** кто уже говорит (elevenlabs, v3…; fallback — почему не ElevenLabs), если звук пошёл */
+      get voice() {
+        return known && known.api !== 'none' ? { api: known.api, ...(known.fallback ? { fallback: known.fallback } : {}) } : undefined
+      },
       /** скоро первая фраза: открыть соединение с воркером, если оно успело закрыться */
       connect() {
         if (el) elevenConnect(f, env)
@@ -639,8 +652,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
 
   /**
    * Живой звук реплики: отдаём с первых байт, пока синтез идёт (<audio src> играет сразу). Заголовок — когда известно,
-   * кто говорит: x-tts-api, а при подмене ElevenLabs на SpeechKit — x-tts-fallback. Запрос с Range (Safari) — когда
-   * звук готов целиком.
+   * кто говорит: x-tts-api, а при подмене ElevenLabs на SpeechKit — x-tts-fallback. Запрос куска (Range, Safari) —
+   * когда звук готов целиком.
    */
   app.get('/api/tts/live/:id', async (c) => {
     const j = lives.get(c.req.param('id'))
@@ -657,7 +670,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       ...(h.fallback ? { 'x-tts-fallback': encodeURIComponent(h.fallback) } : {}),
     }
     const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '')
-    if (range) {
+    // Chrome просит у <audio> «bytes=0-» — это «с начала»: пока звук синтезируется, отдаём поток (200), не ждём конца
+    const whole = range && (range[1] === '' || range[1] === '0') && range[2] === '' && !j.out.ended
+    if (range && !whole) {
       const clip = await j.done
       if (!clip) return c.json({ error: 'Озвучка не удалась' }, 503)
       const size = clip.audio.length

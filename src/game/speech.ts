@@ -6,6 +6,7 @@ import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
 import { PERSONAS, type Persona } from '../content/voices'
+import { cpsFor } from './ui/typing'
 
 export interface SpeechCaps {
   tts: boolean
@@ -154,6 +155,9 @@ export function stopAudio() {
   lip = null
   if (url) URL.revokeObjectURL(url)
   url = ''
+  if (live) live.stopped = true
+  liveStop?.abort()
+  liveStop = null
 }
 
 export interface Prepared {
@@ -429,13 +433,126 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   }
 }
 
+// ---------- живой звук реплики ----------
+
+/**
+ * Реплика, которая звучит с первых байт по ссылке сервера (/api/tts/live/…): начало реплики уже озвучено, пока
+ * модель дописывает остальное. Эффект реплики её не перезапускает (takeLive). stopped — оборвали (микрофон, «Голос выкл»).
+ */
+let live: { src: string; text?: string; stopped: boolean } | null = null
+
+/** Символов в секунду у голоса ElevenLabs (медиана по 24 репликам 17.10) — темп печати, пока длина звука неизвестна. */
+const LIVE_CHARS_PER_SEC = 12.5
+export const liveCps = (text: string) => cpsFor(text, text.length / LIVE_CHARS_PER_SEC)
+
+/** Поток в <audio> через MediaSource: Chrome с обычной ссылкой копит ~1 с звука, прежде чем заиграть, а так — с первых кадров. */
+const streamable = () => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')
+let liveStop: AbortController | null = null
+
+/** Скачивать звук по кускам в MediaSource; в конце — весь звук (для губ и громкости). */
+function feed(src: string, stop: AbortSignal): { url: string; all: Promise<ArrayBuffer> } {
+  const ms = new MediaSource()
+  const all = new Promise<ArrayBuffer>((resolve, reject) => {
+    ms.addEventListener('sourceopen', async () => {
+      try {
+        const sb = ms.addSourceBuffer('audio/mpeg')
+        const r = await fetch(src, { signal: stop })
+        if (!r.ok || !r.body) throw new Error(`звук: ${r.status}`)
+        noteVoice({ api: r.headers.get('x-tts-api') ?? '', ...(r.headers.has('x-tts-fallback') ? { fallback: '1' } : {}) })
+        const parts: Uint8Array[] = []
+        const reader = r.body.getReader()
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          parts.push(value)
+          if (sb.updating) await new Promise((ok) => sb.addEventListener('updateend', ok, { once: true }))
+          sb.appendBuffer(value)
+        }
+        if (sb.updating) await new Promise((ok) => sb.addEventListener('updateend', ok, { once: true }))
+        if (ms.readyState === 'open') ms.endOfStream()
+        const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+        parts.reduce((at, p) => (out.set(p, at), at + p.length), 0)
+        resolve(out.buffer)
+      } catch (e) {
+        if (ms.readyState === 'open') ms.endOfStream('network')
+        reject(e)
+      }
+    }, { once: true })
+  })
+  return { url: URL.createObjectURL(ms), all }
+}
+
+/**
+ * Играть звук реплики с первых байт. true — звук пошёл (событие playing), false — нет звука за ms, запись идёт,
+ * голос выключили. Огибающая для губ считается, когда звук скачается целиком.
+ */
+export function playLive(src: string, allowed: () => boolean, ms = 3000): Promise<boolean> {
+  if (!allowed() || recording || typeof Audio === 'undefined') return Promise.resolve(false)
+  const a = player()
+  stopAudio()
+  const me = { src, stopped: false }
+  live = me
+  if (streamable()) {
+    liveStop = new AbortController()
+    const got = feed(src, liveStop.signal)
+    url = got.url
+    a.src = got.url
+    trackLip(a, envelope(got.all), true)
+  } else {
+    a.src = src
+    trackLip(a, envelope(fetch(src).then((r) => r.arrayBuffer())), true)
+  }
+  pace(a, '')
+  return new Promise<boolean>((resolve) => {
+    const end = (ok: boolean) => {
+      clearTimeout(timer)
+      a.removeEventListener('playing', yes)
+      a.removeEventListener('error', no)
+      if (!ok && live === me) {
+        a.pause()
+        live = null
+      }
+      resolve(ok)
+    }
+    const yes = () => end(live === me && !me.stopped && allowed())
+    const no = () => end(false)
+    const timer = setTimeout(no, ms)
+    a.addEventListener('playing', yes)
+    a.addEventListener('error', no)
+    a.play().catch(no)
+  })
+}
+
+/** Реплика целиком пришла: связать с ней звук, который уже играет. */
+export function liveIs(text: string) {
+  if (live) live.text = text
+}
+
+/** Звук начала реплики ещё звучит (или договорил) — пока идёт ход, его не обрывать. */
+export const liveNow = () => !!live && !live.stopped
+
+/** Эта реплика уже прозвучала по потоку (или звучит): её не скачивать заново. playing — звук не обрывали. */
+export function takeLive(text: string): { playing: boolean } | null {
+  const l = live
+  if (!l || l.text !== text) return null
+  live = null
+  return { playing: !l.stopped }
+}
+
+/** Кто озвучил реплику (ответ хода): SpeechKit вместо ElevenLabs — фразы-паузы тоже им, пока ElevenLabs не вернётся. */
+export function noteVoice(v: { api: string; fallback?: string } | undefined) {
+  if (!v) return
+  if (v.fallback) elevenDown = true
+  else if (v.api === 'elevenlabs') elevenDown = false
+}
+
 // ---------- фразы-паузы ----------
 
 /** Собеседник на «ты» — бытовые главы («Давай сразу договоримся», «Слышь, братан»). */
 export const informal = (sc: Scenario) => /(^|[^\p{L}])(ты|тебя|тебе|тобой|давай|слышь|братан)(?!\p{L})/iu.test(sc.opening)
 
-/** Через сколько мс без ответа собеседник говорит фразу-паузу. */
-const FILLER_DELAY = 1000
+/** Через сколько мс без ответа собеседник говорит фразу-паузу: реплика модели раньше ~2 с не начнётся, молчать дольше — неловко. */
+const FILLER_DELAY = 600
 let lastFiller = ''
 
 export interface Filler {
@@ -449,15 +566,32 @@ export interface Filler {
  * Пока нейросеть думает, собеседник говорит заранее записанное «Хм, секунду» (src/content/fillers.ts) — если ответ
  * не пришёл за delay мс. Тот же <audio>, что и у реплик, поэтому громкость и выключатель голоса общие.
  */
+/** Где лежат фразы-паузы этого голоса; голосом ElevenLabs — тем же голосом лица, у кого их нет — молчим (чужой голос хуже паузы). */
+function fillerDir(voice: string): string | false {
+  return elevenOn()
+    ? (ELEVEN_FILLERS as readonly string[]).includes(speaker.id) && `/assets/voice-fillers/eleven/${speaker.id}/`
+    : (FILLER_VOICES as readonly string[]).includes(voice) && `/assets/voice-fillers/${voice}/`
+}
+
+/** Скачать фразы-паузы лица заранее (и их громкость): через 0,6 с после реплики игрока фраза звучит без задержки на загрузку. */
+export function warmFillers(voice: string, casual: boolean) {
+  const dir = typeof window === 'undefined' ? false : fillerDir(voice)
+  if (!dir) return
+  for (const id of fillerIds(casual)) {
+    const src = new URL(`${dir}${id}.mp3`, location.href).href
+    void envelopeOf(src).then((e) => e && fillerSec.set(src, e.length * ENV_STEP))
+  }
+}
+/** Длина скачанных фраз-пауз, с: реплика ждёт, пока фраза договорит, поэтому длинные (до 3 с) — только если нет коротких (до 1,8 с: у каждого лица есть две-три). */
+const fillerSec = new Map<string, number>()
+const SHORT_FILLER = 1.8
+
 export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY): Filler {
   let started = false
   let finish!: () => void
   const done = new Promise<void>((r) => (finish = r))
-  // голосом ElevenLabs фраза-пауза — тем же голосом лица (записаны заранее); у кого их нет — молчим, чужой голос хуже паузы
   const eleven = elevenOn()
-  const src = eleven
-    ? (ELEVEN_FILLERS as readonly string[]).includes(speaker.id) && `/assets/voice-fillers/eleven/${speaker.id}/`
-    : (FILLER_VOICES as readonly string[]).includes(voice) && `/assets/voice-fillers/${voice}/`
+  const src = fillerDir(voice)
   if (typeof Audio === 'undefined' || !src) {
     finish()
     return { cancel: () => {}, done }
@@ -465,8 +599,10 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
   const timer = setTimeout(() => {
     if (!allowed() || recording) return finish()
     started = true
-    // не повторяем прошлую фразу
-    const ids = fillerIds(casual).filter((id) => id !== lastFiller)
+    // не повторяем прошлую фразу; короткие — первыми: реплика начнётся, только когда фраза договорит
+    const fresh = fillerIds(casual).filter((id) => id !== lastFiller)
+    const short = fresh.filter((id) => (fillerSec.get(new URL(`${src}${id}.mp3`, location.href).href) ?? Infinity) <= SHORT_FILLER)
+    const ids = short.length ? short : fresh
     const id = ids[Math.floor(Math.random() * ids.length)]
     lastFiller = id
     const a = player()

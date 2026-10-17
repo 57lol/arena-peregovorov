@@ -323,7 +323,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // Спекуляция: пока Pro размечает ход (~1 с), реплику уже пишет модель — по разбору правил. Рамка реплики та же,
       // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда Pro.
       let guess: ReturnType<typeof speak> | undefined
-      if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.name !== 'offline') {
+      // только у модели с потоком: промах обрывается сразу и почти ничего не стоит
+      if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.stream) {
         const quick = await Promise.race([analyzing.then(() => true), new Promise<boolean>((r) => setTimeout(r, 15, false))])
         if (!quick) guess = speak(decide(groundAnalysis(sc, body.playerText, analyzeOffline(sc, body.playerText, dict))).r)
       }
@@ -366,7 +367,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         emotion: v.emotion,
         state: r.state,
         record,
-        ...(sound ? { audio: sound.url } : {}),
+        // звук реплики по ссылке; кто говорит — если уже известно (фразы-паузы браузер берёт тем же голосом)
+        ...(sound ? { audio: sound.url, ...(sound.voice ? { audioVoice: sound.voice } : {}) } : {}),
         ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
         sources: { ms, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
       }

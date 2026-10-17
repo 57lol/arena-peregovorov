@@ -8,7 +8,8 @@ import type { TurnRecord } from '../engine/types'
 // Тот же неглубокий жизненный цикл hooks, что в App.test.tsx; сеть и аудиоустройство не нужны.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
   effects: [] as (() => void)[], cleanups: [] as (() => void)[] }))
-const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn() }))
+const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn(),
+  live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '' }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
   useMemo: (fn: () => unknown) => fn(),
@@ -39,6 +40,8 @@ vi.mock('./speech', () => ({
   loadVoiceOn: () => speech.on, saveVoiceOn: vi.fn(), voiceFor: () => 'vasily', ttsVoice: () => ({ voice: 'vasily' }),
   prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: vi.fn(),
   informal: () => true, startFiller: () => ({ cancel: vi.fn(), done: Promise.resolve() }),
+  playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
+  liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(),
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn() }))
 vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn }))
@@ -64,6 +67,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   hooks.slots = []; hooks.cursor = 0; hooks.effects = []; hooks.cleanups = []
   speech.on = true; speech.prepare.mockReset(); speech.play.mockClear(); speech.stop.mockClear()
+  speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
   speech.prepare.mockImplementation(() => new Promise((r) => { resolveAudio = r }))
   props = {
     game: { scenario: getScenario('dorm')!, fromLibrary: true }, history: [],
@@ -188,3 +192,49 @@ describe('микрофон', () => {
   })
 })
 
+
+describe('ход потоком: начало реплики звучит раньше хода целиком', () => {
+  const record: TurnRecord = { turn: 1, playerText: 'привет', opponentLine: 'О, сосед, привет. Давай по делу: вай-фай шестьсот.', emotion: 'neutral',
+    analysis: { behaviors: [] } as unknown as TurnRecord['analysis'], deltas: [], decision: { kind: 'hold' } as TurnRecord['decision'],
+    stateAfter: { ...initialState(getScenario('dorm')!), turn: 1 } }
+
+  it('звук пошёл — начало печатается вместе с ним; ход целиком не перезапускает звук и не качает его заново', async () => {
+    render(); resolveAudio(prepared); await advance()
+    let answer!: (r: { record: TurnRecord; source: string; audio: string }) => void
+    api.turn.mockReset()
+    api.turn.mockImplementation((_t: unknown, onLine: (l: { text: string; audio?: string }) => void) => {
+      onLine({ text: 'О, сосед, привет.', audio: '/api/tts/live/x' })
+      return new Promise((r) => { answer = r })
+    })
+    speech.prepare.mockClear(); speech.play.mockClear()
+    void meeting.send('привет'); render(); await advance()
+    expect(speech.live).toHaveBeenCalledWith('/api/tts/live/x', expect.any(Function))
+    // текст начала — сразу, вместе со звуком, со скоростью речи
+    expect(meeting.line).toBe('О, сосед, привет.')
+    expect(meeting.lineCps).toBe(13)
+    const key = meeting.lineKey
+    speech.take.mockImplementation((text) => (text === record.opponentLine ? { playing: true } : null))
+    answer({ record, source: 'llm', audio: '/api/tts/live/x' }); await advance()
+    expect(speech.heard).toBe(record.opponentLine)
+    expect(meeting.line).toBe(record.opponentLine)
+    // то же окно реплики: печать продолжается, а не начинается заново
+    expect(meeting.lineKey).toBe(key)
+    expect(meeting.lineWaiting).toBe(false)
+    expect(speech.prepare).not.toHaveBeenCalled()
+    expect(speech.play).not.toHaveBeenCalled()
+  })
+
+  it('звук по потоку не пошёл — реплика звучит обычным путём, когда придёт ход', async () => {
+    render(); resolveAudio(prepared); await advance()
+    speech.live.mockResolvedValueOnce(false)
+    api.turn.mockReset()
+    api.turn.mockImplementation(async (_t: unknown, onLine: (l: { text: string; audio?: string }) => void) => {
+      onLine({ text: 'О, сосед, привет.', audio: '/api/tts/live/y' })
+      return { record, source: 'llm', audio: '/api/tts/live/y' }
+    })
+    speech.prepare.mockClear()
+    void meeting.send('привет'); render(); await advance(); await advance()
+    expect(meeting.line).toBe(record.opponentLine)
+    expect(speech.prepare).toHaveBeenCalledWith(record.opponentLine, 'vasily', 'neutral', 4000)
+  })
+})

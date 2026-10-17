@@ -345,7 +345,7 @@ export default function Play3D(props: Props) {
       {/* реплика собеседника — под ним, в мире */}
       <div ref={lineRef} className="w3-them w3-ui" data-nodrag>
         <DialogBox
-          key={pending ? 'pending' : m.history.length}
+          key={m.lineKey}
           name={sc.opponent.character.name}
           role={sc.opponent.character.role}
           text={line}

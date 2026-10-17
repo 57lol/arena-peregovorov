@@ -11,6 +11,7 @@ const { partialReply, voice } = await import('./voice')
 const { initialState } = await import('../engine/turn')
 const { dormCase } = await import('../content/scenarios/story/dorm')
 type LLM = import('./llm').LLM
+type Decision = import('../engine/types').Decision
 
 const dorm = dormCase.scenario
 const tick = (ms = 1) => new Promise((r) => setTimeout(r, ms))
@@ -59,7 +60,7 @@ describe('реплика потоком', () => {
   })
 
   it('начало реплики уходит в голос до конца ответа, реплика начинается с него', async () => {
-    const d = { kind: 'respond', to: ['joke'] } as const
+    const d: Decision = { kind: 'respond', to: ['joke'] }
     const said: string[] = []
     let doneAt = 0
     const m = streaming([reply(`Плойка, конечно, пятёрка ${uniq()}. В EA FC я тебя вынесу без шансов. Готовься морально!`, { emotion: 'happy' })])
@@ -204,7 +205,9 @@ describe('живой звук реплики', () => {
     const ev = await play(app, `Ахах, приставка какая ${uniq()}?`)
     const line = ev.find((e) => e.t === 'line')!
     expect(line.audio).toMatch(/^\/api\/tts\/live\//)
-    const a = await app.request(line.audio)
+    // Chrome просит «bytes=0-»: поток отдаётся сразу, а не когда синтез кончится
+    const a = await app.request(line.audio, { headers: { range: 'bytes=0-' } })
+    expect(a.status).toBe(200)
     expect(a.headers.get('x-tts-api')).toBe('elevenlabs')
     const audio = new Uint8Array(await a.arrayBuffer())
     // кусок 1 (шапка + 2 кадра) + кусок 2 без шапки (2 кадра)
@@ -218,6 +221,10 @@ describe('живой звук реплики', () => {
     expect(again.headers.get('x-cache')).toBe('warm')
     expect((await again.arrayBuffer()).byteLength).toBe(audio.length)
     expect(texts).toHaveLength(2)
+    // Safari: кусок звука, когда он готов целиком
+    const part = await app.request(line.audio, { headers: { range: 'bytes=0-1' } })
+    expect(part.status).toBe(206)
+    expect(part.headers.get('content-range')).toBe(`bytes 0-1/${audio.length}`)
   })
 
   it('ElevenLabs не отвечает — реплика целиком голосом SpeechKit, браузер видит x-tts-fallback', async () => {

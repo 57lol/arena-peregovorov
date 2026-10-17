@@ -49,6 +49,16 @@ export interface TurnResult {
   record: TurnRecord
   /** откуда разбор и реплика: llm, cache, offline, local (сервер недоступен) */
   source: string
+  /** живой звук реплики (/api/tts/live/…), если просили голос */
+  audio?: string
+  /** кто его озвучивает, если сервер уже знает: elevenlabs, v3…; fallback — почему не ElevenLabs */
+  audioVoice?: { api: string; fallback?: string }
+}
+
+/** Начало реплики, как только сервер его проверил: текст и ссылка на звук, который уже синтезируется. */
+export interface TurnLine {
+  text: string
+  audio?: string
 }
 
 async function post<T>(path: string, body: unknown, ms = 90_000): Promise<T> {
@@ -77,7 +87,43 @@ export class ApiError extends Error {
 /** Ответ сервера, который надо показать игроку, а не прятать за игрой без сети: ошибка в ходе, вход истёк, лимит. */
 export const shownError = (e: unknown): e is ApiError => e instanceof ApiError && [400, 401, 409, 413, 429].includes(e.status)
 
-export async function playTurn(t: TurnInput): Promise<TurnResult> {
+type TurnReply = { record: TurnRecord; sources: { analysis: string; voice: string; voiceModel?: string }; audio?: string; audioVoice?: TurnResult['audioVoice'] }
+
+/**
+ * Ход потоком: сервер присылает строки JSON — line (начало реплики и ссылка на звук) раньше, чем ход целиком (done).
+ * Старый сервер ответит обычным JSON — его и берём.
+ */
+async function postStream(path: string, body: object, onLine: (l: TurnLine) => void, ms = 90_000): Promise<TurnReply> {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...labHeaders() },
+    body: JSON.stringify({ ...body, stream: true }),
+    signal: AbortSignal.timeout(ms),
+  })
+  if (!r.ok || !r.headers.get('content-type')?.includes('ndjson')) {
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw new ApiError(j?.error ?? `Сервер ответил ${r.status}`, r.status)
+    return j as TurnReply
+  }
+  const reader = r.body!.pipeThrough(new TextDecoderStream()).getReader()
+  let buf = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += value
+    for (let i; (i = buf.indexOf('\n')) >= 0; ) {
+      const ev = JSON.parse(buf.slice(0, i)) as { t: string; error?: string } & Partial<TurnLine> & TurnReply
+      buf = buf.slice(i + 1)
+      if (ev.t === 'line' && ev.text) onLine({ text: ev.text, ...(ev.audio ? { audio: ev.audio } : {}) })
+      else if (ev.t === 'done') return ev
+      else if (ev.t === 'error') throw new ApiError(ev.error ?? 'Ход не сыгрался', 502)
+    }
+  }
+  throw new ApiError('Ответ сервера оборвался', 502)
+}
+
+/** onLine — начало реплики раньше хода целиком (ход идёт потоком). */
+export async function playTurn(t: TurnInput, onLine?: (l: TurnLine) => void): Promise<TurnResult> {
   const body = {
     ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
     history: t.history,
@@ -89,10 +135,15 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
     ...(typeof window !== 'undefined' && voiceLlmTest() ? { voiceLlm: voiceLlmTest() } : {}),
   }
   try {
-    const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string; voiceModel?: string } }>('/api/turn', body)
+    const r = onLine ? await postStream('/api/turn', body, onLine) : await post<TurnReply>('/api/turn', body)
     // проверка модели по ссылке: в консоли видно, кто на самом деле написал реплику (не уложилась — основная)
     if (body.voiceLlm) console.info(`реплика: ${r.sources.voiceModel ?? r.sources.voice} (просили ${body.voiceLlm})`)
-    return { record: r.record, source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}` }
+    return {
+      record: r.record,
+      source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}`,
+      ...(r.audio ? { audio: r.audio } : {}),
+      ...(r.audioVoice ? { audioVoice: r.audioVoice } : {}),
+    }
   } catch (e) {
     // Ошибку хода, истёкший вход и лимит показываем. Сеть, 5xx, 404/405 статического хостинга без API —
     // играем локально, чтобы игра проходилась и там, где сервера нет вовсе.
