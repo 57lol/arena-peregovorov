@@ -22,6 +22,7 @@ import { Mentor } from './Mentor'
 import { MicButton } from './Mic'
 import { TextModeNote, VoiceTurn } from './VoiceTurn'
 import { VoiceMenuItems } from './VoiceSettings'
+import { canRecord } from '../speech'
 import { VolumeSlider } from './Volume'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
@@ -868,7 +869,7 @@ function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void;
               <VolumeSlider />
             </li>
           )}
-          <VoiceMenuItems />
+          {m.canMic && canRecord() && <VoiceMenuItems />}
           <li>
             <button type="button" className={`w3-menu-item is-stamp${quit ? ' is-sure' : ''}`} onClick={() => (quit ? onQuit() : setQuit(true))}>
               <PixelIcon name="leave" px={2} /> {quit ? 'Точно? Встреча не сохранится' : 'Выйти к папке дел'}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { isComplete, sameOffer } from '../../engine/utility'
 import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
-import { stopAudio } from '../speech'
+import { canRecord, stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
 import { mentorLine, useTutorial } from '../tutorial'
@@ -318,7 +318,7 @@ export function Play(props: Props) {
 
             {xray && <XRay sc={sc} state={state} last={last} name={name} onClose={() => setXray(false)} />}
 
-            {tut.shows('extras') && <VoiceSettings2D />}
+            {tut.shows('extras') && canMic && canRecord() && <VoiceSettings2D />}
             {history.length > 0 && tut.shows('extras') && (
               <details className="g-protocol">
                 <summary>
