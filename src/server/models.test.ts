@@ -86,3 +86,19 @@ describe('зависшая модель (аудит 17.10)', () => {
     expect(calls).toBe(3)
   })
 })
+
+describe('какая модель пишет реплику', () => {
+  it('по умолчанию — Claude Sonnet 5.5 через AITunnel; VOICE_LLM=main и без ключа AITunnel — всё на Яндексе', () => {
+    vi.stubEnv('YANDEX_API_KEY', 'k')
+    vi.stubEnv('YANDEX_FOLDER_ID', 'f')
+    const env = (extra: Record<string, string>) => ({ YANDEX_API_KEY: 'k', YANDEX_FOLDER_ID: 'f', ...extra }) as NodeJS.ProcessEnv
+    const withKey = makeLLM('yandex', env({ AITUNNEL_API_KEY: 'a' }))
+    expect(withKey.llm.name).toBe('yandex')
+    expect(withKey.llm.voice?.model).toBe('claude-sonnet-5.5')
+    expect(makeLLM('yandex', env({ AITUNNEL_API_KEY: 'a', VOICE_LLM: 'main' })).llm.voice).toBeUndefined()
+    const noKey = makeLLM('yandex', env({}))
+    expect(noKey.llm.voice).toBeUndefined()
+    expect(noKey.error).toBeUndefined()
+    vi.unstubAllEnvs()
+  })
+})
