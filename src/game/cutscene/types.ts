@@ -14,11 +14,11 @@ export type Mood = 'day' | 'dusk' | 'morning' | 'night'
 export type SetId = 'road' | 'bus' | 'phone' | 'street' | 'oez' | 'map' | 'black'
 
 /** Ключ анимации: [секунда от начала плана, значение]. Между ключами — плавно (smoothstep). */
-export type Key = readonly [number, number]
+type Key = readonly [number, number]
 export type Track = number | readonly Key[]
 
 /** Кто ходит по кадру. newbie — налегке, case — с чемоданом, box — с коробкой, timur — сосед, bus — автобус. */
-export type ActorId = 'newbie' | 'case' | 'box' | 'timur' | 'bus'
+type ActorId = 'newbie' | 'case' | 'box' | 'timur' | 'bus'
 
 export interface Actor {
   who: ActorId

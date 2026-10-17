@@ -9,8 +9,9 @@ import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TalkAct, 
 import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
+import { WAIT } from './timeouts'
 
-export const PROMPT_VERSION = 'a12'
+const PROMPT_VERSION = 'a13'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -103,11 +104,11 @@ export function userPrompt(sc: Scenario, history: TurnRecord[], text: string, la
 
 const norm = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\d]+/gu, ' ').trim()
 
-/** Цитата должна реально быть в реплике — иначе это выдумка модели. */
+/** Цитата должна реально быть в реплике — иначе это выдумка модели. Без цитаты индикатор не засчитывается. */
 function quoteFits(quote: string, text: string): boolean {
   const q = norm(quote)
   const t = norm(text)
-  if (!q) return true
+  if (!/\p{L}/u.test(q)) return false
   if (t.includes(q)) return true
   const words = q.split(' ')
   const hits = words.filter((w) => t.includes(w)).length
@@ -196,7 +197,7 @@ export async function analyzeMove(
         user: userPrompt(sc, history, text, lastOpponentOffer),
         temperature: 0,
         maxTokens: 700,
-        timeoutMs: 12_000,
+        timeoutMs: WAIT.analyze(),
         schema: schemaFor(sc, dict),
       })),
     )

@@ -284,17 +284,6 @@ body:has(.vx) {
   box-shadow: 0 0 0 var(--u) var(--c-steel-2);
   color: var(--c-paper-2);
 }
-.vx-need b {
-  font: 700 var(--fs-ui) var(--f-ui);
-  color: var(--c-paper);
-}
-
-.vx-foreign {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: calc(10 * var(--u));
-  margin-top: calc(4 * var(--u));
-}
 
 /* ---------- лаборатория ---------- */
 
@@ -410,8 +399,7 @@ body:has(.vx) {
   .vx h1 {
     font-size: var(--fs-ui-big);
   }
-  .vx-cast,
-  .vx-foreign {
+  .vx-cast {
     grid-template-columns: 1fr;
   }
   .lab-cards {

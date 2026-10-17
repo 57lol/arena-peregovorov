@@ -10,14 +10,16 @@ interface Props {
   clientId: string
   attemptId: string
   history: TurnRecord[]
-  seconds: number
+  /** начало партии (Date.now()): длительность считаем, когда открылся корешок */
+  startedAt: number
   /** эту партию уже отправили (разбор открыт после перезагрузки) */
   sent: boolean
   onSent: () => void
 }
 
 /** Корешок над разбором: результат ушёл в журнал тренировки или не ушёл, и тогда можно отправить ещё раз. */
-export function RoomReceipt({ room, name, clientId, attemptId, history, seconds, sent, onSent }: Props) {
+export function RoomReceipt({ room, name, clientId, attemptId, history, startedAt, sent, onSent }: Props) {
+  const [seconds] = useState(() => (Date.now() - startedAt) / 1000)
   const [state, setState] = useState<'sending' | 'ok' | { error: string }>(sent ? 'ok' : 'sending')
   const [attempts, setAttempts] = useState<number | null>(null)
   const [share, setShare] = useState<ShareState | null>(null)

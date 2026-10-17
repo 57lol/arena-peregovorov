@@ -70,3 +70,17 @@ describe('ворота', () => {
     expect(passValid(secret, 'garbage')).toBe(false)
   })
 })
+
+describe('пропуск', () => {
+  it('у каждого входа свой номер; старый пропуск без номера ещё действует', async () => {
+    const { createHmac } = await import('node:crypto')
+    const a = makePass(secret), b = makePass(secret)
+    expect(a).not.toBe(b)
+    expect(passValid(secret, a)).toBe(true)
+    expect(passValid(secret, a.replace(/\.[^.]+\./, '.x.'))).toBe(false)
+    const exp = Math.floor(Date.now() / 1000) + 100
+    const old = `${exp}.${createHmac('sha256', secret).update(`v1.${exp}`).digest('base64url')}`
+    expect(passValid(secret, old)).toBe(true)
+    expect(passValid('other', old)).toBe(false)
+  })
+})

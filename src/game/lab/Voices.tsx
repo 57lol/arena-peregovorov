@@ -1,4 +1,4 @@
-// /?voices — одна реплика разными голосами: SpeechKit v1 и v3, OpenAI, ElevenLabs, SaluteSpeech.
+// /?voices — одна реплика разными голосами SpeechKit (v1 и v3) и вступление дела голосами ElevenLabs.
 // Звук синтезируется только по нажатию и ложится в кэш сервера: второй раз та же кнопка бесплатна.
 
 import { useEffect, useState } from 'react'
@@ -9,7 +9,6 @@ import { ALL_SCENARIOS } from '../../content/scenarios'
 import { portraitFor } from '../cast'
 import { voiceOf } from '../speech'
 import { PORTRAITS, Portrait, PixelIcon } from '../ui'
-import type { LabTts } from './config'
 import { catalog, say, stop, type Catalog, type SynthReq } from './synth'
 
 const PHRASES = [
@@ -21,24 +20,9 @@ const PHRASES = [
 
 const EMOTION_RU: Record<string, string> = { neutral: 'спокойно', annoyed: 'раздражённо', pleased: 'довольно' }
 
-const PROVIDER_RU: Record<LabTts, string> = {
-  yandex: 'Yandex SpeechKit',
-  openai: 'OpenAI',
-  elevenlabs: 'ElevenLabs',
-  salute: 'Sber SaluteSpeech',
-}
-
-/** Китайский поставщик: русский с акцентом умеет только gpt-4o-mini-tts через instructions. */
-const FOREIGNER = {
-  name: 'Ли Вэй',
-  role: 'поставщик из Нинбо',
-  text: 'Друг мой, сто восемьдесят рублей — очень хорошая цена. Двадцать тысяч штук, отгрузка через сорок дней. Меньше не могу, честно.',
-  voice: 'ash',
-  instructions:
-    'Ты Ли Вэй, китайский поставщик. Говоришь по-русски уверенно, но с заметным китайским акцентом: мягче согласные, ровная мелодика, ' +
-    'чуть неверные ударения, короткие паузы между словами. Тон вежливый, деловой, с улыбкой.',
-}
-/** Без ключа OpenAI акцент есть у SpeechKit v3: четыре голоса читают по-русски с казахским и узбекским акцентом. */
+/** ElevenLabs сервер озвучивает только тексты игры, поэтому для сравнения — вступление «Тары». */
+const ELEVEN_TEXT = ALL_SCENARIOS.find((s) => s.id === 'tara')!.opening
+/** Акцент есть у SpeechKit v3: четыре голоса читают по-русски с казахским и узбекским акцентом. */
 const ACCENT = {
   name: 'Айгерим',
   role: 'поставщица из Алматы',
@@ -72,20 +56,6 @@ function Play({ req, label, sub, disabled }: { req: SynthReq; label: string; sub
   )
 }
 
-function NeedKey({ provider, st }: { provider: LabTts; st?: { ready: boolean; need: string; model: string } }) {
-  return (
-    <div className="vx-need">
-      <b>{PROVIDER_RU[provider]}</b> · {st?.model ?? ''}
-      <p>
-        Нужен ключ <code>{st?.need ?? '…'}</code> в <code>.env</code> сервера. Без него тут пусто, остальное работает.
-        {provider === 'openai' && ' С российского сервера OpenAI отвечает 403 — ключ и OPENAI_BASE_URL берутся у прокси (ProxyAPI).'}
-        {provider === 'elevenlabs' && ' ElevenLabs закрыт для России и не принимает российские карты.'}
-        {provider === 'salute' && ' Сбер с июля не продаёт SaluteSpeech физлицам — только если проект в Studio уже есть.'}
-      </p>
-    </div>
-  )
-}
-
 export default function Voices() {
   const [cat, setCat] = useState<Catalog | null | undefined>(undefined)
   const [phrase, setPhrase] = useState<(typeof PHRASES)[number]['id']>('deal')
@@ -105,6 +75,7 @@ export default function Voices() {
   const female = general.filter((v) => v.female && !v.id.endsWith('_ru'))
   const live = y?.voices.filter((v) => v.model === 'livetts') ?? []
   const accented = y?.voices.filter((v) => v.id.endsWith('_ru')) ?? []
+  const eleven = cat?.elevenlabs
 
   return (
     <main className="vx">
@@ -192,61 +163,39 @@ export default function Voices() {
       </section>
 
       <section className="vx-block">
-        <h2>Другие провайдеры</h2>
-        <p className="vx-lead">Для сравнения. Работают, когда на сервере есть ключ; цены и выводы — в VOICE_LLM_RESEARCH.md.</p>
-        {(['openai', 'elevenlabs', 'salute'] as const).map((pv) => {
-          const st = cat?.[pv]
-          if (!st?.ready) return <NeedKey key={pv} provider={pv} st={st} />
-          return (
-            <div key={pv} className="vx-group">
-              <h3>
-                {PROVIDER_RU[pv]} <span className="vx-small">· {st.model}</span>
-              </h3>
-              <div className="vx-row vx-wrap">
-                {st.voices.map((v) => (
-                  <Play key={v.id} req={{ text, voice: v.id, emotion, provider: pv }} label={v.name} sub={v.female ? 'ж' : 'м'} />
-                ))}
-              </div>
-            </div>
-          )
-        })}
+        <h2>ElevenLabs</h2>
+        <p className="vx-lead">
+          Вступление «Тары» голосами ElevenLabs. Свою фразу ElevenLabs не озвучит: сервер даёт ему только тексты игры.
+        </p>
+        <blockquote className="vx-quote vx-quote--small">«{ELEVEN_TEXT}»</blockquote>
+        {eleven?.ready ? (
+          <div className="vx-row vx-wrap">
+            {eleven.voices.map((v) => (
+              <Play key={v.id} req={{ text: ELEVEN_TEXT, voice: v.id, provider: 'elevenlabs' }} label={v.name} sub={v.female ? 'ж' : 'м'} />
+            ))}
+          </div>
+        ) : (
+          <p className="vx-need">
+            Нужно <code>{eleven?.need ?? '…'}</code> в <code>.env</code> сервера. Без этого тут пусто, остальное работает.
+          </p>
+        )}
       </section>
 
       <section className="vx-block">
-        <h2>Собеседник-иностранец</h2>
-        <p className="vx-lead">Поставщик из Китая говорит по-русски с акцентом. Так звучала бы встреча с зарубежным партнёром.</p>
-        <div className="vx-foreign">
-          <div className="vx-person">
-            <div className="vx-avatar" aria-hidden>
-              李
-            </div>
-            <div>
-              <b>
-                {FOREIGNER.name}, {FOREIGNER.role}
-              </b>
-              <blockquote className="vx-quote vx-quote--small">«{FOREIGNER.text}»</blockquote>
-              {cat?.openai?.ready ? (
-                <Play req={{ text: FOREIGNER.text, voice: FOREIGNER.voice, provider: 'openai', instructions: FOREIGNER.instructions }} label="OpenAI, с акцентом" sub={cat.openai.model} />
-              ) : (
-                <NeedKey provider="openai" st={cat?.openai} />
-              )}
-            </div>
+        <h2>Собеседник с акцентом</h2>
+        <div className="vx-person">
+          <div className="vx-avatar" aria-hidden>
+            А
           </div>
-          <div className="vx-person">
-            <div className="vx-avatar" aria-hidden>
-              А
-            </div>
-            <div>
-              <b>
-                {ACCENT.name}, {ACCENT.role}
-              </b>
-              <blockquote className="vx-quote vx-quote--small">«{ACCENT.text}»</blockquote>
-              <span className="vx-small">Уже сейчас, без новых ключей: голоса SpeechKit v3 с акцентом.</span>
-              <div className="vx-row vx-wrap">
-                {accented.map((v) => (
-                  <Play key={v.id} req={{ text: ACCENT.text, voice: v.id, emotion: 'neutral' }} label={v.name} sub={v.note?.replace('русский с ', '')} disabled={!y?.ready} />
-                ))}
-              </div>
+          <div>
+            <b>
+              {ACCENT.name}, {ACCENT.role}
+            </b>
+            <blockquote className="vx-quote vx-quote--small">«{ACCENT.text}»</blockquote>
+            <div className="vx-row vx-wrap">
+              {accented.map((v) => (
+                <Play key={v.id} req={{ text: ACCENT.text, voice: v.id, emotion: 'neutral' }} label={v.name} sub={v.note?.replace('русский с ', '')} disabled={!y?.ready} />
+              ))}
             </div>
           </div>
         </div>

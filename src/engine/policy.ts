@@ -82,7 +82,7 @@ function lexLess(sc: Scenario, a: FullOffer, b: FullOffer): boolean {
 }
 
 /** Насколько оппонент готов меняться «умно»: 0 при доверии ≤ 35, 1 при ≥ 65. */
-export function openness(trust: number): number {
+function openness(trust: number): number {
   return Math.max(0, Math.min(1, (trust - 35) / 30))
 }
 

@@ -3,7 +3,7 @@
 // и если стереть позже, старая партия вернётся в хранилище. Пока идёт сброс, игра не рисуется вовсе.
 
 /** Всё, что игра хранит в браузере, начинается с этого префикса (прогресс, катсцены, голос, вид, имя игрока…). */
-export const PREFIX = 'peregovorka.'
+const PREFIX = 'peregovorka.'
 
 /** Стирает ключи игры из localStorage и всю sessionStorage вкладки. Возвращает, что стёрли. */
 export function wipeGame(local: Storage, session: Storage): string[] {

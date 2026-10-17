@@ -368,6 +368,7 @@ export class Desk {
       s.mesh.geometry.dispose()
       s.mesh.material.dispose()
       s.shadow.geometry.dispose()
+      s.shadow.material.uniforms.map.value.dispose()
       s.shadow.material.dispose()
       s.tex.forEach((t) => t.dispose())
       s.host.remove()

@@ -36,9 +36,18 @@ console.log('STT по кругу:', stt.status, await stt.text())
 const silence = new Uint8Array(16000 * 2)
 const data = new Uint8Array([...pcm, ...silence])
 const head = Buffer.alloc(44)
-head.write('RIFF', 0), head.writeUInt32LE(36 + data.length, 4), head.write('WAVE', 8), head.write('fmt ', 12)
-head.writeUInt32LE(16, 16), head.writeUInt16LE(1, 20), head.writeUInt16LE(1, 22), head.writeUInt32LE(16000, 24)
-head.writeUInt32LE(32000, 28), head.writeUInt16LE(2, 32), head.writeUInt16LE(16, 34), head.write('data', 36), head.writeUInt32LE(data.length, 40)
+head.write('RIFF', 0)
+head.writeUInt32LE(36 + data.length, 4)
+head.write('WAVEfmt ', 8)
+head.writeUInt32LE(16, 16)
+head.writeUInt16LE(1, 20) // PCM
+head.writeUInt16LE(1, 22) // моно
+head.writeUInt32LE(16000, 24)
+head.writeUInt32LE(32000, 28)
+head.writeUInt16LE(2, 32)
+head.writeUInt16LE(16, 34)
+head.write('data', 36)
+head.writeUInt32LE(data.length, 40)
 const wav = Buffer.concat([head, data]).toString('base64')
 
 // «Микрофон» — подмена getUserMedia: поток из WebAudio, в котором играет эта фраза.

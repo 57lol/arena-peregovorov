@@ -1,8 +1,8 @@
-// Лаборатория (/?lab): игра с другими провайдерами. Выбор живёт в sessionStorage этой вкладки —
-// закрыл вкладку, и игра снова на основных YandexGPT и SpeechKit.
+// Лаборатория (/?lab): игра с другими моделями и голосами. Выбор живёт в sessionStorage этой вкладки —
+// закрыл вкладку, и игра снова на основных настройках сервера.
 
-export type LabTts = 'yandex' | 'openai' | 'elevenlabs' | 'salute'
-export type LabLlm = 'yandex' | 'yandex-lite' | 'openai' | 'anthropic' | 'gigachat' | 'offline'
+export type LabTts = 'yandex' | 'elevenlabs'
+export type LabLlm = 'yandex' | 'yandex-lite' | 'aitunnel' | 'offline'
 
 export interface LabConfig {
   llm?: LabLlm
@@ -39,9 +39,5 @@ export function saveLab(c: LabConfig) {
   }
 }
 
-/** Голос по умолчанию у чужого провайдера — по полу собеседника. */
-export const LAB_VOICE: Record<Exclude<LabTts, 'yandex'>, { male: string; female: string }> = {
-  openai: { male: 'ash', female: 'coral' },
-  elevenlabs: { male: 'JBFqnCBsd6RMkjVDRZzb', female: 'EXAVITQu4vr4xnSDxMaL' },
-  salute: { male: 'Bys_24000', female: 'Nec_24000' },
-}
+/** Голос ElevenLabs в лаборатории — по полу собеседника (George и Sarah из каталога сервера). */
+export const LAB_VOICE = { male: 'JBFqnCBsd6RMkjVDRZzb', female: 'EXAVITQu4vr4xnSDxMaL' }

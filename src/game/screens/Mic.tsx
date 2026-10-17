@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { canRecord, MAX_REC_SEC, micError, recognize, startRecording, SttError, toPcm16k, type Recording } from '../speech'
+import { createMic, type Mic, type MicState } from '../mic'
+import { canRecord, MAX_REC_SEC, recognize, startRecording, toPcm16k } from '../speech'
 import { Button } from '../ui'
 
 interface Props {
+  /** собеседник отвечает: кнопка выключена, запись и распознавание обрываются */
   disabled?: boolean
+  /** запись начинается — собеседник замолкает */
+  onStart: () => void
   /** распознанный текст — в поле ввода, игрок поправит и отправит сам */
   onText: (text: string) => void
-  onError: (message: string) => void
+  onError: (message: string | null) => void
   /** распознавание на сервере недоступно — спрятать кнопку */
   onOff: () => void
 }
@@ -14,84 +18,113 @@ interface Props {
 const LIMIT = MAX_REC_SEC
 const clock = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`
 
-/** Кнопка «Голосом»: первый клик — запись, второй — стоп и распознавание. Паузы в речи запись не прерывают, предел — минута. */
-export function MicButton({ disabled, onText, onError, onOff }: Props) {
-  const [state, setState] = useState<'idle' | 'rec' | 'busy'>('idle')
+/**
+ * Кнопка «Голосом»: первый клик — запись, второй — стоп и распознавание. Паузы в речи запись не прерывают, предел — минута.
+ * Распознавание можно отменить, а после сбоя — отправить ту же запись ещё раз.
+ */
+export function MicButton(props: Props) {
+  const [state, setState] = useState<MicState>('idle')
   const [sec, setSec] = useState(0)
-  const rec = useRef<Recording | null>(null)
-
-  // уход со встречи посреди записи — отпускаем микрофон
-  useEffect(() => () => rec.current?.cancel(), [])
-
+  const mic = useRef<Mic | null>(null)
+  const cb = useRef(props)
   useEffect(() => {
-    if (state !== 'rec') return
-    const t = setInterval(() => setSec((s) => s + 1), 1000)
-    return () => clearInterval(t)
-  }, [state])
-
-  useEffect(() => {
-    if (state === 'rec' && sec >= LIMIT) finish()
+    cb.current = props
   })
 
+  useEffect(() => {
+    const m = createMic({
+      start: startRecording,
+      toPcm: toPcm16k,
+      recognize,
+      onStart: () => {
+        cb.current.onError(null)
+        cb.current.onStart()
+      },
+      onState: (s) => {
+        setState(s)
+        setSec(0)
+      },
+      onText: (t) => cb.current.onText(t),
+      onError: (e) => cb.current.onError(e),
+      onOff: () => cb.current.onOff(),
+    })
+    mic.current = m
+    // уход со встречи посреди записи — отпускаем микрофон
+    return () => m.dispose()
+  }, [])
+
+  // ушла реплика (или ответ собеседника) — запись и распознавание уже ни к чему
+  const { disabled } = props
+  useEffect(() => {
+    if (disabled) mic.current?.interrupt()
+  }, [disabled])
+
+  const ticking = state === 'rec' || state === 'busy'
+  useEffect(() => {
+    if (!ticking) return
+    const t = setInterval(() => setSec((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [ticking])
+
+  useEffect(() => {
+    if (state === 'rec' && sec >= LIMIT) void mic.current?.finish()
+  }, [state, sec])
+
   if (!canRecord()) return null
+  if (state === 'rec')
+    return (
+      <Button
+        className="g-mic is-rec"
+        variant="stamp"
+        icon="mic"
+        aria-pressed
+        aria-label="Остановить запись и распознать"
+        title="Говорите сколько нужно, паузы не страшны. Закончили — нажмите «Стоп»."
+        onClick={() => void mic.current?.finish()}
+      >
+        <i className="g-rec-dot" aria-hidden="true" />
+        <span className="g-mic-label">Стоп</span>{' '}
+        {LIMIT - sec <= 10 ? (
+          `ещё ${LIMIT - sec} с`
+        ) : (
+          <>
+            {clock(sec)}
+            <span className="g-mic-limit"> / {clock(LIMIT)}</span>
+          </>
+        )}
+      </Button>
+    )
 
-  async function begin() {
-    try {
-      rec.current = await startRecording()
-      setSec(0)
-      setState('rec')
-    } catch (e) {
-      onError(micError(e))
-    }
-  }
+  if (state === 'busy')
+    return (
+      <>
+        {/* на телефоне подписи прячутся: остаются микрофон, секунды и крестик */}
+        <Button className="g-mic" icon="mic" disabled aria-label="Распознаю запись">
+          <span className="g-mic-label">Распознаю… </span>
+          {sec} с
+        </Button>
+        <Button className="g-mic" variant="ghost" icon="cross" aria-label="Отменить распознавание" title="Отменить: запись останется" onClick={() => mic.current?.cancel()}>
+          <span className="g-mic-label">Отмена</span>
+        </Button>
+      </>
+    )
 
-  async function finish() {
-    const r = rec.current
-    rec.current = null
-    if (!r) return
-    setState('busy')
-    try {
-      const text = await recognize(await toPcm16k(await r.stop()))
-      if (text.trim()) onText(text.trim())
-      else onError('Не расслышал. Нажмите микрофон и скажите реплику ещё раз, чуть ближе к микрофону.')
-    } catch (e) {
-      onError(micError(e))
-      if (e instanceof SttError && e.off) onOff()
-    } finally {
-      setState('idle')
-    }
-  }
-
-  const rec_ = state === 'rec'
   return (
-    <Button
-      className={`g-mic${rec_ ? ' is-rec' : ''}`}
-      variant={rec_ ? 'stamp' : 'paper'}
-      icon="mic"
-      disabled={disabled || state === 'busy'}
-      aria-pressed={rec_}
-      aria-label={rec_ ? 'Остановить запись и распознать' : 'Сказать голосом'}
-      title={rec_ ? 'Говорите сколько нужно, паузы не страшны. Закончили — нажмите «Стоп».' : undefined}
-      onClick={() => (rec_ ? finish() : begin())}
-    >
-      {rec_ ? (
-        <>
-          <i className="g-rec-dot" aria-hidden="true" />
-          <span className="g-mic-label">Стоп</span>{' '}
-          {LIMIT - sec <= 10 ? (
-            `ещё ${LIMIT - sec} с`
-          ) : (
-            <>
-              {clock(sec)}
-              <span className="g-mic-limit"> / {clock(LIMIT)}</span>
-            </>
-          )}
-        </>
-      ) : state === 'busy' ? (
-        <span className="g-mic-label">Распознаю…</span>
-      ) : (
-        <span className="g-mic-label">Голосом</span>
+    <>
+      <Button
+        className="g-mic"
+        icon="mic"
+        disabled={disabled || state === 'starting'}
+        aria-label={state === 'starting' ? 'Включаю микрофон' : 'Сказать голосом'}
+        onClick={() => void mic.current?.begin()}
+      >
+        {state === 'starting' ? 'Включаю…' : <span className="g-mic-label">Голосом</span>}
+      </Button>
+      {state === 'failed' && (
+        <Button className="g-mic" icon="rewind" disabled={disabled} aria-label="Распознать ту же запись ещё раз" onClick={() => void mic.current?.retry()}>
+          Ещё раз
+        </Button>
       )}
-    </Button>
+    </>
   )
 }

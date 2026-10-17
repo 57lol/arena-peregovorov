@@ -6,7 +6,7 @@ import { templateLine } from './lines'
 
 export { analyzeOffline, censor, isRude, talkActs, withContext } from './analyze'
 export { parseOffer, mentionedIssues } from './parseOffer'
-export { templateLine, emotionFor } from './lines'
+export { templateLine } from './lines'
 export { quantities } from './numbers'
 
 /** Уход по кнопке «Встать и уйти»: служебный ход без приёмов. */

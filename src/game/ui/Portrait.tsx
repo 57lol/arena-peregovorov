@@ -20,9 +20,15 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
   const [jolt, setJolt] = useState(false)
   const prevEmotion = useRef(emotion)
 
+  // заговорил или замолчал — с закрытого рта (сброс в рендере, а не в эффекте)
+  const [mouthFor, setMouthFor] = useState({ talking, lip })
+  if (mouthFor.talking !== talking || mouthFor.lip !== lip) {
+    setMouthFor({ talking, lip })
+    setFrame('idle')
+  }
+
   // рот: звучит голос — по громкости звука; голоса нет — открыт-закрыт, пока идёт текст
   useEffect(() => {
-    setFrame('idle')
     if (!talking && !lip) return
     let open = false
     let flip = 0
@@ -104,7 +110,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
   )
 }
 
-export const EMOTION_RU: Record<PortraitEmotion, string> = {
+const EMOTION_RU: Record<PortraitEmotion, string> = {
   neutral: 'спокойствие',
   pleased: 'удовольствие',
   happy: 'радость',

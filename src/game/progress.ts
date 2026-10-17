@@ -14,7 +14,7 @@ export interface Stars {
   trust: boolean
 }
 
-export interface CaseRecord {
+interface CaseRecord {
   title: string
   plays: number
   bestPoints: number | null

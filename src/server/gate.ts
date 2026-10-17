@@ -7,9 +7,9 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { clientIp, PASS_COOKIE as COOKIE } from './client'
 import { GATE_SCENE_JS } from './gate-scene'
 
-const COOKIE = 'arena_pass'
 const TTL = 30 * 24 * 3600
 const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
 const MAX_FAILS = 8
@@ -32,22 +32,25 @@ function checkPassword(password: string, stored: string) {
   return kind === 'scrypt' && !!salt && !!hash && same(hashPassword(password, salt), stored)
 }
 
-const sign = (secret: string, exp: number) => createHmac('sha256', secret).update(`v1.${exp}`).digest('base64url')
+const sign = (secret: string, what: string) => createHmac('sha256', secret).update(what).digest('base64url')
 
+/** Пропуск: срок, случайный номер входа (по нему лимиты на сессию) и подпись. */
 export function makePass(secret: string, now = Date.now()) {
   const exp = Math.floor(now / 1000) + TTL
-  return `${exp}.${sign(secret, exp)}`
+  const id = randomBytes(9).toString('base64url')
+  return `${exp}.${id}.${sign(secret, `v2.${exp}.${id}`)}`
 }
 
+/** Пропуски до 17.10 — без номера входа («срок.подпись»): жюри не выкидывает на вход. */
 export function passValid(secret: string, value: string | undefined, now = Date.now()) {
-  const [exp, sig] = (value ?? '').split('.')
-  return !!sig && Number(exp) > now / 1000 && same(sig, sign(secret, Number(exp)))
+  const parts = (value ?? '').split('.')
+  const [exp, id, sig] = parts.length === 2 ? [parts[0], undefined, parts[1]] : parts
+  if (!sig || parts.length > 3 || !(Number(exp) > now / 1000)) return false
+  return same(sig, sign(secret, id === undefined ? `v1.${exp}` : `v2.${exp}.${id}`))
 }
 
 export function gate(cfg: GateConfig): MiddlewareHandler {
   const fails = new Map<string, { n: number; until: number }>()
-  // nginx хостинга дописывает адрес клиента в конец X-Forwarded-For; начало и X-Real-IP клиент может подделать
-  const ipOf = (c: Context) => (c.req.header('x-forwarded-for') ?? '').split(',').pop()?.trim() || 'local'
   const blocked = (ip: string) => {
     const f = fails.get(ip)
     return !!f && f.until > Date.now() && f.n >= MAX_FAILS
@@ -72,7 +75,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
   return async (c, next) => {
     const url = new URL(c.req.url)
     const path = url.pathname
-    const ip = ipOf(c)
+    const ip = clientIp(c)
 
     if (path === '/auth/login' && c.req.method === 'POST') {
       const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
@@ -121,7 +124,7 @@ const FRAME_PAPER =
 const FRAME_PLATE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAVklEQVR4nGNkgAITGfX/DHjAmSc3GUE0C0zxlqWe+NQz+EQz/AdpYoQp/nb3Il4ND26+Yihb+oeBiYFEwDSqgQgAjj1QXHRFg+MQJwDFATjiYALEJg0AeVUg1UhP7HwAAAAASUVORK5CYII='
 
-export function loginPage(next: string, error = '', login = '') {
+function loginPage(next: string, error = '', login = '') {
   return `<!doctype html>
 <html lang="ru">
 <head>

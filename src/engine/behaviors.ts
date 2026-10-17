@@ -642,7 +642,7 @@ export const BEHAVIORS: Behavior[] = [
 
 // ——— для движка ———
 
-export const BEHAVIOR_RULES: BehaviorRule[] = BEHAVIORS.map((b) => ({
+const BEHAVIOR_RULES: BehaviorRule[] = BEHAVIORS.map((b) => ({
   id: b.id,
   label: b.title,
   hint: b.definition,

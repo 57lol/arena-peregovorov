@@ -94,7 +94,7 @@ function kindOf(d: Decision, state: OpponentState): Kind {
   return d.kind
 }
 
-export function emotionFor(d: Decision, state: OpponentState): Emotion {
+function emotionFor(d: Decision, state: OpponentState): Emotion {
   switch (d.kind) {
     case 'accept': return 'happy'
     case 'walk_away':

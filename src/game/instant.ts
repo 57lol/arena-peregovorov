@@ -11,7 +11,7 @@ import { firstName, g, plural } from './cast'
 
 export type Ink = 'good' | 'bad' | 'plain'
 
-export interface MarginNote {
+interface MarginNote {
   key: string
   ink: Ink
   title: string
@@ -29,7 +29,7 @@ export interface TurnFeedback {
   empty: boolean           // ни сильных, ни слабых приёмов
 }
 
-export type TipId =
+type TipId =
   | 'start' | 'last' | 'below' | 'tone' | 'tension' | 'reveal' | 'hold' | 'clock'
   | 'ask' | 'offer' | 'trade' | 'summary' | 'priority' | 'check'
 

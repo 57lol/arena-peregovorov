@@ -19,7 +19,7 @@ export function getScenario(id: string): Scenario | undefined {
   return base && harder(base)
 }
 
-export { harder, baseCaseId, isHarder, HARD_SUFFIX } from './harder'
+export { harder, baseCaseId } from './harder'
 
-export { auditScenario, type ScenarioAudit } from './analyze'
-export { pickFromLibrary, type LibraryRequest } from './pick'
+export { auditScenario } from './analyze'
+export { pickFromLibrary } from './pick'

@@ -1,4 +1,3 @@
-import { importChunk } from './game/chunkRecovery'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
@@ -36,12 +35,11 @@ import './game/coach.css'
 import './game/career.css'
 
 // 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
-const loadPlay3D = () => importChunk(() => import('./game/screens/Play3D'))
-const Play3D = lazy(loadPlay3D)
+const Play3D = lazy(() => import('./game/screens/Play3D'))
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
-const CutscenePlayer = lazy(() => importChunk(() => import('./game/cutscene/Cutscene')).then((m) => ({ default: m.CutscenePlayer })))
-const Jury = lazy(() => importChunk(() => import('./game/story/Jury')).then((m) => ({ default: m.Jury })))
-const Gallery = lazy(() => importChunk(() => import('./game/cutscene/Gallery')).then((m) => ({ default: m.Gallery })))
+const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
+const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
+const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ default: m.Gallery })))
 
 /** Откуда открыли дело. «Сюжет» возвращает на титул: карты в нём нет. */
 type Origin = 'story' | 'map' | 'setup' | 'jury'
@@ -106,7 +104,7 @@ export default function App() {
   // ссылка тренировки ещё грузится: имя спрашиваем сразу, иначе результат уйдёт «Без имени»
   const [roomWait, setRoomWait] = useState(false)
   const [player, setPlayer] = useState(loadPlayer)
-  const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
+  const [startedAt, setStartedAt] = useState(() => saved?.startedAt ?? Date.now())
   const [attemptId, setAttemptId] = useState(() => saved?.attemptId ?? newAttemptId())
   const [admitting, setAdmitting] = useState(false)
   const [roomError, setRoomError] = useState<string | null>(null)
@@ -130,10 +128,14 @@ export default function App() {
   const [viewNote, setViewNote] = useState('')
   const navigation = useRef(0)
   useEffect(() => {
-    if (view === '3d' && (screen === 'brief' || screen === 'report')) loadPlay3D().catch(() => {})
+    // просто греем кеш, без перезагрузки при битом чанке: настоящую загрузку вылечит lazy при входе во встречу
+    if (view === '3d' && (screen === 'brief' || screen === 'report')) import('./game/screens/Play3D').catch(() => {})
   }, [view, screen])
+  // текущее дело для обработчика «Назад»: после await в нём нужно свежее значение, а не из замыкания
   const currentRef = useRef<Case | null>(null)
-  currentRef.current = current
+  useEffect(() => {
+    currentRef.current = current
+  }, [current])
   useRoomPulse(room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
@@ -342,9 +344,8 @@ export default function App() {
     setFilm({ id, then: () => go(back) })
     go('cutscene')
   }
-  useEffect(() => {
-    if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
-  }, [screen, film])
+  // экран катсцены без катсцены (перезагрузка, «Назад») — на титул; сразу в рендере, без кадра пустого экрана
+  if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
 
   const rewindTo = async (turn: number) => {
     if (!current || admitting) return
@@ -522,7 +523,8 @@ export default function App() {
       history,
       setHistory,
       redo,
-      speech: server?.speech,
+      // сервер так и не ответил — голоса нет; пока отвечает (undefined) — считаем, что есть
+      speech: server === null ? { tts: false, stt: false } : server?.speech,
       tutorial: !progress.tutorialDone && tutorialAllowed(),
       onTutorialOff: () => setProgress(loadProgress()),
       onFinish: () => {
@@ -614,7 +616,7 @@ export default function App() {
             clientId={player.clientId}
             attemptId={attemptId}
             history={history}
-            seconds={(Date.now() - startedAt) / 1000}
+            startedAt={startedAt}
             sent={sent === attemptId}
             onSent={() => setSent(attemptId)}
           />
