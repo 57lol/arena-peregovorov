@@ -46,9 +46,11 @@ export function Play(props: Props) {
   const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
   // на телефоне блокнот спрятан под кнопкой — когда наставник о нём заговорил, открываем сами
   const nbStep = tut.step === 'notebook'
-  useEffect(() => {
+  const [nbSeen, setNbSeen] = useState(false)
+  if (nbStep !== nbSeen) {
+    setNbSeen(nbStep)
     if (nbStep) setNotebook(true)
-  }, [nbStep])
+  }
 
   const openNotebook = () => {
     setNotebook((o) => !o)

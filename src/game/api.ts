@@ -19,7 +19,7 @@ const LLM_ALIAS: Record<string, string> = {
   sol: 'aitunnel:gpt-6.1-sol',
   yandex: 'yandex:yandexgpt-5.1',
 }
-export function voiceLlmTest(): string | undefined {
+function voiceLlmTest(): string | undefined {
   try {
     const q = new URLSearchParams(location.search).get('llm')
     if (q === 'off') sessionStorage.removeItem('peregovorka.llm')

@@ -106,7 +106,7 @@ export default function App() {
   // ссылка тренировки ещё грузится: имя спрашиваем сразу, иначе результат уйдёт «Без имени»
   const [roomWait, setRoomWait] = useState(false)
   const [player, setPlayer] = useState(loadPlayer)
-  const [startedAt, setStartedAt] = useState(saved?.startedAt ?? Date.now())
+  const [startedAt, setStartedAt] = useState(() => saved?.startedAt ?? Date.now())
   const [attemptId, setAttemptId] = useState(() => saved?.attemptId ?? newAttemptId())
   const [admitting, setAdmitting] = useState(false)
   const [roomError, setRoomError] = useState<string | null>(null)
@@ -132,8 +132,11 @@ export default function App() {
   useEffect(() => {
     if (view === '3d' && (screen === 'brief' || screen === 'report')) loadPlay3D().catch(() => {})
   }, [view, screen])
+  // текущее дело для обработчика «Назад»: после await в нём нужно свежее значение, а не из замыкания
   const currentRef = useRef<Case | null>(null)
-  currentRef.current = current
+  useEffect(() => {
+    currentRef.current = current
+  }, [current])
   useRoomPulse(room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
@@ -342,9 +345,8 @@ export default function App() {
     setFilm({ id, then: () => go(back) })
     go('cutscene')
   }
-  useEffect(() => {
-    if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
-  }, [screen, film])
+  // экран катсцены без катсцены (перезагрузка, «Назад») — на титул; сразу в рендере, без кадра пустого экрана
+  if (screen === 'cutscene' && !(film && cutsceneById(film.id))) setScreen('title')
 
   const rewindTo = async (turn: number) => {
     if (!current || admitting) return
@@ -615,7 +617,7 @@ export default function App() {
             clientId={player.clientId}
             attemptId={attemptId}
             history={history}
-            seconds={(Date.now() - startedAt) / 1000}
+            startedAt={startedAt}
             sent={sent === attemptId}
             onSent={() => setSent(attemptId)}
           />

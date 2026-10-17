@@ -66,7 +66,7 @@ export const tutorialAllowed = () => typeof navigator === 'undefined' || !naviga
 // адрес читаем при загрузке: дальше его чистят ссылки на дело
 const forced = /[?&]tutorial=1\b/.test(globalThis.location?.search ?? '')
 
-export const offered = (h: TurnRecord[]) => h.some((x) => !!x.analysis.offer && Object.keys(x.analysis.offer).length > 0)
+const offered = (h: TurnRecord[]) => h.some((x) => !!x.analysis.offer && Object.keys(x.analysis.offer).length > 0)
 
 export interface MentorLine {
   text: string

@@ -71,7 +71,7 @@ export interface ProviderStatus {
   model: string
 }
 
-export interface VoiceInfo {
+interface VoiceInfo {
   id: string
   name: string
   female: boolean

@@ -164,7 +164,7 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам', spee
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
 
 /** Два-три пункта, где у вас самый большой разброс выгоды, — то, за что стоит держаться. */
-export function mainIssues(sc: Scenario): string {
+function mainIssues(sc: Scenario): string {
   const P = sc.player.profile
   const w = sc.issues.map((i) => ({ t: lowerFirst(i.title), w: Math.max(...P.points[i.id]) - Math.min(...P.points[i.id]) }))
   const top = [...w].sort((a, b) => b.w - a.w)
@@ -180,4 +180,4 @@ const HINTS: Record<string, string> = {
   tara: 'Марат первым назовёт свою цену. Не спорьте сразу о рублях: спросите, что ему важно, и предложите обмен.',
   client: 'Роза будет давить до последнего. Не спешите уступать: узнайте, чего она опасается, и ищите, что можно обменять.',
 }
-export const hintFor = (sc: Scenario) => HINTS[baseCaseId(sc.id)] ?? sc.goals?.[0] ?? 'Сначала спросите, что для собеседника главное и почему.'
+const hintFor = (sc: Scenario) => HINTS[baseCaseId(sc.id)] ?? sc.goals?.[0] ?? 'Сначала спросите, что для собеседника главное и почему.'

@@ -4,7 +4,7 @@ import { Portrait } from './Portrait'
 
 /** Наибольший целый масштаб, при котором ширина влезает в контейнер.
  * crop — какую долю ширины можно срезать по краям (на узких телефонах сцена важнее полей). */
-export function useIntegerScale(base: number, min = 1, max = 6, crop = 0) {
+function useIntegerScale(base: number, min = 1, max = 6, crop = 0) {
   const ref = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(min)
   useLayoutEffect(() => {
