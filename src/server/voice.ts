@@ -15,7 +15,7 @@ import type { LLM } from './llm'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-export const VOICE_VERSION = 'v9'
+export const VOICE_VERSION = 'v10'
 /** сколько ждём модель реплики, мс (VOICE_TIMEOUT_MS); не уложилась — пишет основная модель */
 const VOICE_MS = Number(process.env.VOICE_TIMEOUT_MS ?? 8000)
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
@@ -397,9 +397,20 @@ export function leaks(sc: Scenario, frame: Frame, line: string, said: string): I
   })
 }
 
-/** Числа-условия в реплике, которых нет ни в решении, ни в разговоре: собеседник выдумал новую цифру. */
+/** Близкие значения: «двое суток» = «48 часов» = «двух суток», «пятьсот» = «полтыщи». */
+const same = (a: number, b: number) => Math.abs(a - b) <= Math.abs(b) * 0.01 + 1e-9
+
+/**
+ * Числа-условия в реплике, которых нет ни в решении, ни в разговоре, ни в том, что он о себе знает и может сказать:
+ * собеседник выдумал новую цифру. Своё — карточка героя, его бриф и уже открытые (или открываемые сейчас) причины:
+ * «за двое суток отгрузим» из причины, которую он как раз рассказывает, — не новая цифра. Форма не важна: цифры,
+ * слова, падежи. Варианты с листка целиком сюда не входят — иначе проверка не ловила бы ни одной чужой цены.
+ */
 export function strayNumbers(sc: Scenario, frame: Frame, line: string, said: string): string[] {
   const heard = quantities(said)
+  const c = sc.opponent.character
+  // в карточке размерность важна: «шесть ярусов» не разрешает «6 месяцев», а «двое суток» разрешает «48 часов»
+  const own = quantities([c.bio, c.speech, ...(c.voiceExamples ?? []), sc.opponent.brief, ...frame.allowed.map((i) => i.text)].join('\n'))
   const out: string[] = []
   for (const q of quantities(line)) {
     // голое число словами меньше сотни («восьмидесяти пяти» → «пяти») — не условие, а обрывок счёта
@@ -409,7 +420,9 @@ export function strayNumbers(sc: Scenario, frame: Frame, line: string, said: str
     )
     if (!hits.length) continue
     if (hits.some(({ i, n }) => frame.position[i.id] === n)) continue
-    if (heard.some((h) => Math.abs(h.value - q.value) <= Math.abs(q.value) * 0.01 + 1e-9)) continue
+    if (heard.some((h) => same(h.value, q.value))) continue
+    // голое число в карточке («за пятьсот брал») — от сотни и выше, мелкие («двое детей») ничего не разрешают
+    if (own.some((h) => same(h.value, q.value) && (h.dim === q.dim || q.dim === 'plain' || (h.dim === 'plain' && h.value >= 100)))) continue
     out.push(line.slice(q.at, q.end))
   }
   return out

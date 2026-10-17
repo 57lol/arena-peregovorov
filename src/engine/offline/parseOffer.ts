@@ -101,8 +101,14 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
   return rel[best] <= 0.03 && rel.every((r, n) => n === best || r >= 2 * rel[best]) ? cands[best] : undefined
 }
 
-/** side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника. */
-export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Map<IssueId, number>): Offer {
+/** Где в тексте названо число пункта: каждое упоминание отдельно, а не только последнее. */
+export interface Mention { id: IssueId; option: number; at: number; end: number }
+
+/**
+ * side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника.
+ * rounded — пункты, где число попало между вариантами; mentions — все числа, разобранные в варианты пунктов.
+ */
+export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Map<IssueId, number>, mentions?: Mention[]): Offer {
   const infos = issueInfo(sc)
   const offer: Offer = {}
   const lower = text.toLowerCase()
@@ -165,6 +171,7 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
     if (!c) continue
     const n = nearest(c.info.values, c.value, side === 'player' ? sc.opponent.profile.points[c.info.issue.id] : undefined)
     if (n >= 0) offer[c.info.issue.id] = n // последнее упоминание побеждает («не 30, а 60 дней»)
+    if (n >= 0) mentions?.push({ id: c.info.issue.id, option: n, at: q.at, end: q.end })
     // число между вариантами («200» при 204 и 196) — такого варианта нет, модель такое условие часто пропускает
     const v = c.info.values[n]
     if (n >= 0 && v && Math.abs(v.value - c.value) > Math.abs(c.value) * 0.01) rounded?.set(c.info.issue.id, q.at)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { testDict, testScenario as sc } from './__fixtures__/fixtures'
 import {
   allDeals, buildReport, initialState, makeCounter, playAnalyses, replay, rewind, score, step,
-  type Difficulty, type MoveAnalysis, type Offer, type Scenario, type TurnRecord,
+  type Difficulty, type MoveAnalysis, type Offer, type OpponentState, type Scenario, type TurnRecord,
 } from './index'
 
 const move = (offer?: Offer, extra: Partial<MoveAnalysis> = {}): { text: string; analysis: MoveAnalysis } => ({
@@ -300,6 +300,63 @@ describe('живые диалоги: движок как рамка (17.10)', ()
     expect(groundAnalysis(tara, 'У Казани 200 за короб, давайте за 48 часов и на год.', { behaviors: [], offer: { rush: 4, term: 2 } }).offer?.price).toBeUndefined()
     // своё точное число правила не подменяют чужим, названным позже (засчитать 204 вместо 196 нельзя)
     expect(groundAnalysis(tara, 'Давай 196 за короб. 204 за короб — дорого.', { behaviors: [], offer: { price: 2 } }).offer?.price).not.toBe(1)
+  })
+
+  it('названная игроком цена извлекается правилами, даже если разметчик её потерял или округлил не туда', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { groundAnalysis } = await import('./offerEvidence')
+    const rest = { payment: 0, rush: 4, term: 2, schedule: 2 }
+    const price = (text: string, offer: Offer = rest) => groundAnalysis(tara, text, { behaviors: [], offer }).offer?.price
+    // 200 между вариантами 204 и 196 — в пользу собеседника (204, вариант 1)
+    for (const text of [
+      'Хорошо. 200 ровно, по факту отгрузки, 48 часов, год, раз в неделю — и я сегодня несу договор финдиректору.',
+      'Хорошо. Двести ровно, по факту отгрузки, сорок восемь часов, год, раз в неделю.',
+      'Ровно двести, по факту отгрузки, 48 часов и год.',
+      'Ладно, по 200 за короб, остальное как договорились.',
+      'Тогда по двести, по факту отгрузки, за 48 часов.',
+      'Две сотни за короб, по факту отгрузки, 48 часов, год, раз в неделю.',
+      'Хорошо, 2 сотни ровно — и подписываем.',
+      'Справедливо. Тогда давайте 200 ровно, по факту отгрузки, 48 часов, год, раз в неделю.',
+    ]) {
+      expect(price(text), text).toBe(1)
+      expect(price(text, {}), `${text} (без разметки)`).toBe(1)
+      expect(price(text, { ...rest, price: 3 }), `${text} (разметка 188)`).toBe(1)
+    }
+    // точное число — свой вариант
+    expect(price('Хорошо. 196, по факту отгрузки, 48 часов, год, раз в неделю.')).toBe(2)
+    expect(price('Давай 196 за короб. 204 за короб — дорого.', { price: 1 })).toBe(2)
+    // чужое, отвергнутое и пересказ — не его цена
+    for (const text of [
+      'У Казани 200 за короб, давайте за 48 часов и на год.',
+      'Двести ровно не дадим, давайте за 48 часов и на год.',
+      'Ваши 212 — не вариант, давайте 48 часов и год.',
+      'Казань возит по 200, а вы — 212. Давайте за 48 часов и на год.',
+      '204 — это уже разговор. А за 48 часов вам самим не накладно?',
+      'Правильно понимаю: вы готовы на 204?',
+    ]) expect(price(text, { rush: 4, term: 2 }), text).toBeUndefined()
+  })
+
+  it('движок не соглашается на условия хуже для собеседника, чем предложил сам игрок («200 ровно» — не сделка на 196)', async () => {
+    const { tara } = await import('../content/scenarios/tara')
+    const { BEHAVIOR_DICT } = await import('./behaviors')
+    const { groundAnalysis } = await import('./offerEvidence')
+    // партия из сравнения моделей: игрок раньше просил 196, Марат подвинулся до 204, игрок — «200 ровно»,
+    // разметчик цену потерял, и Марат согласился на прошлые 196 игрока
+    const all = { payment: 0, rush: 4, term: 2, schedule: 2 }
+    const before: OpponentState = {
+      ...initialState(tara), trust: 45, tension: 16, revealed: ['m_stock'], turn: 7,
+      tableOffer: { price: 1, ...all }, lastOpponentOffer: { price: 1, ...all }, playerStance: { price: 2, ...all },
+    }
+    for (const text of [
+      'Хорошо. 200 ровно, по факту отгрузки, 48 часов, год, раз в неделю — и я сегодня несу договор финдиректору.',
+      'Хорошо. Двести ровно, по факту отгрузки, 48 часов, год, раз в неделю.',
+      'Тогда по 200, по факту отгрузки, 48 часов, год, раз в неделю.',
+      'Две сотни за короб, по факту отгрузки, 48 часов, год, раз в неделю.',
+    ]) {
+      const r = step(tara, before, groundAnalysis(tara, text, { behaviors: [], offer: all }), BEHAVIOR_DICT)
+      expect(r.state.playerStance?.price, text).toBe(1)
+      if (r.decision.kind === 'accept') expect(r.state.deal?.price, text).toBeLessThanOrEqual(1)
+    }
   })
 
   it('пункт, о котором игрок в этот ход промолчал, с листка не дописывается, если названо меньше всех-кроме-одного', async () => {

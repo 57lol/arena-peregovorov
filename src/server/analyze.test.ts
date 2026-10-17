@@ -97,8 +97,9 @@ describe('предложения подтверждаются словами и�
     ['Предлагаю тишину с часу ночи', 1],
   ])('подтверждает время словами и цифрами: %s', (text, quiet) => {
     expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ quiet })).offer).toEqual({ quiet })
+    // модель ошиблась вариантом — игрок сам назвал время, правила ставят его (а не выкидывают условие)
     const other = quiet === 3 ? 1 : 3
-    expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ quiet: other })).offer).toBeUndefined()
+    expect(validate(dormCase.scenario, BEHAVIOR_DICT, text, raw({ quiet: other })).offer).toEqual({ quiet })
   })
 
   it('при недоступной модели и офлайн также отбрасывает отказ с числом', async () => {

@@ -224,3 +224,41 @@ describe('шаблон встречного', () => {
     expect(line).not.toMatch(/отсрочка|договор/i)
   })
 })
+
+describe('проверка реплики: своё число — не новая цифра', () => {
+  // Марат на первом ходу рассказывает причину «…за двое суток отгрузим» — в его решении срочные пока за 10 дней,
+  // но цифра из причины, которую он сейчас и открывает, новой не считается (раньше заворачивалась у всех моделей)
+  const reveal = { kind: 'reveal', interestId: 'm_stock', general: true } as const
+  const opened = { ...initialState(tara), revealed: ['m_stock'] }
+
+  it.each([
+    'С новым агрегатом держать под вас запас несложно, за двое суток отгрузим. Только даром такое не обещают.',
+    'Запас под вас держим — в течение двух суток отгрузим. Но это денег стоит.',
+    'Агрегат новый, запас держим. За 48 часов отгрузим, только не бесплатно.',
+    'Под вас запас держать несложно: сорок восемь часов — и коробки у вас.',
+  ])('%s', (line) => {
+    const r = check(tara, reveal, opened, line)
+    expect(r.hard.filter((h) => h.includes('цифр'))).toEqual([])
+    const frame = frameFor(tara, reveal, opened, opened.lastOpponentOffer ?? {})
+    expect(prune(tara, frame, { line, emotion: 'neutral', terms: [], agrees: false, reveals: [] }, { said: tara.opening, mine: [] })).toContain(line.split(/[.:—]/)[0])
+  })
+
+  it('та же цифра, пока причина закрыта и в разговоре её не было, — новая', () => {
+    const hold = { kind: 'hold', reason: 'no_movement' } as const
+    expect(check(tara, hold, initialState(tara), 'За двое суток отгрузим, но это отдельный разговор.').hard.join()).toMatch(/цифры/)
+    // а прозвучала в разговоре — уже не новая, в любой форме
+    expect(check(tara, hold, initialState(tara), 'За двое суток отгрузим, но это отдельный разговор.', {}, undefined, 'А срочную допоставку за 48 часов сделаете?').hard).toEqual([])
+  })
+
+  it('«пятьсот» и «полтыщи» — одно число: из разговора и из карточки героя', () => {
+    const hold = { kind: 'hold', reason: 'no_movement' } as const
+    const s = initialState(stop)
+    const line = 'Полтыщи — это я так, к слову. Две тыщи, братан.'
+    expect(check(stop, hold, s, line).hard.join()).toMatch(/цифры/)
+    expect(check(stop, hold, s, line, {}, undefined, 'Пятьсот на химчистку хватит?').hard).toEqual([])
+    const c = stop.opponent.character
+    const carded = { ...stop, opponent: { ...stop.opponent, character: { ...c, bio: `${c.bio} Кроссы брал за пятьсот рублей на распродаже.` } } }
+    expect(check(carded, hold, s, line).hard).toEqual([])
+    expect(check(carded, hold, s, 'Я их за 500 ₽ брал, а ты тут заливаешь.').hard).toEqual([])
+  })
+})
