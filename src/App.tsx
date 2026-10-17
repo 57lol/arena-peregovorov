@@ -522,7 +522,8 @@ export default function App() {
       history,
       setHistory,
       redo,
-      speech: server?.speech,
+      // сервер так и не ответил — голоса нет; пока отвечает (undefined) — считаем, что есть
+      speech: server === null ? { tts: false, stt: false } : server?.speech,
       tutorial: !progress.tutorialDone && tutorialAllowed(),
       onTutorialOff: () => setProgress(loadProgress()),
       onFinish: () => {
