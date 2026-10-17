@@ -73,11 +73,18 @@ export default function Play3D(props: Props) {
   // ---------- мир ----------
   useEffect(() => {
     const el = rootRef.current!
-    const w = new World(el, { kind: sceneFor(sc), caseId: sc.id, opponent: portraitFor(sc), reducedMotion: reduced() })
+    let w: World
+    try {
+      w = new World(el, { kind: sceneFor(sc), caseId: sc.id, opponent: portraitFor(sc), reducedMotion: reduced() })
+    } catch {
+      // can3d() проверяет WebGL один раз, а контекст может не создаться и позже (Chrome заблокировал GPU, драйвер)
+      onClassic('slow')
+      return
+    }
     w.start()
     setWorld(w)
-    // для проверок из Playwright
-    ;(window as unknown as { __world?: World }).__world = w
+    // для проверок из Playwright (они ходят на дев-сервер)
+    if (import.meta.env.DEV) (window as unknown as { __world?: World }).__world = w
     const off = attachInput(w, el, {
       onLook: () => setLooked(true),
       onTap: (x, y) => tapRef.current(x, y),
@@ -192,7 +199,6 @@ export default function Play3D(props: Props) {
   useEffect(() => {
     if (pose === 'face') setHeld(null)
   }, [pose])
-
   // ---------- оверлеи, привязанные к миру ----------
   const lineRef = useRef<HTMLDivElement>(null)
   const xrayRef = useRef<HTMLDivElement>(null)

@@ -6,6 +6,7 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { importChunk, installChunkRecovery } from './game/chunkRecovery'
+import { ErrorBoundary } from './game/ErrorBoundary'
 
 installChunkRecovery()
 
@@ -26,18 +27,20 @@ const labPage = new URLSearchParams(location.search).has('voices') ? 'voices' : 
 // пока идёт сброс, ничего не рисуем: иначе игра успеет записать в хранилище пустую партию и новое имя игрока
 if (!resetting) createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {showcase ? (
-      <Suspense>
-        <Showcase />
-      </Suspense>
-    ) : labPage ? (
-      <Suspense>{labPage === 'voices' ? <Voices /> : <Lab />}</Suspense>
-    ) : worldPreview ? (
-      <Suspense>
-        <WorldPreview />
-      </Suspense>
-    ) : (
-      <App />
-    )}
+    <ErrorBoundary>
+      {showcase ? (
+        <Suspense>
+          <Showcase />
+        </Suspense>
+      ) : labPage ? (
+        <Suspense>{labPage === 'voices' ? <Voices /> : <Lab />}</Suspense>
+      ) : worldPreview ? (
+        <Suspense>
+          <WorldPreview />
+        </Suspense>
+      ) : (
+        <App />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 )
