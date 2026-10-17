@@ -21,6 +21,8 @@ export interface LLM {
   name: 'yandex' | 'aitunnel' | 'offline'
   model: string
   json(req: JsonRequest): Promise<unknown>
+  /** Тот же ответ кусками по мере генерации (склейка кусков — JSON целиком): реплику можно озвучивать, не дожидаясь конца. */
+  stream?(req: JsonRequest, signal?: AbortSignal): AsyncGenerator<string>
   /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL или ANALYZE_LLM) */
   analyzer?: LLM
   /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
@@ -39,7 +41,7 @@ function extractJson(text: string): unknown {
 
 interface ChatReply {
   choices?: { message?: { content?: unknown } }[]
-  usage?: { prompt_tokens?: number; completion_tokens?: number; cost_rub?: number | string }
+  usage?: Usage
 }
 
 async function post(url: string, headers: Record<string, string>, body: unknown, ms = WAIT.llm()): Promise<ChatReply> {
@@ -54,6 +56,61 @@ async function post(url: string, headers: Record<string, string>, body: unknown,
   return JSON.parse(text) as ChatReply
 }
 
+interface Usage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  cost_rub?: number | string
+  prompt_tokens_details?: { cached_tokens?: number }
+}
+
+/**
+ * Ответ потоком (SSE OpenAI-совместимого API): отдаём куски текста, в конце — usage. Оборвали (signal, break) — запрос
+ * отменяется, usage нет (onEnd получит undefined и сколько символов успело прийти).
+ */
+async function* sse(url: string, headers: Record<string, string>, body: object, ms: number, signal: AbortSignal | undefined, onEnd: (u: Usage | undefined, chars: number) => Promise<void>): AsyncGenerator<string> {
+  const ac = new AbortController()
+  const stop = () => ac.abort(signal?.reason)
+  signal?.addEventListener('abort', stop, { once: true })
+  const timer = setTimeout(() => ac.abort(new DOMException('Модель не ответила вовремя', 'TimeoutError')), ms)
+  let usage: Usage | undefined
+  let chars = 0
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ ...body, stream: true, stream_options: { include_usage: true } }),
+      signal: ac.signal,
+    })
+    if (!res.ok) throw new Error(`${url} → ${res.status}: ${(await res.text()).slice(0, 300)}`)
+    let buf = ''
+    for await (const piece of res.body!.pipeThrough(new TextDecoderStream())) {
+      buf += piece
+      let i
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim()
+        buf = buf.slice(i + 1)
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trim()
+        if (data === '[DONE]') continue
+        const o = JSON.parse(data) as { usage?: Usage; error?: { message?: string }; choices?: { delta?: { content?: unknown } }[] }
+        if (o.error) throw new Error(`${url}: ${o.error.message ?? 'ошибка'}`)
+        if (o.usage) usage = o.usage
+        const d = o.choices?.[0]?.delta?.content
+        if (typeof d === 'string' && d) {
+          chars += d.length
+          yield d
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', stop)
+    // ушли из цикла раньше конца (спекуляция не угадала, проверка завернула) — запрос не нужен
+    if (!usage) ac.abort()
+    await onEnd(usage, chars)
+  }
+}
+
 /** OpenAI-совместимый chat/completions Яндекса. */
 function openaiCompatible(
   name: 'yandex',
@@ -62,9 +119,28 @@ function openaiCompatible(
   model: string,
   onUsage?: (tokensIn: number, tokensOut: number) => Promise<void>,
 ): LLM {
+  const request = ({ system, user, temperature, maxTokens, schema }: JsonRequest) => ({
+    model,
+    temperature,
+    max_tokens: maxTokens ?? 1024,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    response_format: schema
+      ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
+      : { type: 'json_object' },
+  })
   return {
     name,
     model,
+    stream(req, signal) {
+      const ms = req.timeoutMs ? Math.min(req.timeoutMs, WAIT.llm()) : WAIT.llm()
+      return sse(url, headers, request(req), ms, signal, async (u, chars) => {
+        if (!onUsage) return
+        await onUsage(Number(u?.prompt_tokens ?? Math.ceil((req.system.length + req.user.length) / 3)), Number(u?.completion_tokens ?? Math.ceil(chars / 3)))
+      })
+    },
     async json({ system, user, temperature, maxTokens, schema, timeoutMs }) {
       const r = await post(url, headers, {
         model,
@@ -128,6 +204,15 @@ export function yandex(b: Budget = sharedBudget(), transport?: (model: string) =
       if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан — ход разобран правилами')
       return (req.pro ? primary : pick()).json(req)
     },
+    async *stream(req, signal) {
+      if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан — ход разобран правилами')
+      const m = req.pro ? primary : pick()
+      if (!m.stream) {
+        yield JSON.stringify(await m.json(req))
+        return
+      }
+      yield* m.stream(req, signal)
+    },
   }
 }
 
@@ -167,29 +252,42 @@ export function aitunnel(model?: string, b: Budget = sharedBudget(), env = proce
   const url = `${(env.AITUNNEL_BASE_URL ?? 'https://api.aitunnel.ru/v1').replace(/\/$/, '')}/chat/completions`
   const claude = /^claude/.test(m)
   void b.mode()
+  const request = ({ system, user, temperature, maxTokens, schema }: JsonRequest) => ({
+    model: m,
+    temperature,
+    // с рассуждением «minimal» его почти нет, но запас нужен: иначе ответ может прийти пустым
+    max_tokens: Math.max(maxTokens ?? 1024, 800),
+    messages: [
+      { role: 'system', content: claude ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system },
+      { role: 'user', content: user },
+    ],
+    response_format: schema
+      ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
+      : { type: 'json_object' },
+    ...aitunnelFlags(m, env),
+  })
+  // цена оборванного потока неизвестна (AITunnel пишет её только в конце): считаем по прошлым ходам — ₽ за символ промпта
+  let rubPerChar = 0.00025
+  const pay = async (req: JsonRequest, u: Usage | undefined, chars: number) => {
+    const size = req.system.length + req.user.length
+    const rub = u?.cost_rub != null && Number.isFinite(Number(u.cost_rub)) ? Number(u.cost_rub) : undefined
+    if (u && rub !== undefined && size) rubPerChar = rub / size
+    if (u?.prompt_tokens_details && env.LLM_LOG_CACHE) console.log(`[llm] ${m}: промпт ${u.prompt_tokens}, из кэша ${u.prompt_tokens_details.cached_tokens ?? 0}, ${rub ?? '?'} ₽`)
+    await b.addLlm(`aitunnel/${m}`, Number(u?.prompt_tokens ?? Math.ceil(size / 3)), Number(u?.completion_tokens ?? Math.ceil(chars / 3)), rub ?? (u ? undefined : size * rubPerChar))
+  }
   return {
     name: 'aitunnel',
     model: m,
-    async json({ system, user, temperature, maxTokens, schema, timeoutMs }) {
+    async *stream(req, signal) {
       if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан')
-      const r = await post(url, { authorization: `Bearer ${key}` }, {
-        model: m,
-        temperature,
-        // с рассуждением «minimal» его почти нет, но запас нужен: иначе ответ может прийти пустым
-        max_tokens: Math.max(maxTokens ?? 1024, 800),
-        messages: [
-          { role: 'system', content: claude ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system },
-          { role: 'user', content: user },
-        ],
-        response_format: schema
-          ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
-          : { type: 'json_object' },
-        ...aitunnelFlags(m, env),
-      }, timeoutMs ? Math.min(timeoutMs, WAIT.llm()) : undefined)
+      const ms = req.timeoutMs ? Math.min(req.timeoutMs, WAIT.llm()) : WAIT.llm()
+      yield* sse(url, { authorization: `Bearer ${key}` }, request(req), ms, signal, (u, chars) => pay(req, u, chars))
+    },
+    async json(req) {
+      if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан')
+      const r = await post(url, { authorization: `Bearer ${key}` }, request(req), req.timeoutMs ? Math.min(req.timeoutMs, WAIT.llm()) : undefined)
       const text = r.choices?.[0]?.message?.content
-      const u = r.usage ?? {}
-      const rub = u.cost_rub != null && Number.isFinite(Number(u.cost_rub)) ? Number(u.cost_rub) : undefined
-      await b.addLlm(`aitunnel/${m}`, Number(u.prompt_tokens ?? 0), Number(u.completion_tokens ?? 0), rub)
+      await pay(req, r.usage ?? {}, String(text ?? '').length)
       if (typeof text !== 'string' || !text.trim()) throw new Error('Пустой ответ')
       return extractJson(text)
     },
@@ -231,14 +329,31 @@ export function patient(m: LLM, pauseMs = 120_000): LLM {
         fails = 0
         return r
       } catch (e) {
-        if ((e as Error).name === 'TimeoutError' && ++fails >= 3) {
-          until = Date.now() + pauseMs
-          fails = 0
-          console.warn(`[llm] ${m.model}: три таймаута подряд, ${pauseMs / 1000} с идём запасным путём`)
-        }
+        failed(e)
         throw e
       }
     },
+    ...(m.stream
+      ? {
+          async *stream(req: JsonRequest, signal?: AbortSignal) {
+            if (Date.now() < until) throw new Error(`${m.model} не отвечает, пробуем позже`)
+            try {
+              yield* m.stream!(req, signal)
+              fails = 0
+            } catch (e) {
+              failed(e)
+              throw e
+            }
+          },
+        }
+      : {}),
+  }
+  function failed(e: unknown) {
+    if ((e as Error).name === 'TimeoutError' && ++fails >= 3) {
+      until = Date.now() + pauseMs
+      fails = 0
+      console.warn(`[llm] ${m.model}: три таймаута подряд, ${pauseMs / 1000} с идём запасным путём`)
+    }
   }
 }
 
