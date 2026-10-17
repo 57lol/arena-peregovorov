@@ -1,13 +1,13 @@
 """Дарина Лукманова, 27, инженер-робототехник («Оффер для робототехника»): три варианта лица на общем person().
 
-Общее у всех: молодое лицо сердечком, большие живые глаза с ресницами, маленький нос, лёгкая улыбка в покое.
+Общее у всех: молодое лицо, глаза и тени кожи как у остальных портретов, маленький нос, лёгкая улыбка в покое.
 Разное — причёска и одежда:
 
   v1 — тёмное каре с косым пробором, белая водолазка, зелёный пиджак, пропуск на шнурке
   v2 — каштановый высокий хвост, пряди у лица, голубая рубашка поверх белой футболки, бейдж на кармане
   v3 — тёмный небрежный пучок с прядями, тонкие очки, беспроводной наушник, графитовая куртка
 
-Выбор для игры: tools/art/portraits.py olga --olga v2 (без флага — вариант по умолчанию DEFAULT).
+Выбор для игры: tools/art/portraits.py olga --olga v1 (без флага — вариант по умолчанию DEFAULT).
 Все варианты и сравнение: tools/art/portraits.py --olga-variants
 """
 import os
@@ -16,35 +16,13 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from people import CX, SKIN_LIGHT, Face, glasses, paint_cloth, person  # noqa: E402
+from people import CX, SKIN_LIGHT, Face, paint_cloth, person  # noqa: E402
 from pixel import band, ellipse_mask, grid, line, paint, poly_mask, put, shade_ellipsoid  # noqa: E402
 
-DEFAULT = 'v1'
+DEFAULT = 'v2'
 
-FACE = dict(top=19, cy=40, rx=17, jaw_y=54, jaw_w=13, chin_y=63, chin_w=4, jaw_p=1.4, cheek=1.8)
+FACE = dict(top=19, cy=40, rx=16.5, jaw_y=56, jaw_w=12, chin_y=64, chin_w=4, jaw_p=1.3, cheek=1.8)
 EY = 40
-
-# глаз 9x5 (левый, столбец 0 — снаружи, там хвостик ресниц; правый зеркалим): крупная радужка с бликом,
-# верхнее веко с ресницами толще к внешнему уголку, нижнее веко — светлая тень
-EYES = {
-    'open':   ['L.LLLLL..', '.LLiihiL.', '.LwiPPiw.', '..wiiiw..', '...sss...'],
-    'smile':  ['L.LLLLL..', '.LLiihiL.', '.LwiPPiw.', '..hhhhh..', '.........'],
-    'arc':    ['.........', '...LLL...', '.LL...L..', 'L.......', '.........'],
-    'side':   ['L.LLLLL..', '.LLwiihL.', '.Lwwipp..', '..wwiii..', '...sss...'],
-    'narrow': ['.........', 'LLLLLLLL.', '.LwiPPiw.', '..wiiiw..', '...sss...'],
-    'glare':  ['.L.......', 'L.LLLLLL.', '.LLiPPiL.', '..wiiiw..', '..ssss...'],
-    'closed': ['.........', '.........', 'L.LLLLL..', '.L.....L.', '...sss...'],
-}
-EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'happy': 'arc', 'thinking': 'side', 'annoyed': 'narrow', 'angry': 'glare'}
-
-
-def eyes(c, E, eyL, eyR, ey, emotion, frame):
-    st = 'closed' if frame == 'blink' else EYE_STATE[emotion]
-    rows = EYES[st]
-    leg = {**E, 'p': E['P']}
-    put(c, eyL - 1, ey - 2, rows, leg)
-    put(c, eyR - 1, ey - 2, rows, leg, flip=(st != 'side'))
-
 
 # рот: в покое уголки чуть вверх — лёгкая улыбка
 MOUTH = {
@@ -70,18 +48,12 @@ def hair_paint(c, mask, ramp, f, cuts=(0.22, 0.52, 0.82)):
 
 
 def base(f, hair_ramp, iris):
-    """Общие параметры лица; варианты дописывают одежду и причёску."""
-    return dict(face=f, skin=SKIN_LIGHT, ey=EY, age=27, female=True, neck=6, nose='small', shoulders=36, drop=15,
-                brow=(hair_ramp[0], 1), pupil=36, lash=36, eyes=eyes, mouths=(MOUTH, TALK), mouth_y=EY + 13,
-                lips={'m': 26, 'M': 25, 'r': 27, 'R': 28, 'i': iris, 'P': 36, 's': 15, 'o': 25},
-                blush=34, cuts=[0.05, 0.17, 0.985], eye_in=1, forehead=False, ear=(3.0, 5.0))
-
-
-def soft_cheeks(c, P):
-    """Скула без белого пятна: блик person() приглушаем до светлого тона кожи."""
-    ey = P['ey']
-    f = P['face']
-    paint(c, f.mask() & ellipse_mask(CX - f.rx + 8, ey + 6, 2.6, 1.5), 16)
+    """Общие параметры лица в манере остальных портретов (как student/hr): стандартные глаз 8x4 и тени кожи,
+    свои только рот с лёгкой улыбкой и цвет глаз; варианты дописывают одежду и причёску."""
+    return dict(face=f, skin=SKIN_LIGHT, ey=EY, age=27, female=True, neck=7, nose='small', shoulders=38, drop=14,
+                brow=(hair_ramp[0], 1), pupil=iris, lash=hair_ramp[0], mouths=(MOUTH, TALK), mouth_y=EY + 14,
+                lips={'m': 14, 'M': 26, 'r': 27, 'R': 28, 'o': 25},
+                blush=35, cuts=[0.08, 0.35, 0.95], eye_in=1, forehead=False)
 
 
 def lanyard(c, x0=41, x1=55, y=76, color=22, badge_y=86):
@@ -161,19 +133,16 @@ def v1():
             line(c, pts, 20)
         line(c, [(part, 17), (part, 20)], 24)
 
-    def extra(c, P, emotion):
-        soft_cheeks(c, P)
-
-    P.update(back=back, body=body, collar=collar, hair=hair, extra=extra, dark={24: 36, 18: 24, 37: 36})
+    P.update(back=back, body=body, collar=collar, hair=hair, dark={24: 36, 18: 24, 37: 36})
     return P
 
 
 # ---------- v2: высокий хвост ----------
 
-def gathered(f, hl, ear_y, grow=3.0):
+def gathered(f, hl, ear_y, grow=2.5):
     """Собранные волосы: объём на макушке, линия роста по hl(x), по бокам прикрывают верх ушей."""
     xs, ys = grid()
-    vol = ellipse_mask(CX, f.cy - 2, f.rx + grow, 24)
+    vol = ellipse_mask(CX, f.cy - 1, f.rx + grow, 22.5)
     top = vol & (ys < hl)
     sides = vol & (np.abs(xs - CX) > f.hw(ys) - 2) & (ys < ear_y)
     return top | sides
@@ -194,13 +163,13 @@ def v2():
     def back(c, P):
         xs, ys = grid()
         # хвост: собран высоко на затылке, виден справа за головой и падает на плечо
-        tail = poly_mask([(57, 14), (64, 13), (70, 20), (73, 32), (73, 46), (70, 58), (66, 66), (63, 70), (64, 58),
+        tail = poly_mask([(57, 16), (63, 15), (69, 20), (73, 32), (73, 46), (70, 58), (66, 66), (63, 70), (64, 58),
                           (66, 44), (64, 30), (60, 22)])
         paint(c, tail, band(shade_ellipsoid(60, 24, 16, 34), [0.35, 0.65], [18, 19, 20]))
         for pts in ([(64, 18), (69, 28), (70, 42), (68, 54)], [(62, 24), (65, 36), (65, 48)]):
             line(c, pts, 20)
         line(c, [(71, 34), (71, 48), (68, 60)], 18)
-        paint(c, ellipse_mask(CX, f.cy - 2, f.rx + 3, 24), 18)
+        paint(c, ellipse_mask(CX, f.cy - 1, f.rx + 2.5, 22.5), 18)
 
     def body(c, P, m):
         xs, ys = grid()
@@ -244,11 +213,10 @@ def v2():
         # резинка
         put(c, 58, 14, ['kk', 'kK'], {'k': 26, 'K': 25})
         # выпущенные пряди у лица
-        strand(c, [(35, 24), (32, 30), (31, 38), (32, 46), (31, 53)], 19, thick_to=2)
-        strand(c, [(61, 24), (64, 30), (64, 38), (63, 45)], 18, thick_to=2)
+        strand(c, [(35, 24), (32, 30), (31, 38), (32, 46), (31, 53)], 19)
+        strand(c, [(61, 24), (64, 30), (64, 38), (63, 45)], 18)
 
     def extra(c, P, emotion):
-        soft_cheeks(c, P)
         put(c, int(CX - f.rx - 2), EY + 9, ['g', 'g'], {'g': 23})
         put(c, int(CX + f.rx + 1), EY + 9, ['g', 'g'], {'g': 22})
 
@@ -257,18 +225,6 @@ def v2():
 
 
 # ---------- v3: пучок, очки, наушник ----------
-
-def thin_glasses(c, eyL, eyR, ey, color):
-    """Тонкая оправа шире глаза, чтобы не резать ресницы."""
-    rows = ['.fffffffff.', 'f.........f', 'f.........f', 'f.........f', 'f.........f', '.fffffffff.']
-    put(c, eyL - 2, ey - 3, rows, {'f': color})
-    put(c, eyR - 2, ey - 3, rows, {'f': color})
-    line(c, [(eyL + 9, ey - 1), (eyR - 2, ey - 1)], color)
-    c[ey - 2, eyL - 3] = color
-    c[ey - 2, eyR + 9] = color
-    c[ey - 2, eyL + 6] = 45
-    c[ey - 2, eyR + 6] = 45
-
 
 def v3():
     f = Face(**FACE)
@@ -283,7 +239,7 @@ def v3():
         for pts in ([(CX - 5, 13), (CX, 9), (CX + 6, 10)], [(CX - 2, 16), (CX + 4, 13), (CX + 8, 15)]):
             line(c, pts, 19)
         line(c, [(CX - 4, 17), (CX + 6, 17)], 24)
-        paint(c, ellipse_mask(CX, f.cy - 2, f.rx + 3, 24), 24)
+        paint(c, ellipse_mask(CX, f.cy - 1, f.rx + 2.5, 22.5), 24)
 
     def body(c, P, m):
         xs, ys = grid()
@@ -316,16 +272,14 @@ def v3():
             line(c, pts, 19)
         line(c, [(43, 21), (48, 19)], 18)
         # пряди у лица — тонкие, волной
-        strand(c, [(35, 25), (32, 31), (33, 38), (31, 46), (32, 54)], 18, thick_to=2)
-        strand(c, [(61, 25), (64, 31), (63, 38), (65, 45), (64, 50)], 24, thick_to=2)
+        strand(c, [(35, 25), (32, 31), (33, 38), (31, 46), (32, 54)], 18)
+        strand(c, [(61, 25), (64, 31), (63, 38), (65, 45), (64, 50)], 24)
 
     def extra(c, P, emotion):
-        soft_cheeks(c, P)
-        thin_glasses(c, CX - 11, CX + 3, EY, 37)
         # беспроводной наушник в правом ухе
         put(c, int(CX + f.rx), EY + 3, ['ww', 'wW', '.W', '.W'], {'w': 45, 'W': 43})
 
-    P.update(back=back, body=body, collar=collar, hair=hair, extra=extra, brow=(24, 1), lash=24)
+    P.update(back=back, body=body, collar=collar, hair=hair, extra=extra, brow=(24, 1), glasses=(37, 'thin'), lash=24)
     return P
 
 

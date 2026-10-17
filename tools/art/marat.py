@@ -255,40 +255,35 @@ def v3():
 
 def v3y():
     """v3 моложе, ~45: те же зачёс назад, прищур и чёрный костюм, но волосы почти без седины,
-    кожа ровнее, лицо чуть уже, морщин минимум."""
+    кожа ровнее, лицо чуть уже, морщин минимум. Объём волос, тени и посадка головы — как у Эмре и остальных."""
     P = v3()
-    f = Face(**{**FACE, 'rx': 19, 'cheek': 2.6, 'jaw_w': 16.5, 'chin_w': 8.5, 'jaw_p': 2.8})
-    HAIR = [36, 37, 38, 39]
+    f = Face(**{**FACE, 'rx': 18.5, 'cheek': 2.4, 'jaw_w': 16, 'chin_w': 8, 'jaw_p': 2.6})
+    HAIR = [36, 37, 38, 40]
     ey = P['ey']
     frame_of = P['_frame']
 
     def hair(c, P, emotion):
         xs, ys = grid()
         u = (xs - CX) / f.rx
-        vol = ellipse_mask(CX, f.cy - 3, f.rx + 2.4, 25.8)
-        # зачёс назад, линия волос ровная и чуть ниже, без залысин
-        hl = 22.5 + 2.2 * u ** 2 + 1.0 * np.exp(-((np.abs(u) - 0.62) / 0.15) ** 2)
+        vol = ellipse_mask(CX, f.cy - 1, f.rx + 2, 23)
+        # зачёс назад, линия волос ровная, без залысин
+        hl = 24 + 2.5 * u ** 2 + 1.0 * np.exp(-((np.abs(u) - 0.62) / 0.15) ** 2)
         top = vol & (ys < hl)
-        sides = vol & (np.abs(xs - CX) > f.rx - 2.5) & (ys < ey)
+        sides = vol & (np.abs(xs - CX) > f.rx - 2) & (ys < ey)
         h = top | sides
-        hair_paint(c, h, HAIR, f)
-        # пряди назад — тёмные дуги и блики, одна-две седые нити у виска
-        for pts in ([(37, 23), (42, 15), (49, 12)], [(52, 22), (56, 16), (60, 15)], [(31, 27), (34, 20)]):
+        paint(c, h, band(shade_ellipsoid(CX - 5, f.cy - 12, f.rx + 2, 22), [0.25, 0.55, 0.85], HAIR))
+        # пряди назад дугами, как у остальных: тёмные и светлые через одну
+        for pts in ([(38, 23), (42, 18), (49, 15)], [(53, 22), (57, 18), (61, 18)], [(32, 27), (35, 21)]):
             line(c, pts, 36)
-        for pts in ([(41, 21), (45, 15), (50, 13)], [(58, 22), (61, 18)]):
+        for pts in ([(42, 22), (46, 17), (52, 16)], [(58, 22), (62, 21)]):
             line(c, pts, 39)
-        line(c, [(47, 21), (51, 16)], 40)
-        c[30, 30] = 40
-        c[31, 66] = 39
+        c[29, 31] = 40
+        c[30, 65] = 39
 
     def extra(c, P, emotion):
-        S = P['skin']
-        face = f.mask()
-        # скулы мягче, чем у v3: только блик и лёгкая тень
-        paint(c, face & ellipse_mask(CX - f.rx + 6, ey + 6, 3.0, 1.2), S[3])
         v3_squint(c, P, emotion, frame_of.get('f', 'idle'))
 
-    P.update(face=f, hair=hair, extra=extra, age=44, neck=11, cuts=[0.07, 0.28, 0.86], brow=(36, 2))
+    P.update(face=f, hair=hair, extra=extra, age=44, neck=11, cuts=[0.1, 0.32, 0.88], brow=(36, 2), shoulders=41)
     return P
 
 
