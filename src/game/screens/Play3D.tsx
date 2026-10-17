@@ -246,7 +246,7 @@ export default function Play3D(props: Props) {
         const y = world.portrait && pose === 'face' ? trayTop - h - 10 : Math.min(Math.max(p.behind ? 12 : p.y, 12), trayTop - h - 10)
         // наверху слева плашки разбора, справа «Меню» — реплика встаёт между ними, если хватает ширины
         const root = rootRef.current!.getBoundingClientRect()
-        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor']) {
+        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate']) {
           const r = document.querySelector(sel)?.getBoundingClientRect()
           if (!r || y > r.bottom - root.top || r.left - root.left > cw / 2) continue
           const right = r.right - root.left + 12
@@ -476,7 +476,7 @@ export default function Play3D(props: Props) {
         )}
       </div>
 
-      <RotateHint />
+      {history.length === 0 && !tut.on && <RotateHint />}
 
       {menu && (
         <Menu
@@ -915,7 +915,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
   )
 }
 
-/** Телефон боком: стол и блокнот в высоту не помещаются — предлагаем повернуть. CSS показывает только лёжа. */
+/** Телефон боком: стол и блокнот в высоту не помещаются — до первого хода предлагаем повернуть. CSS показывает только лёжа. */
 function RotateHint() {
   const KEY = 'peregovorka.rotate.v1'
   const [off, setOff] = useState(() => {
@@ -926,8 +926,9 @@ function RotateHint() {
     }
   })
   if (off) return null
+  // погасла сама — уходит из DOM: место слева сверху нужно плашкам разбора
   return (
-    <p className="w3-rotate" role="status">
+    <p className="w3-rotate" role="status" onAnimationEnd={(e) => e.target === e.currentTarget && setOff(true)}>
       Удобнее вертикально
       <Button
         variant="ghost"

@@ -1086,11 +1086,11 @@
 }
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
   .w3-rotate {
-    /* справа под «Меню»: слева сверху стоят реплика собеседника и плашки разбора */
+    /* слева сверху: до первого хода там пусто и над столом, и над собеседником (блокнот и листок ниже и правее) */
     position: absolute;
     z-index: 6;
-    right: 12px;
-    top: 64px;
+    left: 12px;
+    top: 12px;
     display: flex;
     align-items: center;
     gap: calc(3 * var(--u));
@@ -1107,12 +1107,19 @@
     flex: none;
     margin: 0;
   }
+  /* реплика встаёт между плашкой разбора слева и «Меню» справа, когда её прижимает к верху */
   .w3-them {
-    width: min(560px, calc(100% - 290px));
+    width: min(560px, calc(100% - 330px));
   }
-  /* подсказку закрыли — реплике снова можно во всю ширину */
-  .w3-play:not(:has(.w3-rotate)) .w3-them {
-    width: min(560px, calc(100% - 24px));
+  .w3-toasts {
+    width: auto;
+  }
+  /* совет перед первым ходом — под плашкой «Удобнее вертикально», пока она видна */
+  .w3-play:has(.w3-rotate) .w3-toasts {
+    top: 72px;
+  }
+  .w3-toast--verdict > span:not(.w3-stamp-mini) {
+    display: none;
   }
   .w3-them .px-dialog-text {
     min-height: 0;
@@ -1140,5 +1147,13 @@
   .w3-play[data-pose='desk'] .w3-them {
     opacity: 0;
     pointer-events: none;
+  }
+  /* у стола от полосы остаются часы и «↑ Имя» — по ширине текста, между блокнотом и карточкой */
+  .w3-play[data-pose='desk'] .w3-tray {
+    width: auto;
+    padding-inline: calc(2 * var(--u));
+  }
+  .w3-play[data-pose='desk'] .w3-clock-line svg {
+    display: none;
   }
 }
