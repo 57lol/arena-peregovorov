@@ -36,8 +36,7 @@ import './game/coach.css'
 import './game/career.css'
 
 // 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
-const loadPlay3D = () => importChunk(() => import('./game/screens/Play3D'))
-const Play3D = lazy(loadPlay3D)
+const Play3D = lazy(() => importChunk(() => import('./game/screens/Play3D')))
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
 const CutscenePlayer = lazy(() => importChunk(() => import('./game/cutscene/Cutscene')).then((m) => ({ default: m.CutscenePlayer })))
 const Jury = lazy(() => importChunk(() => import('./game/story/Jury')).then((m) => ({ default: m.Jury })))
@@ -130,7 +129,8 @@ export default function App() {
   const [viewNote, setViewNote] = useState('')
   const navigation = useRef(0)
   useEffect(() => {
-    if (view === '3d' && (screen === 'brief' || screen === 'report')) loadPlay3D().catch(() => {})
+    // просто греем кеш, без перезагрузки при битом чанке: настоящую загрузку вылечит lazy при входе во встречу
+    if (view === '3d' && (screen === 'brief' || screen === 'report')) import('./game/screens/Play3D').catch(() => {})
   }, [view, screen])
   // текущее дело для обработчика «Назад»: после await в нём нужно свежее значение, а не из замыкания
   const currentRef = useRef<Case | null>(null)
