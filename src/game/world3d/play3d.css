@@ -174,7 +174,8 @@
 }
 .w3-say {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* кнопок у микрофона бывает две-три — ряд переносится, а поле ввода не уже 40 % */
+  grid-template-columns: minmax(0, 1fr) fit-content(60%);
   align-items: start;
   gap: 0 calc(3 * var(--u));
 }
@@ -1139,6 +1140,10 @@
   .w3-say .px-field-input {
     min-height: 44px;
     max-height: 88px;
+  }
+  /* у микрофона лёжа, как и стоя, — только значок и секунды */
+  .g-mic-label {
+    display: none;
   }
   /* к столу: поле ввода и реплика уходят, лист на столе открыт целиком */
   .w3-play[data-pose='desk'] .w3-say {
