@@ -21,7 +21,7 @@ function corr(a: number[], b: number[]): number {
   return da && db ? num / Math.sqrt(da * db) : 0
 }
 
-export function classifyIssue(player: number[], opponent: number[]): Issue['kind'] {
+function classifyIssue(player: number[], opponent: number[]): Issue['kind'] {
   if (corr(player, opponent) > 0.3) return 'compatible'
   const pw = weight(player), ow = weight(opponent)
   return Math.max(pw, ow) >= 2 * Math.max(1, Math.min(pw, ow)) ? 'integrative' : 'distributive'

@@ -11,7 +11,7 @@ import { cached } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-export const PROMPT_VERSION = 'a13'
+const PROMPT_VERSION = 'a13'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),

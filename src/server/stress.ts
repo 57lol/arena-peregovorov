@@ -275,11 +275,11 @@ export const forSpeechKit = (t: string) =>
 
 // ---------- нейросеть для омографов ----------
 
-export const STRESS_SYSTEM =
+const STRESS_SYSTEM =
   'Ты помогаешь синтезатору речи. Для каждого омографа во фразе выбери вариант ударения по смыслу. ' +
   'Ответ — только JSON {"a": [номер варианта, ...]} в порядке слов, без пояснений.'
 
-export function stressPrompt(a: Accented): string {
+function stressPrompt(a: Accented): string {
   const lines = [`Фраза: «${unstress(a.text)}»`]
   a.open.forEach((o, i) => {
     const h = HOMOGRAPHS[o.key]

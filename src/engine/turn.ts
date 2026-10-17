@@ -14,8 +14,8 @@ const START: Record<Tone, { trust: number; tension: number }> = {
   evasive: { trust: 40, tension: 20 },
 }
 
-export const WALK_TENSION = 90
-export const MAX_TONE_STRIKES = 2
+const WALK_TENSION = 90
+const MAX_TONE_STRIKES = 2
 
 export function initialState(sc: Scenario): OpponentState {
   const s = START[sc.opponent.character.tone] ?? START.neutral
@@ -36,7 +36,7 @@ export function initialState(sc: Scenario): OpponentState {
 const clamp = (v: number) => Math.max(0, Math.min(100, v))
 
 /** Сдвиги от поведения, тона и самого предложения. Каждая дельта — с причиной. */
-export function moveDeltas(
+function moveDeltas(
   sc: Scenario,
   state: OpponentState,
   analysis: MoveAnalysis,
@@ -158,7 +158,7 @@ function byImportance(sc: Scenario, list: Interest[]): Interest[] {
  * Недостающие пункты предложения — с его листка. any: игрок сам сказал «остальное как у вас», берём сколько угодно;
  * иначе (согласие с поправкой) — не больше одного: не хватает двух и больше — это ещё не предложение по всей сделке.
  */
-export function completeProposal(sc: Scenario, proposal: Offer | undefined, theirs: Offer | undefined, any = false): FullOffer | undefined {
+function completeProposal(sc: Scenario, proposal: Offer | undefined, theirs: Offer | undefined, any = false): FullOffer | undefined {
   if (!proposal) return undefined
   if (isComplete(sc, proposal)) return proposal
   const missing = sc.issues.filter((i) => typeof proposal[i.id] !== 'number')

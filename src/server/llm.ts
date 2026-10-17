@@ -28,7 +28,7 @@ export interface LLM {
 }
 
 /** Достаём JSON из ответа модели: бывает в ```json ...```, бывает с текстом вокруг. */
-export function extractJson(text: string): unknown {
+function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
   const body = fenced ? fenced[1] : text
   const start = body.search(/[{[]/)

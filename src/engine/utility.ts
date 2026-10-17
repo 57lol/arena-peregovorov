@@ -16,10 +16,6 @@ export function maxScore(profile: SideProfile, issues: Issue[]): number {
   return issues.reduce((s, i) => s + Math.max(...profile.points[i.id]), 0)
 }
 
-export function minScore(profile: SideProfile, issues: Issue[]): number {
-  return issues.reduce((s, i) => s + Math.min(...profile.points[i.id]), 0)
-}
-
 /** Разброс очков по пункту — насколько он стороне вообще важен. */
 export function issueWeight(profile: SideProfile, id: IssueId): number {
   const p = profile.points[id]

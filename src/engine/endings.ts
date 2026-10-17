@@ -11,7 +11,7 @@ export type EndingId = 'legend' | 'cold_win' | 'lose_lose' | 'middling' | 'short
 export const ENDING_IDS: EndingId[] = ['legend', 'cold_win', 'middling', 'lose_lose', 'short', 'walked', 'slammed', 'timeout']
 
 /** Пороги — те же, что у звёзд и в ведомости: 60 доверия — «хорошо», меньше 35 — «плохо», 90% Парето — «ничего не осталось». */
-export const ENDING_RULES = {
+const ENDING_RULES = {
   legendEfficiency: 0.9,
   legendTrust: 50,
   coldTrust: 35,

@@ -124,7 +124,7 @@ const FRAME_PAPER =
 const FRAME_PLATE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAVklEQVR4nGNkgAITGfX/DHjAmSc3GUE0C0zxlqWe+NQz+EQz/AdpYoQp/nb3Il4ND26+Yihb+oeBiYFEwDSqgQgAjj1QXHRFg+MQJwDFATjiYALEJg0AeVUg1UhP7HwAAAAASUVORK5CYII='
 
-export function loginPage(next: string, error = '', login = '') {
+function loginPage(next: string, error = '', login = '') {
   return `<!doctype html>
 <html lang="ru">
 <head>

@@ -23,9 +23,6 @@ import { castFor, elevenBody, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, 
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
-/** Голоса SpeechKit, которые принимает /api/tts (каталог с ролями — content/voices.ts, справка — ~/Arena-materials/VOICES.md). */
-export const VOICES = YANDEX_VOICES.map((v) => v.id) as [string, ...string[]]
-
 /** «196 р» в распознанном тексте — это рубли, как в листке на столе. */
 export const tidyTranscript = (t: string) => t.trim().replace(/(\d)\s*р\.?(?=[\s,.!?]|$)/gu, '$1 ₽')
 
@@ -70,7 +67,7 @@ export interface SpeechOptions {
  * репликах из кэшей правила решили всё сами. Не ответила за STRESS_LLM_MS (500 мс) — вариант по умолчанию.
  * STRESS_LLM=off — без неё.
  */
-export function stressAsk(env = process.env): AskJson | undefined {
+function stressAsk(env = process.env): AskJson | undefined {
   if (env.STRESS_LLM === 'off' || env.LLM_PROVIDER !== 'yandex' || !env.YANDEX_API_KEY || !env.YANDEX_FOLDER_ID) return undefined
   const llm = yandex(undefined, undefined, env.STRESS_LLM_MODEL ?? env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite')
   const schema = { type: 'object', additionalProperties: false, required: ['a'], properties: { a: { type: 'array', items: { type: 'integer' } } } }

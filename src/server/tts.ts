@@ -29,7 +29,7 @@ const ELEVEN_DEFAULT: VoiceInfo[] = [
   { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', female: true },
   { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', female: true },
 ]
-export function elevenVoices(env = process.env): VoiceInfo[] {
+function elevenVoices(env = process.env): VoiceInfo[] {
   const own = (env.ELEVENLABS_VOICES ?? '')
     .split(',')
     .map((s) => s.trim().split(':'))
@@ -89,7 +89,7 @@ async function ok(r: Response, who: string): Promise<Response> {
 const V1_URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
 const V3_URL = 'https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis'
 
-export async function yandexV1(key: string, q: TtsRequest, f: Fetch = fetch): Promise<Audio> {
+async function yandexV1(key: string, q: TtsRequest, f: Fetch = fetch): Promise<Audio> {
   const style = styleFor(q.voice, q.emotion)
   const form = new URLSearchParams({ text: q.text, lang: 'ru-RU', voice: q.voice, format: 'mp3', speed: String(style.speed) })
   if (style.role) form.set('emotion', style.role)
@@ -144,7 +144,7 @@ export interface ElevenTune {
   similarity?: number
   prefix?: string
 }
-export const ELEVEN_TUNE: Record<string, ElevenTune> = {
+const ELEVEN_TUNE: Record<string, ElevenTune> = {
   gopnik: { prefix: '[thick southern Russian village accent, soft fricative g] ' },
 }
 /** Свой seed у каждого лица: одна и та же реплика звучит одинаково, разные — в одной манере. */
@@ -155,7 +155,7 @@ export function elevenSeed(who: string | undefined): number {
 }
 
 /** Не длиннее max символов, по границе предложения (воркер и ElevenLabs берут до 1000). */
-export function cutAt(text: string, max: number): string {
+function cutAt(text: string, max: number): string {
   if (text.length <= max) return text
   const head = text.slice(0, max)
   const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '), head.lastIndexOf('… '))

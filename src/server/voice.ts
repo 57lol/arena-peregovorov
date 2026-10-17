@@ -16,7 +16,7 @@ import { WAIT } from './timeouts'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
-export const VOICE_VERSION = 'v12'
+const VOICE_VERSION = 'v12'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({
@@ -40,11 +40,11 @@ const TONE: Record<Tone, string> = {
  * «Для голоса» (лаборатория, x-lab-natural): реплику озвучит синтезатор, паузы потом доделает режиссёр речи (direct.ts).
  * Основной промпт и так написан для устной речи, здесь — только про цифры и значки.
  */
-export const FOR_VOICE = `
+const FOR_VOICE = `
 Реплику озвучит синтезатор, поэтому пиши для голоса: без скобок, кавычек и сокращений («млн», «тыс.», «т. е.»), суммы и сроки цифрами, как в условиях. Где человек прикидывает — многоточие.`
 
 /** Ударения расставляет словарь (stress.ts), от модели нужна только «ё» */
-export const STRESS_HINT = `
+const STRESS_HINT = `
 Букву «ё» пиши всегда: «всё», «ещё», «берём».`
 
 // Слова из промпта модели повторяют как штамп («по-человечески» в каждой реплике) — в биографии их заменяем

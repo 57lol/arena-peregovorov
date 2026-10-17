@@ -110,7 +110,7 @@ export function direct(text: string, emotion: Emotion = 'neutral'): string {
  * Голос livetts вместо обычного — для NATURAL_SPEECH=live и лаборатории. У livetts только шесть голосов,
  * поэтому пары подобраны по полу и возрасту на слух по тону (VOICES.md); повторы неизбежны.
  */
-export const LIVE_OF: Record<string, string> = {
+const LIVE_OF: Record<string, string> = {
   alexander: 'denis',
   filipp: 'denis',
   zahar: 'sergey',

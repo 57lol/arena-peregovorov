@@ -4,7 +4,7 @@ import type { Issue, IssueId, Offer, Scenario } from '../types'
 import { isNumberWord, optionQuantity, quantities, type Dim } from './numbers'
 
 /** Грубая основа слова: первые 5 букв (для русского хватает, чтобы ловить падежи). */
-export const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
+const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
 const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз)/
