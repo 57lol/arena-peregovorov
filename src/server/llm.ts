@@ -418,7 +418,9 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
     }
   }
   attach('analyzer', env.ANALYZE_LLM)
-  attach('analyzerEn', env.ANALYZE_LLM_EN)
+  // дела на английском размечает Claude Sonnet 5.5 (замер 18.10: 14 трудных реплик — Pro 94% и 2 сломанных JSON,
+  // Sonnet 97–100% без сбоев); ANALYZE_LLM_EN=main — тем же, что русские дела
+  attach('analyzerEn', env.ANALYZE_LLM_EN ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
   attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
   return { llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
 }

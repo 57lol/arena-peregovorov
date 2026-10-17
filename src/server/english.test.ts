@@ -54,6 +54,9 @@ describe('разметка реплики на английском', () => {
     const env = (extra: Record<string, string>) => ({ YANDEX_API_KEY: 'k', YANDEX_FOLDER_ID: 'f', ...extra }) as NodeJS.ProcessEnv
     const { llm } = makeLLM('yandex', env({ ANALYZE_LLM_EN: 'aitunnel:claude-sonnet-5.5', AITUNNEL_API_KEY: 'a' }))
     expect(llm.analyzerEn?.model).toBe('claude-sonnet-5.5')
+    // по умолчанию — Sonnet, если есть ключ AITunnel; main — как у русских дел
+    expect(makeLLM('yandex', env({ AITUNNEL_API_KEY: 'a' })).llm.analyzerEn?.model).toBe('claude-sonnet-5.5')
+    expect(makeLLM('yandex', env({ AITUNNEL_API_KEY: 'a', ANALYZE_LLM_EN: 'main' })).llm.analyzerEn).toBeUndefined()
     expect(makeLLM('yandex', env({})).llm.analyzerEn).toBeUndefined()
     vi.unstubAllEnvs()
   })
