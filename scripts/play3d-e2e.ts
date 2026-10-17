@@ -126,6 +126,9 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     deviceScaleFactor: phone ? 2 : 1,
     hasTouch: phone,
   })
+  // программный рендер под нагрузкой даёт мало кадров — проверку «не тянет 3D» (смотрит только видимую вкладку) выключаем,
+  // иначе встреча посреди прогона уходит в классический вид
+  await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
   const page = await ctx.newPage()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(String(e)))
@@ -136,7 +139,10 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     await page.goto(`${URL}/?view=3d`)
     await page.evaluate(() => localStorage.clear())
     await page.goto(`${URL}/?view=3d`)
-    await page.getByRole('button', { name: 'Все дела' }).click()
+    // «Все дела» — через хаб жюри и карту недели
+    await page.getByRole('button', { name: /Для жюри/ }).click()
+    await page.getByRole('button', { name: 'Карта недели' }).first().click()
+    await page.getByRole('button', { name: 'Все дела', exact: true }).click()
     await page.waitForSelector('.g-folders')
     await page.locator('.g-folder').filter({ hasText: CASES[kase].folder }).getByRole('button', { name: 'Открыть дело' }).click()
     await page.getByRole('button', { name: 'Войти в переговорку' }).click()
