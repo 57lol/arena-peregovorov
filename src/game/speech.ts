@@ -2,6 +2,7 @@
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
 import type { Emotion, Scenario } from '../engine/types'
+import { langOf, type Lang } from '../engine/lang'
 import { isFemale, portraitFor } from './cast'
 import { LAB_VOICE, loadLab, type LabTts } from './lab/config'
 import { ELEVEN_FILLERS, FILLER_VOICES, fillerIds } from '../content/fillers'
@@ -726,6 +727,10 @@ export function canRecord(): boolean {
 }
 
 
+/** Язык распознавания — язык дела: в деле на английском игрок говорит по-английски (useMeeting ставит при встрече). */
+let sttLang: Lang = 'ru'
+export const setSttLang = (sc: Pick<Scenario, 'lang'>) => void (sttLang = langOf(sc))
+
 /** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
 let recording: MediaStream | null = null
 
@@ -776,7 +781,7 @@ export async function startRecording(options?: { onSilence?: () => void; maxMs?:
       if (scribeMode) {
         try {
           // Подключение (0,9–1,5 с) идёт параллельно с загрузкой worklet; звук до готовности копится в очереди.
-          live = browserScribe((text) => options?.onPartial?.(text), options?.maxMs === 30_000 ? 30 : 60)
+          live = browserScribe((text) => options?.onPartial?.(text), options?.maxMs === 30_000 ? 30 : 60, sttLang)
           stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
         } catch { live?.cancel(); live = undefined /* MediaRecorder продолжит без потока */ }
       }
@@ -889,7 +894,7 @@ async function recognizeChunk(pcm: Int16Array<ArrayBuffer>, signal?: AbortSignal
   try {
     let r: Response
     try {
-      r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: ctl.signal })
+      r = await fetch(sttLang === 'en' ? '/api/stt?lang=en' : '/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: ctl.signal })
     } catch {
       throw new SttError(ctl.signal.aborted ? `Распознавание не ответило за ${STT_WAIT_MS / 1000} с. ${AGAIN}` : `Нет связи с сервером. ${AGAIN}`, { retry: true })
     }

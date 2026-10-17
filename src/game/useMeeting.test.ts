@@ -43,7 +43,7 @@ vi.mock('./speech', () => ({
   prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: vi.fn(),
   informal: () => true, startReaction: speech.reaction,
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
-  liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(),
+  liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(), setSttLang: vi.fn(),
   speechPlaying: () => speech.playing,
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn() }))

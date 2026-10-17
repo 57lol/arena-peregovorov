@@ -11,7 +11,9 @@ import { DAY, HOUR, limiter } from './limits'
 
 const number = (v: string | undefined, fallback: number) => v && Number.isFinite(+v) && +v > 0 ? +v : fallback
 export const scribePrice = (sec: number, env = process.env) => sec / 3600 * number(env.STT_SCRIBE_USD_HOUR, 0.39) * number(env.USD_RUB, 100)
-export function streamToken(secret: string, claims: { id: string; exp: number; seconds: number; origin: string }) {
+/** lang — язык дела ('en' — английское дело). Воркер пока шлёт Scribe language_code "ru" всегда; английскую речь Scribe
+ * с ним и так пишет по-английски (проверено 18.10), а с полем в пропуске воркеру хватит одной строки. */
+export function streamToken(secret: string, claims: { id: string; exp: number; seconds: number; origin: string; lang?: 'en' }) {
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url')
   return `${payload}.${createHmac('sha256', secret).update(`stt.v1.${payload}`).digest('base64url')}`
 }
@@ -30,13 +32,13 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
     const ip = clientIp(c, env), session = sessionOf(c, env)
     if (!count.take(`s:${session}`, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 60), HOUR) ||
         !count.take(`ip:${ip}`, number(env.STT_STREAM_IP_DAY_LIMIT, 300), DAY)) return c.json({ error: 'Лимит потока' }, 429)
-    const body = await c.req.json().catch(() => null) as { seconds?: unknown } | null
+    const body = await c.req.json().catch(() => null) as { seconds?: unknown; lang?: unknown } | null
     if (!body || (body.seconds !== 30 && body.seconds !== 60)) return c.json({ error: 'Нужна длительность 30 или 60 секунд' }, 400)
     const seconds = body.seconds === 30 ? 35 : 65
     // Полный слот учитывается даже при обрыве: браузеру нельзя доверять отчёт о расходе.
     if (!(await quota.reserveStt(seconds, scribePrice(seconds, env)))) return c.json({ error: 'Бюджет STT исчерпан' }, 429)
     const id = randomUUID(), until = Date.now() + 15_000
-    const token = streamToken(env.ELEVEN_RELAY_SECRET!, { id, exp: Math.floor(until / 1000), seconds, origin: allowed })
+    const token = streamToken(env.ELEVEN_RELAY_SECRET!, { id, exp: Math.floor(until / 1000), seconds, origin: allowed, ...(body.lang === 'en' ? { lang: 'en' as const } : {}) })
     const relay = new URL('/stt/stream', env.ELEVEN_RELAY_URL)
     relay.protocol = relay.protocol === 'http:' ? 'ws:' : 'wss:'
     relay.searchParams.set('token', token)

@@ -104,11 +104,12 @@ export function createScribe(io: StreamIO) {
   }
 }
 
-export function browserScribe(partial: (text: string) => void, seconds: number) {
+/** lang — язык дела: 'en' сервер кладёт в пропуск потока */
+export function browserScribe(partial: (text: string) => void, seconds: number, lang: 'ru' | 'en' = 'ru') {
   return createScribe({
     partial,
     url: async (signal) => {
-      const r = await fetch('/api/stt/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seconds }), signal })
+      const r = await fetch('/api/stt/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(lang === 'en' ? { seconds, lang } : { seconds }), signal })
       if (!r.ok) throw new Error('Поток недоступен')
       const { url } = await r.json() as { url: string }
       const target = new URL(url, location.href)

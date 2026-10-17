@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { Case } from '../App'
 import { initialState } from '../engine/turn'
+import { buttonLines } from '../engine/lang'
 import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type FullOffer } from '../engine/utility'
 import { ApiError, playTurn, type TurnLine } from './api'
@@ -13,7 +14,7 @@ import { firstName, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, playLive, playPrepared, prepareLine, saveVoiceOn, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -159,6 +160,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
 
   // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
   useEffect(() => {
+    setSttLang(sc)
     if (canVoice && voiceOn) warmFillers(voiceFor(sc), informal(sc))
     // голос ElevenLabs становится известен из /api/health позже: тогда качаем его фразы
   }, [sc, canVoice, voiceOn, speech?.eleven])
@@ -267,18 +269,18 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // своё же предложение хуже запасного варианта — переспросим один раз
     if (myTotal < P.batna && !lowSure) return setLowSure(true)
     setLowSure(false)
-    send(draft.trim() || `Предлагаю так: ${formatOffer(sc, picks)}.`, { offer: picks })
+    send(draft.trim() || `${buttonLines(sc).offer}${formatOffer(sc, picks)}.`, { offer: picks })
   }
   const accept = () => {
     // принять то, что хуже запасного варианта, — переспросим один раз, как и в блокноте
     if (theirsForMe !== null && theirsForMe < P.batna && !acceptSure) return setAcceptSure(true)
     setAcceptSure(false)
-    send(draft.trim() || 'Согласен. Принимаю ваше предложение.', { accept: true })
+    send(draft.trim() || buttonLines(sc).accept, { accept: true })
   }
   const walk = () => {
     if (!leaving) return setLeaving(true)
     setLeaving(false)
-    send('Спасибо за время, но так мы не договоримся. Я ухожу.', { walkAway: true })
+    send(buttonLines(sc).leave, { walkAway: true })
   }
   const pick = (issue: string, v: number) => {
     setLowSure(false)
