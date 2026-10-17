@@ -11,6 +11,8 @@ export interface VoiceInfo {
   note?: string
   /** модель SpeechKit v3: без поля — general; livetts не знает темпа, амплуа у него свои (casual, formal…) */
   model?: 'livetts'
+  /** язык голоса: без поля — русский; 'en' — английский (en-US), для дел на английском */
+  lang?: 'en'
 }
 
 /**
@@ -44,6 +46,8 @@ export const YANDEX_VOICES: VoiceInfo[] = [
   { id: 'sofia', name: 'София', female: true, v3only: true, model: 'livetts', roles: ['casual', 'support'], note: 'livetts' },
   { id: 'vera', name: 'Вера', female: true, v3only: true, model: 'livetts', roles: ['casual', 'support'], note: 'livetts' },
   { id: 'irina', name: 'Ирина', female: true, v3only: true, model: 'livetts', roles: ['formal', 'support', 'narrator', 'sales', 'neutral'], note: 'livetts' },
+  // английский голос для дел на английском (запасной к ElevenLabs): v3 и v1 (lang=en-US) звучат одинаково, проверено 18.10
+  { id: 'john', name: 'Джон', female: false, roles: [], lang: 'en', note: 'английский (en-US)' },
 ]
 
 
@@ -87,4 +91,6 @@ export const PERSONAS: Record<string, Persona> = {
   cashier: { voice: 'sofia', role: 'casual', style: 'кассирша: буднично, устало' },
   babka: { voice: 'vera', rate: 0.92, deeper: true, style: 'бабушка: ворчливо, неторопливо' },
   vahter: { voice: 'irina', role: 'formal', rate: 0.95, style: 'вахтёрша: строго, недоверчиво' },
+  // дело на английском: запасной голос — английский john (у livetts английского нет)
+  emre: { voice: 'john', style: 'менеджер по экспорту из Стамбула, 42 года: тепло, по-торговому живо, с улыбкой, лёгкий турецкий акцент' },
 }

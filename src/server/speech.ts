@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
 import { clientIp, sessionOf } from './client'
-import { direct, DIRECT_VERSION, forEleven, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
+import { direct, DIRECT_VERSION, forEleven, forEnglish, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
 import { knownAudio } from './eleven-known'
 import { ELEVEN_KNOWN } from './eleven-known.data'
 import { DAY, HOUR, limiter, limitOf } from './limits'
@@ -22,9 +22,13 @@ import { accent, render, resolveStress, unstress, type AskJson } from './stress'
 import { stripTags } from './tags'
 import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
+import { looksEnglish } from '../engine/lang'
 import { castFor, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
+
+/** Реплика на английском (дело на английском): русские ударения и правила чтения к ней не применяем, только forEnglish. */
+const english = (text: string) => looksEnglish(stripTags(text))
 
 /** «196 р» в распознанном тексте — это рубли, как в листке на столе. */
 export const tidyTranscript = (t: string) => t.trim().replace(/(\d)\s*р\.?(?=[\s,.!?]|$)/gu, '$1 ₽')
@@ -391,6 +395,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
     const prep = async (text: string): Promise<TtsRequest> => {
+      if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
       roomy ??= count.left(`el:s:${who}`, perSession, HOUR) && count.left(`el:ip:${ip}`, perIp, DAY)
       const marked = await speakable(forEleven(unstress(text)), roomy)
       return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
@@ -560,8 +565,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
     const roomy = count.left(`el:s:${who}`, perSession, HOUR) && count.left(`el:ip:${ip}`, perIp, DAY)
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
-    const marked = await speakable(forEleven(unstress(spokenOf(b.text))), roomy)
-    const q = { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, ...(lab ? {} : { who: b.who }) }
+    const said = unstress(spokenOf(b.text))
+    const spoken = english(said) ? forEnglish(said, 'eleven') : render(spellOut(await speakable(forEleven(said), roomy)), 'eleven')
+    const q = { text: spoken.replace(/[«»"]/g, ''), voice, ...(lab ? {} : { who: b.who }) }
     const file = fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) })
     let job = elevenJobs.get(file)
     const joined = !!job
@@ -599,8 +605,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     // режиссёра речи и явных настроек лаборатории (там сравнивают голос как есть)
     const plain = b.text.replace(/[«»"]/g, '')
     const clean = stripTags(spokenOf(b.text))
-    const marked = !natural && b.natural === undefined ? render((await speakable(unstress(clean), room('tts', ip))).replace(/[«»"]/g, ''), 'speechkit') : clean.replace(/[«»"]/g, '')
-    const text = natural ? direct(plain, b.emotion) : neat ? polish(marked, b.emotion) : marked
+    const en = english(clean)
+    const marked = en ? forEnglish(unstress(clean), 'speechkit').replace(/[«»"]/g, '') : !natural && b.natural === undefined ? render((await speakable(unstress(clean), room('tts', ip))).replace(/[«»"]/g, ''), 'speechkit') : clean.replace(/[«»"]/g, '')
+    // английский — без режиссёра речи и русских пауз: их правила о русском тексте
+    const text = en ? marked : natural ? direct(plain, b.emotion) : neat ? polish(marked, b.emotion) : marked
     const style = styleFor(voice, b.emotion)
     // амплуа livetts под эмоцию — и с режиссёром речи, и без него
     const role = isLive(voice) ? liveRole(voice, b.emotion, b.role) : undefined
@@ -733,10 +741,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   async function prewarm() {
     if (primaryTts() !== 'elevenlabs') return
     const seen = new Set<string>()
-    for (const { who, voice } of ELEVEN_KNOWN) {
+    for (const { who, voice, text } of ELEVEN_KNOWN) {
       if (seen.has(voice)) continue
       seen.add(voice)
-      const q = { text: 'Так.', voice, who }
+      const q = { text: english(text) ? 'Okay.' : 'Так.', voice, who }
       const job = elevenJob(q, fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) }), Date.now() + WAIT.eleven(), () => {})
       const clip = await job.done.catch((e: Error) => console.warn(`[speech] прогрев ${who}: ${e.message}`))
       if (clip?.cache === 'miss') console.log(`[speech] прогрет голос ${who}`)
@@ -744,8 +752,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   }
 
   /** Одна попытка распознавания. Зависла, сеть или 5xx — пробуем ещё раз; 401/403 и 4xx — нет. */
-  const recognize = async (pcm: Uint8Array<ArrayBuffer>, signal: AbortSignal): Promise<string> => {
-    const q = new URLSearchParams({ lang: 'ru-RU', format: 'lpcm', sampleRateHertz: '16000' })
+  const recognize = async (pcm: Uint8Array<ArrayBuffer>, signal: AbortSignal, lang = 'ru-RU'): Promise<string> => {
+    const q = new URLSearchParams({ lang, format: 'lpcm', sampleRateHertz: '16000' })
     const r = await f(`${STT_URL}?${q}`, { method: 'POST', body: pcm, headers: { Authorization: `Api-Key ${key}`, 'content-type': 'application/octet-stream' }, signal })
     deny('stt', r.status)
     if (!r.ok) throw Object.assign(new Error(`SpeechKit stt → ${r.status}`), { status: r.status })
@@ -758,6 +766,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const t0 = Date.now()
     const ip = clientIp(c)
     const pcm = new Uint8Array(await c.req.arrayBuffer())
+    // язык дела: ?lang=en — английский (дело на английском), по умолчанию русский
+    const lang = c.req.query('lang') === 'en' ? 'en-US' : 'ru-RU'
     const notes: string[] = []
     const answer = async (): Promise<Response> => {
       if (!status().stt) return c.json({ error: 'Распознавание выключено' }, 503)
@@ -773,7 +783,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
             // Списываем и отменённую попытку: провайдер мог уже принять звук.
             if (!(await quota.reserveStt(sec))) throw Object.assign(new Error('Бюджет STT исчерпан'), { status: 429 })
             signal.throwIfAborted()
-            return await recognize(pcm, signal)
+            return await recognize(pcm, signal, lang)
           } catch (e) {
             notes.push(`попытка ${attempt}: ${(e as Error).message}`)
             throw e

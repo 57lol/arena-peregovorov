@@ -5,6 +5,7 @@ import { stripTags } from './tags'
 import type { Emotion } from '../engine/types'
 import { YANDEX_VOICES, type VoiceInfo } from '../content/voices'
 import { WAIT } from './timeouts'
+import { looksEnglish } from '../engine/lang'
 
 export { YANDEX_VOICES, type VoiceInfo }
 
@@ -81,7 +82,8 @@ const V3_URL = 'https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis'
 
 async function yandexV1(key: string, q: TtsRequest, f: Fetch = fetch): Promise<Audio> {
   const style = styleFor(q.voice, q.emotion)
-  const form = new URLSearchParams({ text: q.text, lang: 'ru-RU', voice: q.voice, format: 'mp3', speed: String(style.speed) })
+  const en = YANDEX_VOICES.find((v) => v.id === q.voice)?.lang === 'en'
+  const form = new URLSearchParams({ text: q.text, lang: en ? 'en-US' : 'ru-RU', voice: q.voice, format: 'mp3', speed: String(style.speed) })
   if (style.role) form.set('emotion', style.role)
   const r = await ok(await f(V1_URL, { method: 'POST', body: form, headers: { Authorization: `Api-Key ${key}` }, signal: AbortSignal.timeout(WAIT.speechkit()) }), 'SpeechKit v1')
   const audio = new Uint8Array(await r.arrayBuffer())
@@ -189,7 +191,7 @@ export function elevenRequest(q: TtsRequest, f: Fetch = fetch, env = process.env
     : f(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=mp3_44100_64`, {
         method: 'POST',
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY ?? '', 'content-type': 'application/json', accept: 'audio/mpeg' },
-        body: JSON.stringify({ ...body, language_code: 'ru' }),
+        body: JSON.stringify({ ...body, language_code: looksEnglish(stripTags(body.text)) ? 'en' : 'ru' }),
         signal,
       })
 }
@@ -250,9 +252,11 @@ export function mainTts(env = process.env): MainTts | undefined {
 /**
  * Кто кем говорит у ElevenLabs: лицо (PERSONAS) → голос из библиотеки (Voice Library), подбор на слух 17.10.2026
  * (~/Arena-materials/final/VOICE_FIX_REPORT.md). Своё — TTS_CAST="sosed:<id>,gopnik:<id>" в .env.
+ * Эмре (дело на английском) — Emre Anduv: стамбулец 37 лет, английский с лёгким акцентом, живая интонация; подбор 18.10
+ * из 5 голосов с турецким акцентом (whisper, тон, описание): он и Harun читали «€» по-английски даже с language_code "ru".
  */
 export const CAST: Record<string, string> = {
-  sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', narrator: 'Vl27Cllkuw8BhyPqus2n',
+  sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'TcOBSQQ3Mm1U95izQTyI', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 
 /** Голос ElevenLabs для лица; нового лица в таблице нет — стоковый голос его пола, всегда один и тот же. */

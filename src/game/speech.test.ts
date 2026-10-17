@@ -35,11 +35,17 @@ describe('voiceOf — у каждого лица свой голос', () => {
     const { portraitFor } = await import('./cast')
     const { YANDEX_VOICES } = await import('../content/voices')
     const live = new Set(YANDEX_VOICES.filter((v) => v.model === 'livetts').map((v) => v.id))
+    // лица дел на английском говорят английским голосом (john), у livetts английского нет
+    const en = new Set(YANDEX_VOICES.filter((v) => v.lang === 'en').map((v) => v.id))
     for (const [id, p] of Object.entries(PORTRAITS)) {
+      if (en.has(voiceOf(id, p.female))) continue
       expect(p.female ? FEMALE_VOICES : MALE_VOICES).toContain(voiceOf(id, p.female))
       expect(live.has(voiceOf(id, p.female))).toBe(true)
     }
-    for (const sc of ALL_SCENARIOS) expect(live.has(voiceOf(portraitFor(sc), PORTRAITS[portraitFor(sc)].female))).toBe(true)
+    for (const sc of ALL_SCENARIOS) {
+      const v = voiceOf(portraitFor(sc), PORTRAITS[portraitFor(sc)].female)
+      expect(sc.lang === 'en' ? en.has(v) : live.has(v), sc.id).toBe(true)
+    }
     // главы по порядку: Тимур, Серый, Марат, Лариса Петровна, Дарина, Роза, Палыч
     const chain = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych'].map((id) => voiceOf(id, PORTRAITS[id as keyof typeof PORTRAITS].female))
     expect(chain).toEqual(['vasily', 'sergey', 'denis', 'vera', 'sofia', 'irina', 'sergey'])

@@ -188,10 +188,14 @@ describe('лица и их подача', () => {
     expect(hints()).toEqual([{ voice: 'vasily' }, { role: 'support' }])
   })
 
-  it('у каждого лица голос livetts и амплуа, которое этот голос умеет', async () => {
+  it('у каждого лица голос livetts и амплуа, которое этот голос умеет (у английских лиц — английский голос)', async () => {
     const { PERSONAS, YANDEX_VOICES } = await import('../content/voices')
     for (const [id, p] of Object.entries(PERSONAS)) {
       const v = YANDEX_VOICES.find((x) => x.id === p.voice)
+      if (id === 'emre') {
+        expect(v?.lang, id).toBe('en')
+        continue
+      }
       expect(v?.model, id).toBe('livetts')
       if (p.role) expect(v?.roles, id).toContain(p.role)
       if (p.rate) expect(p.rate > 0.85 && p.rate < 1.1, id).toBe(true)

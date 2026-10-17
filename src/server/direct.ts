@@ -60,6 +60,22 @@ export function forEleven(t: string): string {
     .replace(/(?<!\p{L})(ф)иф(а|у|е|ой|ы)(?!\p{L})/giu, (_, f: string, end: string) => `${f}+иф${end.toLowerCase()}`)
 }
 
+/**
+ * Английская реплика (дело на английском): русские правила чтения (ударения, spellOut, forEleven) её не касаются —
+ * только знаки, которые синтез читает не так. Замеры 18.10 (whisper): воркер шлёт ElevenLabs language_code "ru", и «€465,000»
+ * голос читает «...евро» по-русски — пишем «465,000 euros». SpeechKit john «465,000» читает «465», «€465,000» — «$465.0»,
+ * а «%» глотает — ему числа без запятых и «percent» словом.
+ */
+export function forEnglish(t: string, engine: 'speechkit' | 'eleven'): string {
+  const num = String.raw`\d+(?:[,.]\d+)*(?:\s?(?:million|thousand|[kKmM])(?![a-z]))?`
+  t = t
+    .replace(new RegExp(String.raw`€\s?(${num})`, 'g'), '$1 euros')
+    .replace(new RegExp(String.raw`\$\s?(${num})`, 'g'), '$1 dollars')
+    .replace(new RegExp(String.raw`(${num})\s?(?:€|EUR\b)`, 'g'), '$1 euros')
+    .replace(/(\d)\s?%/g, '$1 percent')
+  return engine === 'speechkit' ? t.replace(/(\d),(?=\d{3}(?!\d))/g, '$1') : t
+}
+
 /** Слова, с которых человек начинает фразу и после которых делает вдох. */
 const OPENERS =
   'ну смотрите|ну смотри|ну что ж|ну ладно|ну хорошо|ну давайте|честно говоря|по-честному|в общем|знаете что|так вот|смотрите|смотри|слушайте|слушай|послушайте|знаете|знаешь|понимаете|понимаешь|короче|значит|ладно|хорошо|честно|так|ну|хм|эх|ох|да|нет|окей|вот'
@@ -131,7 +147,8 @@ const LIVE_OF: Record<string, string> = {
 export const isLive = (voice: string) => YANDEX_VOICES.find((v) => v.id === voice)?.model === 'livetts'
 
 export function liveVoiceFor(voice: string): string {
-  if (isLive(voice)) return voice
+  // английский голос остаётся английским: у livetts английского нет
+  if (isLive(voice) || YANDEX_VOICES.find((v) => v.id === voice)?.lang === 'en') return voice
   return LIVE_OF[voice] ?? (YANDEX_VOICES.find((v) => v.id === voice)?.female ? 'sofia' : 'denis')
 }
 
