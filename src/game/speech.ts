@@ -46,7 +46,7 @@ const VOL_KEY = 'peregovorka.volume.v1'
  * у всех голосов и эмоций (scripts/tts-loudness.ts). На полной громкости первая реплика оглушает,
  * а после микрофона система приглушает звук — поэтому по умолчанию чуть тише и без эхоподавления у микрофона.
  */
-export const DEFAULT_VOLUME = 0.6
+const DEFAULT_VOLUME = 0.6
 
 export function loadVolume(): number {
   try {
@@ -435,7 +435,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
 export const informal = (sc: Scenario) => /(^|[^\p{L}])(ты|тебя|тебе|тобой|давай|слышь|братан)(?!\p{L})/iu.test(sc.opening)
 
 /** Через сколько мс без ответа собеседник говорит фразу-паузу. */
-export const FILLER_DELAY = 1000
+const FILLER_DELAY = 1000
 let lastFiller = ''
 
 export interface Filler {
