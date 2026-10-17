@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createScribe, type StreamSocket } from './sttStream'
+import { CONNECT_MS, createScribe, type StreamSocket } from './sttStream'
 import { pcmResampler } from './pcmStream'
 
 class Socket implements StreamSocket {
@@ -38,12 +38,25 @@ describe('поток браузера', () => {
     expect(ws.close).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
   })
+  it('медленное подключение: звук копится, «Стоп» до готовности, финал после commit', async () => {
+    vi.useFakeTimers()
+    const { ws, s } = await setup()
+    for (let i = 0; i < 10; i++) s.push(new ArrayBuffer(6400))
+    const result = s.finish()
+    await vi.advanceTimersByTimeAsync(CONNECT_MS - 100)
+    ws.emit('ready')
+    expect(ws.send).toHaveBeenCalledTimes(11)
+    expect(ws.send).toHaveBeenLastCalledWith('{"type":"commit"}')
+    await vi.advanceTimersByTimeAsync(2000)
+    ws.emit('final', 'Да.')
+    expect(await result).toBe('Да.')
+  })
   it('таймаут соединения включает fallback, поздний url не открывает сокет', async () => {
     vi.useFakeTimers()
     let resolve!: (s: string) => void
     const socket = vi.fn()
     const s = createScribe({ url: () => new Promise((r) => { resolve = r }), socket, partial: vi.fn() })
-    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(CONNECT_MS)
     expect(await s.finish()).toBeNull()
     resolve('ws://late')
     await Promise.resolve()

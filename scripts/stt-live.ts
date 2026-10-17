@@ -48,13 +48,26 @@ async function yandex(pcm: Uint8Array<ArrayBuffer>, hedged: boolean) {
   })
   return { text, finalMs: Math.round(performance.now() - t0), attempts }
 }
-async function scribe(pcm: Uint8Array<ArrayBuffer>) {
+// STT_VIA_SERVER=http://127.0.0.1:8090 — как браузер: билет у нашего сервера, поток через его /api/stt/stream.
+const viaServer = process.env.STT_VIA_SERVER
+async function scribeUrl() {
+  if (viaServer) {
+    const r = await fetch(new URL('/api/stt/session', viaServer), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"seconds":30}' })
+    if (!r.ok) throw new Error(`session ${r.status}`)
+    const url = new URL(((await r.json()) as { url: string }).url, viaServer)
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    return url
+  }
   const url = new URL('/stt/stream', ELEVEN_RELAY_URL)
   url.protocol = 'wss:'
   url.searchParams.set('token', streamToken(ELEVEN_RELAY_SECRET!, { id: randomUUID(), exp: Math.floor(Date.now() / 1000) + 15, seconds: 35, origin: process.env.STT_ORIGIN || 'https://live.example' }))
+  return url
+}
+async function scribe(pcm: Uint8Array<ArrayBuffer>) {
   const t0 = performance.now()
+  const url = await scribeUrl()
   return new Promise<{ text: string; finalMs: number; connectMs: number; firstPartialMs: number | null; totalMs: number }>((resolve, reject) => {
-    const ws = new WebSocket(url.href, { headers: { 'x-relay-secret': ELEVEN_RELAY_SECRET! }, handshakeTimeout: 5000, maxPayload: 32000 })
+    const ws = new WebSocket(url.href, { headers: viaServer ? {} : { 'x-relay-secret': ELEVEN_RELAY_SECRET! }, handshakeTimeout: 5000, maxPayload: 32000 })
     let started = false, done = false, endedAt = 0, connectMs = 0, firstPartialMs: number | null = null
     const parts: string[] = []
     const timer = setTimeout(() => finish(new Error('Scribe timeout')), 40_000)
@@ -67,7 +80,8 @@ async function scribe(pcm: Uint8Array<ArrayBuffer>) {
       else resolve({ text, finalMs: Math.round(performance.now() - endedAt), connectMs, firstPartialMs, totalMs: Math.round(performance.now() - t0) })
     }
     ws.on('error', () => finish(new Error('Scribe socket error')))
-    ws.on('close', () => finish(new Error('Scribe closed before final')))
+    ws.on('unexpected-response', (_q, r) => finish(new Error(`Scribe HTTP ${r.statusCode}`)))
+    ws.on('close', (code, reason) => finish(new Error(`Scribe closed before final: ${code} ${reason}`)))
     ws.on('message', (data: Buffer) => {
       try {
         const m = JSON.parse(data.toString()) as { type: string; text?: string }
@@ -100,7 +114,7 @@ const errors = new Map<string, number>()
 for (let i = 0; i < files.length; i++) {
   const file = files[i], pcm = pcmOf(await readFile(join(folder, file)))
   // Меняем порядок, чтобы прогрев сети не всегда помогал одному провайдеру.
-  const jobs: [string, () => Promise<{ text: string; finalMs: number }>][] = [
+  const jobs: [string, () => Promise<{ text: string; finalMs: number }>][] = process.env.STT_ONLY_SCRIBE ? [['scribe', () => scribe(pcm)]] : [
     ['yandex', () => yandex(pcm, false)], ['hedge', () => yandex(pcm, true)], ['scribe', () => scribe(pcm)],
   ]
   for (const [name, run] of [...jobs.slice(i % 3), ...jobs.slice(0, i % 3)]) {

@@ -63,7 +63,7 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
       if (req.headers.origin && req.headers.origin !== (env.STT_ORIGIN || `http://${req.headers.host}`)) return fail(403)
       tickets.delete(id)
       wss.handleUpgrade(req, socket, head, (client) => {
-        const upstream = new WebSocket(t.url, { headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET! }, handshakeTimeout: 1400, maxPayload: 32_000 })
+        const upstream = new WebSocket(t.url, { headers: { 'x-relay-secret': env.ELEVEN_RELAY_SECRET! }, handshakeTimeout: 3500, maxPayload: 32_000 })
         bridgeStream(client, upstream)
       })
     })

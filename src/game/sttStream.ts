@@ -13,6 +13,10 @@ export interface StreamIO {
   socket: (url: string) => StreamSocket
   partial: (text: string) => void
 }
+/** Живой замер 17.10: подключение через воркер 0,9–1,5 с (наш сервер → воркер → ElevenLabs); звук до готовности копится. */
+export const CONNECT_MS = 4000
+const QUEUE_BYTES = 5 * 32000
+const FINAL_MS = 2500
 export function createScribe(io: StreamIO) {
   let ws: StreamSocket | undefined
   let ended = false, ready = false, finishing = false
@@ -39,13 +43,16 @@ export function createScribe(io: StreamIO) {
     resolve(value)
   }
   const lifeTimer = setTimeout(() => end(null), 70_000)
-  const connectTimer = setTimeout(() => end(null), 1500)
+  const connectTimer = setTimeout(() => end(null), CONNECT_MS)
   const send = (data: ArrayBuffer | string) => {
     if (!ws || ws.readyState !== 1 || ws.bufferedAmount > 64000) return end(null)
     try { ws.send(data) } catch { end(null) }
   }
+  // Финал ждём FINAL_MS от commit: если поток подключился позже «Стоп», отсчёт идёт с готовности.
   const commit = () => {
-    if (!ended && ready) send(JSON.stringify({ type: 'commit' }))
+    if (ended || !ready) return
+    finalTimer = setTimeout(() => end(null), FINAL_MS)
+    send(JSON.stringify({ type: 'commit' }))
   }
   void io.url(ctl.signal).then((url) => {
     if (ended) return
@@ -82,13 +89,12 @@ export function createScribe(io: StreamIO) {
     push(pcm: ArrayBuffer) {
       if (ended || finishing) return
       if (ready) send(pcm)
-      else if ((queuedBytes += pcm.byteLength) <= 64000) queue.push(pcm)
+      else if ((queuedBytes += pcm.byteLength) <= QUEUE_BYTES) queue.push(pcm)
       else end(null)
     },
     finish() {
       if (!ended && !finishing) {
         finishing = true
-        finalTimer = setTimeout(() => end(null), 2500)
         commit()
       }
       return result

@@ -739,9 +739,10 @@ export async function startRecording(options?: { onSilence?: () => void; maxMs?:
       void meter.resume().catch(() => {})
       if (scribeMode) {
         try {
-          stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
+          // Подключение (0,9–1,5 с) идёт параллельно с загрузкой worklet; звук до готовности копится в очереди.
           live = browserScribe((text) => options?.onPartial?.(text), options?.maxMs === 30_000 ? 30 : 60)
-        } catch { /* MediaRecorder продолжит без потока */ }
+          stopCapture = await capturePcm(meter, source, (pcm) => live?.push(pcm))
+        } catch { live?.cancel(); live = undefined /* MediaRecorder продолжит без потока */ }
       }
       if (options?.onSilence) {
         const analyser = meter.createAnalyser()

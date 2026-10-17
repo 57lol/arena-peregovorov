@@ -77,6 +77,10 @@ try {
     const field = page.locator('#px-speech')
     await field.waitFor()
     await field.fill(text)
+    // Headless Chromium на маке при первом mp3 в сессии замирает ~1 с (инициализация медиа-конвейера): ни таймеры, ни rAF
+    // не идут, хотя React уже сменил лицо. В игре к первой реплике игрока звук уже звучал (приветствие, фразы),
+    // поэтому прогреваем конвейер так же — одним mp3 на нулевой громкости.
+    await page.evaluate(`(() => { const a = new Audio('/assets/voice-fillers/denis/c1.mp3'); a.volume = 0; return a.play().then(() => new Promise((r) => setTimeout(r, 1500))) })()`)
     await page.evaluate(() => { (window as unknown as WindowLog).sentAt = performance.now() })
     await field.press('Enter')
     // Начальная эмоция предложения — удивление независимо от голоса.
@@ -102,7 +106,7 @@ try {
       assert(pause.at - log.at < (mode === 'speechkit' ? 950 : 550))
       assert(pause.src.includes(mode === 'reaction' ? '/voice-reactions/' : mode === 'missing' ? '/voice-fillers/eleven/' : '/voice-fillers/vasily/'))
       const end = log.events.find((e) => e.kind === 'end' && e.src === pause.src)
-      assert(end && answer.at >= end.at, 'Ответ наложился на реакцию')
+      assert(end && answer.at >= end.at, `Ответ наложился на реакцию: ${JSON.stringify(log.events.map((e) => [Math.round(e.at - log.at), e.kind, e.src.slice(-40)]))}`)
     }
     assert.equal(mode === 'speechkit' ? reactionText : !!reactionText, mode === 'speechkit' ? undefined : true)
     assert.deepEqual(errors, [])
