@@ -640,6 +640,116 @@ export const BEHAVIORS: Behavior[] = [
   },
 ]
 
+// ——— английские приметы: дела на английском (минимум для офлайна и страховки разметки) ———
+// В вопросе: в начале предложения (после «so», «and», «tell me», обращения) или в предложении есть «?».
+const LEAD_EN = "(?:(?:and|but|so|ok|okay|well|look|listen|tell me|emre)[,!]?\\s+)*(?:[\\p{L}-]+,\\s+)?"
+const qe = (src: string) => re(`(?:(?:^|[.!?\\n]\\s*)${LEAD_EN}${src}|${src}(?=§*\\?))`)
+const EN_MARKERS: Partial<Record<BehaviorId, RegExp[]>> = {
+  ask_interest: [
+    re('(?:^|[.!?\\n]\\s*)(?:and |but |so )?(?:why|how come)›'),
+    re('‹(?:why|how come)›§*\\?'),
+    qe('what (?:really )?(?:matters|is (?:most )?important|is critical|worries you|concerns you|is behind)'),
+    qe("what(?:'s| is) (?:behind|driving|the reason)"),
+    qe("(?:help me|I want to|I'd like to) understand›"),
+    re('‹(?:tell me|explain)›§{0,40}(?:why|how|what|more|about)›'),
+    qe('what (?:do|would) you need›'),
+    qe('how (?:can|could) we§{0,30}(?:make|solve|find|work|fix|help)›'),
+    qe("what happens if (?:we )?(?:don't|do not) (?:agree|sign)"),
+    qe('(?:what|how) (?:is|would be) (?:easier|better|more convenient) for you›'),
+  ],
+  check: [
+    re("‹(?:if I )?(?:understand|understood|got|get) (?:you |this |that )?(?:correctly|right)›"),
+    re('‹(?:so |do )you mean›'),
+    re("‹(?:so )?you(?:'re| are) saying›"),
+    re('‹in other words›'),
+    re('‹is that (?:right|correct)›'),
+    re(',\\s*(?:right|correct)\\s*\\?'),
+    re('‹let me (?:check|make sure) I›'),
+  ],
+  summarize: [
+    re("‹(?:to sum up|to summari[sz]e|in summary|let me sum up|let's recap|to recap|so far we have)›"),
+    re('‹(?:what|where) we (?:have )?(?:agreed|are so far)›'),
+  ],
+  priority: [
+    re('‹(?:for (?:us|me)|our|my) (?:the )?(?:main|top|biggest|key|real) (?:priority|concern|issue|problem|thing)›'),
+    re('‹for (?:us|me)(?: really| honestly)?,? (?:the )?(?:most important|critical|key)›'),
+    re('‹(?:what|the thing) (?:really )?matters (?:to|for) (?:us|me)›'),
+    re('‹(?:is|are|is just|matters) (?:not that|less|not so|not very) important (?:to|for) (?:us|me)›'),
+    re("‹(?:to be honest|honestly|frankly|I'll be honest)›"),
+    re('‹(?:we|I) need§{0,60}(?:because|since|otherwise)›'),
+  ],
+  package: [
+    re('‹if (?:you|you can|you could)›§{2,120}(?:,\\s*(?:then )?(?:we|I)›|‹then (?:we|I)›)(?!§*(?:leave|walk|go with))'),
+    re("‹if (?:we|I)› (?!(?:understand|get|don't|do not) )§{2,120},\\s*(?:then )?(?:you|can you|will you|would you)›(?!§*(?:leave|walk))"),
+    re('‹(?:in exchange|in return|on condition|provided that|as long as)›'),
+    re('‹(?:we|I) (?:can|could|will|would)›§{0,60}‹if (?:you|we get)›(?!§*(?:leave|walk))'),
+  ],
+  meso: [
+    re('‹(?:two|three|2|3|a few|several) (?:options|packages|offers|versions|alternatives)›'),
+    re('‹(?:option|package) (?:a|b|one|two|1|2)›'),
+    re('‹either›§{3,80}‹or›(?!§*(?:leave|walk|nothing|no deal))'),
+    re('‹which (?:one )?(?:do you prefer|works better|is better for you)'),
+  ],
+  label: [
+    re('‹(?:it )?(?:seems|sounds|looks) (?:like )?(?:you|your|this is)›'),
+    re('‹I (?:can )?(?:see|hear|understand) (?:that |why |how )?(?:you|your|this)›'),
+    re('‹(?:you must be|you seem)›'),
+    re('‹(?:fair|good|valid) (?:point|question|concern)›'),
+    re("‹you(?:'re| are) right›"),
+  ],
+  rapport: [
+    re('‹(?:sorry|apologi[sz]e\\p{L}*|my bad|excuse me)›'),
+    re('‹(?:my name is|nice to meet|pleasure to meet|call me)›'),
+    re("‹(?:how are you|how(?:'s| is) (?:it going|business|life|istanbul|your family)|how was (?:your|the) (?:flight|trip|weekend))›"),
+    re('‹(?:haha\\p{L}*|lol|thanks? (?:you )?for the lokum)›'),
+  ],
+  signpost: [
+    re('‹(?:can|could|may) I (?:ask|suggest|propose|make|add|clarify|check)›'),
+    re("‹(?:I'd like to|let me|I want to) (?:ask|suggest|propose|make an offer|clarify|explain|add)›"),
+    re('‹I have (?:a|one) (?:question|proposal|suggestion|idea|counter)'),
+    re('‹(?:my|our) (?:proposal|offer|counteroffer|counter-offer) is\\s*[:—-]'),
+    re("‹here(?:'s| is) (?:my|our|what) (?:proposal|offer|idea|I propose)"),
+  ],
+  alternative: [
+    re('‹(?:we|I) (?:have|got|also have|already have) (?:an?|another|other) (?:offer|bid|option|quote|alternative|supplier)'),
+    re('‹(?:another|other|the chinese|a chinese|qingdao) (?:supplier|offer|bid|quote|option)'),
+    re('‹(?:qingdao|the chinese|competitors?)›§{0,25}(?:offer|give|quote|propose|ready)'),
+  ],
+  split: [
+    re('‹(?:split (?:the )?difference|meet (?:you )?(?:in the middle|halfway)|halfway|half-way)›'),
+  ],
+  irritator: [
+    re('‹(?:generous|fair|reasonable|great|excellent|very good) (?:offer|price|deal|proposal)'),
+    re("‹(?:we're|we are|I'm|I am) already (?:being )?(?:generous|flexible|meeting you)"),
+    re('‹(?:trust me|believe me)›'),
+    re('‹(?:you (?:must|should) understand|surely you (?:see|understand)|obviously)›'),
+    re('‹(?:nobody|no one) (?:else )?(?:will|would) (?:give|offer)'),
+    re('‹(?:as|like) I (?:already )?(?:said|told you)›'),
+  ],
+  instant_counter: [
+    re("^\\s*(?:no|no way|not possible|that doesn't work|doesn't work)[,.!—\\s-]+(?:let's|we offer|I offer|my offer|our offer|counter)›"),
+  ],
+  attack: [
+    re("‹(?:you(?:'re| are)|your)›§{0,25}(?:cheating|ripping|lying|greedy|robbery|manipulat|scam|not serious|kidding me)"),
+    re("‹(?:that's|that is|this is|it's|it is) (?:ridiculous|absurd|nonsense|a joke|robbery|insane|crazy)›"),
+    re('‹(?:not my|not our) (?:problem|fault)›'),
+    re("‹(?:your|that's your) problem›"),
+  ],
+  dilution: [
+    re("(?:‹(?:first(?:ly)?|second(?:ly)?|third(?:ly)?|also|besides|moreover|in addition|on top of that|plus|what's more)›[\\s\\S]*?){3}"),
+  ],
+  ultimatum: [
+    re('‹(?:final|last|best and final) (?:offer|price|word)›'),
+    re('‹take it or leave it›'),
+    re("‹(?:or|otherwise|or else) (?:we|I)(?:'ll| will)? (?:go|walk|leave|sign with|go with)›"),
+    re('‹this is (?:my|our) (?:limit|maximum|ceiling)›'),
+    re('‹not (?:a )?(?:single )?(?:cent|euro|dollar|day) (?:more|less)›'),
+    re('‹(?:non-negotiable|not negotiable)›'),
+    re('‹(?:you have|I give you) (?:until|one hour|an hour|a day|24 hours)'),
+  ],
+}
+for (const b of BEHAVIORS) b.markers.push(...(EN_MARKERS[b.id as BehaviorId] ?? []))
+
 // ——— для движка ———
 
 const BEHAVIOR_RULES: BehaviorRule[] = BEHAVIORS.map((b) => ({
@@ -712,7 +822,7 @@ export function detectBehaviors(text: string, ctx: MoveContext = {}): BehaviorHi
   return [...hits.values()]
 }
 
-const PRICE_REACTION = re('‹(?:загнул\\p{L}*|перебор|многовато|дорого|дороговато|круто берёшь|круто берете|жирно|не много ли|ну ты да[её]шь|ого)›')
+const PRICE_REACTION = re("‹(?:загнул\\p{L}*|перебор|многовато|дорого|дороговато|круто берёшь|круто берете|жирно|не много ли|ну ты да[её]шь|ого|too (?:expensive|much|high)|pricey|steep|that's a lot|whoa|wow)›")
 
 /**
  * Страховка поверх разметки нейросетью — там, где она путается:

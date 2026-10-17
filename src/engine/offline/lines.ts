@@ -3,6 +3,7 @@
 
 import type { Decision, Emotion, Offer, OpponentState, Scenario, Tone } from '../types'
 import { formatOffer } from '../utility'
+import { isEn } from '../lang'
 
 type Kind = Decision['kind'] | 'final' | 'no_offer' | 'no_news' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout' | 'respond_back'
 
@@ -85,6 +86,58 @@ const T: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
   timeout: { any: ['Время вышло. Жаль, не успели.', 'Всё, мне пора. Без сделки.'] },
 }
 
+// То же для дел на английском: заготовки по тону, если у персонажа нет своих.
+const T_EN: Record<Kind, Partial<Record<Tone, string[]>> & { any: string[] }> = {
+  accept: {
+    any: ['Deal: {offer}. I will prepare the papers.', 'Okay, I accept: {offer}. Let\'s shake hands.', 'Good. We fix it: {offer}.'],
+    friendly: ['Deal! {offer}. Nice working with you.'],
+    cold: ['Accepted. {offer}. You get the contract today.'],
+  },
+  counter: {
+    any: ['Here is what I can do: {offer}.', 'Let\'s do it like this: {offer}.', 'My offer: {offer}.', 'I can move a bit: {offer}.'],
+    friendly: ['Look, let\'s try this: {offer}. How does it sound?'],
+    cold: ['Counteroffer: {offer}.'],
+    aggressive: ['No. Here is how it goes: {offer}.'],
+  },
+  final: { any: ['We are out of time. My last offer: {offer}. Yes or no?', 'Final offer: {offer}. I don\'t move further.'] },
+  reveal: {
+    any: ['Honestly: {interest}.', 'Okay, since you ask: {interest}.', 'Between us: {interest}.'],
+    friendly: ['Good question. To be honest, {interest}.'],
+  },
+  hold: { any: ['My offer stands.'] },
+  respond: {
+    any: ['I hear you.', 'Okay. Fair enough.', 'Well, maybe.'],
+    friendly: ['Ha, you are something.', 'No problem, really.', 'Okay, that was funny.'],
+    cold: ['I see.', 'Right.'],
+  },
+  respond_back: {
+    any: ['Okay, back to business. What do you offer?', 'Good. And about the deal?'],
+    friendly: ['Ha, okay. Back to business: how do we do it?'],
+  },
+  no_offer: {
+    any: ['Okay, and what exactly do you offer?', 'Let\'s go to numbers. What do you propose?', 'I see. I am waiting for something concrete.'],
+    friendly: ['I understand. And which numbers would work for you?'],
+  },
+  no_news: {
+    any: ['Your offer is in front of me. What else can you give?', 'I see. Make a step, then I move too.', 'Okay. Anything new on the deal?'],
+    friendly: ['I hear you. But to move, I need a step from your side.'],
+  },
+  no_movement: {
+    any: ['No, I can\'t do this. My offer stands.', 'I don\'t see where to move: {main}, the rest as before.'],
+    friendly: ['I understand you, but I can\'t move yet. Give me something back, then we talk.'],
+  },
+  not_ready_to_reveal: {
+    any: ['That\'s our kitchen.', 'Let me keep this for myself for now.', 'Let\'s say we have our reasons.'],
+  },
+  warn_tone: {
+    any: ['Let\'s not do this. One more time and the meeting is over.', 'This tone doesn\'t work for me.', 'Stop. Business, or nothing.'],
+    friendly: ['Hey, calm down. We want to agree, no?'],
+  },
+  walk_away: { any: ['That\'s enough for me. Goodbye.', 'We stop here. No deal.'] },
+  player_left: { any: ['Your choice. If you change your mind, call me.', 'I see. Pity we didn\'t agree.'] },
+  timeout: { any: ['Time is up. Pity, we didn\'t make it.', 'I have to go. No deal.'] },
+}
+
 function kindOf(d: Decision, state: OpponentState): Kind {
   if (state.status === 'timeout') return 'timeout'
   if (d.kind === 'hold' && d.reason === 'no_offer' && Object.keys(state.playerStance ?? {}).length) return 'no_news'
@@ -116,25 +169,28 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
   const tone = sc.opponent.character.tone
   // Свои реплики персонажа (из сценария) важнее общих по тону.
   const own = sc.opponent.character.lines?.[k as keyof NonNullable<typeof sc.opponent.character.lines>]
-  const pool = own?.length ? own : [...(T[k][tone] ?? []), ...T[k].any]
+  const en = isEn(sc)
+  const table = en ? T_EN : T
+  const pool = own?.length ? own : [...(table[k][tone] ?? []), ...table[k].any]
   let line = pool[state.turn % pool.length]
   const offer =
     d.kind === 'counter' ? d.offer
     : d.kind === 'accept' ? state.deal ?? state.tableOffer
     : state.lastOpponentOffer ?? {}
   const text = d.kind === 'counter' && !d.final ? changesOnly(sc, offer, prev) : formatOffer(sc, offer)
+  const say = en ? EN_SAY : RU_SAY
   line = line.replace('{offer}', text).replace('{main}', mainTerm(sc, offer))
   if (d.kind === 'counter' && d.feigned?.length) {
     const what = d.feigned
       .map((id) => sc.issues.find((i) => i.id === id)!)
       .map((i) => `${i.title.toLowerCase()} — ${i.options[d.offer[i.id]!]}`)
       .join(', ')
-    line += ` И заметьте: ${what} — это я вам уступаю.`
+    line += say.feigned(what)
   }
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
-    line = d.again ? `Я ж говорил: ${lowerFirst(it?.text ?? '')}.` : line.replace('{interest}', lowerFirst(it?.text ?? ''))
-    if (d.offer) line += ` Поэтому могу так: ${changesOnly(sc, d.offer, prev)}.`
+    line = d.again ? `${say.again}${lowerFirst(it?.text ?? '')}.` : line.replace('{interest}', lowerFirst(it?.text ?? ''))
+    if (d.offer) line += `${say.so}${changesOnly(sc, d.offer, prev)}.`
   }
   return { line, emotion: emotionFor(d, state) }
 }
@@ -146,13 +202,28 @@ function changesOnly(sc: Scenario, offer: Offer, prev: Offer | undefined): strin
   if (!changed.length || !same.length) return formatOffer(sc, offer)
   // новые пункты (которых в прошлом листке не было) тоже называем
   const shown = Object.fromEntries(sc.issues.filter((i) => !same.includes(i)).map((i) => [i.id, offer[i.id]]))
-  return `${formatOffer(sc, shown)}, остальное как было`
+  return `${formatOffer(sc, shown)}${isEn(sc) ? EN_SAY.rest : RU_SAY.rest}`
 }
 
 /** Главный пункт одной фразой: «цена за короб — 212 ₽». */
 function mainTerm(sc: Scenario, offer: Partial<Record<string, number>>): string {
   const i = sc.issues.find((x) => x.kind === 'distributive' && typeof offer[x.id] === 'number') ?? sc.issues.find((x) => typeof offer[x.id] === 'number')
-  return i ? `${i.title.toLowerCase()} — ${i.options[offer[i.id]!]}` : 'моё предложение'
+  return i ? `${i.title.toLowerCase()} — ${i.options[offer[i.id]!]}` : isEn(sc) ? EN_SAY.mine : RU_SAY.mine
+}
+
+const RU_SAY = {
+  feigned: (what: string) => ` И заметьте: ${what} — это я вам уступаю.`,
+  again: 'Я ж говорил: ',
+  so: ' Поэтому могу так: ',
+  rest: ', остальное как было',
+  mine: 'моё предложение',
+}
+const EN_SAY: typeof RU_SAY = {
+  feigned: (what: string) => ` And note: ${what}. This I give you.`,
+  again: 'Like I told you: ',
+  so: ' So I can do this: ',
+  rest: ', the rest as before',
+  mine: 'my offer',
 }
 
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)

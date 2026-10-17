@@ -3,8 +3,14 @@ import type { MoveAnalysis, Offer, Scenario } from './types'
 
 // Один набор сказуемых для границы высказывания и его отрицания.
 const PREDICATE = String.raw`(?:предлага\p{L}*|отда\p{L}*|даю|дам|дадим|плачу|платим|заплачу|соглас\p{L}*|готов\p{L}*|буду|будем|хочу|хотим|могу|можем)(?!\p{L})`
-const CLAUSE = new RegExp(String.raw`([!?;\n]+|(?<!\d)[,.]|[,.](?!\d)|\s+(?:а|но)\s+|\s+и\s+(?=(?:я\s+)?(?:не\s+)?${PREDICATE}))`, 'giu')
-const REFUSAL = new RegExp(String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отказыва\p{L}*|отверга\p{L}*|не\s+(?:на\s+)?\d)`, 'iu')
+// то же по-английски: «we can pay», «I won't accept», «we don't need»
+const EN_PREDICATE = String.raw`(?:offer|propose|give|pay|accept|agree|take|sign|do|go|need|want|can|could|will|would)(?!\p{L})`
+const CLAUSE = new RegExp(String.raw`([!?;\n]+|(?<!\d)[,.]|[,.](?!\d)|\s+(?:а|но|but)\s+|\s+и\s+(?=(?:я\s+)?(?:не\s+)?${PREDICATE})|\s+and\s+(?=(?:I|we)\s+(?:don't|do not|can't|cannot|won't|will not)?\s*${EN_PREDICATE}))`, 'giu')
+const REFUSAL = new RegExp(
+  String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отказыва\p{L}*|отверга\p{L}*|не\s+(?:на\s+)?\d|` +
+    String.raw`(?:don't|do not|can't|cannot|won't|will not|wouldn't|couldn't|not going to|never)\s+(?:\p{L}+\s+){0,2}?${EN_PREDICATE}|no way|not\s+(?:at\s+)?[€$]?\d|refuse\p{L}*|reject\p{L}*|out of the question|forget (?:about )?(?:it|that))`,
+  'iu',
+)
 
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
  * Правила независимо находят числа с единицами и отличительные слова вариантов.
@@ -38,12 +44,14 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
   return out
 }
 
-const NEG = /(?<!\p{L})(не|нет|ни)(?!\p{L})/iu
-// чужая цифра: «у Казани 200», «у вас 204», «конкурент возит по 200», «было 212»
-const THIRD = /(?<!\p{L})(?:у\s+\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|был\p{L}*)(?!\p{L})/iu
+const NEG = /(?<!\p{L})(не|нет|ни|not|no|never|n't)(?!\p{L})|n't(?!\p{L})/iu
+// чужая цифра: «у Казани 200», «у вас 204», «конкурент возит по 200», «было 212»; «Qingdao offers 465», «your price is 480»
+const THIRD = /(?<!\p{L})(?:у\s+\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|был\p{L}*|competitors?|they|their|offers|gives|asks|charges|quotes|was|were|your (?:price|offer|number|quote)|you (?:said|asked|offered|want))(?!\p{L})/iu
 // слова, которые могут стоять при числе в перечне условий: «Хорошо. 200 ровно, по факту, 48 часов»
 const FILLER = new Set(['тогда', 'хорошо', 'ладно', 'ок', 'окей', 'итак', 'значит', 'короче', 'итого', 'ну', 'так', 'в', 'общем',
-  'и', 'цена', 'цену', 'ценой', 'по', 'за', 'на', 'с', 'ровно', 'давай', 'давайте', 'рублей', 'рубля', 'рубль', 'руб', 'короб', 'коробку'])
+  'и', 'цена', 'цену', 'ценой', 'по', 'за', 'на', 'с', 'ровно', 'давай', 'давайте', 'рублей', 'рубля', 'рубль', 'руб', 'короб', 'коробку',
+  'ok', 'okay', 'so', 'then', 'fine', 'well', 'alright', 'right', 'and', 'the', 'a', 'at', 'for', 'in', 'on', 'with', 'of', 'flat',
+  'exactly', 'total', 'euros', 'euro', 'dollars', 'price', 'upfront', 'advance', 'delivery', 'warranty', 'training', 'site', 'payment'])
 
 const bounds = (text: string, at: number, end: number, stops: RegExp) => {
   let start = 0
@@ -82,13 +90,13 @@ function ownNumber(sc: Scenario, text: string, m: Mention): boolean {
 /** Перед числом в том же предложении «давай/предлагаю/готов», и нет отрицания
  * («двести не потянем», «у конкурента 200» — не предложение). */
 function proposes(before: string, sentence: string): boolean {
-  return /(давай|давайте|предлага|готов|сойд[её]мся|сходимся|можем|могу|возьм[её]м|берём|берем|согласн)/iu.test(before) && !NEG.test(sentence)
+  return /(давай|давайте|предлага|готов|сойд[её]мся|сходимся|можем|могу|возьм[её]м|берём|берем|согласн|let's|let us|how about|what about|we can|i can|we could|i could|we'll|we will|i'll|i will|we'd|i'd|we offer|i offer|we propose|i propose|ready|agree|meet (?:at|in)|settle|make it|go for|go with)/iu.test(before) && !NEG.test(sentence)
 }
 
 const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))
 
 // «остальное как у вас», «в остальном согласен», «по остальному — как договорились»; «остальное обсудим» — нет
-const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по остальному)(?!\p{L})(?![^.!?]{0,20}(?<!\p{L})не\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:как|соглас|устраива|подход|годит|ок(?!\p{L})|окей|пойд[её]т|принима|норм|по-вашему|ваш|тво[её])/iu
+const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по остальному)(?!\p{L})(?![^.!?]{0,20}(?<!\p{L})не\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:как|соглас|устраива|подход|годит|ок(?!\p{L})|окей|пойд[её]т|принима|норм|по-вашему|ваш|тво[её])|(?<!\p{L})(?:(?:the )?rest|everything else|all (?:the )?other (?:terms|points)|otherwise)(?![^.!?]{0,20}(?<!\p{L})(?:not|n't)\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:as you|as (?:in )?your|is fine|are fine|ok(?!\p{L})|okay|works|agreed|accepted|stays|stay as)/iu
 
 /**
  * Разбор хода, подтверждённый словами игрока: условия — только названные им (explicitOffer);

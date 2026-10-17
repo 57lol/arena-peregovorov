@@ -7,8 +7,9 @@ import { isNumberWord, optionQuantity, quantities, type Dim } from './numbers'
 const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
-const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз)/
-const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также'])
+const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз|day|week|month|year|hour|euro|doll|perc|thous|milli)/
+const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также',
+  'which', 'would', 'could', 'there', 'their', 'about', 'after', 'befor', 'other', 'these', 'those', 'with', 'from', 'only'])
 
 interface IssueInfo {
   issue: Issue
@@ -48,6 +49,12 @@ const SYNONYMS: [RegExp, string[]][] = [
   [/объ[её]м|партия|количеств/i, ['объем', 'парти', 'колич', 'штук']],
   [/отпуск/i, ['отпус']],
   [/удал[её]н/i, ['удале', 'дома', 'офис']],
+  // дела на английском
+  [/price|cost/i, ['price', 'cost', 'euro', 'dolla', 'money', 'budge', 'total']],
+  [/payment|prepay|advance/i, ['payme', 'pay', 'upfro', 'advan', 'depos', 'prepa']],
+  [/deliver|lead time|shipping/i, ['deliv', 'ship', 'lead']],
+  [/warrant|guarant/i, ['warra', 'guara']],
+  [/training/i, ['train', 'site', 'remot', 'engin', 'opera']],
 ]
 
 function keysFor(info: IssueInfo): Set<string> {
@@ -102,6 +109,11 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
   return rel[best] <= 0.03 && rel.every((r, n) => n === best || r >= 2 * rel[best]) ? cands[best] : undefined
 }
 
+// Пересказ и вопрос «почему» по-английски: «so you're saying 100% upfront?», «why do you need 16 weeks?»
+const EN_ECHO = /(?<!\p{L})(?:so you(?:'re| are)? (?:say|said|mean)|you (?:said|say|mean|mentioned)|if I (?:understand|got)|in other words|(?:why|how come)(?! not)(?!\p{L}))/iu
+const DISCOUNT = /(?<!\p{L})(?:discount|off(?!\p{L})|скидк)/iu
+const PREPAY = /payment|upfront|advance|prepay|предоплат|аванс/iu
+
 /** Где в тексте названо число пункта: каждое упоминание отдельно, а не только последнее. */
 export interface Mention { id: IssueId; option: number; at: number; end: number }
 
@@ -118,13 +130,15 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
   // по факту?» — не предложение игрока («а почему бы не 30 дней?» — предложение).
   const echo: [number, number][] = []
   for (const m of text.matchAll(/[^.!?\n]*\?/gu))
-    if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)|(?<!\p{L})(почему|зачем|отчего|для чего)(?!\s+бы)(?!\p{L})/iu.test(m[0]))
+    if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)|(?<!\p{L})(почему|зачем|отчего|для чего)(?!\s+бы)(?!\p{L})/iu.test(m[0]) || EN_ECHO.test(m[0]))
       echo.push([m.index!, m.index! + m[0].length])
   const echoed = (at: number) => echo.some(([a, b]) => at >= a && at < b)
 
   // 1. Числа с единицами → пункт той же размерности (если таких несколько — по ближайшему ключевому слову).
   for (const q of quantities(text)) {
     if (echoed(q.at)) continue
+    // «5% discount», «скидка 3%» в деле, где проценты — это предоплата, — не условие оплаты
+    if (q.dim === 'percent' && DISCOUNT.test(text.slice(Math.max(0, q.at - 14), q.end + 14)) && infos.every((i) => i.dim !== 'percent' || PREPAY.test(`${i.issue.title} ${i.issue.options.join(' ')}`))) continue
     // Кандидаты: пункты той же размерности. Число без единиц («1,1», «210 000», «два») подходит к пункту,
     // если попадает в его диапазон, в том числе в тысячах или миллионах.
     let cands: { info: IssueInfo; value: number }[] = infos.filter((i) => i.dim === q.dim).map((info) => ({ info, value: q.value }))
