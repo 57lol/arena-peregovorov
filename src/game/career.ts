@@ -2,6 +2,7 @@
 // Всё — чистые функции от прогресса: одна и та же история партий даёт одно и то же личное дело.
 
 import { SCENARIOS, harder } from '../content/scenarios'
+import { isEn } from '../engine/lang'
 import { AXES, BEHAVIORS, behaviorById, type Axis } from '../engine/behaviors'
 import { ENDING_IDS } from '../engine/endings'
 import type { Scenario } from '../engine/types'
@@ -204,7 +205,8 @@ export interface Advice {
 
 /** Какое дело сыграть следующим. Только совет: любое дело открыто всегда. */
 export function nextCase(p: Progress): Advice | null {
-  const lib = [...SCENARIOS].sort((a, b) => a.difficulty - b.difficulty)
+  // дела на английском — отдельная дорожка: их не советуем как «следующую ступеньку» тому, кто учится по-русски
+  const lib = SCENARIOS.filter((sc) => !isEn(sc)).sort((a, b) => a.difficulty - b.difficulty)
   const rec = (sc: Scenario) => p.cases[sc.id]
   for (const sc of lib) {
     const r = rec(sc)
