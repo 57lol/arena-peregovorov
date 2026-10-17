@@ -12,6 +12,31 @@ const labHeaders = (): Record<string, string> => {
   return { ...(l.llm ? { 'x-lab-llm': l.llm } : {}), ...(l.natural !== undefined ? { 'x-lab-natural': l.natural ? '1' : '0' } : {}) }
 }
 
+// Модель реплики по ссылке (ручная проверка моделей): ?llm=sonnet до конца вкладки, ?llm=off — как по умолчанию.
+// Короткое имя или «провайдер:модель» из VOICE_LLM_ALLOWED на сервере.
+const LLM_ALIAS: Record<string, string> = {
+  sol: 'aitunnel:gpt-6.1-sol',
+  sonnet: 'aitunnel:claude-sonnet-5.5',
+  haiku: 'aitunnel:claude-haiku-5.5',
+  gemini: 'aitunnel:gemini-3.8-flash',
+  grok: 'aitunnel:grok-4.7',
+  luna: 'aitunnel:gpt-6-luna',
+  main: 'yandex:yandexgpt-5.1',
+  yandex: 'yandex:yandexgpt-5.1',
+}
+export function voiceLlmTest(): string | undefined {
+  try {
+    const q = new URLSearchParams(location.search).get('llm')
+    if (q === 'off') sessionStorage.removeItem('peregovorka.llm')
+    else if (q) sessionStorage.setItem('peregovorka.llm', LLM_ALIAS[q] ?? q)
+    return sessionStorage.getItem('peregovorka.llm') ?? undefined
+  } catch {
+    return undefined
+  }
+}
+// запомнить ?llm= сразу при загрузке: игра потом чистит адрес от параметров (share.ts)
+if (typeof window !== 'undefined') voiceLlmTest()
+
 export interface TurnInput {
   scenario: Scenario
   /** сценарий из библиотеки — отправляем id, свой — целиком */
@@ -61,9 +86,12 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
     ...(t.accept ? { accept: true } : {}),
     ...(t.walkAway ? { walkAway: true } : {}),
     ...(t.tts ? { tts: t.tts } : {}),
+    ...(typeof window !== 'undefined' && voiceLlmTest() ? { voiceLlm: voiceLlmTest() } : {}),
   }
   try {
-    const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string } }>('/api/turn', body)
+    const r = await post<{ record: TurnRecord; sources: { analysis: string; voice: string; voiceModel?: string } }>('/api/turn', body)
+    // проверка модели по ссылке: в консоли видно, кто на самом деле написал реплику (не уложилась — основная)
+    if (body.voiceLlm) console.info(`реплика: ${r.sources.voiceModel ?? r.sources.voice} (просили ${body.voiceLlm})`)
     return { record: r.record, source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}` }
   } catch (e) {
     // 400 и 409 — ошибка в самом ходе, показываем её. Сеть, 5xx, 404/405 статического хостинга без API —
