@@ -422,9 +422,9 @@ export class Person {
       this.body.visible = true
     }
 
-    // руки: во время речи иногда жест
+    // руки: во время речи иногда жест (речь — печать текста или голос, который уже звучит, пока ход ещё идёт)
     if (this.hands && this.handFrames.length) {
-      const gesture = this.talking && Math.sin(t * 2.3) > 0.35
+      const gesture = (this.talking || lip !== 'off') && Math.sin(t * 2.3) > 0.35
       const u = this.hands.material.uniforms
       u.map.value = this.handFrames[gesture ? 1 : 0]
       u.flip.value = this.flip ? 1 : 0
