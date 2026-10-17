@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { TurnRecord } from '../engine/types'
 import { createApp } from './app'
 import { makeLLM } from './llm'
@@ -129,23 +129,78 @@ describe('лаборатория', () => {
 
   it('/api/lab знает всех провайдеров и какие ключи нужны, самих ключей не отдаёт', async () => {
     const j = (await (await app.request('/api/lab')).json()) as { llm: Record<string, { ready: boolean; need: string }>; tts: Record<string, { ready: boolean; need: string }> }
-    expect(Object.keys(j.llm)).toEqual(expect.arrayContaining(['yandex', 'yandex-lite', 'openai', 'anthropic', 'gigachat', 'offline']))
-    expect(Object.keys(j.tts)).toEqual(expect.arrayContaining(['yandex', 'openai', 'elevenlabs', 'salute']))
-    expect(j.llm.gigachat.need).toBe('GIGACHAT_AUTH_KEY')
+    expect(Object.keys(j.llm)).toEqual(['yandex', 'yandex-lite', 'aitunnel', 'offline'])
+    expect(Object.keys(j.tts)).toEqual(expect.arrayContaining(['yandex', 'elevenlabs']))
+    expect(j.llm.aitunnel.need).toBe('AITUNNEL_API_KEY')
     expect(JSON.stringify(j)).not.toMatch(/api-key|Bearer/i)
   })
 
   it('без ключа ход играется основной моделью и говорит, какой ключ нужен', async () => {
-    if (process.env.GIGACHAT_AUTH_KEY) return
-    const r = await labTurn('gigachat')
+    vi.stubEnv('AITUNNEL_API_KEY', '')
+    const r = await labTurn('aitunnel')
+    vi.unstubAllEnvs()
     expect(r.status).toBe(200)
     const j = (await r.json()) as { sources: { lab?: string; analysis: string } }
-    expect(j.sources.lab).toBe('нужен ключ GIGACHAT_AUTH_KEY')
+    expect(j.sources.lab).toBe('нужен ключ AITUNNEL_API_KEY')
     expect(j.sources.analysis).toBe('offline')
   })
 
   it('чужое имя провайдера игнорируется', async () => {
     const j = (await (await labTurn('claude-cli')).json()) as { sources: { lab?: string } }
     expect(j.sources.lab).toBeUndefined()
+  })
+})
+
+describe('запросы из браузера с потолками (аудит 17.10)', async () => {
+  const { getScenario } = await import('../content/scenarios')
+  const post = (a: ReturnType<typeof createApp>, path: string, body: unknown, headers: Record<string, string> = {}) =>
+    a.request(path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+
+  it('огромное своё дело и огромная история — отказ, а не промпт на миллион токенов', async () => {
+    const base = structuredClone(getScenario('tara')!)
+    const eight = { ...base, id: 'evil', issues: [...base.issues, ...base.issues.slice(0, 3).map((i, k) => ({ ...i, id: `x${k}` }))] }
+    expect((await post(app, '/api/turn', { scenario: eight, history: [], playerText: 'Добрый день' })).status).toBe(400)
+    const longBio = { ...base, id: 'bio', opponent: { ...base.opponent, character: { ...base.opponent.character, bio: 'Длинная биография. '.repeat(500) } } }
+    const r = await post(app, '/api/turn', { scenario: longBio, history: [], playerText: 'Добрый день' })
+    expect(r.status).toBe(400)
+    expect(((await r.json()) as { error: string }).error).toBe('Дело сломано')
+    const huge = [{ playerText: 'а'.repeat(300_000), opponentLine: 'x', analysis: { behaviors: [] } }]
+    expect((await post(app, '/api/turn', { scenarioId: 'tara', history: huge, playerText: 'Добрый день' })).status).toBe(413)
+    const long = [{ playerText: 'а'.repeat(2000), opponentLine: 'x', analysis: { behaviors: [] } }]
+    expect((await post(app, '/api/turn', { scenarioId: 'tara', history: long, playerText: 'Добрый день' })).status).toBe(400)
+    // своё дело в разумных размерах по-прежнему играется
+    expect((await post(app, '/api/turn', { scenario: { ...base, id: 'mine' }, history: [], playerText: 'Добрый день' })).status).toBe(200)
+  })
+
+  it('ошибки проверки — по-русски; чужой вариант в предложении отбрасывается', async () => {
+    const r = await post(app, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'x'.repeat(1600) })
+    expect(r.status).toBe(400)
+    expect(((await r.json()) as { error: string }).error).toBe('Реплика длиннее 1500 символов')
+    const ok = await post(app, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Предлагаю так', offer: { price: 4, nope: 1 } })
+    expect(ok.status).toBe(200)
+    const bad = await post(app, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Предлагаю так', offer: { price: 99 } })
+    expect(bad.status).toBe(400)
+  })
+
+  it('ходов в минуту на сессию — не больше лимита', async () => {
+    vi.stubEnv('TURN_SESSION_MINUTE_LIMIT', '2')
+    const a = createApp(makeLLM('offline').llm)
+    const codes = []
+    for (let i = 0; i < 3; i++) codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s1' })).status)
+    codes.push((await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { cookie: 'arena_pass=s2' })).status)
+    vi.unstubAllEnvs()
+    expect(codes).toEqual([200, 200, 429, 200])
+  })
+
+  it('лимит лаборатории считается по адресу, который дописал прокси (конец X-Forwarded-For), а не по подделке в начале', async () => {
+    vi.stubEnv('LAB_IP_DAY_LIMIT', '1')
+    const a = createApp(makeLLM('offline').llm)
+    const lab = async (xff: string) =>
+      ((await (await post(a, '/api/turn', { scenarioId: 'tara', history: [], playerText: 'Привет' }, { 'x-lab-llm': 'offline', 'x-forwarded-for': xff })).json()) as { sources: { lab?: string } }).sources.lab
+    const first = await lab('forged1, 9.9.9.9')
+    const second = await lab('forged2, 9.9.9.9')
+    vi.unstubAllEnvs()
+    expect(first).not.toMatch(/лимит/)
+    expect(second).toMatch(/лимит/)
   })
 })

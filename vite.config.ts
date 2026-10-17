@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
@@ -7,4 +8,6 @@ export default defineConfig({
   server: {
     proxy: { '/api': `http://localhost:${process.env.PORT ?? 8787}` },
   },
+  // тесты гоняют сотни ходов из одной «сессии»: лимит ходов в минуту проверяет свой тест
+  test: { env: { TURN_SESSION_MINUTE_LIMIT: '100000' } },
 })

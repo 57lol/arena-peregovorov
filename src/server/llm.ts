@@ -1,10 +1,9 @@
-// Адаптеры LLM. Все возвращают уже распарсенный JSON; любая ошибка — исключение,
-// а вызывающий код откатывается на офлайн-разметчик или шаблон.
+// Модели: YandexGPT (разметка, запасная реплика, сборка своего дела) и AITunnel (реплика собеседника, Claude Sonnet 5.5).
+// Обе под общим бюджетом LLM_TOTAL_RUB: до вызова — проверка, после — цена в счёт. Возвращают распарсенный JSON;
+// любая ошибка — исключение, а вызывающий код откатывается на запасную модель, офлайн-разметчик или заготовку.
 
-import { spawn } from 'node:child_process'
-import { tmpdir } from 'node:os'
 import { budget as sharedBudget, type Budget } from './budget'
-import { sberFetch, sberToken } from './sber'
+import { WAIT } from './timeouts'
 
 export interface JsonRequest {
   system: string
@@ -19,16 +18,14 @@ export interface JsonRequest {
 }
 
 export interface LLM {
-  name: 'anthropic' | 'openai' | 'yandex' | 'gigachat' | 'claude-cli' | 'aitunnel' | 'offline'
+  name: 'yandex' | 'aitunnel' | 'offline'
   model: string
   json(req: JsonRequest): Promise<unknown>
   /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL или ANALYZE_LLM) */
   analyzer?: LLM
-  /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию gpt-6.1-sol через AITunnel, если есть ключ) */
+  /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
   voice?: LLM
 }
-
-const timeout = () => Number(process.env.LLM_TIMEOUT_MS ?? 25000)
 
 /** Достаём JSON из ответа модели: бывает в ```json ...```, бывает с текстом вокруг. */
 export function extractJson(text: string): unknown {
@@ -40,7 +37,12 @@ export function extractJson(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1))
 }
 
-export async function post(url: string, headers: Record<string, string>, body: unknown, ms = timeout()): Promise<any> {
+interface ChatReply {
+  choices?: { message?: { content?: unknown } }[]
+  usage?: { prompt_tokens?: number; completion_tokens?: number; cost_rub?: number | string }
+}
+
+async function post(url: string, headers: Record<string, string>, body: unknown, ms = WAIT.llm()): Promise<ChatReply> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
@@ -49,38 +51,12 @@ export async function post(url: string, headers: Record<string, string>, body: u
   })
   const text = await res.text()
   if (!res.ok) throw new Error(`${url} → ${res.status}: ${text.slice(0, 300)}`)
-  return JSON.parse(text)
+  return JSON.parse(text) as ChatReply
 }
 
-function anthropic(): LLM {
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key) throw new Error('Нет ANTHROPIC_API_KEY')
-  const model = process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5'
-  return {
-    name: 'anthropic',
-    model,
-    async json({ system, user, temperature, maxTokens, schema }) {
-      const r = await post(
-        // с российского IP Anthropic отвечает 403 — ANTHROPIC_BASE_URL на прокси (например, https://api.proxyapi.ru/anthropic)
-        `${process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com'}/v1/messages`,
-        { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        {
-          model,
-          max_tokens: maxTokens ?? 1024,
-          temperature,
-          system: system + '\n\nОтвечай только JSON-объектом, без пояснений.',
-          messages: [{ role: 'user', content: schema ? `${user}\n\nФормат ответа — JSON по схеме:\n${JSON.stringify(schema.schema)}` : user }],
-        },
-      )
-      const text = (r.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
-      return extractJson(text)
-    },
-  }
-}
-
-/** OpenAI и всё OpenAI-совместимое (в т.ч. новый эндпоинт Яндекса). */
+/** OpenAI-совместимый chat/completions Яндекса. */
 function openaiCompatible(
-  name: 'openai' | 'yandex',
+  name: 'yandex',
   url: string,
   headers: Record<string, string>,
   model: string,
@@ -101,7 +77,7 @@ function openaiCompatible(
         response_format: schema
           ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
           : { type: 'json_object' },
-      }, timeoutMs ? Math.min(timeoutMs, timeout()) : undefined)
+      }, timeoutMs ? Math.min(timeoutMs, WAIT.llm()) : undefined)
       const text = r.choices?.[0]?.message?.content
       // usage есть в каждом ответе Яндекса; нет — считаем грубо, ~3 символа на токен
       if (onUsage) {
@@ -115,13 +91,6 @@ function openaiCompatible(
       return extractJson(text)
     },
   }
-}
-
-function openai(): LLM {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) throw new Error('Нет OPENAI_API_KEY')
-  const base = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
-  return openaiCompatible('openai', `${base}/chat/completions`, { authorization: `Bearer ${key}` }, process.env.OPENAI_MODEL ?? 'gpt-4.1-mini')
 }
 
 /**
@@ -170,88 +139,6 @@ export async function llmMode(llm: LLM, b: Budget = sharedBudget()): Promise<'pr
   return m === 'pro' && /lite/i.test(llm.model) ? 'lite' : m
 }
 
-/** Локальный Claude Code по подписке — для ночной разработки без ключей. */
-function claudeCli(): LLM {
-  const model = process.env.CLAUDE_CLI_MODEL ?? 'haiku'
-  return {
-    name: 'claude-cli',
-    model,
-    json({ system, user, schema }) {
-      const prompt = schema ? `${user}\n\nФормат ответа — JSON по схеме:\n${JSON.stringify(schema.schema)}` : user
-      return new Promise((resolve, reject) => {
-        const p = spawn(
-          process.env.CLAUDE_CLI_BIN ?? 'claude',
-          [
-            '-p', '--model', model, '--output-format', 'json',
-            '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--setting-sources', '',
-            '--append-system-prompt', system + '\n\nТы не ассистент в этом режиме. Ответь одним JSON-объектом и ничем больше.',
-          ],
-          { cwd: tmpdir(), stdio: ['pipe', 'pipe', 'pipe'] },
-        )
-        let out = ''
-        let err = ''
-        const timer = setTimeout(() => {
-          p.kill('SIGKILL')
-          reject(new Error('claude -p: таймаут'))
-        }, Math.max(timeout(), 60000))
-        p.stdout.on('data', (d) => (out += d))
-        p.stderr.on('data', (d) => (err += d))
-        p.on('error', reject)
-        p.on('close', (code) => {
-          clearTimeout(timer)
-          try {
-            const r = JSON.parse(out)
-            if (r.is_error || code !== 0) throw new Error(`claude -p: ${r.result ?? err}`)
-            resolve(extractJson(r.result))
-          } catch (e) {
-            reject(e instanceof Error ? e : new Error(String(e) + err))
-          }
-        })
-        p.stdin.end(prompt)
-      })
-    },
-  }
-}
-
-/**
- * GigaChat (Сбер): OAuth по GIGACHAT_AUTH_KEY, дальше OpenAI-подобный chat/completions. Строгого JSON по схеме
- * у него нет — схему кладём в текст и достаём JSON из ответа, как у Anthropic.
- */
-function gigachat(): LLM {
-  const key = process.env.GIGACHAT_AUTH_KEY
-  if (!key) throw new Error('Нет GIGACHAT_AUTH_KEY')
-  const model = process.env.GIGACHAT_MODEL ?? 'GigaChat-2'
-  const scope = process.env.GIGACHAT_SCOPE ?? 'GIGACHAT_API_PERS'
-  return {
-    name: 'gigachat',
-    model,
-    async json({ system, user, temperature, maxTokens, schema }) {
-      const token = await sberToken(key, scope)
-      // единый адрес с 16.07.2026; старый gigachat.devices.sberbank.ru/api/v1 пока тоже отвечает
-      const r = await sberFetch(process.env.GIGACHAT_URL ?? 'https://api.giga.chat/v1/chat/completions', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({
-          model,
-          // ноль GigaChat не любит — берём почти ноль, это та же жадная выборка
-          temperature: Math.max(temperature, 0.01),
-          max_tokens: maxTokens ?? 1024,
-          messages: [
-            { role: 'system', content: system + '\n\nОтвечай только JSON-объектом, без пояснений.' },
-            { role: 'user', content: schema ? `${user}\n\nФормат ответа — JSON по схеме:\n${JSON.stringify(schema.schema)}` : user },
-          ],
-        }),
-        ms: timeout(),
-      })
-      const text = r.body.toString('utf8')
-      if (r.status !== 200) throw new Error(`GigaChat → ${r.status}: ${text.slice(0, 300)}`)
-      const content = JSON.parse(text).choices?.[0]?.message?.content
-      if (typeof content !== 'string') throw new Error('Пустой ответ')
-      return extractJson(content)
-    },
-  }
-}
-
 /**
  * Как выключить рассуждение у модели AITunnel. У Sonnet 5.5, GPT-6.1 Sol, Gemini 3.x и Grok «none» запрещён (400),
  * минимум «minimal»; у Luna, GPT-5.4, Haiku, DeepSeek, Qwen — «none». Рассуждение тормозит реплику на секунды
@@ -265,24 +152,28 @@ export function aitunnelFlags(model: string, env = process.env): Record<string, 
   return {}
 }
 
+/** Модель реплики по умолчанию: живее всех держит рамку, ~2 с на ответ (~/Arena-materials/final/models/PROVIDERS_REPORT.md). */
+export const DEFAULT_VOICE_MODEL = 'claude-sonnet-5.5'
+
 /**
- * AITunnel: один ключ — сотни моделей (Claude, GPT, Gemini, Grok, YandexGPT), OpenAI-совместимый API, оплата рублями.
- * Цену хода AITunnel сам пишет в usage.cost_rub — её и кладём в общий бюджет. У Claude кэш системного промпта
- * включается меткой cache_control (ход дешевле вдвое), у остальных он автоматический.
+ * AITunnel: один ключ — сотни моделей (Claude, GPT, Gemini), OpenAI-совместимый API, оплата рублями.
+ * Цену хода AITunnel сам пишет в usage.cost_rub — её и кладём в общий бюджет (нет её — считаем по тарифу Pro).
+ * У Claude кэш системного промпта включается меткой cache_control (ход дешевле вдвое), у остальных он автоматический.
  */
-export function aitunnel(model = process.env.AITUNNEL_MODEL ?? 'gpt-6.1-sol', b: Budget = sharedBudget(), env = process.env): LLM {
+export function aitunnel(model?: string, b: Budget = sharedBudget(), env = process.env): LLM {
   const key = env.AITUNNEL_API_KEY
   if (!key) throw new Error('Нет AITUNNEL_API_KEY')
+  const m = model ?? env.AITUNNEL_MODEL ?? DEFAULT_VOICE_MODEL
   const url = `${(env.AITUNNEL_BASE_URL ?? 'https://api.aitunnel.ru/v1').replace(/\/$/, '')}/chat/completions`
-  const claude = /^claude/.test(model)
+  const claude = /^claude/.test(m)
   void b.mode()
   return {
     name: 'aitunnel',
-    model,
+    model: m,
     async json({ system, user, temperature, maxTokens, schema, timeoutMs }) {
       if ((await b.mode()) === 'offline') throw new Error('Общий лимит на нейросеть исчерпан')
       const r = await post(url, { authorization: `Bearer ${key}` }, {
-        model,
+        model: m,
         temperature,
         // с рассуждением «minimal» его почти нет, но запас нужен: иначе ответ может прийти пустым
         max_tokens: Math.max(maxTokens ?? 1024, 800),
@@ -293,13 +184,12 @@ export function aitunnel(model = process.env.AITUNNEL_MODEL ?? 'gpt-6.1-sol', b:
         response_format: schema
           ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
           : { type: 'json_object' },
-        ...aitunnelFlags(model, env),
-      }, timeoutMs ? Math.min(timeoutMs, timeout()) : undefined)
+        ...aitunnelFlags(m, env),
+      }, timeoutMs ? Math.min(timeoutMs, WAIT.llm()) : undefined)
       const text = r.choices?.[0]?.message?.content
       const u = r.usage ?? {}
-      const tin = Number(u.prompt_tokens ?? 0), tout = Number(u.completion_tokens ?? 0)
       const rub = u.cost_rub != null && Number.isFinite(Number(u.cost_rub)) ? Number(u.cost_rub) : undefined
-      await b.addLlm(`aitunnel/${model}`, tin, tout, rub)
+      await b.addLlm(`aitunnel/${m}`, Number(u.prompt_tokens ?? 0), Number(u.completion_tokens ?? 0), rub)
       if (typeof text !== 'string' || !text.trim()) throw new Error('Пустой ответ')
       return extractJson(text)
     },
@@ -308,7 +198,7 @@ export function aitunnel(model = process.env.AITUNNEL_MODEL ?? 'gpt-6.1-sol', b:
 
 /**
  * Модель по строке «провайдер:модель»: «aitunnel:claude-sonnet-5.5», «yandex:yandexgpt-5.1», «yandex-lite», «offline».
- * Для VOICE_LLM, ANALYZE_LLM и выбора модели реплики на запрос (страница сравнения моделей).
+ * Для LLM_PROVIDER, VOICE_LLM, ANALYZE_LLM, лаборатории и выбора модели реплики на запрос.
  */
 export function llmFromSpec(spec: string, env = process.env): LLM {
   const [kind, ...rest] = spec.trim().split(':')
@@ -317,36 +207,22 @@ export function llmFromSpec(spec: string, env = process.env): LLM {
     case 'aitunnel': return aitunnel(model, undefined, env)
     case 'yandex': return yandex(undefined, undefined, model)
     case 'yandex-lite': return yandex(undefined, undefined, env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite')
-    case 'openai': return model ? openaiCompatible('openai', `${env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'}/chat/completions`, { authorization: `Bearer ${need(env.OPENAI_API_KEY, 'OPENAI_API_KEY')}` }, model) : openai()
-    case 'anthropic': return anthropic()
     case 'offline': return offline
     default: throw new Error(`Не знаю модель «${spec}»`)
   }
 }
 
-function need(v: string | undefined, name: string): string {
-  if (!v) throw new Error(`Нет ${name}`)
-  return v
-}
-
 /** Модели реплики, которые можно выбрать на запрос (страница сравнения): VOICE_LLM_ALLOWED или этот список. */
-export const VOICE_CHOICES = [
-  'aitunnel:gpt-6.1-sol', 'aitunnel:claude-sonnet-5.5', 'aitunnel:gemini-3.8-flash', 'aitunnel:gpt-6-luna',
-  'aitunnel:claude-haiku-5.5', 'aitunnel:gpt-5.4-mini', 'aitunnel:grok-4.7', 'aitunnel:deepseek-v4.1-flash',
-  'yandex:yandexgpt-5.1', 'yandex-lite',
-]
+const VOICE_CHOICES = [`aitunnel:${DEFAULT_VOICE_MODEL}`, 'aitunnel:gpt-6.1-sol', 'yandex:yandexgpt-5.1']
 export const voiceChoices = (env = process.env) => (env.VOICE_LLM_ALLOWED ? env.VOICE_LLM_ALLOWED.split(',').map((x) => x.trim()).filter(Boolean) : VOICE_CHOICES)
 
-/** Какие LLM можно включить и какой ключ нужен — для лаборатории. Ключей наружу не отдаём. */
+/** Какие модели можно включить в лаборатории и какой ключ нужен. Ключей наружу не отдаём. */
 export function llmStatus(env = process.env) {
   const yc = !!env.YANDEX_API_KEY && !!env.YANDEX_FOLDER_ID
   return {
     yandex: { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_MODEL ?? 'yandexgpt-5.1', ...(env.YANDEX_ANALYZE_MODEL ? { analyze: env.YANDEX_ANALYZE_MODEL } : {}) },
     'yandex-lite': { ready: yc, need: 'YANDEX_API_KEY, YANDEX_FOLDER_ID', model: env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite' },
-    openai: { ready: !!env.OPENAI_API_KEY, need: 'OPENAI_API_KEY', model: env.OPENAI_MODEL ?? 'gpt-4.1-mini' },
-    anthropic: { ready: !!env.ANTHROPIC_API_KEY, need: 'ANTHROPIC_API_KEY', model: env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5' },
-    gigachat: { ready: !!env.GIGACHAT_AUTH_KEY, need: 'GIGACHAT_AUTH_KEY', model: env.GIGACHAT_MODEL ?? 'GigaChat-2' },
-    aitunnel: { ready: !!env.AITUNNEL_API_KEY, need: 'AITUNNEL_API_KEY', model: env.AITUNNEL_MODEL ?? 'gpt-6.1-sol' },
+    aitunnel: { ready: !!env.AITUNNEL_API_KEY, need: 'AITUNNEL_API_KEY', model: env.AITUNNEL_MODEL ?? DEFAULT_VOICE_MODEL },
     offline: { ready: true, need: '', model: 'правила и шаблоны' },
   }
 }
@@ -358,45 +234,32 @@ const offline: LLM = {
   json: () => Promise.reject(new Error('Офлайн-режим')),
 }
 
+/**
+ * Основная модель (LLM_PROVIDER) и отдельные модели разметки и реплики (ANALYZE_LLM, VOICE_LLM — «провайдер:модель»).
+ * Реплику по умолчанию пишет Claude Sonnet 5.5 через AITunnel, если есть ключ; VOICE_LLM=main — основной моделью.
+ * Ошибка модели реплики не ломает игру: voice() откатывается на основную модель, потом на заготовку.
+ */
 export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = process.env): { llm: LLM; error?: string } {
-  const made = baseLLM(kind)
-  if (made.llm.name === 'offline') return made
-  // Разметка и реплика — раздельно: ANALYZE_LLM и VOICE_LLM («провайдер:модель»). Реплику по умолчанию пишет
-  // gpt-6.1-sol через AITunnel, если есть ключ (живее и дешевле Pro, рамку держит); VOICE_LLM=main — основной моделью.
-  // Ошибка модели реплики не ломает игру: voice() откатывается на основную модель, потом на заготовку.
-  const errors: string[] = made.error ? [made.error] : []
+  let llm: LLM
+  const errors: string[] = []
+  try {
+    llm = llmFromSpec(kind, env)
+    // у Яндекса разметка — своей моделью (YANDEX_ANALYZE_MODEL), бюджет общий
+    const am = env.YANDEX_ANALYZE_MODEL
+    if (kind === 'yandex' && am && am !== (env.YANDEX_MODEL ?? 'yandexgpt-5.1')) llm.analyzer = yandex(undefined, undefined, undefined, am)
+  } catch (e) {
+    return { llm: offline, error: (e as Error).message }
+  }
+  if (llm.name === 'offline') return { llm }
   const attach = (field: 'analyzer' | 'voice', spec: string | undefined) => {
     if (!spec || spec === 'main') return
     try {
-      made.llm[field] = llmFromSpec(spec, env)
+      llm[field] = llmFromSpec(spec, env)
     } catch (e) {
       errors.push(`${field}: ${(e as Error).message}`)
     }
   }
   attach('analyzer', env.ANALYZE_LLM)
-  attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? 'aitunnel:gpt-6.1-sol' : undefined))
-  return { llm: made.llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
-}
-
-function baseLLM(kind: string): { llm: LLM; error?: string } {
-  try {
-    switch (kind) {
-      case 'anthropic': return { llm: anthropic() }
-      case 'openai': return { llm: openai() }
-      case 'yandex': {
-        // реплика — YANDEX_MODEL (Pro), разбор хода — YANDEX_ANALYZE_MODEL (Lite); бюджет у них общий
-        const llm = yandex()
-        const am = process.env.YANDEX_ANALYZE_MODEL
-        if (am && am !== (process.env.YANDEX_MODEL ?? 'yandexgpt-5.1')) llm.analyzer = yandex(undefined, undefined, undefined, am)
-        return { llm }
-      }
-      case 'yandex-lite': return { llm: yandex(undefined, undefined, process.env.YANDEX_FALLBACK_MODEL ?? 'yandexgpt-lite') }
-      case 'gigachat': return { llm: gigachat() }
-      case 'claude-cli': return { llm: claudeCli() }
-      case 'aitunnel': return { llm: aitunnel() }
-      default: return { llm: offline }
-    }
-  } catch (e) {
-    return { llm: offline, error: (e as Error).message }
-  }
+  attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
+  return { llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
 }

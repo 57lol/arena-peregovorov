@@ -314,20 +314,15 @@ export async function resolveStress(a: Accented, ask?: AskJson, ms = 500): Promi
 
 // ---------- как ударение понимает каждый движок ----------
 
-export type StressEngine = 'speechkit' | 'openai' | 'eleven' | 'gemini'
-
 /**
  * Текст с «+» → текст для движка (проверено синтезом, судья gemini-3.8-flash, ~/Arena-materials/final/stress/listen.html):
  * - SpeechKit (livetts и v3) — «+» перед ударной гласной, его TTS-разметка: слушается, вслух не читает;
  * - ElevenLabs v4 Turbo — U+0301 после гласной: 97% верных ударений против 77% без разметки; «+» читает вслух («мук плюс а»);
- *   словарь произношения (alias) срабатывает частично, IPA коверкает слова, а воркер словари и не передаёт;
- * - OpenAI gpt-4o-mini-tts — не слушается ни U+0301, ни заглавной буквы, ни подсказки в instructions (80% с ними и без) —
- *   разметку не шлём; Gemini — тоже без разметки.
+ *   словарь произношения (alias) срабатывает частично, IPA коверкает слова, а воркер словари и не передаёт.
  */
-export function render(text: string, engine: StressEngine): string {
+export function render(text: string, engine: 'speechkit' | 'eleven'): string {
   // «ё» ударна сама: знак над ней не нужен
   text = text.replace(/\+(?=[ёЁ])/g, '')
   if (engine === 'speechkit') return forSpeechKit(text)
-  if (engine === 'eleven') return text.replace(new RegExp(`\\+([${VOWEL}])`, 'gu'), `$1${ACUTE}`)
-  return unstress(text)
+  return text.replace(new RegExp(`\\+([${VOWEL}])`, 'gu'), `$1${ACUTE}`)
 }

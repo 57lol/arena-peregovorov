@@ -9,6 +9,7 @@ import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TalkAct, 
 import { formatOffer } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
+import { WAIT } from './timeouts'
 
 export const PROMPT_VERSION = 'a13'
 
@@ -196,7 +197,7 @@ export async function analyzeMove(
         user: userPrompt(sc, history, text, lastOpponentOffer),
         temperature: 0,
         maxTokens: 700,
-        timeoutMs: 12_000,
+        timeoutMs: WAIT.analyze(),
         schema: schemaFor(sc, dict),
       })),
     )

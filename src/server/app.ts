@@ -1,18 +1,20 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { buildReport } from '../engine/report'
 import { initialState, step } from '../engine/turn'
-import type { MoveAnalysis, Scenario, TurnRecord } from '../engine/types'
+import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
 import { walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
 import { analyzeMove } from './analyze'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
-import { hashOf } from './cache'
+import { CACHE_DIR, hashOf } from './cache'
+import { clientIp, sessionOf } from './client'
+import { DAY, limiter, limitOf, MINUTE } from './limits'
 import { llmFromSpec, llmMode, llmStatus, makeLLM, voiceChoices, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
@@ -22,43 +24,116 @@ import { voice } from './voice'
 import { stripTags } from './tags'
 import { roomsApi } from './rooms'
 
-const CACHE = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
-const SAVED = join(CACHE, 'scenarios')
-const ROOMS = join(CACHE, 'rooms')
+const SAVED = join(CACHE_DIR, 'scenarios')
+const ROOMS = join(CACHE_DIR, 'rooms')
 
-const OfferSchema = z.record(z.string(), z.number().int().min(0))
+// Всё, что приходит от браузера, — с потолками: дело и история уходят в промпт модели, а это деньги.
+const str = (max: number) => z.string().max(max)
+const Id = z.string().regex(/^[\w-]{1,40}$/)
+const Interest = z.object({ id: Id, text: str(500), issue: Id.optional(), trustToReveal: z.number().min(0).max(100) })
+const Profile = z.object({
+  points: z.record(Id, z.array(z.number().min(-1000).max(1000)).max(6)),
+  batna: z.number().min(-1000).max(1000),
+  batnaText: str(500),
+  interests: z.array(Interest).max(8),
+})
+/** Своё дело из браузера: 3–6 пунктов по 2–6 вариантов, до 20 ходов, тексты не длиннее карточек библиотеки ×3. */
+const ScenarioInput = z.object({
+  id: Id,
+  title: str(200),
+  sphere: str(80),
+  difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  harder: z.union([z.literal(0), z.literal(1)]).optional(),
+  turnLimit: z.number().int().min(4).max(20),
+  issues: z.array(z.object({
+    id: Id,
+    title: str(120),
+    options: z.array(str(120)).min(2).max(6),
+    kind: z.enum(['distributive', 'integrative', 'compatible']),
+    preferences: z.object({ player: z.number().int(), opponent: z.number().int() }).optional(),
+  })).min(3).max(6),
+  player: z.object({ role: str(300), brief: str(3000), profile: Profile }),
+  opponent: z.object({
+    character: z.object({
+      name: str(80), role: str(200), company: str(200), tone: z.enum(['friendly', 'neutral', 'cold', 'aggressive', 'evasive']),
+      portrait: str(40), speech: str(2000), bio: str(2000),
+      lines: z.record(str(30), z.array(str(400)).max(10)).optional(),
+      voiceExamples: z.array(str(300)).max(8).optional(),
+    }),
+    brief: str(2000),
+    profile: Profile,
+  }),
+  opening: str(1000),
+  blurb: str(300).optional(),
+  goals: z.array(str(300)).max(10).optional(),
+  lessons: z.array(str(300)).max(10).optional(),
+})
+const Analysis = z.object({
+  behaviors: z.array(z.object({ id: str(40), quote: str(300) })).max(20).default([]),
+  offer: z.record(Id, z.number().int().min(0).max(5)).optional(),
+  accepts: z.boolean().optional(),
+  rest: z.boolean().optional(),
+  walksAway: z.boolean().optional(),
+  asksAbout: z.array(Id).max(6).optional(),
+  toneViolation: z.boolean().optional(),
+  talk: z.array(z.enum(TALK_ACTS as [string, ...string[]])).max(5).optional(),
+})
+/** Ход из истории: решения движок пересчитает сам, нужны только слова и разбор. */
+const HistoryItem = z.object({ playerText: str(1500), opponentLine: str(1500), emotion: str(20).optional(), analysis: Analysis })
+const History = z.array(HistoryItem).max(25).default([])
+const OfferBody = z.record(Id, z.number().int().min(0).max(5))
 const TurnBody = z.object({
-  scenario: z.any().optional(),
-  scenarioId: z.string().optional(),
-  history: z.array(z.any()).default([]),
+  scenario: ScenarioInput.optional(),
+  scenarioId: Id.optional(),
+  history: History,
   playerText: z.string().trim().min(1).max(1500),
-  offer: OfferSchema.optional(),
+  offer: OfferBody.optional(),
   // Кнопки интерфейса: «принять то, что на столе» и «встать и уйти» — без угадывания по тексту.
   accept: z.boolean().optional(),
   walkAway: z.boolean().optional(),
   /** голос включён: тело /api/tts без текста — сервер начнёт синтез реплики сразу, как её напишет модель */
-  tts: z.object({ voice: z.string().max(60) }).passthrough().optional(),
+  tts: z.object({ voice: str(60) }).passthrough().optional(),
   /** модель реплики на этот ход («aitunnel:claude-sonnet-5.5») — для страницы сравнения; то же заголовком x-voice-llm */
-  voiceLlm: z.string().max(80).optional(),
+  voiceLlm: str(80).optional(),
 })
-const ReportBody = z.object({ scenario: z.any().optional(), scenarioId: z.string().optional(), history: z.array(z.any()) })
+const ReportBody = z.object({ scenario: ScenarioInput.optional(), scenarioId: Id.optional(), history: History })
+const BODY = bodyLimit({ maxSize: 200 * 1024 })
 
-async function resolveScenario(body: { scenario?: unknown; scenarioId?: string }): Promise<Scenario> {
+/** Ошибка проверки запроса — по-русски, для игрока. */
+function zodText(e: z.ZodError): string {
+  const i = e.issues[0]
+  const where = i.path.join('.')
+  if (where === 'playerText') return i.code === 'too_big' ? 'Реплика длиннее 1500 символов' : 'Пустая реплика'
+  if (where.startsWith('history')) return 'История встречи не разобралась — начните встречу заново'
+  if (where.startsWith('scenario')) return 'Дело сломано'
+  return `Запрос не разобрался (${where || i.code})`
+}
+
+/** Только варианты, которые есть в деле: «вариант 99» и чужие пункты отбрасываем. */
+function fitOffer(sc: Scenario, offer: Offer | undefined): Offer | undefined {
+  if (!offer) return undefined
+  const out = Object.fromEntries(Object.entries(offer).filter(([id, n]) => n !== undefined && n < (sc.issues.find((i) => i.id === id)?.options.length ?? 0)))
+  return Object.keys(out).length ? out : undefined
+}
+
+async function resolveScenario(body: { scenario?: Scenario; scenarioId?: string }): Promise<Scenario> {
   if (body.scenario) {
-    const check = checkScenario(body.scenario as Scenario)
-    if (check.problems.some((p) => p.includes('вариант'))) throw new Error(`Сценарий сломан: ${check.problems.join('; ')}`)
-    return body.scenario as Scenario
+    // размеры проверила схема; таблицы очков должны совпадать с вариантами, а замечания к качеству дела
+    // (широкая зона, нет размена) играть не мешают
+    const broken = checkScenario(body.scenario).problems.filter((p) => p.includes('вариант'))
+    if (broken.length) throw new HTTPException(400, { message: `Дело сломано: ${broken.join('; ')}` })
+    return body.scenario
   }
   if (body.scenarioId) {
     const sc = findScenario(body.scenarioId)
     if (sc) return sc
     try {
-      return JSON.parse(await readFile(join(SAVED, `${body.scenarioId.replace(/[^\w-]/g, '')}.json`), 'utf8'))
+      return JSON.parse(await readFile(join(SAVED, `${body.scenarioId}.json`), 'utf8'))
     } catch {
       // нет такого
     }
   }
-  throw new Error('Не найден сценарий')
+  throw new HTTPException(404, { message: 'Не найден сценарий' })
 }
 
 /** Историю от клиента не принимаем на веру: пересчитываем решения движком по разборам. */
@@ -67,16 +142,18 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
   let state = initialState(sc)
   for (const x of raw as Partial<TurnRecord>[]) {
     if (!x?.analysis || state.status !== 'open') break
-    const analysis = { ...x.analysis, behaviors: x.analysis.behaviors ?? [] }
+    const { offer: asked, ...rest } = x.analysis
+    const offer = fitOffer(sc, asked)
+    const analysis: MoveAnalysis = { ...rest, behaviors: rest.behaviors ?? [], ...(offer ? { offer } : {}) }
     const r = step(sc, state, analysis, dict, out.map((h) => h.analysis))
     out.push({
       turn: r.state.turn,
-      playerText: String(x.playerText ?? ''),
+      playerText: String(x.playerText ?? '').slice(0, 1500),
       analysis,
       deltas: r.deltas,
       decision: r.decision,
-      opponentLine: String(x.opponentLine ?? ''),
-      emotion: String(x.emotion ?? 'neutral'),
+      opponentLine: String(x.opponentLine ?? '').slice(0, 1500),
+      emotion: String(x.emotion ?? 'neutral').slice(0, 20),
       stateAfter: r.state,
     })
     state = r.state
@@ -86,14 +163,20 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
 
 export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS) {
   const app = new Hono()
+  const count = limiter()
+  // вступления дел — тексты сервера: их можно озвучивать голосом ElevenLabs
+  for (const sc of allScenarios) speech.issue(sc.opening)
 
-  // 413 от лимита тела и прочие HTTP-ошибки — как есть, ошибки проверки — 400
-  app.onError((e, c) => (e instanceof HTTPException ? e.getResponse() : c.json({ error: e.message }, e instanceof z.ZodError ? 400 : 500)))
+  // 413 от лимита тела и прочие HTTP-ошибки — как есть, ошибки проверки — 400 по-русски
+  app.onError((e, c) => (e instanceof HTTPException ? (e.res ?? c.json({ error: e.message }, e.status)) : e instanceof z.ZodError ? c.json({ error: zodText(e) }, 400) : c.json({ error: e.message }, 500)))
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   app.get('/api/health', async (c) =>
     c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
+
+  // Чужая модель на запрос — чужие деньги: тот же суточный лимит на IP, что у лаборатории (LAB_IP_DAY_LIMIT).
+  const labRoom = (ip: string) => count.take(`lab:${ip}`, limitOf('LAB_IP_DAY_LIMIT', 200), DAY)
 
   // Модель реплики на запрос (страница сравнения моделей): только из разрешённого списка и не при LAB=off.
   // Разметка и решения движка при этом те же — меняются только слова собеседника.
@@ -101,15 +184,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   function voiceLLM(want: string | undefined, ip: string): { llm?: LLM; note?: string } {
     if (!want || process.env.LAB === 'off' || llm.name === 'offline') return {}
     if (!voiceChoices().includes(want)) return { note: `модель ${want} не в списке` }
-    // тот же суточный лимит на IP, что у лаборатории: чужая модель — это чужие деньги
-    const today = new Date().toISOString().slice(0, 10)
-    if (today !== labDay) {
-      labCount.clear()
-      labDay = today
-    }
-    const n = labCount.get(ip) ?? 0
-    if (n >= labLimit) return { note: 'лимит лаборатории на сегодня' }
-    labCount.set(ip, n + 1)
+    if (!labRoom(ip)) return { note: 'лимит лаборатории на сегодня' }
     let m = voiceLlms.get(want)
     if (!m) {
       try {
@@ -123,20 +198,10 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   }
 
   // Лаборатория (/?lab): ход можно сыграть другой моделью — заголовок x-lab-llm. Модель создаётся один раз,
-  // без ключа заголовок молча не действует. Свой суточный лимит на IP, LAB=off выключает всё.
+  // без ключа заголовок молча не действует. LAB=off выключает всё.
   const labLlms = new Map<string, LLM>()
-  const labCount = new Map<string, number>()
-  let labDay = ''
-  const labLimit = Number(process.env.LAB_IP_DAY_LIMIT || Infinity)
   function labLLM(want: string | undefined, ip: string): { llm: LLM; lab?: string } {
     if (!want || process.env.LAB === 'off' || !(want in llmStatus())) return { llm }
-    const today = new Date().toISOString().slice(0, 10)
-    if (today !== labDay) {
-      labCount.clear()
-      labDay = today
-    }
-    const n = labCount.get(ip) ?? 0
-    if (n >= labLimit) return { llm, lab: 'лимит лаборатории на сегодня' }
     let alt = labLlms.get(want)
     if (!alt) {
       const made = makeLLM(want)
@@ -144,7 +209,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       alt = made.llm
       labLlms.set(want, alt)
     }
-    labCount.set(ip, n + 1)
+    if (!labRoom(ip)) return { llm, lab: 'лимит лаборатории на сегодня' }
     return { llm: alt, lab: `${alt.name}:${alt.model.split('/').pop()}` }
   }
 
@@ -163,26 +228,20 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     c.json(scenarios.map((s) => ({ id: s.id, title: s.title, sphere: s.sphere, difficulty: s.difficulty, opponent: s.opponent.character.name }))),
   )
   app.get('/api/scenarios/:id', async (c) => {
-    try {
-      return c.json(await resolveScenario({ scenarioId: c.req.param('id') }))
-    } catch {
-      return c.json({ error: 'Не найден сценарий' }, 404)
-    }
+    const id = Id.safeParse(c.req.param('id'))
+    if (!id.success) return c.json({ error: 'Не найден сценарий' }, 404)
+    return c.json(await resolveScenario({ scenarioId: id.data }))
   })
 
   // «Ссылка для команды» на своё дело: кладём дело на диск и отдаём короткий id — таблица собеседника
   // не попадает в адрес. Дело с тем же содержимым получает тот же id.
-  app.post('/api/scenarios', bodyLimit({ maxSize: 200 * 1024 }), async (c) => {
-    const { scenario } = z.object({ scenario: z.record(z.string(), z.any()) }).parse(await c.req.json())
-    const sc = scenario as unknown as Scenario
-    let broken = true
-    try {
-      broken = checkScenario(sc).problems.some((p) => p.includes('вариант') || p.includes('пунктов'))
-    } catch {
-      // не дело вовсе
-    }
-    if (broken || typeof sc.id !== 'string') return c.json({ error: 'Дело сломано' }, 400)
-    const same = (a: unknown) => JSON.stringify(a) === JSON.stringify(sc)
+  app.post('/api/scenarios', BODY, async (c) => {
+    const parsed = z.object({ scenario: ScenarioInput }).safeParse(await c.req.json())
+    if (!parsed.success) return c.json({ error: 'Дело сломано' }, 400)
+    const sc = parsed.data.scenario as Scenario
+    await resolveScenario({ scenario: sc })
+    // сравниваем в одном виде: схема задаёт порядок полей и отбрасывает лишнее
+    const same = (a: unknown) => JSON.stringify(ScenarioInput.safeParse(a).data) === JSON.stringify(sc)
     if (same(findScenario(sc.id))) return c.json({ id: sc.id })
     const saved = await resolveScenario({ scenarioId: sc.id }).catch(() => null)
     if (same(saved)) return c.json({ id: sc.id })
@@ -192,11 +251,15 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     return c.json({ id })
   })
 
-  app.post('/api/turn', async (c) => {
+  /** Ходов в минуту на сессию: человек больше не успеет, а бот за минуту сожжёт бюджет. */
+  const tooFast = (c: Context) => !count.take(`turn:${sessionOf(c)}`, limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
+
+  app.post('/api/turn', BODY, async (c) => {
     const body = TurnBody.parse(await c.req.json())
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local'
+    if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
+    const ip = clientIp(c)
     const { llm, lab } = labLLM(c.req.header('x-lab-llm'), ip)
-    const sc = await resolveScenario(body)
+    const sc = await resolveScenario({ ...body, scenario: body.scenario as Scenario | undefined })
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
@@ -205,7 +268,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const a: { analysis: MoveAnalysis; source: string; error?: string } = body.walkAway
       ? { analysis: walkAwayMove(), source: 'button' }
       : await analyzeMove(lab ? llm : (llm.analyzer ?? llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
-    let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, body.offer), before, history, dict)
+    let analysis = body.walkAway ? a.analysis : withContext(withFormalOffer(a.analysis, fitOffer(sc, body.offer)), before, history, dict)
     if (body.accept) analysis = { ...analysis, accepts: true }
     const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
     // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
@@ -220,7 +283,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
     const v = { ...said, line: stripTags(unstress(said.line)) }
     rememberSpoken(v.line, said.line)
-    if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, ip)
+    speech.issue(v.line)
+    if (body.tts) speech.warm({ ...body.tts, text: v.line, emotion: v.emotion }, c)
     const record: TurnRecord = {
       turn: r.state.turn,
       playerText: body.playerText,
@@ -245,18 +309,21 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     })
   })
 
-  app.post('/api/report', async (c) => {
+  app.post('/api/report', BODY, async (c) => {
     const body = ReportBody.parse(await c.req.json())
-    const sc = await resolveScenario(body)
+    const sc = await resolveScenario({ ...body, scenario: body.scenario as Scenario | undefined })
     return c.json(buildReport(sc, normalizeHistory(sc, body.history), dict))
   })
 
-  app.post('/api/scenario/generate', async (c) => {
+  // Своё дело: до трёх запросов к Pro по 3000 токенов — свой суточный лимит на сессию
+  app.post('/api/scenario/generate', bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
     const req = GenerateRequest.parse(await c.req.json().catch(() => ({})))
-    const r = await generateScenario(llm, req, scenarios)
+    const mayAsk = count.take(`gen:${sessionOf(c)}`, limitOf('GENERATE_SESSION_DAY_LIMIT', 20), DAY)
+    const r = await generateScenario(mayAsk ? llm : makeLLM('offline').llm, req, scenarios)
     if (r.source === 'llm') {
       await mkdir(SAVED, { recursive: true })
       await writeFile(join(SAVED, `${r.scenario.id}.json`), JSON.stringify(r.scenario, null, 1))
+      speech.issue(r.scenario.opening)
     }
     return c.json(r)
   })

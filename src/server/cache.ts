@@ -5,19 +5,23 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export const CACHE_DIR = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
-const DIR = CACHE_DIR
 
 export const hashOf = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex')
 
 export async function cached<T>(kind: string, key: unknown, make: () => Promise<T>): Promise<{ value: T; hit: boolean }> {
-  const file = join(DIR, kind, `${hashOf(key)}.json`)
+  const file = join(CACHE_DIR, kind, `${hashOf(key)}.json`)
   try {
     return { value: JSON.parse(await readFile(file, 'utf8')) as T, hit: true }
   } catch {
     // нет в кэше
   }
   const value = await make()
-  await mkdir(join(DIR, kind), { recursive: true })
-  await writeFile(file, JSON.stringify(value, null, 1))
+  // оплаченный ответ не теряем из-за записи (квота диска на хостинге): предупреждение в лог, ответ игроку
+  try {
+    await mkdir(join(CACHE_DIR, kind), { recursive: true })
+    await writeFile(file, JSON.stringify(value, null, 1))
+  } catch (e) {
+    console.warn(`[кэш] не записал ${file}: ${(e as Error).message}`)
+  }
   return { value, hit: false }
 }

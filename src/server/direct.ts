@@ -47,7 +47,7 @@ export function spellOut(t: string): string {
  * Англицизмы и сокращения для ElevenLabs — как их говорят люди. Замеры 17.10 на v4 и v4 Turbo (whisper + судья,
  * ~/Arena-materials/final/voice-fix): «вай-фай» и «Wi-Fi» читаются верно, слитно — так же (оставляем слитно на всякий
  * случай: дефис похож на английское sci-fi); «ОЭЗ» Turbo читает «оэзэ», «О-Э-З» — по буквам, как говорят;
- * «КАМАЗ» капсом рискует уйти в буквы — «Камаз»; «FIFA» и «фифу» — с ударением на второй слог, со знаком ударения верно.
+ * «КАМАЗ» капсом рискует уйти в буквы — «Камаз»; «FIFA» и «фифу» — с ударением на второй слог, со знаком ударения верно (ставим «+», знак ударения из него сделает render).
  * «EA FC», «ок», «7:52» читаются верно и так.
  */
 export function forEleven(t: string): string {
@@ -56,8 +56,8 @@ export function forEleven(t: string): string {
     .replace(/(?<![\p{L}-])вай[-\s]фа(?=[яюеё]\p{L}*)/giu, 'вайфа')
     .replace(/(?<!\p{L})ОЭЗ(?!\p{L})/gu, 'О-Э-З')
     .replace(/(?<!\p{L})(?:КАМАЗ|КамАЗ)(?=\p{Ll}*(?!\p{L}))/gu, 'Камаз')
-    .replace(/(?<!\p{L})FIFA(?!\p{L})/giu, 'Фи\u0301фа')
-    .replace(/(?<!\p{L})(ф)иф(а|у|е|ой|ы)(?!\p{L})/giu, (_, f: string, end: string) => `${f}и\u0301ф${end.toLowerCase()}`)
+    .replace(/(?<!\p{L})FIFA(?!\p{L})/giu, 'Ф+ифа')
+    .replace(/(?<!\p{L})(ф)иф(а|у|е|ой|ы)(?!\p{L})/giu, (_, f: string, end: string) => `${f}+иф${end.toLowerCase()}`)
 }
 
 /** Слова, с которых человек начинает фразу и после которых делает вдох. */
@@ -186,8 +186,9 @@ export function polish(text: string, emotion: Emotion = 'neutral'): string {
  */
 const spoken = new Map<string, string>()
 export function rememberSpoken(clean: string, marked: string) {
-  if (clean === marked) return
   spoken.delete(clean)
+  // реплика без разметки стирает старую пару: иначе «Ладно, обсудим.» взяла бы чужой [whispers]
+  if (clean === marked) return
   spoken.set(clean, marked)
   if (spoken.size > 2000) spoken.delete(spoken.keys().next().value!)
 }

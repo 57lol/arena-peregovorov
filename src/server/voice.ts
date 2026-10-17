@@ -12,12 +12,11 @@ import type { Decision, Emotion, Interest, Issue, IssueId, Offer, OpponentState,
 import { bestOption, formatOffer, issueWeight } from '../engine/utility'
 import { cached } from './cache'
 import type { LLM } from './llm'
+import { WAIT } from './timeouts'
 import { unstress } from './stress'
 import { normalizeTags, stripTags } from './tags'
 
 export const VOICE_VERSION = 'v12'
-/** сколько ждём модель реплики, мс (VOICE_TIMEOUT_MS); не уложилась — пишет основная модель */
-const VOICE_MS = Number(process.env.VOICE_TIMEOUT_MS ?? 8000)
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 const Raw = z.object({
@@ -631,8 +630,8 @@ export async function voice(
 
   const run = async (m: LLM) => {
     const spare = !!opts.fallback && opts.fallback !== m && opts.fallback.name !== 'offline'
-    // короткое ожидание — только когда есть кому подхватить; одна модель ждёт как раньше (12 с)
-    const wait = spare ? VOICE_MS : 12_000
+    // короткое ожидание — только когда есть кому подхватить
+    const wait = spare ? WAIT.voice() : WAIT.voiceAlone()
     const key = { v: VOICE_VERSION, llm: `${m.name}:${m.model}`, sc: sc.id, sys, user }
     const { value, hit } = await cached('voice', key, async () => {
       const started = Date.now()
