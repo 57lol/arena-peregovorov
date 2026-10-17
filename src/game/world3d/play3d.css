@@ -897,10 +897,11 @@
 .w3-slip {
   position: relative;
 }
+/* штамп — своей строкой над итогом, а не поверх «Выгода вам 24» */
 .w3-slip-stamp {
-  position: absolute;
-  right: calc(8 * var(--u));
-  bottom: calc(16 * var(--u));
+  align-self: flex-end;
+  /* наклон опускает левый край штампа — запас снизу, чтобы он не лёг на цифру */
+  margin: auto calc(4 * var(--u)) calc(6 * var(--u)) 0;
   padding: calc(1 * var(--u)) calc(5 * var(--u));
   color: var(--c-stamp);
   font: 700 var(--fs-ui-big) / 1.2 var(--f-ui);
