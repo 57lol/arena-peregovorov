@@ -106,7 +106,8 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
           )}
         </div>
       </div>
-      <Talk room={room} secret={secret} pid={p.pid} at={a.at} share={share} onShare={onShare} />
+      {/* другой участник, попытка или доступ — переписка заново, с пустого состояния */}
+      <Talk key={`${room}|${p.pid}|${a.at}|${share}`} room={room} secret={secret} pid={p.pid} at={a.at} share={share} onShare={onShare} />
     </div>
   )
 }
@@ -117,8 +118,6 @@ function Talk({ room, secret, pid, at, share, onShare }: { room: string; secret:
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    setTalk(null)
-    setError(null)
     if (share !== 'granted' || !pid) return
     let alive = true
     loadTalk(room, secret, pid, at)
