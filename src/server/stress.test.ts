@@ -144,3 +144,14 @@ describe('аккуратные паузы (voices+)', () => {
     expect(system(tara, false, true)).toContain('омограф')
   })
 })
+
+describe('какой движок как получает ударения', async () => {
+  const { stressEngine } = await import('./speech')
+  it('по провайдеру и модели AITunnel', () => {
+    expect(stressEngine('yandex')).toBe('speechkit')
+    expect(stressEngine('elevenlabs')).toBe('eleven')
+    expect(stressEngine('aitunnel', { TTS_MODEL: 'gpt-4o-mini-tts' })).toBe('openai')
+    expect(stressEngine('aitunnel', { TTS_MODEL: 'eleven-v4-turbo' })).toBe('eleven')
+    expect(stressEngine('aitunnel', { TTS_MODEL: 'gemini-3.8-flash-tts' })).toBe('gemini')
+  })
+})

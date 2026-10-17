@@ -247,6 +247,18 @@ describe('внешний голос (TTS_PROVIDER)', () => {
     })
   })
 
+  it('ударения: ElevenLabs получает U+0301 после гласной, OpenAI — текст без разметки', async () => {
+    for (const [model, want] of [['eleven-v4-turbo', 'Догово́р на кварта́л'], ['gpt-4o-mini-tts', 'Договор на квартал']]) {
+      await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: model }, async () => {
+        const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+        const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
+        await tts(app, { text: `Договор на квартал ${Math.random()}`, voice: 'denis', who: 'rinat' })
+        const body = JSON.parse(String((f.mock.calls[0] as unknown as [string, RequestInit])[1].body))
+        expect(body.input).toContain(want)
+      })
+    }
+  })
+
   it('Gemini через AITunnel: манера словами в instructions, pcm → wav', async () => {
     await withEnv({ TTS_PROVIDER: 'aitunnel', AITUNNEL_API_KEY: 'ait', TTS_MODEL: 'gemini-3.8-flash-tts' }, async () => {
       const f = vi.fn(async (url: string | URL | Request) => (String(url).includes('aitunnel') ? new Response(new Uint8Array(48000), { status: 200 }) : fakeYandex()(url)))

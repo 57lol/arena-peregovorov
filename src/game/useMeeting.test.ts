@@ -48,6 +48,7 @@ const prepared = { url: 'blob:greeting', duration: 3 }
 function render() {
   for (let n = 0; n < 20; n++) {
     hooks.cursor = 0; hooks.dirty = false
+    // oxlint-disable-next-line react-hooks/rules-of-hooks -- тест сам крутит хук без React, «render» здесь — его цикл
     meeting = useMeeting(props)
     hooks.effects.splice(0).forEach((effect) => effect())
     if (!hooks.dirty) return

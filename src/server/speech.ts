@@ -71,11 +71,11 @@ export function stressAsk(env = process.env): AskJson | undefined {
   return (system, user, ms) => llm.json({ system, user, temperature: 0, maxTokens: 40, timeoutMs: ms, schema: { name: 'stress', schema } })
 }
 
-/** Как ударение понимает движок: SpeechKit — «+», OpenAI и ElevenLabs — U+0301, Gemini — без разметки. */
+/** Как ударение понимает движок (stress.ts: render): SpeechKit — «+», ElevenLabs — U+0301, OpenAI и Gemini — никак. */
 export function stressEngine(p: TtsProvider, env = process.env): StressEngine {
   if (p === 'yandex') return 'speechkit'
   if (p === 'elevenlabs') return 'eleven'
-  if (p === 'aitunnel') return familyOf(aitunnelModel(env)) === 'gemini' ? 'gemini' : familyOf(aitunnelModel(env))
+  if (p === 'aitunnel') return familyOf(aitunnelModel(env))
   return p === 'openai' ? 'openai' : 'gemini'
 }
 
