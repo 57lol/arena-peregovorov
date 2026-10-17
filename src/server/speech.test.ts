@@ -249,10 +249,10 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       expect(r.headers.get('x-tts-api')).toBe('elevenlabs')
       expect(r.headers.get('x-tts-voice')).toBe('o7PE01v4XYHJP2sq6EFk')
       const body = sent(f)
-      expect(body).toMatchObject({ voice_id: 'o7PE01v4XYHJP2sq6EFk', model_id: 'eleven_v4_turbo', voice_settings: { stability: 0.6, similarity_boost: 0.8 } })
+      expect(body).toMatchObject({ voice_id: 'o7PE01v4XYHJP2sq6EFk', model_id: 'eleven_v4_turbo', voice_settings: { stability: 0.3, similarity_boost: 1 } })
       expect(body.seed).toBe(elevenSeed('gopnik'))
-      // постоянная подача лица — да, пометка эмоции движка ([annoyed]) — нет
-      expect(body.text.startsWith('[thick southern Russian village accent, soft fricative g] ')).toBe(true)
+      // говорок Серого — настройками голоса, без пометок; пометки эмоции движка ([annoyed]) нет
+      expect(body.text.startsWith('[')).toBe(false)
       expect(body.text).not.toContain('[annoyed]')
       expect((await tts(app, { text, voice: 'sergey', who: 'gopnik', emotion: 'neutral' })).headers.get('x-cache')).toBe('hit')
       down = true
