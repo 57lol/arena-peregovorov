@@ -30,17 +30,26 @@ export function pcmResampler(rate: number, chunkSamples = 3200) {
       return chunks
     },
     flush: () => samples.length ? pack() : null,
+    /** отсчётов 16 кГц, ещё не ушедших кусками */
+    get pending() { return samples.length },
   }
 }
 
-/** AudioWorklet основной, ScriptProcessor — для старых Safari. */
-export async function capturePcm(ctx: AudioContext, source: MediaStreamAudioSourceNode, push: (pcm: ArrayBuffer) => void) {
-  const resample = pcmResampler(ctx.sampleRate)
+/**
+ * AudioWorklet основной, ScriptProcessor — для старых Safari. push получает кусок и время его первого отсчёта
+ * (performance.now): кусок кончается там, где кончился пришедший блок, минус то, что из блока ещё не ушло.
+ */
+export async function capturePcm(ctx: AudioContext, source: MediaStreamAudioSourceNode, push: (pcm: ArrayBuffer, t: number) => void, chunkSamples = 3200) {
+  const resample = pcmResampler(ctx.sampleRate, chunkSamples)
   let node: AudioWorkletNode | ScriptProcessorNode | undefined
   const gain = ctx.createGain()
   gain.gain.value = 0
   gain.connect(ctx.destination)
-  const feed = (input: Float32Array) => resample.push(input).forEach(push)
+  const feed = (input: Float32Array) => {
+    const at = performance.now()
+    const out = resample.push(input)
+    out.forEach((c, i) => push(c, at - (resample.pending + (out.length - i) * chunkSamples) / 16))
+  }
   try {
     if (!ctx.audioWorklet) throw new Error('worklet unavailable')
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -64,6 +73,6 @@ export async function capturePcm(ctx: AudioContext, source: MediaStreamAudioSour
     node?.disconnect()
     gain.disconnect()
     const tail = resample.flush()
-    if (flush && tail) push(tail)
+    if (flush && tail) push(tail, performance.now() - tail.byteLength / 32)
   }
 }

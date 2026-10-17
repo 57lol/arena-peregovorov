@@ -1,0 +1,365 @@
+// Голосовой ход игрока без браузера: микрофон открыт заранее (micStream.ts), но звук идёт в распознавание только с конца
+// реплики собеседника — всё, что раньше, это эхо его голоса из колонок. Начало фразы не теряется: последние кадры лежат
+// в кольце, и с первого громкого кадра в распознавание уходят ещё PREROLL_MS до него.
+// Поток Scribe открывают заранее (prepare) к концу реплики собеседника, а закрывают, как только он не нужен.
+
+import { SttError } from './recording'
+import { speechPause } from './silence'
+
+/** 16 кГц: отсчётов в мс */
+const PER_MS = 16
+/** кольцо последних кадров: сколько звука помним до решения «игрок заговорил» и до запоздавшего open() */
+export const RING_MS = 1000
+/** столько звука до первого громкого кадра уходит в распознавание: первый слог мягкий */
+export const PREROLL_MS = 300
+/** громкость речи (RMS), как в silence.ts */
+export const LOUD = 0.012
+/** громкого набралось столько (с провалами не дольше GAP_MS) — игрок заговорил */
+export const ONSET_MS = 60
+const GAP_MS = 120
+/** «заговорил», а 160 мс речи так и не набралось за это время — шум, слушаем дальше */
+export const FALSE_START_MS = 2500
+/** заранее открытый поток без речи столько — закрываем: воркер держит соединение 35 с от подключения, а Scribe считает время */
+export const IDLE_MS = 6000
+/** не дольше стольких мс звука за реплику: у воркера 30 с звука и 35 с жизни соединения от подключения */
+export const MAX_SPEECH_MS = 29_500
+const SESSION_LIFE_MS = 34_000
+/** кусок в Scribe — 200 мс */
+const CHUNK = 200 * PER_MS
+/** столько «не расслышал» подряд — дальше только по кнопке: шум не должен гонять распознавание по кругу */
+export const EMPTY_LIMIT = 3
+/** поток не подключился ни разу — столько не пробуем, сразу Яндекс */
+const SCRIBE_DOWN_MS = 60_000
+
+/** idle — не слушаем (говорит собеседник); listen — ждём речь; speak — игрок говорит; busy — распознаём; failed — не вышло. */
+export type ListenPhase = 'idle' | 'listen' | 'speak' | 'busy' | 'failed'
+
+export interface Session {
+  push(pcm: ArrayBuffer): void
+  finish(): Promise<string | null>
+  cancel(): void
+  readonly text: string
+  readonly ready: boolean
+  readonly ended: boolean
+}
+
+export interface ListenIO {
+  /** новый поток Scribe (подключение начинается сразу); null — только Яндекс */
+  session: ((partial: (text: string) => void) => Session | null) | null
+  /** запасной путь: вся запись в Яндекс с хеджем */
+  recognize: (pcm: ArrayBuffer, signal: AbortSignal) => Promise<string>
+  /** пауза конца реплики по тому, что уже распознано */
+  pauseMs: (text: string) => number
+  onPhase: (p: ListenPhase) => void
+  onPartial: (text: string) => void
+  onText: (text: string) => void
+  /** retry — запись сохранена, «Ещё раз» отправит её же */
+  onError: (e: unknown, retry: boolean) => void
+  /** ничего не расслышали — слушаем дальше */
+  onEmpty?: () => void
+  trace?: (kind: string, detail?: unknown) => void
+  now?: () => number
+}
+
+interface Frame {
+  pcm: Int16Array
+  /** время первого отсчёта, мс (часы performance.now) */
+  t: number
+  end: number
+}
+
+const level = (pcm: Int16Array) => {
+  let sum = 0
+  for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i]
+  return pcm.length ? Math.sqrt(sum / pcm.length) / 32768 : 0
+}
+
+export function createListener(io: ListenIO) {
+  const now = io.now ?? (() => performance.now())
+  const trace = io.trace ?? (() => {})
+  let phase: ListenPhase = 'idle'
+  /** с этого момента звук — игрока; null — не слушаем */
+  let from: number | null = null
+  const ring: Frame[] = []
+  // начало речи
+  let run = 0, runStart = 0, lastLoud = -Infinity
+  // реплика
+  let speech: Int16Array[] = []
+  let samples = 0
+  let voiced = 0
+  let limit = MAX_SPEECH_MS
+  let paused: ReturnType<typeof speechPause> | null = null
+  let chunk = new Int16Array(CHUNK)
+  let chunkLen = 0
+  // поток Scribe
+  let session: Session | null = null
+  let sessionAt = 0
+  let used = false
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  let downUntil = 0
+  // распознавание
+  let gen = 0
+  let job: AbortController | null = null
+  let kept: ArrayBuffer | null = null
+  let empties = 0
+  let dead = false
+  let heardAny = false
+
+  const set = (p: ListenPhase) => {
+    if (phase === p) return
+    phase = p
+    trace('phase', p)
+    if (!dead) io.onPhase(p)
+  }
+
+  const dropSession = () => {
+    clearTimeout(idleTimer)
+    session?.cancel()
+    session = null
+    used = false
+  }
+
+  function openSession() {
+    if (!io.session || now() < downUntil) return
+    const s = io.session((text) => {
+      if (session === s && phase === 'speak') io.onPartial(text)
+    })
+    if (!s) return
+    session = s
+    sessionAt = now()
+    used = false
+    trace('session', 'open')
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      if (session === s && !used) {
+        trace('session', 'idle-close')
+        dropSession()
+      }
+    }, IDLE_MS)
+  }
+
+  const pushChunk = (pcm: Int16Array) => {
+    let at = 0
+    while (at < pcm.length) {
+      const n = Math.min(CHUNK - chunkLen, pcm.length - at)
+      chunk.set(pcm.subarray(at, at + n), chunkLen)
+      chunkLen += n
+      at += n
+      if (chunkLen === CHUNK) flushChunk()
+    }
+  }
+  const flushChunk = () => {
+    if (!chunkLen) return
+    const out = chunk.slice(0, chunkLen)
+    chunkLen = 0
+    chunk = new Int16Array(CHUNK)
+    session?.push(out.buffer)
+  }
+
+  /** Кадр звука игрока (после from): копим, считаем громкость и паузу. */
+  function hear(pcm: Int16Array, t: number, end: number) {
+    speech.push(pcm)
+    samples += pcm.length
+    if (used) pushChunk(pcm)
+    const r = level(pcm)
+    if (r >= LOUD) {
+      voiced += end - t
+      lastLoud = end
+    } else if (voiced < 160) voiced = 0
+    if (paused?.(r, end)) return void finish('pause')
+    if (samples / PER_MS >= limit) return void finish('limit')
+    // щелчок или шум, а не речь: поток с мусором закрываем, слушаем дальше
+    if (voiced < 160 && end - lastLoud > FALSE_START_MS) {
+      trace('false-start')
+      dropSession()
+      speech = []
+      samples = 0
+      chunkLen = 0
+      run = 0
+      set('listen')
+    }
+  }
+
+  /** Игрок заговорил на кадре f: начало — из кольца, PREROLL_MS до первого громкого, но не раньше from. */
+  function onset(f: Frame) {
+    const begin = Math.max(from!, runStart - PREROLL_MS)
+    trace('onset', { at: runStart, begin })
+    if (session && session.ended) dropSession()
+    if (!session) openSession()
+    used = !!session
+    clearTimeout(idleTimer)
+    limit = Math.min(MAX_SPEECH_MS, session ? SESSION_LIFE_MS - (now() - sessionAt) : MAX_SPEECH_MS)
+    speech = []
+    samples = 0
+    voiced = 0
+    chunkLen = 0
+    paused = speechPause(() => io.pauseMs(session?.text ?? ''))
+    set('speak')
+    for (const g of ring) {
+      if (g.t > f.t || g.end <= begin) continue
+      const cut = g.t < begin ? Math.round((begin - g.t) * PER_MS) : 0
+      const pcm = cut ? g.pcm.subarray(cut) : g.pcm
+      if (pcm.length) hear(pcm, Math.max(g.t, begin), g.end)
+      if (phase !== 'speak') return
+    }
+  }
+
+  /** Кадр после from: ждём начала речи или слушаем речь. */
+  function accept(f: Frame) {
+    if ((phase !== 'listen' && phase !== 'speak') || from === null || f.end <= from) return
+    if (!heardAny) {
+      heardAny = true
+      trace('first-frame', { from, t: Math.max(f.t, from), at: Math.round(now()) })
+    }
+    if (phase === 'speak') {
+      const cut = f.t < from ? Math.round((from - f.t) * PER_MS) : 0
+      return hear(cut ? f.pcm.subarray(cut) : f.pcm, Math.max(f.t, from), f.end)
+    }
+    const r = level(f.pcm)
+    if (r >= LOUD) {
+      if (!run) runStart = Math.max(f.t, from)
+      run += f.end - Math.max(f.t, from)
+      lastLoud = f.end
+    } else if (f.end - lastLoud > GAP_MS) run = 0
+    if (run >= ONSET_MS) onset(f)
+  }
+
+  async function finish(why: string) {
+    if (phase !== 'speak') return
+    trace('finish', why)
+    set('busy')
+    const g = gen
+    from = null
+    run = 0
+    flushChunk()
+    const all = new Int16Array(samples)
+    let at = 0
+    for (const p of speech) {
+      all.set(p, at)
+      at += p.length
+    }
+    speech = []
+    samples = 0
+    const s = used ? session : null
+    clearTimeout(idleTimer)
+    session = null
+    used = false
+    let text: string | null = null
+    if (s) {
+      text = await s.finish()
+      if (g !== gen) return
+      if (!s.ready) downUntil = now() + SCRIBE_DOWN_MS
+      trace('scribe', text === null ? 'fallback' : 'final')
+    }
+    if (text?.trim()) return done(text.trim())
+    kept = all.buffer
+    await send(g)
+  }
+
+  function done(text: string) {
+    empties = 0
+    kept = null
+    set('idle')
+    io.onText(text)
+  }
+
+  async function send(g: number) {
+    const ctl = (job = new AbortController())
+    set('busy')
+    try {
+      const text = (await io.recognize(kept!, ctl.signal)).trim()
+      if (g !== gen) return
+      if (text) return done(text)
+      kept = null
+      if (++empties >= EMPTY_LIMIT) {
+        set('failed')
+        io.onError(new SttError('Не расслышал. Нажмите «Говорить» и скажите ещё раз — или напишите текстом.'), false)
+      } else {
+        io.onEmpty?.()
+        listenFrom(now())
+      }
+    } catch (e) {
+      if (g !== gen) return
+      const retry = e instanceof SttError && e.retry
+      if (!retry) kept = null
+      set('failed')
+      io.onError(e, retry)
+    } finally {
+      if (job === ctl) job = null
+    }
+  }
+
+  function listenFrom(at: number) {
+    from = at
+    heardAny = false
+    run = 0
+    set('listen')
+    // open() мог запоздать: кадры после from уже в кольце
+    for (const f of ring.slice()) {
+      if (phase !== 'listen' && phase !== 'speak') break
+      accept(f)
+    }
+  }
+
+  function close() {
+    gen++
+    job?.abort()
+    job = null
+    from = null
+    run = 0
+    speech = []
+    samples = 0
+    chunkLen = 0
+    kept = null
+    dropSession()
+    set('idle')
+  }
+
+  return {
+    /** Кадр с микрофона: 16 кГц mono, t — время первого отсчёта (performance.now). */
+    frame(pcm: Int16Array, t: number) {
+      if (dead) return
+      const f = { pcm, t, end: t + pcm.length / PER_MS }
+      ring.push(f)
+      while (ring.length > 1 && f.end - ring[0].end > RING_MS) ring.shift()
+      accept(f)
+    },
+    /** Заранее подключить поток Scribe: реплика собеседника вот-вот кончится. */
+    prepare() {
+      if (dead || (session && !session.ended)) return
+      openSession()
+    },
+    /** Собеседник замолчал в момент at: звук игрока — с at (раньше — эхо). */
+    open(at: number) {
+      if (dead || phase === 'listen' || phase === 'speak' || phase === 'busy') return
+      empties = phase === 'failed' ? 0 : empties
+      kept = null
+      trace('open', { at, late: Math.round(now() - at) })
+      // поток ещё не подключали (реплика без голоса) — подключаем, пока игрок собирается с мыслями
+      if (!session || session.ended) openSession()
+      listenFrom(at)
+    },
+    /** Ход ушёл, собеседник заговорил, пауза: всё недослушанное и недораспознанное — в мусор, поток закрыть. */
+    close,
+    /** «Готово»: игрок закончил, не дожидаясь паузы. */
+    finish: () => finish('button'),
+    /** «Ещё раз»: та же запись в распознавание. */
+    retry() {
+      if (phase === 'failed' && kept) void send(gen)
+    },
+    dispose() {
+      dead = true
+      close()
+      ring.length = 0
+    },
+    get phase() {
+      return phase
+    },
+    /** поток Scribe подключён и ждёт речь */
+    get warm() {
+      return !!session && session.ready && !session.ended
+    },
+  }
+}
+
+export type Listener = ReturnType<typeof createListener>
