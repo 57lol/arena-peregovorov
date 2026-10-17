@@ -9,14 +9,27 @@ const session = () => {
 describe('вкладка после обновления: восстановление чанков', () => {
   const missing = new TypeError('Failed to fetch dynamically imported module: /assets/Jury-old.js')
 
-  it('отказ React.lazy перезагружает ровно один раз, включая новый entry после перезапуска', async () => {
-    const storage = session(), reload = vi.fn()
+  it('отказ React.lazy перезагружает один раз, включая новый entry после перезапуска', async () => {
+    const storage = session(), reload = vi.fn(), now = () => 1_000_000
     const loader = async () => { throw missing }
-    const first = createChunkRecovery(storage, reload)
+    const first = createChunkRecovery(storage, reload, now)
     await expect(first.importChunk(loader)).rejects.toBe(missing)
     await expect(first.importChunk(loader)).rejects.toBe(missing)
-    await expect(createChunkRecovery(storage, reload).importChunk(loader)).rejects.toBe(missing)
+    await expect(createChunkRecovery(storage, reload, now).importChunk(loader)).rejects.toBe(missing)
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('следующий деплой в той же вкладке снова лечится, но не раньше чем через минуту', async () => {
+    const storage = session(), reload = vi.fn()
+    let t = 1_000_000
+    const loader = async () => { throw missing }
+    await expect(createChunkRecovery(storage, reload, () => t).importChunk(loader)).rejects.toBe(missing)
+    t += 30_000
+    await expect(createChunkRecovery(storage, reload, () => t).importChunk(loader)).rejects.toBe(missing)
+    expect(reload).toHaveBeenCalledTimes(1)
+    t += 60_000
+    await expect(createChunkRecovery(storage, reload, () => t).importChunk(loader)).rejects.toBe(missing)
+    expect(reload).toHaveBeenCalledTimes(2)
   })
 
   it('vite:preloadError и unhandledrejection используют тот же флаг', () => {
