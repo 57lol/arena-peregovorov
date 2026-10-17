@@ -13,10 +13,12 @@ try {
 // после .env: кэш читает CACHE_DIR при импорте
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
+const { makeSpeech } = await import('./speech')
 const { logBudgetHourly } = await import('./budget')
 const { gate } = await import('./gate')
 
 const { llm, error } = makeLLM()
+const speech = makeSpeech()
 
 const app = new Hono()
 // ворота: без GATE_SECRET сайт открыт (локально), на проде секрет обязателен
@@ -26,11 +28,12 @@ if (secret) {
 } else if (process.env.NODE_ENV === 'production' || process.env.PASSENGER_APP_ENV) {
   console.warn('GATE_SECRET не задан — сайт открыт всем')
 }
-app.route('/', createApp(llm, error))
+app.route('/', createApp(llm, error, speech))
 mountStatic(app)
 
 const port = Number(process.env.PORT ?? 8787)
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
   console.log(`Прод: порт ${port} · провайдер ${llm.name} (${llm.model})${error ? ` — ${error}, работаю офлайн` : ''}`)
+  void speech.prewarm()
 })
 logBudgetHourly()

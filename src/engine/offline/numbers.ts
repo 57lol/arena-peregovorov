@@ -18,8 +18,11 @@ const WORDS: Record<string, number> = {
   шестьдесят: 60, семьдесят: 70, восемьдесят: 80, девяносто: 90, сто: 100, двести: 200, триста: 300,
   четыреста: 400, пятьсот: 500, шестьсот: 600, семьсот: 700, восемьсот: 800, девятьсот: 900,
   полтора: 1.5, полторы: 1.5,
-  // разговорное: «полтыщи» — пятьсот
-  полтыщи: 500, полтысячи: 500,
+  // разговорное: «полтыщи» — пятьсот, «косарь» — тысяча, «пятихатка» — пятьсот, «сотка» — сто
+  полтыщи: 500, полтысячи: 500, косарь: 1000, косаря: 1000, пятихатка: 500, пятихатку: 500, сотка: 100, сотку: 100,
+  сотня: 100, сотню: 100,
+  // «тысяча» без числа — тысяча, после числа — множитель (num): «двадцать одну тысячу» = 21 000
+  тысяча: 1000, тысячу: 1000, тыща: 1000, тыщу: 1000,
   // косвенные падежи: «до двухсот четырёх», «на ста девяноста шести»
   ста: 100, двухсот: 200, трёхсот: 300, трехсот: 300, четырёхсот: 400, четырехсот: 400, пятисот: 500, шестисот: 600,
   семисот: 700, восьмисот: 800, девятисот: 900, тридцати: 30, сорока: 40, пятидесяти: 50, шестидесяти: 60,
@@ -70,9 +73,11 @@ const CLOCK = /(?<![\p{L}\d])(\d{1,2}):([0-5]\d)(?!\d)/gu
 const WORD_CLOCK = new RegExp(`(?<![\\p{L}\\d])${NUM}\\s*(?:час(?:а|ов|у)?\\s*)?(вечера|ночи|утра)(?!\\p{L})`, 'giu')
 const MIDNIGHT = /(?<!\p{L})(?:полуночи|полночь)(?!\p{L})/giu
 
+const THOUSAND = new Set(['тысяча', 'тысячу', 'тыща', 'тыщу'])
+
 function num(s: string): number {
   const parts = s.toLowerCase().split(/\s+/)
-  if (parts.every((p) => WORDS[p] !== undefined)) return parts.reduce((a, p) => a + WORDS[p], 0)
+  if (parts.every((p) => WORDS[p] !== undefined)) return parts.reduce((a, p) => (THOUSAND.has(p) ? (a || 1) * 1000 : a + WORDS[p]), 0)
   return Number(s.replace(/[  ]/g, '').replace(',', '.'))
 }
 
@@ -108,9 +113,10 @@ export function quantities(text: string): Quantity[] {
     if (taken(m.index!)) continue
     const n = num(m[1])
     if (!Number.isFinite(n)) continue
-    const unitStr = m[2]
+    // «2к» — две тысячи, а «2 к понедельнику» — нет
+    const unitStr = m[2] && !(/^к$/iu.test(m[2]) && /^\s/u.test(m[0].slice(m[1].length))) ? m[2] : undefined
     const u = unitStr ? unitOf(unitStr.trim()) : undefined
-    out.push({ value: n * (u?.k ?? 1), dim: u?.dim ?? 'plain', at: m.index!, end: m.index! + m[0].length })
+    out.push({ value: n * (u?.k ?? 1), dim: u?.dim ?? 'plain', at: m.index!, end: m.index! + (u ? m[0] : m[1]).length })
   }
   for (const m of text.matchAll(BARE)) {
     if (taken(m.index!)) continue

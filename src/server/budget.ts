@@ -38,7 +38,7 @@ export interface Total {
 const num = (v: string | undefined, def: number) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : def)
 const isLite = (model: string) => /lite/i.test(model)
 
-export function limits(env = process.env) {
+function limits(env = process.env) {
   return {
     total: num(env.LLM_TOTAL_RUB, 6000),
     rub: num(env.LLM_DAILY_RUB, Infinity),

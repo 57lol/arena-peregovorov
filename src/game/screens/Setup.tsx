@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Case } from '../../App'
 import { SCENARIOS, harder, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
-import { generate, type GenerateRequest, type Health } from '../api'
+import { generate, shownError, type GenerateRequest, type Health } from '../api'
 import { DIFFICULTY_RU, difficultyRu, TONE_RU, plural, portraitFor } from '../cast'
 import type { Progress } from '../progress'
 import { ENDING_IDS } from '../../engine/endings'
@@ -191,10 +191,17 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
   const [step, setStep] = useState(0)
   const [fallback, setFallback] = useState<{ message: string; scenario?: Scenario } | null>(null)
   const offline = server === null || server?.provider === 'offline'
+  // дело собирается до двух минут: если игрок за это время ушёл из формы, готовое дело его никуда не уводит
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!busy) return
-    setStep(0)
     const t = setInterval(() => setStep((s) => Math.min(STEPS.length - 1, s + 1)), 4500)
     return () => clearInterval(t)
   }, [busy])
@@ -208,9 +215,11 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
     setFallback(null)
     // сервера нет вовсе (статический хостинг, нет сети) — сразу предлагаем дело из папки, без ожидания
     if (server === null) return setFallback({ ...noServer, scenario: pickFromLibrary(req, SCENARIOS) })
+    setStep(0)
     setBusy(true)
     try {
       const r = await generate(req)
+      if (!alive.current) return
       if (r.source === 'llm') return onOpen({ scenario: r.scenario, fromLibrary: false })
       setFallback({
         message: offline
@@ -218,8 +227,9 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
           : `${whyFailed(r.problems)} Попробуйте ещё раз — или сыграйте похожее дело из папки с вашим характером и сложностью.`,
         scenario: r.scenario,
       })
-    } catch {
-      setFallback({ ...noServer, scenario: pickFromLibrary(req, SCENARIOS) })
+    } catch (e) {
+      // вход истёк, лимит, неверный бриф — сервер пишет причину по-русски, её и показываем
+      setFallback({ message: shownError(e) ? e.message : noServer.message, scenario: pickFromLibrary(req, SCENARIOS) })
     } finally {
       setBusy(false)
     }

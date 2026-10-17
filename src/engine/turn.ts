@@ -14,8 +14,8 @@ const START: Record<Tone, { trust: number; tension: number }> = {
   evasive: { trust: 40, tension: 20 },
 }
 
-export const WALK_TENSION = 90
-export const MAX_TONE_STRIKES = 2
+const WALK_TENSION = 90
+const MAX_TONE_STRIKES = 2
 
 export function initialState(sc: Scenario): OpponentState {
   const s = START[sc.opponent.character.tone] ?? START.neutral
@@ -36,7 +36,7 @@ export function initialState(sc: Scenario): OpponentState {
 const clamp = (v: number) => Math.max(0, Math.min(100, v))
 
 /** Сдвиги от поведения, тона и самого предложения. Каждая дельта — с причиной. */
-export function moveDeltas(
+function moveDeltas(
   sc: Scenario,
   state: OpponentState,
   analysis: MoveAnalysis,
@@ -155,14 +155,14 @@ function byImportance(sc: Scenario, list: Interest[]): Interest[] {
 }
 
 /**
- * Предложение без одного пункта — не повод зачитывать весь листок заново: недостающий пункт берём с его листка
- * («остальное как у вас»). Не хватает двух и больше — это ещё не предложение по всей сделке.
+ * Недостающие пункты предложения — с его листка. any: игрок сам сказал «остальное как у вас», берём сколько угодно;
+ * иначе (согласие с поправкой) — не больше одного: не хватает двух и больше — это ещё не предложение по всей сделке.
  */
-export function completeProposal(sc: Scenario, proposal: Offer | undefined, theirs: Offer | undefined): FullOffer | undefined {
+function completeProposal(sc: Scenario, proposal: Offer | undefined, theirs: Offer | undefined, any = false): FullOffer | undefined {
   if (!proposal) return undefined
   if (isComplete(sc, proposal)) return proposal
   const missing = sc.issues.filter((i) => typeof proposal[i.id] !== 'number')
-  if (missing.length > 1) return undefined
+  if (missing.length > 1 && !any) return undefined
   const out: FullOffer = { ...(proposal as FullOffer) }
   for (const i of missing) out[i.id] = theirs?.[i.id] ?? bestOption(sc.opponent.profile, i.id)
   return out
@@ -238,10 +238,9 @@ export function step(
   const prevCounter = isComplete(sc, theirs) ? theirs : undefined
   const stance = s.playerStance ?? {}
 
-  // дополнять с его листка можно, только если в этой реплике названо всё, кроме одного пункта: иначе игрок мог
-  // отказаться от этого пункта словами («ваш срок не подходит»), а разметка отказ не видит
-  const nearlyAll = !!newOffer && Object.keys(newOffer).length >= sc.issues.length - 1
-  const whole = proposal && (isComplete(sc, proposal) || nearlyAll || analysis.accepts) ? completeProposal(sc, proposal, theirs) : undefined
+  // дополнять с его листка можно только по его слову: «остальное как у вас» или согласие с поправкой. Назвал четыре
+  // пункта из пяти — это не согласие на пятый: он мог от него отказаться словами («график пока не согласован»)
+  const whole = proposal && (isComplete(sc, proposal) || analysis.rest || analysis.accepts) ? completeProposal(sc, proposal, theirs, analysis.rest) : undefined
   if (whole) {
     const next = makeCounter(sc, target, stance, prevCounter, s.trust, before.playerStance)
     if (wouldAccept(sc, whole, target, next))

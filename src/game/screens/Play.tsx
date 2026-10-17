@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { isComplete, sameOffer } from '../../engine/utility'
 import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
-import { elevenTest, stopAudio } from '../speech'
+import { stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
 import { mentorLine, useTutorial } from '../tutorial'
@@ -46,9 +46,11 @@ export function Play(props: Props) {
   const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
   // на телефоне блокнот спрятан под кнопкой — когда наставник о нём заговорил, открываем сами
   const nbStep = tut.step === 'notebook'
-  useEffect(() => {
+  const [nbSeen, setNbSeen] = useState(false)
+  if (nbStep !== nbSeen) {
+    setNbSeen(nbStep)
     if (nbStep) setNotebook(true)
-  }, [nbStep])
+  }
 
   const openNotebook = () => {
     setNotebook((o) => !o)
@@ -87,7 +89,7 @@ export function Play(props: Props) {
       aria-pressed={voiceOn}
       onClick={toggleVoice}
     >
-      <span className="g-voice-btn-label">{voiceOn ? (elevenTest() ? 'Голос: ElevenLabs' : 'Голос вкл') : 'Голос выкл'}</span>
+      <span className="g-voice-btn-label">{voiceOn ? 'Голос вкл' : 'Голос выкл'}</span>
     </Button>
   )
 
@@ -234,6 +236,7 @@ export function Play(props: Props) {
                   {canMic && (
                     <MicButton
                       disabled={!!pending}
+                      onStart={m.hush}
                       onText={(t) => {
                         setError(null)
                         setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))
@@ -331,6 +334,7 @@ export function Play(props: Props) {
                       <button
                         type="button"
                         className="g-link"
+                        disabled={!!pending}
                         onClick={() => m.rewind(h.turn)}
                       >
                         <PixelIcon name="rewind" px={2} /> Переиграть с этого хода

@@ -55,7 +55,8 @@ void main() {
 `
 
 interface Sheet {
-  tex: Texture
+  /** лист кешируем холстом: текстура привязана к рендереру, поэтому у каждой встречи своя */
+  canvas: HTMLCanvasElement
   w: number
   h: number
   jacket: string
@@ -162,11 +163,7 @@ function loadSheet(id: PortraitId): Promise<Sheet> {
     }
     const torso = { l: left[S - 1] < S ? left[S - 1] : 4, r: right[S - 1] >= 0 ? right[S - 1] : S - 5 }
 
-    const tex = new CanvasTexture(out)
-    tex.magFilter = NearestFilter
-    tex.minFilter = LinearMipmapLinearFilter
-    tex.generateMipmaps = true
-    return { tex, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9', left, right, torso }
+    return { canvas: out, w: out.width, h: out.height, jacket, jacketDark, skin, skinDark, cuff: '#ebede9', left, right, torso }
   })
   sheets.set(id, p)
   return p
@@ -285,6 +282,8 @@ export class Person {
   private hands: Mesh<PlaneGeometry, ShaderMaterial> | null = null
   private handFrames: Texture[] = []
   private sheet: Sheet | null = null
+  private tex: Texture | null = null
+  private disposed = false
   private focus: { x: number; z: number }
   emotion: PortraitEmotion = 'neutral'
   talking = false
@@ -314,11 +313,15 @@ export class Person {
   }
 
   private build(s: Sheet) {
+    if (this.disposed) return
     this.sheet = s
+    const tex = (this.tex = new CanvasTexture(s.canvas))
+    tex.magFilter = NearestFilter
+    tex.minFilter = LinearMipmapLinearFilter
     const h = (S + EXT) * M
     const geo = new PlaneGeometry(S * M, h)
     geo.translate(0, h / 2, 0)
-    this.body = new Mesh(geo, spriteMaterial(s.tex))
+    this.body = new Mesh(geo, spriteMaterial(tex))
     this.body.position.y = BUST_BOTTOM - EXT * M
     this.group.add(this.body)
 
@@ -431,6 +434,8 @@ export class Person {
   }
 
   dispose() {
+    this.disposed = true
+    this.tex?.dispose()
     this.body?.geometry.dispose()
     this.body?.material.dispose()
     this.hands?.material.dispose()

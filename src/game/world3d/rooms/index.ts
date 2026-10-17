@@ -23,10 +23,6 @@ const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office'
 
 export const isStoryKind = (k: string): k is StoryKind => (STORY_KINDS as readonly string[]).includes(k)
 
-export function hasRoom(k: WorldKind): boolean {
-  return !isStoryKind(k) || !!BUILDERS[k]
-}
-
 export function buildAnyRoom(kind: WorldKind): RoomBuild {
   if (!isStoryKind(kind)) return buildRoom(kind)
   const b = BUILDERS[kind]

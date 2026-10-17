@@ -9,14 +9,25 @@ const session = () => {
 describe('вкладка после обновления: восстановление чанков', () => {
   const missing = new TypeError('Failed to fetch dynamically imported module: /assets/Jury-old.js')
 
-  it('отказ React.lazy перезагружает ровно один раз, включая новый entry после перезапуска', async () => {
-    const storage = session(), reload = vi.fn()
-    const loader = async () => { throw missing }
-    const first = createChunkRecovery(storage, reload)
-    await expect(first.importChunk(loader)).rejects.toBe(missing)
-    await expect(first.importChunk(loader)).rejects.toBe(missing)
-    await expect(createChunkRecovery(storage, reload).importChunk(loader)).rejects.toBe(missing)
+  it('битый чанк перезагружает один раз, включая новый entry после перезапуска', () => {
+    const storage = session(), reload = vi.fn(), now = () => 1_000_000
+    const first = createChunkRecovery(storage, reload, now)
+    expect(first.reloadOnce()).toBe(true)
+    expect(first.reloadOnce()).toBe(false)
+    expect(createChunkRecovery(storage, reload, now).reloadOnce()).toBe(false)
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('следующий деплой в той же вкладке снова лечится, но не раньше чем через минуту', () => {
+    const storage = session(), reload = vi.fn()
+    let t = 1_000_000
+    createChunkRecovery(storage, reload, () => t).reloadOnce()
+    t += 30_000
+    createChunkRecovery(storage, reload, () => t).reloadOnce()
+    expect(reload).toHaveBeenCalledTimes(1)
+    t += 60_000
+    createChunkRecovery(storage, reload, () => t).reloadOnce()
+    expect(reload).toHaveBeenCalledTimes(2)
   })
 
   it('vite:preloadError и unhandledrejection используют тот же флаг', () => {
@@ -40,21 +51,15 @@ describe('вкладка после обновления: восстановле
     remove()
   })
 
-  it('ошибка приложения и успешный импорт не вызывают перезапуск', async () => {
-    const reload = vi.fn(), recovery = createChunkRecovery(session(), reload)
-    expect(await recovery.importChunk(async () => ({ default: 'Jury' }))).toEqual({ default: 'Jury' })
-    await expect(recovery.importChunk(async () => { throw new Error('Ошибка компонента') })).rejects.toThrow('Ошибка компонента')
-    expect(reload).not.toHaveBeenCalled()
-  })
+  it('ошибка приложения — не битый чанк', () => expect(isChunkError(new Error('Ошибка компонента'))).toBe(false))
 
-  it('при закрытом sessionStorage не рискует попасть в цикл', async () => {
+  it('при закрытом sessionStorage не рискует попасть в цикл', () => {
     const reload = vi.fn()
     for (const storage of [
       { getItem: () => { throw new Error('denied') }, setItem: () => {} },
       { getItem: () => null, setItem: () => { throw new Error('full') } },
-    ]) {
-      await expect(createChunkRecovery(storage, reload).importChunk(async () => { throw missing })).rejects.toBe(missing)
-    }
+    ])
+      expect(createChunkRecovery(storage, reload).reloadOnce()).toBe(false)
     expect(reload).not.toHaveBeenCalled()
   })
 

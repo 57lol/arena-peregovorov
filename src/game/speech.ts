@@ -46,7 +46,7 @@ const VOL_KEY = 'peregovorka.volume.v1'
  * у всех голосов и эмоций (scripts/tts-loudness.ts). На полной громкости первая реплика оглушает,
  * а после микрофона система приглушает звук — поэтому по умолчанию чуть тише и без эхоподавления у микрофона.
  */
-export const DEFAULT_VOLUME = 0.6
+const DEFAULT_VOLUME = 0.6
 
 export function loadVolume(): number {
   try {
@@ -110,35 +110,6 @@ export function voiceOf(portrait: string, female: boolean): string {
   return pool[h % pool.length]
 }
 
-// ?voice=classic — озвучка самой первой версии: SpeechKit v1, прежние голоса по лицам, без разметки и фраз-пауз.
-// Запоминается во вкладке (sessionStorage), чтобы переходы по игре её не теряли.
-const CLASSIC_KEY = 'peregovorka.voice-classic'
-export function classicVoice(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    const q = /[?&]voice=([a-z]+)/.exec(location.search)?.[1]
-    if (q) sessionStorage.setItem(CLASSIC_KEY, q === 'classic' ? '1' : '0')
-    return sessionStorage.getItem(CLASSIC_KEY) === '1'
-  } catch {
-    return /[?&]voice=classic/.test(location.search)
-  }
-}
-// читаем сразу при загрузке модуля — до любых переходов, которые чистят адрес
-classicVoice()
-const CLASSIC_VOICE_OF: Record<string, string> = {
-  rinat: 'filipp', official: 'ermil', foreman: 'madirus', dev: 'zahar', olga: 'alena', buyer: 'jane', hr: 'marina', realtor: 'omazh',
-  sosed: 'zahar', gopnik: 'filipp', admin: 'omazh', palych: 'madirus',
-}
-const CLASSIC_POOL = { male: ['filipp', 'ermil', 'madirus', 'zahar'], female: ['alena', 'jane', 'marina', 'omazh'] }
-function classicVoiceOf(portrait: string, female: boolean): string {
-  const known = CLASSIC_VOICE_OF[portrait]
-  if (known) return known
-  const pool = female ? CLASSIC_POOL.female : CLASSIC_POOL.male
-  let h = 0
-  for (const ch of portrait) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return pool[h % pool.length]
-}
-
 /**
  * Кто сейчас говорит: voiceFor(sc) запоминает лицо, а озвучка (ttsVoice, prepareLine, фразы-паузы) берёт у него
  * амплуа и темп. Голос у Серого и Палыча один — различает их только это.
@@ -147,8 +118,8 @@ let speaker: { id: string; persona?: Persona } = { id: '' }
 
 export function voiceFor(sc: Scenario): string {
   const id = portraitFor(sc)
-  const voice = (classicVoice() ? classicVoiceOf : voiceOf)(id, isFemale(sc))
-  speaker = { id, persona: !classicVoice() && PERSONAS[id]?.voice === voice ? PERSONAS[id] : undefined }
+  const voice = voiceOf(id, isFemale(sc))
+  speaker = { id, persona: PERSONAS[id] }
   return voice
 }
 
@@ -328,12 +299,10 @@ export interface LineOptions {
   /** провайдер озвучки; по умолчанию — что выбрано в лаборатории, иначе SpeechKit */
   provider?: LabTts
   api?: 'v1' | 'v3'
-  /** только OpenAI: как говорить (акцент, манера) */
-  instructions?: string
 }
 
 /** Тест голоса ElevenLabs по ссылке: ?tts=eleven включает до конца вкладки, ?tts=off выключает. */
-export function elevenTest(): boolean {
+function elevenTest(): boolean {
   try {
     const q = new URLSearchParams(location.search).get('tts')
     if (q === 'eleven') sessionStorage.setItem('peregovorka.tts', 'eleven')
@@ -350,23 +319,24 @@ if (typeof window !== 'undefined') elevenTest()
 /** Сервер говорит голосами ElevenLabs (/api/health → speech.eleven, TTS_PROVIDER=elevenlabs). */
 let elevenMain = false
 export const setElevenMain = (on: boolean) => void (elevenMain = on)
-const elevenOn = () => elevenMain || (typeof window !== 'undefined' && elevenTest())
+/** ElevenLabs на паузе: последняя реплика пришла голосом SpeechKit (заголовок x-tts-fallback) — фразы-паузы тоже им */
+let elevenDown = false
+const elevenOn = () => (elevenMain || (typeof window !== 'undefined' && elevenTest())) && !elevenDown
 
 /** Тело /api/tts без текста и эмоции: голос, провайдер и настройки лаборатории. */
 export function ttsVoice(voice: string, o: LineOptions = {}) {
-  if (classicVoice() && !o.provider) return { voice, natural: false, live: false, api: 'v1' as const }
   const lab = typeof window === 'undefined' ? {} : loadLab()
   const provider = o.provider ?? lab.tts ?? 'yandex'
   const api = o.api ?? (provider === 'yandex' ? lab.ttsApi : undefined)
   const female = FEMALE_VOICES.includes(voice)
-  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[provider][female ? 'female' : 'male']
+  const v = provider === 'yandex' || o.provider ? voice : LAB_VOICE[female ? 'female' : 'male']
   // лаборатория: естественная речь и голоса livetts (свой на пол или пара, которую подберёт сервер)
   const own = provider === 'yandex' && lab.live ? (female ? lab.liveFemale : lab.liveMale) : undefined
   const nat = provider === 'yandex' ? { ...(lab.natural !== undefined ? { natural: lab.natural } : {}), ...(lab.live && !own ? { live: true } : {}) } : {}
   // лицо: его амплуа livetts и кто говорит (по нему сервер выбирает голос у внешнего провайдера, TTS_PROVIDER)
   const who = provider === 'yandex' && !own && speaker.persona?.voice === voice ? { who: speaker.id, ...(speaker.persona.role ? { role: speaker.persona.role } : {}) } : {}
   const test = provider === 'yandex' && !api && !Object.keys(nat).length && typeof window !== 'undefined' && elevenTest() ? { test: 'eleven' as const } : {}
-  return { voice: own ?? v, ...who, ...nat, ...test, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}), ...(o.instructions ? { instructions: o.instructions } : {}) }
+  return { voice: own ?? v, ...who, ...nat, ...test, ...(provider !== 'yandex' ? { provider } : {}), ...(api ? { api } : {}) }
 }
 
 /** Скачать озвучку реплики. null — без звука. voice — голос SpeechKit; в лаборатории его заменяет голос того же пола у другого провайдера. */
@@ -414,10 +384,13 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
       headers: { 'content-type': 'application/json' },
       // порядок полей как в прогреве сервера (/api/turn), хотя ключ кэша от него и не зависит
       body: JSON.stringify({ ...body, text, emotion: toEmotion(emotion) }),
-      // чужие провайдеры отвечают дольше SpeechKit
-      signal: AbortSignal.timeout(provider === 'yandex' && !('test' in body) ? ms : Math.max(ms, 15_000)),
+      // В игре сервер сам отдаёт SpeechKit, если ElevenLabs медлит дольше 2,5 с. Лаборатория ждёт ElevenLabs без запасного,
+      // а первая загрузка библиотечного голоса бывает 8–9 с
+      signal: AbortSignal.timeout(provider === 'yandex' ? ms : Math.max(ms, 15_000)),
     })
     if (!r.ok || !r.headers.get('content-type')?.startsWith('audio/')) return null
+    if (r.headers.has('x-tts-fallback')) elevenDown = true
+    else if (r.headers.get('x-tts-api') === 'elevenlabs') elevenDown = false
     const blob = await r.blob()
     if (blob.size < 500) return null
     const url = URL.createObjectURL(blob)
@@ -426,7 +399,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
     // голос ElevenLabs уже в своём темпе и тоне — плеер его не замедляет (темп лица — только для livetts)
     if (r.headers.get('x-tts-api') === 'elevenlabs') return { url, duration: header > 0 ? header : (await metaDuration(url)) || (blob.size * 8) / 64000, env }
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
-    const raw = header > 0 ? header : provider === 'yandex' ? (blob.size * 8) / 64000 : (await metaDuration(url)) || (blob.size * 8) / 128000
+    const raw = header > 0 ? header : (blob.size * 8) / 64000
     // плеер играет в темпе лица — печать текста идёт в тот же такт
     return { url, duration: raw / rate, env, voice }
   } catch {
@@ -436,7 +409,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
 
 /** Играть подготовленную реплику. false — браузер не дал звук, печатаем как обычно. */
 export async function playPrepared(p: Prepared, allowed = () => true): Promise<boolean> {
-  if (!allowed()) return false
+  if (!allowed() || recording) return false
   const a = player()
   stopAudio()
   url = p.url
@@ -446,7 +419,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   pace(a, p.voice ?? '')
   const g = await levelOf(env)
   // пока мерили громкость, реплику оборвали (игрок взял микрофон, пришла другая) — не играем
-  if (url !== p.url || !allowed()) return false
+  if (url !== p.url || !allowed() || recording) return false
   setGain(g)
   try {
     await a.play()
@@ -462,7 +435,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
 export const informal = (sc: Scenario) => /(^|[^\p{L}])(ты|тебя|тебе|тобой|давай|слышь|братан)(?!\p{L})/iu.test(sc.opening)
 
 /** Через сколько мс без ответа собеседник говорит фразу-паузу. */
-export const FILLER_DELAY = 1000
+const FILLER_DELAY = 1000
 let lastFiller = ''
 
 export interface Filler {
@@ -485,12 +458,12 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
   const src = eleven
     ? (ELEVEN_FILLERS as readonly string[]).includes(speaker.id) && `/assets/voice-fillers/eleven/${speaker.id}/`
     : (FILLER_VOICES as readonly string[]).includes(voice) && `/assets/voice-fillers/${voice}/`
-  if (typeof Audio === 'undefined' || classicVoice() || !src) {
+  if (typeof Audio === 'undefined' || !src) {
     finish()
     return { cancel: () => {}, done }
   }
   const timer = setTimeout(() => {
-    if (!allowed()) return finish()
+    if (!allowed() || recording) return finish()
     started = true
     // не повторяем прошлую фразу
     const ids = fillerIds(casual).filter((id) => id !== lastFiller)
@@ -512,7 +485,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
     pace(a, eleven ? '' : voice)
     // пока мерили громкость, фразу оборвали (пришёл ответ, игрок взял микрофон) — не играем
     const me = lip
-    void levelOf(env, 120).then((g) => (lip === me ? (setGain(g), a.play().catch(end)) : end()))
+    void levelOf(env, 120).then((g) => (lip === me && !recording ? (setGain(g), a.play().catch(end)) : end()))
   }, delay)
   return {
     cancel: () => {
@@ -543,25 +516,40 @@ export interface Recording {
   cancel: () => void
 }
 
+/** Идёт запись игрока: реплика собеседника и фраза-пауза в это время не начинаются (playPrepared, startFiller). */
+let recording = false
+
 export async function startRecording(): Promise<Recording> {
-  // игрок заговорил — собеседник замолкает; эхо гасить незачем, а системное эхоподавление (Safari, iPhone)
-  // приглушает весь звук страницы, и после первой записи голос собеседника становится заметно тише
+  // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
+  // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
-  const rec = new MediaRecorder(stream)
+  const release = () => stream.getTracks().forEach((t) => t.stop())
   const chunks: Blob[] = []
-  rec.ondataavailable = (e) => {
-    if (e.data.size) chunks.push(e.data)
-  }
-  const done = new Promise<Blob>((resolve) => {
-    rec.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop())
-      resolve(new Blob(chunks, { type: rec.mimeType }))
+  let rec: MediaRecorder
+  let done: Promise<Blob>
+  try {
+    rec = new MediaRecorder(stream)
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data)
     }
-  })
-  rec.start()
+    done = new Promise<Blob>((resolve) => {
+      rec.onstop = () => {
+        release()
+        resolve(new Blob(chunks, { type: rec.mimeType }))
+      }
+    })
+    rec.start()
+  } catch (e) {
+    // микрофон уже включён — без записи его надо отпустить, иначе точка в браузере горит до закрытия вкладки
+    release()
+    throw e
+  }
+  recording = true
   const end = () => {
+    recording = false
     if (rec.state !== 'inactive') rec.stop()
+    else release()
   }
   return {
     stop: () => (end(), done),
@@ -621,25 +609,42 @@ function downsample(buf: AudioBuffer, secs: number): Float32Array {
 export class SttError extends Error {
   /** распознавание на сервере выключено — кнопку прячем */
   off: boolean
-  constructor(message: string, off = false) {
+  /** сбой сети или сервера: запись стоит отправить ещё раз */
+  retry: boolean
+  constructor(message: string, { off = false, retry = false } = {}) {
     super(message)
     this.off = off
+    this.retry = retry
   }
 }
 
-async function recognizeChunk(pcm: Int16Array<ArrayBuffer>): Promise<string> {
-  let r: Response
+/** Сколько ждём распознавание одного куска. Сервер сам повторяет зависший запрос к SpeechKit, это с запасом на повтор. */
+const STT_WAIT_MS = 20_000
+const AGAIN = 'Запись сохранилась: нажмите «Ещё раз» или напишите текстом.'
+
+async function recognizeChunk(pcm: Int16Array<ArrayBuffer>, signal?: AbortSignal): Promise<string> {
+  // AbortSignal.any нет в Safari до 17.4 — склеиваем таймаут и отмену сами
+  const ctl = new AbortController()
+  const abort = () => ctl.abort()
+  const timer = setTimeout(abort, STT_WAIT_MS)
+  signal?.addEventListener('abort', abort)
   try {
-    r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: AbortSignal.timeout(25_000) })
-  } catch {
-    throw new SttError('Не получилось распознать: нет связи с сервером.')
+    let r: Response
+    try {
+      r = await fetch('/api/stt', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: pcm, signal: ctl.signal })
+    } catch {
+      throw new SttError(ctl.signal.aborted ? `Распознавание не ответило за ${STT_WAIT_MS / 1000} с. ${AGAIN}` : `Нет связи с сервером. ${AGAIN}`, { retry: true })
+    }
+    const j = (await r.json().catch(() => ({}))) as { text?: string; error?: string }
+    if (r.status === 503 || r.status === 404) throw new SttError('Распознавание речи сейчас недоступно — напишите реплику текстом.', { off: true })
+    if (r.status === 400) throw new SttError('Запись слишком короткая. Нажмите микрофон, скажите реплику и нажмите ещё раз.')
+    if (r.status === 429) throw new SttError('Лимит распознавания на сегодня исчерпан — напишите реплику текстом.', { off: true })
+    if (!r.ok) throw new SttError(`Не получилось распознать. ${AGAIN}`, { retry: true })
+    return j.text ?? ''
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', abort)
   }
-  const j = (await r.json().catch(() => ({}))) as { text?: string; error?: string }
-  if (r.status === 503 || r.status === 404) throw new SttError('Распознавание речи сейчас недоступно — напишите реплику текстом.', true)
-  if (r.status === 400) throw new SttError('Запись слишком короткая. Нажмите микрофон, скажите реплику и нажмите ещё раз.')
-  if (r.status === 429) throw new SttError('Лимит распознавания на сегодня исчерпан — напишите реплику текстом.', true)
-  if (!r.ok) throw new SttError('Не получилось распознать. Попробуйте ещё раз или напишите текстом.')
-  return j.text ?? ''
 }
 
 /**
@@ -668,17 +673,20 @@ export function splitPcm(s: Int16Array<ArrayBuffer>, max = CHUNK_SEC * RATE, loo
 }
 
 /** Распознать запись любой длины (до MAX_REC_SEC): куски уходят на сервер параллельно, текст склеиваем по порядку. */
-export async function recognize(pcm: ArrayBuffer): Promise<string> {
+export async function recognize(pcm: ArrayBuffer, signal?: AbortSignal): Promise<string> {
   const parts = splitPcm(new Int16Array(pcm))
   // хвост короче полсекунды — это щелчок кнопки, не речь
   const real = parts.filter((p, i) => i === 0 || p.length >= RATE / 2)
-  const texts = await Promise.all(real.map(recognizeChunk))
+  const texts = await Promise.all(real.map((p) => recognizeChunk(p, signal)))
   return texts.map((t) => t.trim()).filter(Boolean).join(' ')
 }
 
 /** Понятное сообщение об ошибке микрофона. */
 export function micError(e: unknown): string {
-  const name = (e as { name?: string })?.name
+  const { name, message } = (e ?? {}) as { name?: string; message?: string }
+  // «Permission denied by system»: браузер разрешил, а macOS не даёт ему микрофон
+  if (name === 'NotAllowedError' && /system/i.test(message ?? ''))
+    return 'Система не даёт браузеру микрофон: Системные настройки → Конфиденциальность и безопасность → Микрофон. Или напишите реплику текстом.'
   if (name === 'NotAllowedError' || name === 'SecurityError') return 'Нет доступа к микрофону. Разрешите его для этого сайта в настройках браузера — или напишите реплику текстом.'
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Микрофон не найден. Подключите его или напишите реплику текстом.'
   if (name === 'NotReadableError') return 'Микрофон занят другой программой.'

@@ -82,6 +82,8 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
   const key = (e: KeyboardEvent) => {
     if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
     const on = e.type === 'keydown'
+    // стрелки в открытом меню и листе листают их, а не крутят голову (отпускание пропускаем — иначе голова не остановится)
+    if (on && e.target instanceof Element && e.target.closest('.w3-menu, .w3-sheet')) return
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault()
       if (on) held.add(e.key)

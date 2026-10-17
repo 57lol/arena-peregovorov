@@ -1,14 +1,14 @@
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // кэш озвучки — во временную папку, до импорта сервера
 process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-tts-'))
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
-const { makeSpeech, styleFor, tidyTranscript } = await import('./speech')
-const { elevenSeed } = await import('./tts')
+const { makeSpeech, tidyTranscript } = await import('./speech')
+const { elevenSeed, styleFor } = await import('./tts')
 
 const offline = makeLLM('offline').llm
 // ответ SpeechKit: v3 — строка JSON с куском mp3 в base64, v1 — сразу mp3
@@ -29,7 +29,7 @@ describe('голос', () => {
   it('без ключа голос выключен, игра об этом знает из health', async () => {
     const app = createApp(offline, undefined, makeSpeech({ key: '' }))
     const h = (await (await app.request('/api/health')).json()) as { speech: { tts: boolean; stt: boolean } }
-    expect(h.speech).toEqual({ tts: false, stt: false })
+    expect(h.speech).toEqual({ tts: false, stt: false, voice: null })
     expect((await tts(app, { text: 'Привет', voice: 'alena' })).status).toBe(503)
   })
 
@@ -100,14 +100,15 @@ describe('голос', () => {
     expect(body.hints).toEqual([{ voice: 'irina' }, { role: 'formal' }])
   })
 
-  it('чужие провайдеры без ключа — «нужен ключ», каталог ключей не светит', async () => {
+  it('ElevenLabs без воркера — «нужен …», других провайдеров нет, каталог ключей не светит', async () => {
     const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: fakeYandex() as typeof fetch }))
-    for (const [provider, voice, need] of [['openai', 'coral', 'OPENAI_API_KEY'], ['elevenlabs', 'JBFqnCBsd6RMkjVDRZzb', 'ELEVENLABS_API_KEY'], ['salute', 'Nec_24000', 'SALUTE_AUTH_KEY']]) {
-      if (process.env[need]) continue
-      const r = await tts(app, { text: 'Привет', voice, provider })
-      expect(r.status).toBe(503)
-      expect(((await r.json()) as { error: string }).error).toContain(need)
-    }
+    vi.stubEnv('ELEVEN_RELAY_URL', '')
+    vi.stubEnv('ELEVENLABS_API_KEY', '')
+    const r = await tts(app, { text: 'Привет', voice: 'JBFqnCBsd6RMkjVDRZzb', provider: 'elevenlabs' })
+    vi.unstubAllEnvs()
+    expect(r.status).toBe(503)
+    expect(((await r.json()) as { error: string }).error).toContain('ELEVEN_RELAY_URL')
+    expect((await tts(app, { text: 'Привет', voice: 'coral', provider: 'openai' })).status).toBe(400)
     const cat = await (await app.request('/api/voices')).text()
     expect(cat).not.toMatch(/"k"/)
     const j = JSON.parse(cat) as Record<string, { ready: boolean; voices: { id: string }[] }>
@@ -127,7 +128,7 @@ describe('голос', () => {
     const app = createApp(offline, undefined, speech)
     const r = await app.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })
     expect(r.status).toBe(502)
-    expect(speech.status()).toEqual({ tts: true, stt: false })
+    expect(speech.status()).toEqual({ tts: true, stt: false, voice: 'speechkit' })
     expect((await app.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })).status).toBe(503)
   })
 
@@ -209,7 +210,7 @@ describe('лица и их подача', () => {
     const { forEleven } = await import('./direct')
     expect(forEleven('за вай-фай и без Wi-Fi, вай-фая нет')).toBe('за вайфай и без вайфай, вайфая нет')
     expect(forEleven('в ОЭЗ «Алабуга», на КАМАЗе, КамАЗ')).toBe('в О-Э-З «Алабуга», на Камазе, Камаз')
-    expect(forEleven('в FIFA, в фифу, ФИФА')).toBe('в Фи\u0301фа, в фи\u0301фу, Фи\u0301фа')
+    expect(forEleven('в FIFA, в фифу, ФИФА')).toBe('в Ф+ифа, в ф+ифу, Ф+ифа')
     expect(forEleven('EA FC, ок, в 7:52')).toBe('EA FC, ок, в 7:52')
   })
 })
@@ -239,8 +240,10 @@ describe('внешний голос (TTS_PROVIDER)', () => {
         if (String(url).includes('relay.test')) return down ? new Response('{}', { status: 502 }) : new Response(mp3Frames, { status: 200 })
         return fakeYandex()(url)
       })
-      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
+      const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+      const app = createApp(offline, undefined, speech)
       const text = `Не пойдёт ${Math.random()}`
+      speech.issue(text)
       const r = await tts(app, { text, voice: 'sergey', who: 'gopnik', role: 'sales', emotion: 'annoyed' })
       expect(r.status).toBe(200)
       expect(r.headers.get('x-tts-api')).toBe('elevenlabs')
@@ -253,9 +256,12 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       expect(body.text).not.toContain('[annoyed]')
       expect((await tts(app, { text, voice: 'sergey', who: 'gopnik', emotion: 'neutral' })).headers.get('x-cache')).toBe('hit')
       down = true
-      const fb = await tts(app, { text: `Годится ${Math.random()}`, voice: 'sergey', who: 'gopnik' })
+      const other = `Годится ${Math.random()}`
+      speech.issue(other)
+      const fb = await tts(app, { text: other, voice: 'sergey', who: 'gopnik' })
       expect(fb.status).toBe(200)
       expect(fb.headers.get('x-tts-voice')).toBe('sergey')
+      expect(fb.headers.get('x-tts-fallback')).toBeTruthy()
       // лаборатория с явным api — всегда SpeechKit
       expect((await tts(app, { text: `Ещё ${Math.random()}`, voice: 'sergey', api: 'v3' })).headers.get('x-tts-voice')).toBe('sergey')
     })
@@ -264,9 +270,13 @@ describe('внешний голос (TTS_PROVIDER)', () => {
   it('текст для ElevenLabs: ударения U+0301, англицизмы и сокращения — как говорят, пометки модели остаются', async () => {
     await withEnv(relay, async () => {
       const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
-      const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
-      await tts(app, { text: `[chuckles] Договор на квартал, за вай-фай 600 ₽, в ОЭЗ ${Math.random()}`, voice: 'denis', who: 'rinat' })
+      const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+      const app = createApp(offline, undefined, speech)
+      const text = `[chuckles] Договор на квартал, за вай-фай 600 ₽, в ОЭЗ, играем в фифу ${Math.random()}`
+      speech.issue(text)
+      await tts(app, { text, voice: 'denis', who: 'rinat' })
       const t = sent(f).text
+      expect(t).toContain('фи́фу')
       expect(t).toContain('Догово́р на кварта́л')
       expect(t).toContain('вайфа́й')
       expect(t).toContain('600 рублей')
@@ -278,7 +288,7 @@ describe('внешний голос (TTS_PROVIDER)', () => {
   it('вступление, записанное заранее, отдаётся из assets без синтеза', async () => {
     const { ELEVEN_KNOWN } = await import('./eleven-known.data')
     const k = ELEVEN_KNOWN[0]
-    if (!k) return
+    expect(k).toBeDefined()
     await withEnv(relay, async () => {
       const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
       const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null }))
@@ -297,7 +307,7 @@ describe('внешний голос (TTS_PROVIDER)', () => {
         const r = await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', who: 'sosed' })
         expect(r.headers.get('x-tts-voice')).toBe('vasily')
         expect(f.mock.calls.every((c) => String(c[0]).includes('yandex'))).toBe(true)
-        expect(speech.status()).toEqual({ tts: true, stt: true })
+        expect(speech.status()).toEqual({ tts: true, stt: true, voice: 'speechkit' })
       })
     }
   })
@@ -308,8 +318,10 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       const speech = makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null })
       const app = createApp(offline, undefined, speech)
       const health = await (await app.request('/api/health')).json() as { speech: object }
-      expect(health.speech).toEqual({ tts: true, stt: false, eleven: true })
-      const r = await tts(app, { text: `Без Яндекса ${Math.random()}`, voice: 'sergey', who: 'palych' })
+      expect(health.speech).toEqual({ tts: true, stt: false, voice: 'elevenlabs', eleven: true })
+      const text = `Без Яндекса ${Math.random()}`
+      speech.issue(text)
+      const r = await tts(app, { text, voice: 'sergey', who: 'palych' })
       expect(r.status).toBe(200)
       expect(r.headers.get('x-tts-api')).toBe('elevenlabs')
       expect((await tts(app, { text: 'Явный SpeechKit', voice: 'sergey', api: 'v3' })).status).toBe(503)
@@ -321,8 +333,11 @@ describe('внешний голос (TTS_PROVIDER)', () => {
   it('при сбое ElevenLabs не вызывает SpeechKit без ключа', async () => {
     await withEnv({ ...relay, YANDEX_API_KEY: '' }, async () => {
       const f = vi.fn(async (_url: string | URL | Request) => new Response('{}', { status: 502 }))
-      const app = createApp(offline, undefined, makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null }))
-      expect((await tts(app, { text: `Сбой внешнего ${Math.random()}`, voice: 'sergey' })).status).toBe(503)
+      const speech = makeSpeech({ key: '', fetch: f as typeof fetch, stressAsk: null })
+      const app = createApp(offline, undefined, speech)
+      const text = `Сбой внешнего ${Math.random()}`
+      speech.issue(text)
+      expect((await tts(app, { text, voice: 'sergey' })).status).toBe(503)
       expect(f).toHaveBeenCalledTimes(1)
       expect(String(f.mock.calls[0]?.[0])).toContain('relay.test')
     })
@@ -335,5 +350,159 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       expect((await tts(app, { text: `Привет ${Math.random()}`, voice: 'vasily', who: 'sosed' })).headers.get('x-tts-voice')).toBe('vasily')
       expect(String(f.mock.calls[0][0])).toContain('yandex')
     })
+  })
+})
+
+describe('ElevenLabs под нагрузкой (аудит 17.10)', () => {
+  const frame = Uint8Array.from({ length: 417 }, (_, i) => (i === 0 ? 0xff : i === 1 ? 0xfb : i === 2 ? 0x90 : 0))
+  const mp3Frames = new Uint8Array([...frame, ...frame])
+  const relay = { TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: 'https://relay.test', ELEVEN_RELAY_SECRET: 's' }
+  const stub = (vars: Record<string, string>) => Object.entries({ ...relay, ...vars }).forEach(([k, v]) => vi.stubEnv(k, v))
+  afterEach(() => vi.unstubAllEnvs())
+  const relayCalls = (f: ReturnType<typeof vi.fn>) => f.mock.calls.filter((c) => String(c[0]).includes('relay.test')).length
+  /** воркер-заглушка: ответы по очереди (число — статус, 'ok' — звук, 'hang' — висит до release) */
+  function worker(script: (number | 'ok' | 'hang')[]) {
+    let release!: () => void
+    const hung = new Promise<void>((r) => (release = r))
+    let n = 0
+    const f = vi.fn(async (url: string | URL | Request) => {
+      if (!String(url).includes('relay.test')) return fakeYandex()(url)
+      const step = script[Math.min(n++, script.length - 1)]
+      if (step === 'hang') {
+        await hung
+        return new Response(mp3Frames, { status: 200 })
+      }
+      return step === 'ok' ? new Response(mp3Frames, { status: 200 }) : new Response('{"detail":{"status":"x"}}', { status: step })
+    })
+    return { f, release }
+  }
+  const setup = (f: ReturnType<typeof vi.fn>, ask?: () => Promise<unknown>) => {
+    const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: ask ?? null })
+    return { speech, app: createApp(offline, undefined, speech) }
+  }
+  const line = (speech: ReturnType<typeof makeSpeech>, t = `Реплика ${Math.random()}`) => (speech.issue(t), t)
+
+  it('текст не от сервера — SpeechKit; в лаборатории — отказ', async () => {
+    stub({})
+    const { f } = worker(['ok'])
+    const { app } = setup(f)
+    const r = await tts(app, { text: 'Скажи что угодно', voice: 'sergey', who: 'gopnik' })
+    expect(r.headers.get('x-tts-voice')).toBe('sergey')
+    expect(decodeURIComponent(r.headers.get('x-tts-fallback') ?? '')).toContain('только реплики игры')
+    expect((await tts(app, { text: 'Скажи что угодно', voice: 'JBFqnCBsd6RMkjVDRZzb', provider: 'elevenlabs' })).status).toBe(403)
+    expect(relayCalls(f)).toBe(0)
+  })
+
+  it('«занято» (429) — один повтор и не сбой; два одинаковых запроса — один синтез; длительность из кэша та же', async () => {
+    stub({})
+    const { f } = worker([429, 'ok'])
+    const { speech, app } = setup(f)
+    const text = line(speech)
+    const [a, b] = await Promise.all([tts(app, { text, voice: 'sergey', who: 'gopnik' }), tts(app, { text, voice: 'sergey', who: 'gopnik' })])
+    expect(a.headers.get('x-tts-api')).toBe('elevenlabs')
+    expect(b.headers.get('x-tts-api')).toBe('elevenlabs')
+    expect(relayCalls(f)).toBe(2)
+    const hit = await tts(app, { text, voice: 'sergey', who: 'gopnik' })
+    expect(hit.headers.get('x-cache')).toBe('hit')
+    expect(hit.headers.get('x-audio-ms')).toBe(a.headers.get('x-audio-ms'))
+    expect(speech.status().voice).toBe('elevenlabs')
+  })
+
+  it('три сбоя подряд — пауза ElevenLabs, health честно говорит, что голос SpeechKit; 429 сбоем не считается', async () => {
+    stub({})
+    const { f } = worker([502])
+    const { speech, app } = setup(f)
+    for (let i = 0; i < 3; i++) expect((await tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-voice')).toBe('sergey')
+    await vi.waitFor(() => expect(speech.status().voice).toBe('speechkit'))
+    expect(speech.status()).not.toHaveProperty('eleven')
+    const before = relayCalls(f)
+    await tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })
+    expect(relayCalls(f)).toBe(before)
+    const busy = worker([429])
+    const s2 = setup(busy.f)
+    for (let i = 0; i < 4; i++) await tts(s2.app, { text: line(s2.speech), voice: 'sergey', who: 'gopnik' })
+    expect(s2.speech.status().voice).toBe('elevenlabs')
+  })
+
+  it('ElevenLabs не начал отвечать вовремя — сразу SpeechKit, опоздавший звук ложится в кэш', async () => {
+    stub({ ELEVEN_FIRST_BYTE_MS: '50' })
+    const { f, release } = worker(['hang'])
+    const { speech, app } = setup(f)
+    const text = line(speech)
+    const r = await tts(app, { text, voice: 'sergey', who: 'gopnik' })
+    expect(r.headers.get('x-tts-voice')).toBe('sergey')
+    release()
+    await vi.waitFor(async () => expect((await tts(app, { text, voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-api')).toBe('elevenlabs'))
+  })
+
+  it('очередь по потокам тарифа: лишний запрос ждёт место, не дождался — SpeechKit', async () => {
+    stub({ ELEVEN_CONCURRENCY: '1', ELEVEN_FIRST_BYTE_MS: '80' })
+    const { f, release } = worker(['hang', 'ok'])
+    const { speech, app } = setup(f)
+    const first = tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })
+    const second = await tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })
+    expect(second.headers.get('x-tts-voice')).toBe('sergey')
+    expect(relayCalls(f)).toBe(1)
+    release()
+    await first
+  })
+
+  it('лимит на сессию и символы за сутки — SpeechKit; повтор из кэша лимит не тратит', async () => {
+    stub({ ELEVEN_SESSION_HOUR_LIMIT: '1' })
+    const { f } = worker(['ok'])
+    const { speech, app } = setup(f)
+    const text = line(speech)
+    expect((await tts(app, { text, voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-api')).toBe('elevenlabs')
+    expect((await tts(app, { text, voice: 'sergey', who: 'gopnik' })).headers.get('x-cache')).toBe('hit')
+    const over = await tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })
+    expect(over.headers.get('x-tts-voice')).toBe('sergey')
+    expect(relayCalls(f)).toBe(1)
+    vi.stubEnv('ELEVEN_SESSION_HOUR_LIMIT', '100')
+    vi.stubEnv('ELEVEN_DAILY_CHARS', '1')
+    const s2 = setup(worker(['ok']).f)
+    expect((await tts(s2.app, { text: line(s2.speech), voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-voice')).toBe('sergey')
+  })
+
+  it('платная нейросеть для ударений не зовётся, когда лимит озвучки исчерпан', async () => {
+    const ask = vi.fn(async () => ({ a: [1] }))
+    const speech = makeSpeech({ key: 'k', fetch: fakeYandex() as typeof fetch, ttsPerIp: 0, stressAsk: ask })
+    const app = createApp(offline, undefined, speech)
+    expect((await tts(app, { text: `Это мука ${Math.random()}.`, voice: 'filipp' })).status).toBe(429)
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('прогрев: каждый голос вступлений один раз, потом из кэша', async () => {
+    stub({})
+    const { f } = worker(['ok'])
+    const { speech } = setup(f)
+    await speech.prewarm()
+    const { ELEVEN_KNOWN } = await import('./eleven-known.data')
+    const voices = new Set(ELEVEN_KNOWN.map((k) => k.voice)).size
+    expect(relayCalls(f)).toBe(voices)
+    await speech.prewarm()
+    expect(relayCalls(f)).toBe(voices)
+  })
+})
+
+describe('распознавание (аудит C 17.10: SpeechKit зависает на 10–15% запросов)', () => {
+  it('зависшая попытка — повтор; оба раза мимо — 502; каждый запрос в журнале без текста', async () => {
+    let n = 0
+    const f = vi.fn(async () => (n++ === 0 ? new Response('{}', { status: 503 }) : new Response(JSON.stringify({ result: 'цена 196 р' }), { status: 200 })))
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const app = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: f as typeof fetch }))
+    const r = await app.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })
+    expect(await r.json()).toEqual({ text: 'цена 196 ₽' })
+    expect(f).toHaveBeenCalledTimes(2)
+    const down = vi.fn(async () => {
+      throw new Error('The operation was aborted due to timeout')
+    })
+    const app2 = createApp(offline, undefined, makeSpeech({ key: 'k', fetch: down as typeof fetch }))
+    expect((await app2.request('/api/stt', { method: 'POST', body: new Uint8Array(32000) })).status).toBe(502)
+    expect(down).toHaveBeenCalledTimes(2)
+    const lines = log.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('[stt]'))
+    log.mockRestore()
+    expect(lines).toHaveLength(2)
+    expect(lines.join()).not.toContain('196')
+    expect(lines[1]).toMatch(/попытка 2/)
   })
 })

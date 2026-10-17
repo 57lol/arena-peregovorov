@@ -76,6 +76,7 @@ export interface MoveAnalysis {
   behaviors: BehaviorHit[]
   offer?: Offer            // что игрок предложил в этой реплике
   accepts?: boolean        // игрок принимает то, что лежит на столе
+  rest?: boolean           // «остальное как у вас»: недостающие пункты — с листка собеседника
   walksAway?: boolean
   asksAbout?: IssueId[]
   toneViolation?: boolean  // нарушение делового тона

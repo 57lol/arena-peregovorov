@@ -11,7 +11,7 @@ import { firstName } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type SpeechCaps } from './speech'
+import { informal, loadVoiceOn, playPrepared, prepareLine, saveVoiceOn, startFiller, stopAudio, ttsVoice, unlockAudio, voiceFor, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -110,7 +110,18 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       stopAudio()
     }
   }, [canVoice, voiceOn])
-  useEffect(() => stopAudio, [])
+  // Ответ хода, который пришёл после перемотки или ухода со встречи, относится к другой истории — его не пишем.
+  // gen меняется вместе с историей по воле игрока; фразу-паузу, ещё не начавшуюся, при уходе отменяем
+  const gen = useRef(0)
+  const filler = useRef<Filler | null>(null)
+  useEffect(
+    () => () => {
+      gen.current++
+      filler.current?.cancel()
+      stopAudio()
+    },
+    [],
+  )
   const delivered = delivery?.text === line && delivery.record === last
   const lineWaiting = !pending && voiceOn && canVoice && !delivered
   const lineCps = delivered ? delivery.cps : undefined
@@ -164,20 +175,23 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
-    // ответа нет дольше 0,7 с — собеседник говорит «Хм, секунду», пока думает
-    const filler = withVoice ? startFiller(voiceFor(sc), informal(sc), () => voiceRef.current) : null
+    // ответа нет дольше секунды — собеседник говорит «Хм, секунду», пока думает
+    const f = (filler.current = withVoice ? startFiller(voiceFor(sc), informal(sc), () => voiceRef.current) : null)
+    const g = gen.current
     try {
       const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
       // Дожидаемся только фразы-паузы. Реплика получит единый лимит ожидания в эффекте выше.
-      filler?.cancel()
-      await filler?.done
+      f?.cancel()
+      await f?.done
+      if (g !== gen.current) return
       setHistory((h) => [...h, r.record])
       setSource(r.source)
       setDraft('')
       setAcceptSure(false)
       hooks.afterSend?.(opts)
     } catch (e) {
-      filler?.cancel()
+      f?.cancel()
+      if (g !== gen.current) return
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
       setPending(null)
@@ -207,14 +221,22 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   }
   /** Переиграть с хода turn (с 1): всё, что было до него, остаётся, реплика — в поле ввода. */
   const rewind = (turn: number) => {
+    gen.current++
     // внутри клика: прогреваем звук (iOS) — восстановленная реплика прозвучит, когда скачается
     if (voiceOn && canVoice) unlockAudio()
     setDraft(history[turn - 1]?.playerText ?? '')
     setHistory((all) => all.slice(0, turn - 1))
   }
   const undo = () => {
+    gen.current++
     if (voiceOn && canVoice) unlockAudio()
     setHistory((h) => h.slice(0, -1))
+  }
+
+  /** игрок взял микрофон: собеседник замолкает, недоговорённая реплика допечатывается текстом */
+  const hush = () => {
+    playback.current?.silent()
+    stopAudio()
   }
 
   return {
@@ -224,7 +246,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
-    send, putOnTable, accept, walk, rewind, undo,
+    send, putOnTable, accept, walk, rewind, undo, hush,
   }
 }
 

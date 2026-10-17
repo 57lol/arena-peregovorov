@@ -23,7 +23,6 @@ import { MicButton } from './Mic'
 import { VolumeSlider } from './Volume'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
-import { elevenTest } from '../speech'
 import '../world3d/world3d.css'
 import '../world3d/play3d.css'
 
@@ -73,11 +72,18 @@ export default function Play3D(props: Props) {
   // ---------- мир ----------
   useEffect(() => {
     const el = rootRef.current!
-    const w = new World(el, { kind: sceneFor(sc), caseId: sc.id, opponent: portraitFor(sc), reducedMotion: reduced() })
+    let w: World
+    try {
+      w = new World(el, { kind: sceneFor(sc), caseId: sc.id, opponent: portraitFor(sc), reducedMotion: reduced() })
+    } catch {
+      // can3d() проверяет WebGL один раз, а контекст может не создаться и позже (Chrome заблокировал GPU, драйвер)
+      onClassic('slow')
+      return
+    }
     w.start()
     setWorld(w)
-    // для проверок из Playwright
-    ;(window as unknown as { __world?: World }).__world = w
+    // для проверок из Playwright (они ходят на дев-сервер)
+    if (import.meta.env.DEV) (window as unknown as { __world?: World }).__world = w
     const off = attachInput(w, el, {
       onLook: () => setLooked(true),
       onTap: (x, y) => tapRef.current(x, y),
@@ -192,6 +198,13 @@ export default function Play3D(props: Props) {
   useEffect(() => {
     if (pose === 'face') setHeld(null)
   }, [pose])
+  // телефон повернули боком: в альбомной раскладке листов в руках нет — кладём на стол, иначе поле ввода так и не покажется
+  useEffect(() => {
+    if (!world || !held) return
+    return world.on(() => {
+      if (!world.portrait) setHeld(null)
+    })
+  }, [world, held])
 
   // ---------- оверлеи, привязанные к миру ----------
   const lineRef = useRef<HTMLDivElement>(null)
@@ -573,6 +586,7 @@ function SayForm({ m }: { m: Meeting }) {
         {m.canMic && (
           <MicButton
             disabled={!!m.pending}
+            onStart={m.hush}
             onText={(t) => {
               m.setError(null)
               m.setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))
@@ -721,7 +735,7 @@ function ActionCard({
   const extras = tut.shows('extras')
   const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean; lit?: string }[] = [
     { icon: 'eye', label: 'Что чувствует', on: m.xray, click: onXray, lit: lit('feel') },
-    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? (elevenTest() ? 'Голос: ElevenLabs' : 'Голос вкл') : 'Голос выкл', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
+    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? 'Голос вкл' : 'Голос выкл', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
     { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn), show: extras },
     { icon: 'rewind', label: 'Запись разговора', click: onProtocol, show: m.history.length > 0 && extras },
     { icon: 'menu', label: 'Меню', click: onMenu, show: extras },
@@ -880,6 +894,7 @@ function Menu({ m, onClose, onClassic, onQuit, onXray }: { m: Meeting; onClose: 
                   <button
                     type="button"
                     className="g-link"
+                    disabled={!!m.pending}
                     onClick={() => {
                       m.rewind(x.turn)
                       onClose()

@@ -31,7 +31,10 @@ const out = await page.evaluate(async (lines) => {
       let e = 0
       for (let j = i; j < i + W; j++) e += d[j] * d[j]
       e = Math.sqrt(e / W)
-      if (e > 0.01) (loud += e * e), n++
+      if (e > 0.01) {
+        loud += e * e
+        n++
+      }
     }
     const db = (x: number) => Math.round(20 * Math.log10(x) * 10) / 10
     res.push({ voice, emotion, text: text.slice(0, 30), sec: Math.round(buf.duration * 10) / 10, rms: db(Math.sqrt(s / d.length)), speech: db(Math.sqrt(loud / Math.max(1, n))), peak: db(peak), cache: r.headers.get('x-cache') })

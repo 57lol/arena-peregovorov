@@ -12,19 +12,14 @@ const labHeaders = (): Record<string, string> => {
   return { ...(l.llm ? { 'x-lab-llm': l.llm } : {}), ...(l.natural !== undefined ? { 'x-lab-natural': l.natural ? '1' : '0' } : {}) }
 }
 
-// Модель реплики по ссылке (ручная проверка моделей): ?llm=sonnet до конца вкладки, ?llm=off — как по умолчанию.
-// Короткое имя или «провайдер:модель» из VOICE_LLM_ALLOWED на сервере.
+// Модель реплики по ссылке (ручная проверка моделей): ?llm=yandex до конца вкладки, ?llm=off — как по умолчанию.
+// Короткое имя или «провайдер:модель» из VOICE_LLM_ALLOWED на сервере (по умолчанию там только эти три).
 const LLM_ALIAS: Record<string, string> = {
-  sol: 'aitunnel:gpt-6.1-sol',
   sonnet: 'aitunnel:claude-sonnet-5.5',
-  haiku: 'aitunnel:claude-haiku-5.5',
-  gemini: 'aitunnel:gemini-3.8-flash',
-  grok: 'aitunnel:grok-4.7',
-  luna: 'aitunnel:gpt-6-luna',
-  main: 'yandex:yandexgpt-5.1',
+  sol: 'aitunnel:gpt-6.1-sol',
   yandex: 'yandex:yandexgpt-5.1',
 }
-export function voiceLlmTest(): string | undefined {
+function voiceLlmTest(): string | undefined {
   try {
     const q = new URLSearchParams(location.search).get('llm')
     if (q === 'off') sessionStorage.removeItem('peregovorka.llm')
@@ -64,6 +59,8 @@ async function post<T>(path: string, body: unknown, ms = 90_000): Promise<T> {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(ms),
   })
+  // ворота сайта: пропуск истёк, пока вкладка была открыта
+  if (r.status === 401) throw new ApiError('Вход на сайт истёк — обновите страницу и войдите снова.', 401)
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new ApiError(j?.error ?? `Сервер ответил ${r.status}`, r.status)
   return j as T
@@ -76,6 +73,9 @@ export class ApiError extends Error {
     this.status = status
   }
 }
+
+/** Ответ сервера, который надо показать игроку, а не прятать за игрой без сети: ошибка в ходе, вход истёк, лимит. */
+export const shownError = (e: unknown): e is ApiError => e instanceof ApiError && [400, 401, 409, 413, 429].includes(e.status)
 
 export async function playTurn(t: TurnInput): Promise<TurnResult> {
   const body = {
@@ -94,9 +94,9 @@ export async function playTurn(t: TurnInput): Promise<TurnResult> {
     if (body.voiceLlm) console.info(`реплика: ${r.sources.voiceModel ?? r.sources.voice} (просили ${body.voiceLlm})`)
     return { record: r.record, source: r.sources.voice === r.sources.analysis ? r.sources.voice : `${r.sources.analysis}/${r.sources.voice}` }
   } catch (e) {
-    // 400 и 409 — ошибка в самом ходе, показываем её. Сеть, 5xx, 404/405 статического хостинга без API —
+    // Ошибку хода, истёкший вход и лимит показываем. Сеть, 5xx, 404/405 статического хостинга без API —
     // играем локально, чтобы игра проходилась и там, где сервера нет вовсе.
-    if (e instanceof ApiError && (e.status === 400 || e.status === 409)) throw e
+    if (shownError(e)) throw e
     return { record: localTurn(t), source: 'local' }
   }
 }

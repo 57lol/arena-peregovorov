@@ -4,7 +4,7 @@ import type { Issue, IssueId, Offer, Scenario } from '../types'
 import { isNumberWord, optionQuantity, quantities, type Dim } from './numbers'
 
 /** Грубая основа слова: первые 5 букв (для русского хватает, чтобы ловить падежи). */
-export const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
+const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
 const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз)/
@@ -65,8 +65,10 @@ export function mentionedIssues(sc: Scenario, text: string): IssueId[] {
 }
 
 /**
- * Ближайший вариант. favor — очки той стороны, в чью пользу округлять число между вариантами: игрок, сказавший
- * «200» при вариантах 204 и 196, предлагает не меньше 204 — засчитать ему 196 значило бы отдать больше, чем он просил.
+ * Ближайший вариант. favor — очки той стороны, в чью пользу округлять число между вариантами (слова игрока):
+ * «200» при вариантах 204 и 196 — это 204, засчитать ему 196 значило бы отдать больше, чем он просил. Но число
+ * засчитываем, только если оно рядом с вариантом (5% от варианта или 10% от размаха пункта): «1000» при 2000 и 500 —
+ * такого варианта нет, и сделка на 2000 по нему не закроется.
  */
 function nearest(values: IssueInfo['values'], v: number, favor?: number[]): number {
   let best = -1
@@ -77,15 +79,14 @@ function nearest(values: IssueInfo['values'], v: number, favor?: number[]): numb
     if (d < bestD) { bestD = d; best = n }
   })
   if (!favor || best < 0 || bestD <= Math.abs(v) * 0.01) return best
-  // соседи с двух сторон от числа: берём того, кто выгоднее стороне favor
-  let lo = -1, hi = -1
+  const vs = values.filter((o) => o).map((o) => o!.value)
+  const range = Math.max(...vs) - Math.min(...vs)
+  let pick = -1
   values.forEach((o, n) => {
-    if (!o) return
-    if (o.value < v && (lo < 0 || o.value > values[lo]!.value)) lo = n
-    if (o.value > v && (hi < 0 || o.value < values[hi]!.value)) hi = n
+    if (!o || Math.abs(o.value - v) > Math.max(Math.abs(o.value) * 0.05, range * 0.1)) return
+    if (pick < 0 || (favor[n] ?? 0) > (favor[pick] ?? 0)) pick = n
   })
-  if (lo < 0 || hi < 0) return best
-  return (favor[hi] ?? 0) > (favor[lo] ?? 0) ? hi : lo
+  return pick
 }
 
 /**
