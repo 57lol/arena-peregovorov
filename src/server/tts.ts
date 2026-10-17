@@ -127,7 +127,8 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
  * каждой реплики ([cheerfully], [annoyed]…) — их больше нет, пометки ставит только модель реплики и редко. Stability 0,6
  * вместо 0,45 — тон ровнее; свой seed у лица — одна и та же реплика звучит одинаково. previous_text и
  * previous_request_ids на v4 Turbo разницы не дали — не шлём. prefix — постоянная пометка подачи в начале реплики
- * (Серый: говорок, как в дубле, который выбрал капитан).
+ * Серый — как дубль, который выбрал капитан (voice-blind, «v4 Turbo, stability 0,3, similarity 1,0» без пометки):
+ * говорок держит сам дизайн-голос при низкой стабильности, пометка акцента его не давала.
  */
 export interface ElevenTune {
   stability?: number
@@ -135,7 +136,7 @@ export interface ElevenTune {
   prefix?: string
 }
 const ELEVEN_TUNE: Record<string, ElevenTune> = {
-  gopnik: { prefix: '[thick southern Russian village accent, soft fricative g] ' },
+  gopnik: { stability: 0.3, similarity: 1 },
 }
 /** Свой seed у каждого лица: одна и та же реплика звучит одинаково, разные — в одной манере. */
 export function elevenSeed(who: string | undefined): number {
