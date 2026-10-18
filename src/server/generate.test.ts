@@ -21,6 +21,35 @@ const seed = {
 
 const raw = { ...seed, issues: seed.issues.map((i) => ({ ...i, bestForPlayer: i.options[0], bestForOpponent: i.options[i.role === 'shared' ? 0 : i.options.length - 1] })) }
 
+it('повторённый моделью интерес с перепутанной стороной не принимается как косметическое замечание', async () => {
+  const answer = { ...raw, interests: [{ issue: 'term', text: 'срок нам удобнее всего 1 год, не дольше' }, raw.interests[1]] }
+  const json = vi.fn(async () => answer)
+  const result = await generateScenario({ name: 'yandex', model: 'fake', json }, GenerateRequest.parse({}), SCENARIOS)
+  expect(result.source).toBe('library')
+  expect(json).toHaveBeenCalledTimes(3)
+})
+
+it('ошибка провайдера с секретом не возвращается игроку и не уходит в следующий промпт', async () => {
+  const json = vi.fn(async (_req: { user: string }) => { throw new Error('https://provider.test/?key=secret-token') })
+  const result = await generateScenario({ name: 'yandex', model: 'fake', json }, GenerateRequest.parse({}), SCENARIOS)
+  expect(JSON.stringify(result)).not.toContain('secret-token')
+  expect(JSON.stringify(json.mock.calls)).not.toContain('secret-token')
+})
+
+it('сборка даёт разные ID пунктам, совпавшим после очистки', () => {
+  const answer = { ...raw, issues: raw.issues.map((i, n) => ({ ...i, id: ['a-b', 'ab', 'ab1', 'текст', 'issue4'][n] })) }
+  const sc = toScenario(answer, GenerateRequest.parse({}))
+  expect(new Set(sc.issues.map((i) => i.id)).size).toBe(sc.issues.length)
+  expect(scenarioProblems(sc).problems).toEqual([])
+})
+
+it('офлайн-кандидат получает роль получателя денег, даже если в папке найм только за работодателя', async () => {
+  const req = GenerateRequest.parse({ sphere: 'Найм', playerRole: 'кандидат' })
+  const result = await generateScenario({ name: 'offline', model: 'rules', json: async () => ({}) }, req, SCENARIOS)
+  expect(result.source).toBe('library')
+  expect(sideOf({ sphere: result.scenario.sphere, playerRole: result.scenario.player.role, opponentRole: result.scenario.opponent.character.role })).toBe('payee')
+})
+
 describe('генерация сценария', () => {
   it('движок строит таблицы по ролям так, что сценарий проходит обе проверки на любой сложности', () => {
     for (const difficulty of [1, 2, 3] as const) {
@@ -154,7 +183,7 @@ describe('своё дело: то, что видит игрок', async () => {
     expect(pickFromLibrary(libraryRequest(contractor), SCENARIOS).id).toBe('client')
     const customer = GenerateRequest.parse({ sphere: 'Подряд', playerRole: 'инженер заказчика', difficulty: 2 })
     expect(pickFromLibrary(libraryRequest(customer), SCENARIOS).id).not.toBe('client')
-    expect(libraryRequest(GenerateRequest.parse({ sphere: 'Найм', playerRole: 'кандидат' })).sphere).toBe('Найм')
+    expect(libraryRequest(GenerateRequest.parse({ sphere: 'Найм', playerRole: 'кандидат' })).sphere).toBe('Продажи')
   })
 
   it('«Что хотите потренировать» попадает в дело', () => {

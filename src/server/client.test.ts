@@ -4,6 +4,12 @@ import { clientIp, remoteIp, sessionOf } from './client'
 import { gate, makePass } from './gate'
 
 afterEach(() => vi.unstubAllEnvs())
+
+it('эквивалентные IPv6 и IPv4-mapped адреса имеют один счётчик', () => {
+  const env = { TRUSTED_PROXIES: 'unix' }
+  expect(remoteIp(undefined, '2001:0DB8:0:0:0:0:0:1', env)).toBe(remoteIp(undefined, '2001:db8::1', env))
+  expect(remoteIp(undefined, '::ffff:192.0.2.7', env)).toBe(remoteIp(undefined, '192.0.2.7', env))
+})
 it('без ворот cookie и forwarded-заголовки не меняют клиента', async () => {
   vi.stubEnv('GATE_SECRET', '')
   vi.stubEnv('TRUSTED_PROXIES', '')

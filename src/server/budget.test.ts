@@ -1,9 +1,12 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeBudget, priceOf, sttPrice, ttsPrice } from './budget'
 import { llmMode, yandex, type LLM } from './llm'
+import { usageContext } from './usage'
+
+afterEach(() => vi.useRealTimers())
 
 const env = { LLM_TOTAL_RUB: '10', YANDEX_PRICE_IN: '0.8', YANDEX_PRICE_OUT: '0.8' } as NodeJS.ProcessEnv
 const dir = () => mkdtempSync(join(tmpdir(), 'arena-usage-'))
@@ -134,4 +137,60 @@ it('параллельный холодный старт не теряет дн�
   await Promise.all(Array.from({ length: 12 }, () => b.addTts(1)))
   expect((await b.today()).ttsChars).toBe(12)
   expect((await b.total()).ttsChars).toBe(12)
+})
+
+it('повреждённый общий счёт не обнуляется и закрывает платные запросы', async () => {
+  const d = dir()
+  writeFileSync(join(d, 'total.json'), '{"rub":9')
+  const b = makeBudget(d, env)
+  expect(await b.mode()).toBe('offline')
+  expect(await b.reserveTts(1)).toBeUndefined()
+  expect(await b.reserveStt(1)).toBe(false)
+  expect(readFileSync(join(d, 'total.json'), 'utf8')).toBe('{"rub":9')
+})
+
+it('некорректные списания не уменьшают и не отравляют бюджет', async () => {
+  const b = makeBudget(dir(), env)
+  await b.addLlm('model', 100, 50, 2)
+  for (const bad of [-1, NaN, Infinity]) {
+    await expect(b.addLlm('model', 100, 50, bad)).rejects.toThrow()
+    await expect(b.addTts(bad)).rejects.toThrow()
+    await expect(b.addStt(bad)).rejects.toThrow()
+  }
+  expect((await b.total()).rub).toBe(2)
+})
+
+it('название модели constructor учитывается как обычная модель', async () => {
+  const b = makeBudget(dir(), env)
+  await b.addLlm('constructor', 100, 50, 2)
+  expect((await b.today()).llm.constructor).toMatchObject({ in: 100, out: 50, calls: 1, rub: 2 })
+})
+
+it.each(['null', '{}', '{"rub":0,"since":7}', '{"rub":0,"since":"2026-10-01","judges":[]}'])('неверная структура счёта %s закрывает платные запросы', async (data) => {
+  const d = dir()
+  writeFileSync(join(d, 'total.json'), data)
+  expect(await makeBudget(d, env).mode()).toBe('offline')
+  expect(readFileSync(join(d, 'total.json'), 'utf8')).toBe(data)
+})
+
+it('испорченный бюджет отключает платные возможности, но не ломает запись офлайн-хода', async () => {
+  const d = dir()
+  writeFileSync(join(d, 'total.json'), '{')
+  const b = makeBudget(d, env)
+  await expect(b.ttsAllowed(10)).resolves.toBe(false)
+  await expect(b.sttAllowed()).resolves.toBe(false)
+  await expect(usageContext.run({ id: 'judge', name: 'Анна', kind: 'shared' }, () => b.addPlay(true, false))).resolves.toBeUndefined()
+  expect(readFileSync(join(d, 'total.json'), 'utf8')).toBe('{')
+})
+
+it('возврат резерва после московской полуночи сохраняет оба дня и общий счёт', async () => {
+  vi.useFakeTimers().setSystemTime(new Date('2026-10-18T20:59:59Z'))
+  const d = dir(), b = makeBudget(d, env)
+  const hold = await b.reserveTts(100, false, 0.5)
+  vi.setSystemTime(new Date('2026-10-18T21:00:01Z'))
+  await b.reserveStt(15, 0.2)
+  await Promise.all([hold!.release(), hold!.release()])
+  expect(JSON.parse(readFileSync(join(d, '2026-10-18.json'), 'utf8')).rub).toBe(0)
+  expect(JSON.parse(readFileSync(join(d, '2026-10-19.json'), 'utf8')).rub).toBe(0.2)
+  expect((await makeBudget(d, env).total()).rub).toBe(0.2)
 })

@@ -8,13 +8,22 @@ import { getCookie } from 'hono/cookie'
 
 export const PASS_COOKIE = 'arena_pass'
 
+const canonicalIp = (ip: string) => {
+  if (isIP(ip) !== 6 || ip.includes('%')) return ip
+  const normalized = new URL(`http://[${ip}]/`).hostname.slice(1, -1)
+  const mapped = /^::ffff:([a-f\d]+):([a-f\d]+)$/.exec(normalized)
+  if (!mapped) return normalized
+  const n = parseInt(mapped[1], 16) * 65536 + parseInt(mapped[2], 16)
+  return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.')
+}
+
 /** Заголовку доверяем только от явно заданного ближайшего прокси; unix — соединение через сокет без адреса (Passenger). */
 export function remoteIp(remote: string | undefined, forwarded: string | undefined, env = process.env): string {
-  const peer = remote?.replace(/^::ffff:/, '')
-  const trusted = (env.TRUSTED_PROXIES ?? '').split(',').map((s) => s.trim().replace(/^::ffff:/, ''))
+  const peer = remote === undefined ? undefined : canonicalIp(remote)
+  const trusted = (env.TRUSTED_PROXIES ?? '').split(',').map((s) => canonicalIp(s.trim()))
   if (trusted.includes(peer ?? 'unix')) {
     const ip = forwarded?.split(',').pop()?.trim()
-    if (ip && isIP(ip)) return ip
+    if (ip && isIP(ip)) return canonicalIp(ip)
   }
   return peer ?? 'local'
 }
