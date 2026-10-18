@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { meetingAnalytics, profileBar } from '../../engine/analytics'
 import { behaviorById, type ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
@@ -17,17 +17,42 @@ const COLORS = ['var(--c-leaf-2)', 'var(--c-stamp)', 'var(--c-denim)']
 interface Series { label: string; values: (number | null)[] }
 
 
-export function Trend({ title, labels, series, max, min = 0, selected, onSelect, reference }: {
+type TrendProps = {
   title: string; labels: string[]; series: Series[]; max: number; min?: number
   selected?: number; onSelect?: (i: number) => void; reference?: { value: number; label: string }
-}) {
-  const width = Math.max(600, 88 + (labels.length - 1) * 48)
+}
+/** Ширина графика: во всю колонку (на 1440 — не половина листа), но не теснее 48 px на ход; уже — прокрутка. */
+export const trendWidth = (points: number, fit = 0) => Math.max(fit > 0 ? fit : 600, 88 + (points - 1) * 48)
+
+/** График во всю ширину колонки; если ходов много и он прокручивается — выбранная точка в кадре. */
+function FitTrend(props: TrendProps) {
+  const box = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState(0)
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setFit(Math.floor(el.clientWidth - 6)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const width = trendWidth(props.labels.length, fit)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el || props.selected === undefined || el.scrollWidth <= el.clientWidth) return
+    const at = props.labels.length <= 1 ? width / 2 : 44 + props.selected / (props.labels.length - 1) * (width - 88)
+    el.scrollLeft = Math.max(0, at - el.clientWidth / 2)
+  }, [props.selected, props.labels.length, width])
+  return <Trend {...props} fit={fit} scrollRef={box} />
+}
+
+export function Trend({ title, labels, series, max, min = 0, selected, onSelect, reference, fit, scrollRef }: TrendProps & { fit?: number; scrollRef?: Ref<HTMLDivElement> }) {
+  const width = trendWidth(labels.length, fit)
   const x = (i: number) => labels.length <= 1 ? width / 2 : 44 + i / (labels.length - 1) * (width - 88)
   const y = (v: number) => 166 - (v - min) / Math.max(1, max - min) * 144
   return (
     <figure className="g-trend">
       <figcaption>{title}</figcaption>
-      <div className="g-trend-scroll">
+      <div className="g-trend-scroll" ref={scrollRef}>
       <svg style={{ width }} viewBox={`0 0 ${width} 206`} role={onSelect ? 'group' : 'img'} aria-label={title}>
         {[min, (max + min) / 2, max].map((v, i) => <g key={i}>
           <line x1="44" x2={width - 44} y1={y(v)} y2={y(v)} className="g-trend-grid" />
@@ -87,16 +112,24 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
   ]
   const valueRange = valueSeries.flatMap((s) => s.values.filter((v): v is number => v !== null))
   const panel = useId()
+  // штамп выбранного хода — в кадре (на телефоне ряд прокручивается, а открывается разбор на последнем ходе)
+  const picks = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const row = picks.current, b = row?.children[selected] as HTMLElement | undefined
+    if (!row || !b || row.scrollWidth <= row.clientWidth) return
+    const left = b.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft
+    if (left < row.scrollLeft || left + b.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = left - (row.clientWidth - b.offsetWidth) / 2
+  }, [selected])
   return (
     <div className="g-analytics">
       <section className="g-sheet" aria-labelledby={`${panel}-h`}>
         <h2 id={`${panel}-h`} className="g-sheet-title">Как менялась встреча</h2>
         <p className="g-muted">Выберите точку или штамп хода. На графике — состояние после ответа собеседника, от 0 до 100.</p>
-        <Trend title="Доверие и напряжение по ходам" labels={labels} series={[
+        <FitTrend title="Доверие и напряжение по ходам" labels={labels} series={[
           { label: 'Доверие', values: data.points.map((p) => p.trust) },
           { label: 'Напряжение', values: data.points.map((p) => p.tension) },
         ]} max={100} selected={selected} onSelect={setSelected} />
-        <div className="g-turn-picks" aria-label="Выбор хода">
+        <div className="g-turn-picks" aria-label="Выбор хода" ref={picks}>
           {data.points.map((p, i) => <button key={p.turn} type="button" aria-pressed={selected === i} aria-controls={panel}
             onClick={() => setSelected(i)} className={`g-turn-pick is-${feedback[i - 1]?.verdict.ink ?? 'plain'}`}>
             <span>{i ? `Ход ${p.turn}` : 'До встречи'}</span><b>{feedback[i - 1]?.verdict.word ?? 'Старт'}</b>
@@ -136,7 +169,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
           <button type="button" aria-pressed={offerView === 'playerOffer'} onClick={() => setOfferView('playerOffer')}>Ваши условия</button>
         </div>
         <p className="g-muted">{offerView === 'table' ? 'Предложение на столе после каждого ответа.' : 'Ваша последняя названная позиция по всем пунктам.'} Пробел — условия ещё неполные. «Осталось» — сколько можно добавить вдвоём, не ухудшая ничей результат.</p>
-        <Trend title="Выгода в очках по ходам" labels={labels} series={valueSeries}
+        <FitTrend title="Выгода в очках по ходам" labels={labels} series={valueSeries}
           min={Math.min(0, report.batna.player, ...valueRange)} max={Math.max(1, report.batna.player, ...valueRange)}
           selected={selected} onSelect={setSelected} reference={{ value: report.batna.player, label: 'ваша BATNA' }} />
         <label className="g-analytics-select">Посмотреть условия
@@ -208,7 +241,7 @@ export function AttemptGrowth({ runs, current, demo = false }: { runs: RunLog[];
     <h2 className="g-sheet-title">Ваш путь в этом деле</h2>
     <p className="g-muted">До 12 последних попыток этой версии дела в этом браузере. Три звезды: выгода не хуже BATNA, созданная ценность и доверие.</p>
     {points.length > 1 ? <>
-      <Trend title="Звёзды по попыткам · от 0 до 3" labels={points.map((p) => `Попытка ${p.attempt}`)} max={3}
+      <FitTrend title="Звёзды по попыткам · от 0 до 3" labels={points.map((p) => `Попытка ${p.attempt}`)} max={3}
         series={[{ label: 'Звёзды', values: points.map((p) => p.stars) }]} selected={selected} onSelect={setSelected} />
       <label className="g-analytics-select">Попытка
         <select value={selected} onChange={(e) => setSelected(Number(e.target.value))}>

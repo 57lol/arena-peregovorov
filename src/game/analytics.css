@@ -73,6 +73,7 @@
 .g-analytics-toggle { display: flex; flex-wrap: wrap; gap: calc(4 * var(--u)); margin-top: calc(6 * var(--u)); }
 .g-analytics-select { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6 * var(--u)); }
 .g-analytics-select select { font: inherit; min-height: 44px; max-width: 100%; padding: calc(3 * var(--u)); color: var(--c-ink); background: var(--c-paper); border: var(--u) solid var(--c-steel); }
+.g-value-detail + .g-h3 { margin-top: calc(12 * var(--u)); }
 .g-value-comparison { margin: calc(6 * var(--u)) 0; }
 .g-value-comparison > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: calc(3 * var(--u)) calc(8 * var(--u)); padding: calc(5 * var(--u)) 0; border-bottom: var(--u) dotted var(--c-mist); }
 .g-value-comparison dt { flex: 1 1 230px; }

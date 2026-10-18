@@ -7,7 +7,7 @@ import { nextPractice } from '../../engine/analytics'
 import { offlineTurn } from '../../engine/offline'
 import { buildReport } from '../../engine/report'
 import { turnFeedback } from '../instant'
-import { AttemptGrowth, BehaviorProfile, MeetingAnalytics, Trend } from './Analytics'
+import { AttemptGrowth, BehaviorProfile, MeetingAnalytics, Trend, trendWidth } from './Analytics'
 import { Debrief } from './Debrief'
 import { chartPath } from '../chart'
 import { runLogOf } from '../progress'
@@ -84,6 +84,15 @@ it('двадцать ходов: два Tab-входа в графики, цел
   const xs = [...html.matchAll(/class="g-trend-hit" x="([\d.]+)" y="12" width="44"/g)].map((m) => Number(m[1]))
   expect(xs).toHaveLength(42)
   for (let i = 1; i < 21; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(44)
+})
+
+it('график во всю колонку, но не теснее 48 px на ход', () => {
+  expect(trendWidth(6, 1240)).toBe(1240) // 1440: не половина листа
+  expect(trendWidth(6, 340)).toBe(340) // телефон: шесть ходов без прокрутки
+  expect(trendWidth(21, 340)).toBe(1048) // двадцать ходов — прокрутка
+  expect(trendWidth(6)).toBe(600) // до замера ширины
+  const html = renderToStaticMarkup(<Trend title="t" labels={['a', 'b']} series={[{ label: 's', values: [1, 2] }]} max={3} fit={900} />)
+  expect(html).toContain('viewBox="0 0 900 206"')
 })
 
 it('закрытый подробный разбор не монтирует графики и карту сделок', () => {
