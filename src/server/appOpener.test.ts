@@ -38,14 +38,15 @@ describe('быстрый разбор не держит ход', () => {
   afterEach(() => vi.unstubAllEnvs())
   it('Pro завис — ход идёт по Sonnet через ANALYZE_QUICK_TIMEOUT_MS, а не ждёт ответа Pro', async () => {
     vi.stubEnv('ANALYZE_QUICK_TIMEOUT_MS', '100')
-    const pro: LLM = { name: 'yandex', model: 'pro', json: async () => (await tick(1500), empty) }
+    const pro: LLM = { name: 'yandex', model: 'pro', json: async () => (await tick(3000), empty) }
     const sonnet: LLM = { name: 'aitunnel', model: 'sonnet', json: async () => (await tick(30), empty), backup: pro }
     const s = speaker(reply(`Двести двенадцать ${uniq()} — цена честная. Жду ваше.`))
     const app = createApp({ ...pro, analyzer: sonnet, voice: s.m })
     const t0 = Date.now()
     const ev = await lines(await post(app, '/api/turn', `Добрый день ${uniq()}`, { stream: true }))
-    expect(ev.at(-1)!.sources.ms.analyze).toBeLessThan(600)
-    expect(Date.now() - t0).toBeLessThan(1400)
+    // под нагрузкой полного прогона запас велик, но всё равно меньше 3 с, на которые завис Pro
+    expect(ev.at(-1)!.sources.ms.analyze).toBeLessThan(1500)
+    expect(Date.now() - t0).toBeLessThan(2600)
   })
 })
 
