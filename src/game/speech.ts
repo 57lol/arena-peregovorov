@@ -542,10 +542,23 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   setGain(g)
   try {
     await playAudio(a)
-    return true
   } catch {
     return false
   }
+  // звонок: контекст мог уснуть, пока мерили громкость, — playing есть, а время плеера стоит. Тогда обычным плеером
+  if (a === callAudio && callVoiceActive() && !(await advancing(a)) && url === p.url) {
+    callVoiceBroken()
+    a.pause()
+    url = '' // ссылку не освобождаем: она нужна обычному плееру
+    return playPrepared(p, allowed)
+  }
+  return true
+}
+
+/** Пошло ли время плеера за 450 мс: через спящий граф звонка playing приходит, а звука и времени нет. */
+function advancing(a: HTMLAudioElement): Promise<boolean> {
+  const t0 = a.currentTime
+  return new Promise((r) => setTimeout(() => r(a.currentTime !== t0 || a.ended || a.paused), 450))
 }
 
 // ---------- живой звук реплики ----------
@@ -710,16 +723,15 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
       if (a === callAudio && callVoiceActive()) {
         a.removeEventListener('playing', yes)
         clearTimeout(timer)
-        const t0 = a.currentTime
-        setTimeout(() => {
+        void advancing(a).then((ok) => {
           if (live !== me || me.stopped) return end(false)
-          if (a.currentTime !== t0 || a.ended) return end(allowed())
+          if (ok) return end(allowed())
           // молчит: этот и следующие голоса — обычным плеером, тот же звук с начала
           callVoiceBroken()
           a.removeEventListener('error', no)
           a.pause()
           resolve(playLive(src, allowed, ms))
-        }, 450)
+        })
         return
       }
       end(live === me && !me.stopped && allowed())

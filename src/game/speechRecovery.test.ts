@@ -5,7 +5,8 @@ let context: FakeContext
 class FakeContext {
   state = 'running'
   onstatechange: (() => void) | null = null
-  currentTime = 0
+  // часы контекста идут, только пока он работает
+  get currentTime() { return this.state === 'running' ? performance.now() / 1000 : 0 }
   sampleRate = 8000
   destination = node()
   constructor() {
@@ -25,6 +26,9 @@ let blocked: boolean
 const played: FakeAudio[] = []
 class FakeAudio extends EventTarget {
   src = ''; paused = true; ended = false; volume = 1
+  /** время плеера стоит (звук ушёл в спящий граф звонка) */
+  stuck = false
+  get currentTime() { return this.paused || this.stuck ? 0 : performance.now() / 1000 }
   play = vi.fn(async () => {
     played.push(this)
     if (blocked) throw new DOMException('Нужен жест', 'NotAllowedError')
@@ -124,6 +128,7 @@ it('звонок: живая реплика через граф молчит (в
   speech.setCallVoice(true)
   await speech.playPrepared(line)
   const call = played.at(-1)!
+  call.stuck = true
   expect(await speech.playLive('/api/tts/live/x', () => true)).toBe(true)
   const last = played.at(-1)!
   expect(last).not.toBe(call)
@@ -132,6 +137,18 @@ it('звонок: живая реплика через граф молчит (в
   // дальше звонок — без обработки
   await speech.playPrepared({ ...line, url: 'blob:next' })
   expect(played.at(-1)).toBe(last)
+})
+
+it('звонок: записанная реплика через уснувший граф — та же запись обычным плеером', async () => {
+  speech.setCallVoice(true)
+  await speech.playPrepared(line)
+  const call = played.at(-1)!
+  call.stuck = true
+  expect(await speech.playPrepared({ ...line, url: 'blob:intro' })).toBe(true)
+  const last = played.at(-1)!
+  expect(last).not.toBe(call)
+  expect(last.src).toBe('blob:intro')
+  expect(last.paused).toBe(false)
 })
 
 it('первый жест во время подготовки громкости не заменяет ожидающую реплику тишиной', async () => {

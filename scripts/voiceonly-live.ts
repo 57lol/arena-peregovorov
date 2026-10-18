@@ -54,6 +54,7 @@ await ctx.addInitScript(`
   {
     const taps = new Map()
     const C = window.AudioContext
+    // --sleepy-ctx: контекст звонка спит и не будится (как Safari без жеста, iPhone с микрофоном) — голос должен звучать всё равно
     const conn = AudioNode.prototype.connect
     AudioNode.prototype.connect = function (d, ...rest) {
       const r = conn.call(this, d, ...rest)
@@ -67,7 +68,12 @@ await ctx.addInitScript(`
       return r
     }
     const mes = C.prototype.createMediaElementSource
-    C.prototype.createMediaElementSource = function (el) { el.__wa = this; this.__voice = true; log('wa-capture', this.state); return mes.call(this, el) }
+    C.prototype.createMediaElementSource = function (el) {
+      el.__wa = this; this.__voice = true; log('wa-capture', this.state)
+      // --sleepy-ctx: контекст звонка засыпает сразу после захвата и не будится (iPhone с микрофоном, Safari без жеста)
+      if (${process.argv.includes('--sleepy-ctx')}) { const c = this; setTimeout(() => { void c.suspend(); c.resume = () => Promise.reject(new Error('спит')) }, 0) }
+      return mes.call(this, el)
+    }
     const buf = new Float32Array(1024)
     setInterval(() => {
       for (const [c, t] of taps) {
