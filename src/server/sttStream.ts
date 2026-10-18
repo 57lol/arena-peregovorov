@@ -5,9 +5,10 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import WebSocket, { WebSocketServer } from 'ws'
 import { budget, type Budget } from './budget'
-import { clientIp, sessionOf, remoteIp, clientSession, PASS_COOKIE } from './client'
+import { quotaOf, sessionOf, remoteIp, clientSession, PASS_COOKIE } from './client'
 import { passValid } from './gate'
-import { DAY, HOUR, limiter } from './limits'
+import { usageMiddleware } from './usage'
+import { DAY, HOUR, clientLimiter } from './limits'
 
 const number = (v: string | undefined, fallback: number) => v && Number.isFinite(+v) && +v > 0 ? +v : fallback
 export const scribePrice = (sec: number, env = process.env) => sec / 3600 * number(env.STT_SCRIBE_USD_HOUR, 0.39) * number(env.USD_RUB, 100)
@@ -23,7 +24,8 @@ export const streamConfigured = (env = process.env) => env.SPEECH !== 'off' && e
 
 export function makeSttStream(quota: Budget = budget(), env = process.env) {
   const app = new Hono()
-  const count = limiter()
+  const count = clientLimiter()
+  app.use('*', usageMiddleware(env))
   const tickets = new Map<string, { url: string; session: string; until: number }>()
   const configured = () => streamConfigured(env)
   app.post('/api/stt/session', bodyLimit({ maxSize: 1024 }), async (c) => {
@@ -32,9 +34,9 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
     // В проде задаём внешний origin: за Passenger req.url может быть http.
     const allowed = env.STT_ORIGIN || new URL(c.req.url).origin
     if (origin && origin !== allowed) return c.json({ error: 'Чужой сайт' }, 403)
-    const ip = clientIp(c, env), session = sessionOf(c, env)
-    if (!count.take(`s:${session}`, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 120), HOUR) ||
-        !count.take(`ip:${ip}`, number(env.STT_STREAM_IP_DAY_LIMIT, 300), DAY)) return c.json({ error: 'Лимит потока' }, 429)
+    const who = quotaOf(c, env), session = sessionOf(c, env)
+    if (!count.take('s', who, number(env.STT_STREAM_SESSION_HOUR_LIMIT, 120), HOUR) ||
+        !count.take('day', who, number(env.STT_STREAM_IP_DAY_LIMIT, 300), DAY)) return c.json({ error: 'Лимит потока' }, 429)
     const body = await c.req.json().catch(() => null) as { seconds?: unknown; lang?: unknown } | null
     if (!body || (body.seconds !== 30 && body.seconds !== 60)) return c.json({ error: 'Нужна длительность 30 или 60 секунд' }, 400)
     const seconds = body.seconds === 30 ? 35 : 65

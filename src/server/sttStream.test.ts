@@ -32,13 +32,15 @@ describe('доступ и бюджет потока', () => {
     expect((await q.today()).sttSec).toBe(35)
     expect((await q.total()).sttRub).toBeCloseTo(scribePrice(35), 3)
   })
-  it('worker получает только короткий подписанный токен; IP объединяет разные входы', async () => {
+  it('worker получает только короткий подписанный токен; квота разделена по пропускам', async () => {
     const s = makeSttStream(quota(), { ...env, STT_STREAM_VIA: 'worker', STT_STREAM_IP_DAY_LIMIT: '1' })
-    const r = await request(s.app)
+    const pass = makePass(env.GATE_SECRET)
+    const r = await request(s.app, pass)
     const { url } = await r.json() as { url: string }
     expect(url).toMatch(/^wss:\/\/relay.example\/stt\/stream\?token=/)
     expect(url).not.toContain(env.ELEVEN_RELAY_SECRET)
-    expect((await request(s.app)).status).toBe(429)
+    expect((await request(s.app, pass)).status).toBe(429)
+    expect((await request(s.app)).status).toBe(200)
   })
   it('атомарный бюджет не позволяет двум потокам занять последние секунды', async () => {
     const q = quota({ STT_DAILY_SEC: '35' })

@@ -1,14 +1,14 @@
 // Ворота прототипа: пока идёт экспертиза, сайт открыт только жюри и команде.
 // Вход — по волшебной ссылке ?key=<JURY_KEY> или по логину и паролю на странице входа;
 // после входа — подписанная cookie на 30 дней. Открыты только /api/health, ассеты страницы входа и скринкаст /screencast.mp4.
-// Секреты — только в окружении: GATE_SECRET (подпись cookie), JURY_KEY, SITE_LOGIN, SITE_PASSWORD_HASH
+// Секреты — только в окружении: GATE_SECRET (подпись cookie), JURY_KEY, JURY_KEYS, SITE_LOGIN, SITE_PASSWORD_HASH
 // (scrypt:<соль hex>:<хэш hex> из hashPassword).
 
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { randomBytes, scryptSync } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { clientIp, PASS_COOKIE as COOKIE } from './client'
-import { makePass, passValid } from './pass'
+import { makePass, parseJuryKeys, personalJudge, readPass, same, type Judge } from './pass'
 export { makePass, passValid } from './pass'
 import { GATE_SCENE_JS } from './gate-scene'
 
@@ -17,16 +17,10 @@ const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^
 const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
 
-export type GateConfig = { secret: string; juryKey?: string; login?: string; passwordHash?: string }
+export type GateConfig = { secret: string; juryKey?: string; juryKeys?: string; login?: string; passwordHash?: string }
 
 export function hashPassword(password: string, salt = randomBytes(16).toString('hex')) {
   return `scrypt:${salt}:${scryptSync(password, salt, 32).toString('hex')}`
-}
-
-function same(a: string, b: string) {
-  const x = Buffer.from(a)
-  const y = Buffer.from(b)
-  return x.length === y.length && timingSafeEqual(x, y)
 }
 
 function checkPassword(password: string, stored: string) {
@@ -35,6 +29,8 @@ function checkPassword(password: string, stored: string) {
 }
 
 export function gate(cfg: GateConfig): MiddlewareHandler {
+  const judges = parseJuryKeys(cfg.juryKeys)
+  if (judges.some((j) => j.key === cfg.juryKey)) throw new Error('JURY_KEYS: личный ключ совпал с общим')
   const fails = new Map<string, { n: number; until: number }>()
   const blocked = (ip: string) => {
     const f = fails.get(ip)
@@ -47,13 +43,18 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     else f.n++
     if (fails.size > 10000) fails.clear()
   }
-  const letIn = (c: Context, to: string) => {
-    setCookie(c, COOKIE, makePass(cfg.secret), { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: TTL })
+  const letIn = (c: Context, to: string, judge?: Judge) => {
+    const pass = makePass(cfg.secret, Date.now(), judge)
+    const who = readPass(cfg.secret, pass)!
+    console.log(`[вход] судья=${JSON.stringify(who.name)} id=${who.id} тип=${who.kind}`)
+    setCookie(c, COOKIE, pass, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: TTL })
     c.header('Cache-Control', 'no-store')
+    c.header('Referrer-Policy', 'no-referrer')
     return c.redirect(to, 303)
   }
   const page = (c: Context, next: string, error = '', status: 200 | 401 | 429 = 200, login = '') => {
     c.header('Cache-Control', 'no-store')
+    c.header('Referrer-Policy', 'no-referrer')
     return c.html(loginPage(next, error, login), status)
   }
 
@@ -61,6 +62,8 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     const url = new URL(c.req.url)
     const path = url.pathname
     const ip = clientIp(c)
+
+    if (path === '/api/admin/jury') return next()
 
     if (path === '/auth/login' && c.req.method === 'POST') {
       const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
@@ -80,18 +83,23 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     // волшебная ссылка: ставим cookie и убираем key из адреса, остальные параметры не трогаем.
     // В ссылке на доску (?board=…&key=…) key — ключ доски, а не жюри: её не трогаем
     if (c.req.method === 'GET' && url.searchParams.has('key') && !url.searchParams.has('board')) {
-      const rest = url.search.slice(1).split('&').filter((p) => p && p !== 'key' && !p.startsWith('key='))
+      const rest = url.search.slice(1).split('&').filter((p) => p && !new URLSearchParams(p).has('key'))
       const clean = path + (rest.length ? `?${rest.join('&')}` : '')
       const key = url.searchParams.get('key') ?? ''
-      if (blocked(ip)) return page(c, clean, 'Слишком много попыток. Подождите 15 минут.', 429)
+      const judge = judges.find((j) => same(key, j.key))
+      if (judge) return letIn(c, clean, personalJudge(cfg.secret, judge.name, judge.key))
       if (cfg.juryKey && same(key, cfg.juryKey)) return letIn(c, clean)
+      // Действующий ключ не делит блокировку чужих неверных попыток за VPN.
+      if (blocked(ip)) return page(c, clean, 'Слишком много попыток. Подождите 15 минут.', 429)
       fail(ip, c)
       return page(c, clean, 'Ключ в ссылке не подошёл. Войдите по логину и паролю.', 401)
     }
 
     const pass = getCookie(c, COOKIE)
-    if (passValid(cfg.secret, pass)) {
+    const judge = readPass(cfg.secret, pass)
+    if (judge) {
       c.set('verifiedPass', pass)
+      c.set('verifiedJudge', judge)
       return next()
     }
     if (OPEN.some((r) => r.test(path))) return next()

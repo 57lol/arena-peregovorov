@@ -11,11 +11,12 @@ import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
-import { clientIp, sessionOf } from './client'
+import { clientIp, quotaOf, judgeOf, type ClientQuota } from './client'
+import { usageMiddleware } from './usage'
 import { direct, DIRECT_VERSION, forEleven, forEnglish, isLive, liveMode, liveRole, liveVoiceFor, naturalMode, polish, POLISH_VERSION, spellOut, spokenOf } from './direct'
 import { knownAudio } from './eleven-known'
 import { ELEVEN_KNOWN } from './eleven-known.data'
-import { DAY, HOUR, limiter, limitOf } from './limits'
+import { DAY, HOUR, limiter, clientLimiter, limitOf } from './limits'
 import { yandex } from './llm'
 import type { Emotion } from '../engine/types'
 import { accent, render, resolveStress, unstress, type AskJson } from './stress'
@@ -220,9 +221,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     all: opts.perDay ?? limitOf('SPEECH_DAY_LIMIT', Infinity),
   }
   const count = limiter()
-  /** SpeechKit: место в лимите IP и сервера на сутки; take — занять */
-  const room = (kind: 'tts' | 'stt', ip: string) => count.left(`${kind}:${ip}`, limits[kind], DAY) && count.left('all', limits.all, DAY)
-  const take = (kind: 'tts' | 'stt', ip: string) => room(kind, ip) && count.take(`${kind}:${ip}`, limits[kind], DAY) && count.take('all', limits.all, DAY)
+  const clients = clientLimiter(count)
+  /** SpeechKit: место для пропуска и сервера на сутки; take — занять. */
+  const room = (kind: 'tts' | 'stt', who: ClientQuota) => clients.left(kind, who, limits[kind], DAY) && count.left('all', limits.all, DAY)
+  const take = (kind: 'tts' | 'stt', who: ClientQuota) => room(kind, who) && clients.take(kind, who, limits[kind], DAY) && count.take('all', limits.all, DAY)
   // ключ без роли SpeechKit (401/403) — выключаем эту половину до перезапуска, а не долбим API
   const denied = { tts: false, stt: false }
   const deny = (kind: 'tts' | 'stt', status: number | undefined) => {
@@ -278,6 +280,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   }
 
   const app = new Hono()
+  app.use('*', usageMiddleware())
   // синтезы, которые идут прямо сейчас: файл кэша → звук; второй запрос той же реплики ждёт первый
   const inflight = new Map<string, Promise<Clip>>()
   const elevenJobs = new Map<string, { first: Promise<boolean>; done: Promise<Clip> }>()
@@ -410,20 +413,20 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const id = randomUUID()
     if (el) elevenConnect(f, env)
     const out = tee()
-    const ip = clientIp(c), who = sessionOf(c)
+    const who = quotaOf(c)
     const voice = el ? castFor(b.who, b.voice, env) : b.voice
     const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
     let roomy: boolean | undefined
     let charged = false
     const charge = () => {
       if (charged) return
-      if (!count.take(`el:s:${who}`, perSession, HOUR) || !count.take(`el:ip:${ip}`, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
+      if (!clients.take('el:s', who, perSession, HOUR) || !clients.take('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
       charged = true
     }
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
     const prep = async (text: string): Promise<TtsRequest> => {
       if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
-      roomy ??= count.left(`el:s:${who}`, perSession, HOUR) && count.left(`el:ip:${ip}`, perIp, DAY)
+      roomy ??= clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
       const marked = await speakable(forEleven(unstress(text)), roomy)
       return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
     }
@@ -521,7 +524,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         const text = remaining ?? w.text
         try {
           if (!yandexTtsReady()) throw new Refusal('Озвучка временно недоступна', 503)
-          const clip = await yandexClip(ip, { ...b, text: stripTags(unstress(text)), emotion: w.emotion })
+          const clip = await yandexClip(who, { ...b, text: stripTags(unstress(text)), emotion: w.emotion })
           setHead({ api: clip.api ?? 'speechkit', voice: clip.voice, ...(reason ? { fallback: reason } : {}) })
           out.push(out.chunks.length ? noId3(clip.audio) : clip.audio)
           out.end()
@@ -588,9 +591,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     if (ready) return send(c, { audio: ready, ms: mp3Ms(ready) }, { 'x-cache': 'known', 'x-tts-api': 'elevenlabs', 'x-tts-voice': voice })
     if (!isIssued(b.text)) return new Refusal('ElevenLabs озвучивает только реплики игры', 403)
     if (Date.now() < eleven.until) return new Refusal('ElevenLabs на паузе после сбоев', 503)
-    const ip = clientIp(c), who = sessionOf(c)
+    const who = quotaOf(c)
     const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
-    const roomy = count.left(`el:s:${who}`, perSession, HOUR) && count.left(`el:ip:${ip}`, perIp, DAY)
+    const roomy = clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
     const said = unstress(spokenOf(b.text))
     const spoken = english(said) ? forEnglish(said, 'eleven') : render(spellOut(await speakable(forEleven(said), roomy)), 'eleven')
@@ -600,7 +603,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const joined = !!job
     if (!job) {
       const charge = () => {
-        if (!count.take(`el:s:${who}`, perSession, HOUR) || !count.take(`el:ip:${ip}`, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
+        if (!clients.take('el:s', who, perSession, HOUR) || !clients.take('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
       }
       job = elevenJob(q, file, t0 + (lab ? WAIT.eleven() : WAIT.elevenFirst()), charge)
       elevenJobs.set(file, job)
@@ -622,7 +625,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   }
 
   /** Реплика голосом SpeechKit: свой кэш; лимит и платная разметка ударений — только для того, чего в кэше нет. */
-  async function yandexClip(ip: string, b: Omit<TtsBody, 'provider'>): Promise<Clip & { joined: boolean; voice: string }> {
+  async function yandexClip(who: ClientQuota, b: Omit<TtsBody, 'provider'>): Promise<Clip & { joined: boolean; voice: string }> {
     const mode = naturalMode(env)
     const natural = b.natural ?? (mode === 'on' || mode === 'live')
     const voice = b.live ?? liveMode(mode) ? liveVoiceFor(b.voice) : b.voice
@@ -633,7 +636,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const plain = b.text.replace(/[«»"]/g, '')
     const clean = stripTags(spokenOf(b.text))
     const en = english(clean)
-    const marked = en ? forEnglish(unstress(clean), 'speechkit').replace(/[«»"]/g, '') : !natural && b.natural === undefined ? render((await speakable(unstress(clean), room('tts', ip))).replace(/[«»"]/g, ''), 'speechkit') : clean.replace(/[«»"]/g, '')
+    const marked = en ? forEnglish(unstress(clean), 'speechkit').replace(/[«»"]/g, '') : !natural && b.natural === undefined ? render((await speakable(unstress(clean), room('tts', who))).replace(/[«»"]/g, ''), 'speechkit') : clean.replace(/[«»"]/g, '')
     // английский — без режиссёра речи и русских пауз: их правила о русском тексте
     const text = en ? marked : natural ? direct(plain, b.emotion) : neat ? polish(marked, b.emotion) : marked
     const style = styleFor(voice, b.emotion)
@@ -652,7 +655,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       job = (async (): Promise<Clip> => {
         const cached = await read(file)
         if (cached) return { audio: cached, ms: Math.round((cached.length * 8) / 64), cache: 'hit' }
-        if (!take('tts', ip)) throw new Refusal('Лимит озвучки на сегодня')
+        if (!take('tts', who)) throw new Refusal('Лимит озвучки на сегодня')
         const reservation = await quota.reserveTts(text.length, isLive(voice))
         if (!reservation) throw new Refusal('Озвучка на сегодня закончилась')
         const r = await speechkit(key!, { text, voice, emotion: b.emotion, api: b.api ?? (api === 'v1' ? 'v1' : undefined), liveRole: role }, f).catch(async (e: unknown) => { await reservation.release(); throw e })
@@ -674,7 +677,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   async function sayYandex(c: Context, b: TtsBody, extra: Record<string, string>): Promise<Response> {
     if (!yandexTtsReady()) return c.json({ error: 'Озвучка временно недоступна' }, 503)
     try {
-      const clip = await yandexClip(clientIp(c), b)
+      const clip = await yandexClip(quotaOf(c), b)
       return send(c, clip, { ...extra, 'x-cache': clip.joined ? 'warm' : clip.cache, 'x-tts-voice': clip.voice, ...(clip.api ? { 'x-tts-api': clip.api } : {}) })
     } catch (e) {
       if (e instanceof Refusal) return c.json({ error: e.message }, e.status)
@@ -800,7 +803,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (!status().stt) return c.json({ error: 'Распознавание выключено' }, 503)
       if (pcm.length > 30 * 32000 || pcm.length % 2) return c.json({ error: 'Нужен PCM 16 кГц, до 30 секунд' }, 400)
       if (pcm.length < 16000 * 2 * 0.3) return c.json({ error: 'Слишком короткая запись' }, 400)
-      if (!take('stt', ip)) return c.json({ error: 'Лимит распознавания на сегодня' }, 429)
+      if (!take('stt', quotaOf(c))) return c.json({ error: 'Лимит распознавания на сегодня' }, 429)
       if (!(await quota.sttAllowed())) return c.json({ error: 'Распознавание на сегодня закончилось' }, 429)
       try {
         const text = await hedge(async (signal, attempt) => {
@@ -825,7 +828,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       }
     }
     const r = await answer()
-    console.log(`${new Date().toISOString()} [stt] ${ip} ${pcm.length} байт → ${r.status}, ${Date.now() - t0} мс${notes.length ? ` (${notes.join('; ')})` : ''}`)
+    console.log(`${new Date().toISOString()} [stt] судья=${JSON.stringify(judgeOf(c)?.name ?? 'Аноним')} id=${judgeOf(c)?.id ?? '-'} ip=${ip} ${pcm.length} байт → ${r.status}, ${Date.now() - t0} мс${notes.length ? ` (${notes.join('; ')})` : ''}`)
     return r
   })
 

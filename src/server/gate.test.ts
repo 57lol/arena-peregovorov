@@ -84,3 +84,62 @@ describe('пропуск', () => {
     expect(passValid('other', old)).toBe(false)
   })
 })
+
+describe('личные ключи', () => {
+  it('имя подписано, ключ не попадает в пропуск, повторный вход сохраняет личность', async () => {
+    const { judgeOf, sessionOf } = await import('./client')
+    const a = new Hono().use('*', gate({ secret, juryKeys: 'Анна:personal-a,Борис:personal-b', juryKey: 'shared' }))
+      .get('/', (c) => c.json({ judge: judgeOf(c), session: sessionOf(c) }))
+    const enter = async (key: string) => {
+      const r = await a.request(`/?key=${key}&jury`)
+      expect(r.status).toBe(303)
+      expect(r.headers.get('location')).toBe('/?jury')
+      const cookie = cookieOf(r)
+      const data = await (await a.request('/', { headers: { cookie } })).json() as { judge: { id: string; name: string; kind: string }; session: string }
+      return { cookie, ...data }
+    }
+    const anna = await enter('personal-a'), again = await enter('personal-a'), boris = await enter('personal-b')
+    expect(anna.judge.name).toBe('Анна')
+    expect(anna.judge.kind).toBe('personal')
+    expect(anna.session).toBe(again.session)
+    expect(anna.session).not.toBe(boris.session)
+    const parts = anna.cookie.slice('arena_pass='.length).split('.')
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    expect(JSON.stringify(payload)).not.toContain('personal-a')
+    for (const field of ['name', 'id', 'exp']) {
+      const forged = { ...payload, [field]: field === 'exp' ? payload.exp + 86400 : 'Подмена' }
+      const cookie = `arena_pass=v3.${Buffer.from(JSON.stringify(forged)).toString('base64url')}.${parts[2]}`
+      expect(passValid(secret, cookie.slice('arena_pass='.length))).toBe(false)
+      expect(await (await a.request('/', { headers: { cookie } })).text()).toContain('Пройти')
+    }
+    const common = await enter('shared'), common2 = await enter('shared')
+    expect(common.judge.kind).toBe('shared')
+    expect(common.session).not.toBe(common2.session)
+    expect((await a.request('/?key=unknown')).status).toBe(401)
+  })
+
+  it('срок личного пропуска и ошибки конфигурации проверяются', async () => {
+    const { parseJuryKeys, personalJudge } = await import('./pass')
+    const judge = personalJudge(secret, 'Анна', 'key')
+    const now = Date.now()
+    const pass = makePass(secret, now, judge)
+    expect(passValid(secret, pass, now + 31 * 86400_000)).toBe(false)
+    expect(passValid('wrong', pass)).toBe(false)
+    expect(parseJuryKeys(' Анна : a , Борис : b ')).toHaveLength(2)
+    for (const raw of ['Анна:a,Анна:b', 'Анна:a,Борис:a', ':a', 'Анна:', 'Анна:a:b', 'Анна:a,', 'Анна\nБорис:a'])
+      expect(() => parseJuryKeys(raw)).toThrow(/JURY_KEYS/)
+    expect(() => gate({ secret, juryKey: 'a', juryKeys: 'Анна:a' })).toThrow(/JURY_KEYS/)
+  })
+})
+
+it('верный личный и общий ключ проходят после чужих неудач с того же IP; кодированный key удаляется', async () => {
+  const app = new Hono().use('*', gate({ secret, juryKeys: 'Анна:personal', juryKey: 'shared' })).get('*', (c) => c.text('game'))
+  for (let i = 0; i < 8; i++) expect((await app.request('/?key=wrong')).status).toBe(401)
+  expect((await app.request('/?key=wrong')).status).toBe(429)
+  for (const key of ['personal', 'shared']) {
+    const r = await app.request(`/?%6Bey=${key}&jury&key=${key}&case=tara`)
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/?jury&case=tara')
+    expect(r.headers.get('referrer-policy')).toBe('no-referrer')
+  }
+})
