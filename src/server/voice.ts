@@ -433,12 +433,15 @@ const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L
  * Предложение в реплике похоже на согласие на всю сделку. Не согласие: «давай так — и по рукам?», «если…, то по рукам»,
  * «по срокам договорились, но цена…» — это предложение или согласие по одному пункту.
  */
+const LEAD_THEN = /^\s*(?:(?:good|great|fine|right|well|ok(?:ay)?|хорошо|ладно|отлично|что ж)[,!]?\s+)?(?:then|тогда)[,!]?\s*$/iu
+
 function saysYes(line: string): boolean {
   const contrast = /(?<!\p{L})(но|однако|а вот|только|but|however|only)(?!\p{L})/iu
   return sentences(line).some((s, n, all) => {
     const m = AGREE.exec(s)
     if (!m || s.endsWith('?')) return false
-    const before = s.slice(0, m.index)
+    // «Then we have a deal.» / «Хорошо, тогда договорились.» в начале фразы — итог, а не условие
+    const before = s.slice(0, m.index).replace(LEAD_THEN, '')
     if (IF.test(before) || /(не|нет|not|no|n't)\s+$/iu.test(before) || /(?<!\p{L})(по|on)\s+\p{L}+/iu.test(before)) return false
     return !contrast.test(s.slice(m.index)) && !contrast.test(all[n + 1] ?? '')
   })
