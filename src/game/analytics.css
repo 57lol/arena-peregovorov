@@ -1,0 +1,110 @@
+/* Графики на бумаге: те же чернила, штампы и линейки, что в ведомости. */
+.g-analytics {
+  display: grid;
+  gap: calc(12 * var(--u));
+  min-width: 0;
+}
+.g-analytics > *, .g-profile, .g-attempts { min-width: 0; }
+.g-trend { margin: calc(8 * var(--u)) 0; }
+.g-trend > figcaption { font-weight: 700; margin-bottom: calc(4 * var(--u)); }
+.g-trend > svg { display: block; width: 100%; height: auto; overflow: visible; }
+.g-trend text { font: 18px var(--f-ui); fill: var(--c-steel-2); }
+.g-trend-grid { stroke: var(--c-mist); stroke-width: 1; }
+.g-trend-reference { stroke: var(--c-steel-2); stroke-width: 2; stroke-dasharray: 12 8; }
+.g-trend-cursor { stroke: var(--c-wood); stroke-width: 2; }
+.g-trend-hit { fill: transparent; cursor: pointer; }
+.g-trend [role='button']:hover .g-trend-hit { fill: var(--c-brass); fill-opacity: 0.14; }
+.px-root .g-trend [role='button']:focus-visible { outline: none; }
+.g-trend [role='button']:focus-visible .g-trend-hit { stroke: var(--c-ink); stroke-width: 2; }
+.g-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(3 * var(--u)) calc(10 * var(--u));
+  list-style: none;
+  padding: 0;
+  margin: calc(4 * var(--u)) 0 0;
+  color: var(--c-steel-2);
+}
+.g-trend-legend li { display: flex; align-items: center; gap: calc(3 * var(--u)); }
+.g-trend-legend svg { flex-shrink: 0; }
+.g-turn-picks {
+  display: flex;
+  gap: calc(4 * var(--u));
+  overflow-x: auto;
+  padding: calc(3 * var(--u));
+  scrollbar-color: var(--c-steel) var(--c-paper-2);
+}
+.g-turn-pick, .g-event-index button, .g-analytics-toggle button {
+  font: inherit;
+  cursor: pointer;
+  color: var(--c-ink);
+  background: var(--c-paper);
+  border: var(--u) solid var(--c-steel);
+  min-height: 44px;
+  padding: calc(4 * var(--u)) calc(6 * var(--u));
+}
+.g-turn-pick { position: relative; flex: 0 0 auto; min-width: 104px; text-align: left; }
+.g-turn-pick span, .g-turn-pick b { display: block; }
+.g-turn-pick.is-good b { color: var(--c-leaf-2); }
+.g-turn-pick.is-bad b { color: var(--c-stamp); }
+.g-turn-pick:hover, .g-event-index button:hover, .g-analytics-toggle button:hover { background: var(--c-paper-2); }
+.g-turn-pick[aria-pressed='true'], .g-event-index button[aria-pressed='true'], .g-analytics-toggle button[aria-pressed='true'] {
+  background: var(--c-brass-hi);
+  border-color: var(--c-ink);
+}
+.g-turn-event-dot { position: absolute; right: 6px; top: 6px; width: 6px; height: 6px; background: var(--c-ink); }
+.g-turn-detail, .g-value-detail { margin-top: calc(8 * var(--u)); padding: calc(8 * var(--u)); background: var(--c-paper-2); overflow-wrap: anywhere; }
+.g-analytics-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: calc(6 * var(--u)); }
+.g-analytics-heading .g-h3 { margin: 0; }
+.g-analytics-heading .g-margin-stamp { animation: none; }
+.g-analytics-numbers { display: flex; flex-wrap: wrap; gap: calc(8 * var(--u)) calc(16 * var(--u)); margin: calc(8 * var(--u)) 0; }
+.g-analytics-numbers dt { color: var(--c-steel-2); }
+.g-analytics-numbers dd { margin: calc(3 * var(--u)) 0 0; font-size: var(--fs-ui-big); font-variant-numeric: tabular-nums; }
+.g-analytics-numbers small { font-size: var(--fs-ui); }
+.g-analytics-events { display: flex; flex-wrap: wrap; list-style: none; gap: calc(3 * var(--u)); padding: 0; }
+.g-analytics-events li { background: var(--c-brass-hi); padding: calc(2 * var(--u)) calc(4 * var(--u)); }
+.g-turn-reasons { padding-left: calc(10 * var(--u)); }
+.g-turn-reasons li + li { margin-top: calc(3 * var(--u)); }
+.g-analytics-reply { color: var(--c-steel-2); }
+.g-event-index { display: flex; flex-wrap: wrap; gap: calc(4 * var(--u)); margin-top: calc(8 * var(--u)); }
+.g-event-index button { text-align: left; }
+.g-event-index b { margin-right: calc(3 * var(--u)); color: var(--c-wood-2); }
+.g-analytics-toggle { display: flex; flex-wrap: wrap; gap: calc(4 * var(--u)); margin-top: calc(6 * var(--u)); }
+.g-analytics-select { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6 * var(--u)); }
+.g-analytics-select select { font: inherit; min-height: 44px; max-width: 100%; padding: calc(3 * var(--u)); color: var(--c-ink); background: var(--c-paper); border: var(--u) solid var(--c-steel); }
+.g-value-comparison { margin: calc(6 * var(--u)) 0; }
+.g-value-comparison > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: calc(3 * var(--u)) calc(8 * var(--u)); padding: calc(5 * var(--u)) 0; border-bottom: var(--u) dotted var(--c-mist); }
+.g-value-comparison dt { flex: 1 1 230px; }
+.g-value-comparison dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.g-value-comparison small { display: block; font-weight: 400; color: var(--c-steel-2); }
+.g-profile { margin: calc(8 * var(--u)) 0 calc(12 * var(--u)); }
+.g-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0 calc(16 * var(--u)); }
+.g-profile-row { border-bottom: var(--u) solid var(--c-mist); min-width: 0; }
+.g-profile-row summary { display: block; cursor: pointer; padding: calc(6 * var(--u)) calc(3 * var(--u)); min-height: 44px; }
+.g-profile-row summary:hover { background: var(--c-paper-2); }
+.g-profile-row summary::after { content: 'Показать доказательства +'; display: block; color: var(--c-denim); margin-top: calc(3 * var(--u)); }
+.g-profile-row[open] summary::after { content: 'Свернуть доказательства −'; }
+.g-profile-name { display: flex; justify-content: space-between; gap: calc(4 * var(--u)); }
+.g-profile-name b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.g-profile-bar { display: block; position: relative; height: calc(6 * var(--u)); background: var(--c-paper-2); margin: calc(5 * var(--u)) 0; }
+.g-profile-bar > span { display: block; height: 100%; background: var(--c-denim); }
+.g-profile-bar.is-strong > span { background: var(--c-leaf-2); }
+.g-profile-bar.is-weak > span { background: var(--c-stamp); }
+.g-profile-bar i { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--c-ink); box-shadow: 2px 0 var(--c-paper); }
+.g-profile-caption { color: var(--c-steel-2); }
+.g-profile-evidence { padding: 0 calc(3 * var(--u)) calc(6 * var(--u)); overflow-wrap: anywhere; }
+.g-practice-tips { padding-left: calc(14 * var(--u)); }
+.g-practice-tips li { padding: calc(4 * var(--u)) 0 calc(4 * var(--u)) calc(3 * var(--u)); }
+.g-practice-tips li::marker { color: var(--c-denim); font-weight: 700; }
+.px-root .g-analytics :is(button, select):focus-visible,
+.px-root .g-profile summary:focus-visible, .px-root .g-attempts select:focus-visible { outline-color: var(--c-ink); }
+.g-report-more[open] .g-analytics { animation: g-analytics-arrive 280ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes g-analytics-arrive { from { opacity: 0.65; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 699px) {
+  .g-profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .g-turn-detail, .g-value-detail { padding: calc(5 * var(--u)); }
+  .g-trend text { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .g-report-more[open] .g-analytics { animation: none; }
+}
