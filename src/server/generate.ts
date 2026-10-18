@@ -61,9 +61,18 @@ const Raw = z.object({
     // модель путает порядок вариантов; прямой вопрос «что лучше игроку» она путает реже — по нему и выравниваем
     bestForPlayer: z.string().optional(),
     bestForOpponent: z.string().optional(),
-  })).min(4).max(5),
-  interests: z.array(z.object({ issue: z.string(), text: z.string() })).min(2).max(5),
+  })).min(3).max(5),
+  // общий интерес — отдельным полем: внутри списка пунктов модель почти всегда делала его спорным (замер 18.10: 6 форм из 6)
+  shared: z.object({
+    id: z.string(),
+    title: z.string(),
+    options: z.array(z.string()).min(3).max(5),
+    best: z.string(),
+    interest: z.string(),
+  }).optional(),
+  interests: z.array(z.object({ issue: z.string(), text: z.string() })).min(1).max(5),
 })
+type RawCase = z.infer<typeof Raw>
 
 const str = { type: 'string' }
 export const SCHEMA = {
@@ -79,17 +88,21 @@ export const SCHEMA = {
       issues: {
         type: 'array',
         // без границ YandexGPT иногда уходит в бесконечный список пунктов и обрывается посреди JSON
-        minItems: 4,
-        maxItems: 5,
+        minItems: 3,
+        maxItems: 4,
         items: {
           type: 'object', additionalProperties: false, required: ['id', 'title', 'role', 'options', 'bestForPlayer', 'bestForOpponent'],
           properties: {
-            id: str, title: str, role: { type: 'string', enum: Object.keys(ROLES) },
+            id: str, title: str, role: { type: 'string', enum: ['split', 'mine', 'theirs'] },
             options: { type: 'array', minItems: 3, maxItems: 5, items: str },
             bestForPlayer: str,
             bestForOpponent: str,
           },
         },
+      },
+      shared: {
+        type: 'object', additionalProperties: false, required: ['id', 'title', 'options', 'best', 'interest'],
+        properties: { id: str, title: str, options: { type: 'array', minItems: 3, maxItems: 4, items: str }, best: str, interest: str },
       },
       interests: {
         type: 'array',
@@ -106,20 +119,20 @@ export const SYSTEM = `Ты — методист, который придумы�
 Не пиши «минимизировать», «оптимальный», «обеспечить», «осуществлять», «данный», «в рамках», «является» — говори проще: «чтобы не потерять деньги», «побыстрее», «сделать».
 
 Структура:
-- 4 или 5 пунктов. У каждого — role:
-  split — стороны хотят противоположного и одинаково сильно (цена, оклад, ставка). Ровно 1.
+- issues — 3 или 4 пункта, по которым стороны хотят ПРОТИВОПОЛОЖНОГО. У каждого — role:
+  split — стороны тянут в разные стороны и одинаково сильно (цена, оклад, ставка). Ровно 1.
   mine — очень важно игроку, оппоненту почти всё равно. Ровно 1.
   theirs — очень важно оппоненту, игроку почти всё равно. 1 или 2.
-  shared — обе стороны на самом деле хотят одного и того же, но каждая думает, что другая против. Ровно 1.
-    Пример: поставщику длинная гарантия выгодна (он продаёт сервисный контракт), а закупщик уверен, что тот будет её урезать.
-    Интерес оппонента по shared должен объяснять, почему ему выгоден тот же вариант, что и игроку.
-- options — 3–5 конкретных вариантов («30 дней», «1,2 млн ₽», «раз в неделю»), СТРОГО по порядку: первый — лучший для игрока, последний — худший для игрока. Для shared первый — тот, который на самом деле нужен обоим.
+- shared — ОТДЕЛЬНЫЙ пункт (не в issues), где обе стороны на самом деле хотят одного и того же, но каждая думает, что другая против.
+  Пример: поставщику длинная гарантия выгодна (он продаёт сервисный контракт), а закупщик уверен, что тот будет её урезать.
+  Варианты shared тоже короткие, до 5 слов. best — дословно вариант из его options, нужный обоим; interest — от первого лица оппонента, почему ему выгоден именно этот вариант.
+- options — 3–5 конкретных вариантов («30 дней», «1,2 млн ₽», «раз в неделю»), СТРОГО по порядку: первый — лучший для игрока, последний — худший для игрока. В shared первый — тот, что нужен обоим.
 - Варианты короткие, до 5 слов, без повтора названия пункта: пункт «Предоплата» → «нет», «1 месяц», «3 месяца», а не «предоплата за 3 месяца».
 - Слово «игрок» — служебное, в тексты для людей (brief, opening, interests) его не пиши.
-- bestForPlayer — дословно тот вариант из options, который выгоднее всего игроку (для shared — нужный обоим). Подумай отдельно: например, заказчику выгоднее меньшая цена и оплата после работ, исполнителю — наоборот.
-- bestForOpponent — дословно лучший вариант оппонента. Проверь ОБЕ стороны отдельно по их целям, брифу и скрытым интересам. Для split/mine/theirs лучшие варианты противоположны; если обе стороны хотят одного, пометь shared. Нельзя жертвовать смыслом ради заданного числа ролей.
+- bestForPlayer — дословно тот вариант из options, который выгоднее всего игроку. Подумай отдельно: например, заказчику выгоднее меньшая цена и оплата после работ, исполнителю — наоборот.
+- bestForOpponent — дословно лучший вариант оппонента, по его целям, брифу и скрытым интересам. В issues он на другом конце списка, чем bestForPlayer.
 - Явная цель из запроса важнее общих предположений: если нужен склад на год, год должен быть лучшим для арендатора. Если собственник не хочет оплачивать ремонт, лучший для него вариант — ремонт оплачивает арендатор; для арендатора наоборот. Не объявляй ремонт за свой счёт выгодным без явной причины в интересах.
-- Направление выгоды — по стороне сделки. Покупателю, заказчику, арендатору выгоднее ниже цена, больше скидка, дольше отсрочка и гарантия, больше бесплатного; продавцу, исполнителю, арендодателю — наоборот. Исключение — только пункт shared, и его интерес это объясняет. Не бывает покупателя, который сам просит «без гарантии» или «без образцов», и продавца, которому выгодно раздать больше бесплатного.
+- Направление выгоды — по стороне сделки. Покупателю, заказчику, арендатору выгоднее ниже цена, больше скидка, дольше отсрочка и гарантия, больше бесплатного; продавцу, исполнителю, арендодателю — наоборот. Исключение — только shared, и его interest это объясняет. Не бывает покупателя, который сам просит «без гарантии» или «без образцов», и продавца, которому выгодно раздать больше бесплатного.
 - id пунктов — латиницей, коротко (price, payment, term...).
 - opponentName — только имя и фамилия, живые и не шаблонные (не Иван Иванов, не Игорь Петров). Должность — в opponentRole, компания — в opponentCompany.
 - opponentGender — m или f, по имени.
@@ -127,7 +140,7 @@ export const SYSTEM = `Ты — методист, который придумы�
 - playerBrief — к игроку на «вы»; что знает игрок: ситуация и что важно ему (про mine — прямо, про shared — пусть думает, что оппонент против).
 - opponentBrief — как оппонент выглядит снаружи.
 - playerBatnaText, opponentBatnaText — запасной вариант каждой стороны словами, конкретно.
-- interests — 2–4 скрытых интереса оппонента: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs и про shared).
+- interests — 2–3 скрытых интереса оппонента по пунктам из issues: что ему на самом деле важно и почему; issue — id пункта (обязательно про theirs).
   text — от первого лица, так, как он сам признался бы собеседнику: «склад у меня старый, каждый ремонт съедает прибыль», «мне важнее деньги сразу — плачу за кредит».
   Без его имени, без «он/она/ему», без канцелярита («минимизировать риски», «обеспечить стабильный доход»).
 - opening — первая фраза оппонента: коротко, по-живому, с его стартовыми требованиями по всем пунктам, кроме shared, — по каждому ПОСЛЕДНИЙ вариант из options, дословно (это максимум в его пользу). Про shared в opening молчит. У игрока нет имени — не называй его по имени.
@@ -144,15 +157,22 @@ const nameHint = (req: GenerateRequest) => LETTERS[parseInt(hashOf(req).slice(0,
  * называем её в промпте прямо и потом проверяем денежные пункты (sideProblems).
  */
 export type Side = 'payer' | 'payee'
-const PAYEE = /продаж|продав|поставщик|исполнител|подрядчик|арендодател|сда[её]т|собственник|кандидат|соискател/i
-const PAYER = /закуп|снабж|покупател|заказчик|арендатор|снима|нанима|работодател|(^|[^\p{L}])hr([^\p{L}]|$)|кадр|рекрутер|менеджер по персоналу/iu
-export function sideOf(req: Pick<GenerateRequest, 'sphere' | 'playerRole'>): Side | undefined {
+const PAYEE = /продаж|продав|поставщик|исполнител|подрядчик|арендодател|сда[её]т|собственник|кандидат|соискател|интегратор|производител|студи[яи] разработки/i
+const PAYER = /закуп|снабж|покупател|заказчик|арендатор|снима|нанима|работодател|контрактн|(^|[^\p{L}])hr([^\p{L}]|$)|кадр|рекрутер|менеджер по персоналу/iu
+const ESTATE_OWNER = /владел\p{L}*\s+(склад|помещ|здани|офис|бизнес-центр|торгов|недвиж)/iu
+function sideOfRole(role: string): Side | undefined {
+  const payee = PAYEE.test(role) || ESTATE_OWNER.test(role)
+  const payer = PAYER.test(role)
+  return payee === payer ? undefined : payee ? 'payee' : 'payer'
+}
+export function sideOf(req: Pick<GenerateRequest, 'sphere' | 'playerRole' | 'opponentRole'>): Side | undefined {
   const role = req.playerRole.trim()
-  if (role) {
-    const payee = PAYEE.test(role)
-    const payer = PAYER.test(role)
-    return payee === payer ? undefined : payee ? 'payee' : 'payer'
-  }
+  const mine = role ? sideOfRole(role) : undefined
+  if (mine) return mine
+  // «владелец небольшого магазина» против «владельца склада»: сторону видно по тому, кто напротив
+  const theirs = req.opponentRole?.trim() ? sideOfRole(req.opponentRole) : undefined
+  if (theirs) return theirs === 'payee' ? 'payer' : 'payee'
+  if (role) return undefined
   // роль не указана — по сфере, как в подсказках формы: «Продажи» — продаёте, остальное — платите
   const sphere = req.sphere.toLowerCase()
   if (/продаж/.test(sphere)) return 'payee'
@@ -189,25 +209,24 @@ function orient(i: { options: string[]; bestForPlayer?: string }): string[] {
   return best && same(best, i.options[i.options.length - 1]) && !same(best, i.options[0]) ? [...i.options].reverse() : i.options
 }
 
-/** Ответ модели, где «лучший для игрока» вариант ни первый, ни последний, — повод переписать. */
-export function orderProblems(raw: z.infer<typeof Raw>): string[] {
-  return raw.issues.flatMap((i) => {
-    const p = i.options.findIndex((o) => same(o, i.bestForPlayer ?? ''))
-    const o = i.options.findIndex((o) => same(o, i.bestForOpponent ?? ''))
-    if (p !== 0 && p !== i.options.length - 1)
-      return [`«${i.title}»: bestForPlayer должен дословно совпадать с крайним вариантом, а варианты идти от лучшего для игрока к худшему`]
-    if (o < 0) return [`«${i.title}»: укажи bestForOpponent дословно из options, согласуй с его интересами`]
-    if (o !== (i.role === 'shared' ? p : i.options.length - 1 - p))
-      return [`«${i.title}»: лучшие варианты сторон должны быть ${i.role === 'shared' ? 'одинаковыми' : 'противоположными; если обе стороны хотят одного, пометь shared'}`]
-    return []
-  })
-}
-
+// Единицы срока и денег: «1 год» больше «3 месяцев», «1,2 млн» больше «900 тыс.». Без этого гарантия
+// «1 год → 3 месяца» у закупщика считалась перевёрнутой, и сборка падала («перепутаны стороны», прод 18.10).
+const UNITS: [RegExp, number][] = [
+  [/(^|[^\p{L}])(млн|миллион)/iu, 1e6],
+  [/(^|[^\p{L}])(тыс|тысяч)/iu, 1e3],
+  [/(^|[^\p{L}])(год|года|лет)([^\p{L}]|$)/iu, 365],
+  [/(^|[^\p{L}])(мес|месяц\p{L}*)([^\p{L}]|$)/iu, 30],
+  [/(^|[^\p{L}])недел\p{L}*/iu, 7],
+  [/(^|[^\p{L}])(день|дня|дней|дн)([^\p{L}]|$)/iu, 1],
+]
 /** Число в варианте для сравнения «больше/меньше»; «без предоплаты», «по факту», «нет» — ноль. */
-function amount(o: string): number {
+export function amount(o: string): number {
+  if (/(^|[^\p{L}])полгода|полугод/iu.test(o)) return 182
   const m = o.replace(/\s(?=\d{3}(\D|$))/gu, '').match(/\d+(?:[.,]\d+)?/)
-  if (m) return parseFloat(m[0].replace(',', '.'))
-  return /(^|[^\p{L}])(без|нет|по факту|после|сразу|не требуется)([^\p{L}]|$)/iu.test(o) ? 0 : NaN
+  const unit = UNITS.find(([re]) => re.test(o))?.[1]
+  if (m) return parseFloat(m[0].replace(',', '.')) * (unit ?? 1)
+  if (/(^|[^\p{L}])(без|нет|по факту|после|сразу|не требуется)([^\p{L}]|$)/iu.test(o)) return 0
+  return unit && unit < 1000 ? unit : NaN // «через год», «месяц»
 }
 
 /**
@@ -226,24 +245,138 @@ function moreHelps(title: string, options: string[]): Side | undefined {
   return undefined
 }
 
-/** Денежные пункты повёрнуты не в ту сторону: продавцу «выгоднее» скидка 30%, покупателю — «без гарантии». */
-export function sideProblems(raw: z.infer<typeof Raw>, side: Side | undefined): string[] {
+/** Денежный пункт повёрнут не в ту сторону: продавцу «выгоднее» скидка 30%, покупателю — «без гарантии». */
+function sideWrong(i: { title: string; options: string[]; bestForPlayer?: string }, side: Side): boolean {
+  const opts = orient(i)
+  const helps = moreHelps(i.title, opts)
+  const first = amount(opts[0])
+  const last = amount(opts[opts.length - 1])
+  if (!helps || Number.isNaN(first) || Number.isNaN(last) || first === last) return false
+  // первый вариант — лучший для игрока: ему должно быть выгодно то, в какую сторону он идёт
+  return (helps === side) !== first > last
+}
+
+/** Денежные пункты, повёрнутые не в ту сторону (для журнала и тестов; settle их сам переворачивает). */
+export function sideProblems(raw: Pick<RawCase, 'issues'>, side: Side | undefined): string[] {
   if (!side) return []
   const who = side === 'payee' ? 'продаёт и получает деньги' : 'платит'
   return raw.issues
-    .filter((i) => i.role !== 'shared')
-    .flatMap((i) => {
-      const opts = orient(i)
-      const helps = moreHelps(i.title, opts)
-      const first = amount(opts[0])
-      const last = amount(opts[opts.length - 1])
-      if (!helps || Number.isNaN(first) || Number.isNaN(last) || first === last) return []
-      // первый вариант — лучший для игрока: ему должно быть выгодно то, в какую сторону он идёт
-      const playerWantsMore = helps === side
-      return playerWantsMore === first > last
-        ? []
-        : [`«${i.title}»: игрок ${who}, ему выгоднее ${playerWantsMore ? 'больше' : 'меньше'}, а варианты повёрнуты наоборот — перепутаны стороны сделки`]
-    })
+    .filter((i) => i.role !== 'shared' && sideWrong(i, side))
+    .map((i) => `«${i.title}»: игрок ${who}, ему выгоднее ${(moreHelps(i.title, orient(i)) === side) ? 'больше' : 'меньше'}, а варианты повёрнуты наоборот — перепутаны стороны сделки`)
+}
+
+const norm = (t: string) => t.trim().toLowerCase().replace(/ё/g, 'е').replace(/[«»"'.,!]/g, '').replace(/\s+/g, ' ')
+/** Номер варианта по тексту модели: дословно, а если она чуть переписала — единственный похожий. */
+function optionIndex(options: string[], text: string | undefined): number {
+  const t = norm(text ?? '')
+  if (!t) return -1
+  const exact = options.findIndex((o) => norm(o) === t)
+  if (exact >= 0) return exact
+  const near = options.flatMap((o, k) => (norm(o).includes(t) || t.includes(norm(o)) ? [k] : []))
+  return near.length === 1 ? near[0] : -1
+}
+
+const PRICE = /(^|[^\p{L}])(цена|стоимость|ставка|тариф|оклад|зарплат|вознагражд|гонорар|бюджет|сумма)/iu
+
+export interface Settled {
+  raw: RawCase
+  /** что пришлось поправить за моделью — для журнала */
+  fixes: string[]
+  /** что поправить нельзя — повод переписать */
+  problems: string[]
+}
+
+/**
+ * Приводим ответ модели к согласованному делу, вместо того чтобы браковать его целиком.
+ * Модель хорошо пишет историю и, как правило, верно называет, что лучше каждой стороне, но плохо держит
+ * служебные роли: «общий» пункт у неё спорный, «важное мне» не размечено, лишний «делимый». Поэтому:
+ * - что кому выгодно берём из bestForPlayer / bestForOpponent (а если одно не понять — из другого);
+ * - денежные пункты сверяем со стороной сделки и переворачиваем, если модель их перепутала;
+ * - роли split / mine / theirs раздаёт движок: нужен делимый, «важное мне» и «важное ему»;
+ * - общий пункт — тот, где обе стороны назвали одно и то же.
+ * Брак только если пунктов с конфликтом меньше трёх или общего пункта нет совсем.
+ */
+export function settle(raw: RawCase, side: Side | undefined): Settled {
+  const fixes: string[] = []
+  const sh = raw.shared
+  const list = [
+    ...raw.issues,
+    ...(sh ? [{ id: sh.id, title: sh.title, role: 'shared' as const, options: sh.options, bestForPlayer: sh.best, bestForOpponent: sh.best }] : []),
+  ]
+  const interests = sh?.interest.trim() ? [...raw.interests, { issue: sh.id, text: sh.interest }] : raw.interests
+  type Item = Omit<RawCase['issues'][number], 'role'> & { role: Role | undefined }
+  const issues: Item[] = []
+  for (const i of list) {
+    const last = i.options.length - 1
+    const edge = (k: number) => k === 0 || k === last
+    let p = optionIndex(i.options, i.bestForPlayer)
+    let o = optionIndex(i.options, i.bestForOpponent)
+    const shared = i.role === 'shared'
+    if (!edge(p)) {
+      if (!edge(o)) {
+        fixes.push(`«${i.title}»: не ясно, что кому выгодно, — пункт убран`)
+        continue
+      }
+      p = shared ? o : last - o
+    }
+    // у «общего» пункта собеседнику назван другой вариант, пусть и средний, — значит, пункт спорный
+    if (!edge(o)) o = shared && o < 0 ? p : last - p
+    let role: Role | undefined = i.role
+    if (o === p && !shared) {
+      // Один и тот же лучший вариант у спорного пункта — чаще ошибка модели («арендатору выгодно без ремонта»).
+      // Общим его делаем, только если общего пункта нет вовсе и это не деньги; иначе верим той стороне,
+      // за которую модель написала скрытый интерес (собеседнику), а без интереса — игроку.
+      if (!list.some((x) => x.role === 'shared') && !moreHelps(i.title, i.options)) role = 'shared'
+      else if (interests.some((x) => x.issue === i.id)) p = last - o
+      else o = last - p
+      fixes.push(`«${i.title}»: обеим сторонам назван один вариант — ${role === 'shared' ? 'общий интерес' : 'развёл стороны'}`)
+    } else if (o !== p && shared) {
+      role = undefined
+      fixes.push(`«${i.title}»: помечен общим, но стороны хотят разного — спорный пункт`)
+    }
+    let fixed = { ...i, role, bestForPlayer: i.options[p], bestForOpponent: i.options[o] }
+    if (role !== 'shared' && side && sideWrong(fixed, side)) {
+      fixed = { ...fixed, bestForPlayer: i.options[last - p], bestForOpponent: i.options[last - o] }
+      fixes.push(`«${i.title}»: перепутаны стороны сделки — перевернул`)
+    }
+    issues.push(fixed)
+  }
+
+  const conflict = issues.filter((i) => i.role !== 'shared')
+  const problems: string[] = []
+  if (conflict.length < 3) problems.push('Нужно хотя бы 3 пункта в issues, где стороны хотят противоположного: цена, сроки, оплата и т. п.')
+  if (conflict.length === issues.length)
+    problems.push('Нет общего пункта: заполни shared — вариант, который на самом деле нужен обоим, и interest оппонента от первого лица, почему он ему выгоден')
+  if (problems.length) return { raw, fixes, problems }
+
+  // роли спорных пунктов: один делимый (лучше всего — цена), хотя бы одно «важное мне» и одно «важное ему»
+  const asked = conflict.map((i) => i.role)
+  const hasInterest = (i: { id: string }) => interests.some((x) => x.issue === i.id)
+  const pick = (from: number[], prefer: (k: number) => boolean) => from.find(prefer) ?? from[0]
+  const idx = conflict.map((_, k) => k)
+  const split = pick(idx.filter((k) => asked[k] === 'split'), (k) => PRICE.test(conflict[k].title)) ??
+    pick(idx.filter((k) => asked[k] === undefined), (k) => PRICE.test(conflict[k].title)) ??
+    idx.find((k) => PRICE.test(conflict[k].title)) ?? 0
+  const role: (Role | undefined)[] = asked.map((r, k) => (k === split ? 'split' : r))
+  const free = (want: Role) => {
+    const rest = idx.filter((k) => k !== split)
+    const loose = rest.filter((k) => role[k] === undefined || role[k] === 'split')
+    if (loose.length) return pick(loose, (k) => hasInterest(conflict[k]) === (want === 'theirs'))
+    const other = want === 'mine' ? 'theirs' : 'mine'
+    const spare = rest.filter((k) => role[k] === other)
+    return spare.length > 1 ? pick(spare, (k) => hasInterest(conflict[k]) === (want === 'theirs')) : undefined
+  }
+  for (const want of ['mine', 'theirs'] as const)
+    if (!role.includes(want)) {
+      const k = free(want)
+      if (k !== undefined) role[k] = want
+    }
+  conflict.forEach((i, k) => {
+    const r = role[k] ?? (hasInterest(i) ? 'theirs' : 'mine')
+    if (r !== i.role) fixes.push(`«${i.title}»: роль ${i.role ?? '—'} → ${r}`)
+    i.role = r
+  })
+  return { raw: { ...raw, shared: undefined, issues: issues as RawCase['issues'], interests }, fixes, problems }
 }
 
 /** Компания повторяет должность: «руководитель строительной фирмы» + «строительная фирма» (сравниваем по основам слов). */
@@ -302,6 +435,14 @@ export function fitOpening(sc: Scenario): string {
     .map((i) => `${i.title.replace(/\s*\([^)]*\)/gu, '').toLowerCase()} — ${i.options[anchor[i.id]!]}`)
     .join(', ')
   return [...(talk.length ? talk : ['Добрый день.']), `Мои условия такие: ${terms}.`].join(' ')
+}
+
+/** «Юрий: здравствуйте!» → «здравствуйте!»: модель иногда пишет реплику как в пьесе, с именем говорящего. */
+export function unspeaker(line: string, name: string): string {
+  const first = name.trim().split(/\s+/)[0]?.toLowerCase()
+  const colon = line.indexOf(':')
+  const head = line.slice(0, colon).trim().toLowerCase()
+  return first && colon > 0 && head.startsWith(first) && name.toLowerCase().startsWith(head) ? line.slice(colon + 1).trim() : line
 }
 
 /** Последние штрихи к делу, которое прошло проверки. */
@@ -392,7 +533,8 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
         }),
       },
     },
-    opening: sentence(raw.opening),
+    // «Юрий: здравствуйте!» — модель иногда пишет реплику как в пьесе, с именем говорящего
+    opening: sentence(unspeaker(raw.opening, name)),
   }
   return sc
 }
@@ -432,9 +574,15 @@ function clerical(raw: z.infer<typeof Raw>): string[] {
   return hit.length ? [`канцелярит: ${[...new Set(hit)].map((w) => `«${w!.trim()}»`).join(', ')} — скажи проще, как в жизни`] : []
 }
 
-/** Запас из папки — хотя бы с той же стороной сделки: подрядчику или продавцу не отдаём дело, где он закупщик. */
+/**
+ * Запас из папки — с той же стороной сделки: подрядчику или продавцу не отдаём дело, где он закупщик,
+ * а арендатору или заказчику — дело, где он продаёт. В папке продаёт игрок только в «Удержать клиента».
+ */
 export function libraryRequest(req: GenerateRequest): GenerateRequest {
-  return sideOf(req) === 'payee' && !/найм/i.test(req.sphere) ? { ...req, sphere: 'Продажи' } : req
+  const side = sideOf(req)
+  if (side === 'payee' && !/найм/i.test(req.sphere)) return { ...req, sphere: 'Продажи' }
+  if (side === 'payer' && !/найм|закуп/i.test(req.sphere)) return { ...req, sphere: 'Закупки' }
+  return req
 }
 
 export interface GenerateResult {
@@ -449,17 +597,16 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   let attempts = 0
   let passable: Scenario | undefined // прошло проверки движка, но с замечаниями к тексту
   let passableSoft = Infinity
-  let consistencyFailures = 0
   while (llm.name !== 'offline' && attempts < 3) {
     attempts++
     try {
       // pro: своё дело — редкий и главный для настройки запрос, на Lite он почти всегда проваливается в папку
-      const raw = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.7, maxTokens: 3000, schema: SCHEMA, pro: true }))
-      const order = [...orderProblems(raw), ...sideProblems(raw, sideOf(req))]
-      // Одно повторение при противоречивых предпочтениях; затем только проверенная библиотека.
-      if (order.length) {
-        problems = order
-        if (++consistencyFailures >= 2) break
+      const answer = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.6, maxTokens: 3000, schema: SCHEMA, pro: true }))
+      const { raw, fixes, problems: broken } = settle(answer, sideOf(req))
+      if (fixes.length) console.log(`[своё дело] попытка ${attempts}, поправлено: ${fixes.join('; ')}`)
+      if (broken.length) {
+        console.log(`[своё дело] попытка ${attempts}, переписать: ${broken.join('; ')}`)
+        problems = broken
         continue
       }
       const r = scenarioProblems(toScenario(raw, req))
@@ -470,7 +617,10 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
         passableSoft = soft.length
       }
       problems = [...r.problems, ...soft]
+      if (r.problems.length) console.log(`[своё дело] попытка ${attempts}, движок: ${r.problems.join('; ')}`)
       if (!problems.length && r.scenario) return { scenario: finish(r.scenario), source: 'llm', attempts, problems: [] }
+      // дело рабочее, замечания только к тексту — ещё одну попытку тратим, только если время есть
+      if (!r.problems.length && attempts >= 2) break
     } catch (e) {
       problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
     }
