@@ -267,7 +267,6 @@ export function step(
   if (asksInterest(analysis, dict)) {
     const { ready, told, offTopic, general } = pickInterest(sc, s, analysis)
     const it = ready ?? told
-    // последний ход, а своего листка он ещё не клал: кладёт последнее предложение, иначе встреча не кончится никогда
     if (it) {
       if (ready) s.revealed.push(ready.id)
       const how = { ...(ready ? {} : { again: true as const }), ...(general ? { general: true as const } : {}), ...(offTopic ? { offTopic } : {}) }
