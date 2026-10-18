@@ -27,7 +27,7 @@ describe('голос Ли Вэя', () => {
     expect(png.subarray(1, 4).toString()).toBe('PNG')
     expect([png.readUInt32BE(16), png.readUInt32BE(20), png[25]]).toEqual([288, 576, 6])
   })
-  it('china и emre всегда v3, другие лица сохраняют модель из окружения', () => {
+  it('china, emre и lagos всегда v3, другие лица сохраняют модель из окружения', () => {
     expect(CAST.china).toBe('qEUg56UIsvkup7EM8Ovt')
     expect(castFor('china', 'denis', {})).toBe(CAST.china)
     const env = { ELEVENLABS_MODEL: 'eleven_v4_turbo' }
@@ -37,7 +37,8 @@ describe('голос Ли Вэя', () => {
       expect(body.voice_settings.stability).toBe(0.5)
     }
     expect(elevenBody({ voice: CAST.emre, who: 'emre', text: 'One moment.' }, env).model_id).toBe('eleven_v3')
-    for (const who of Object.keys(CAST).filter((id) => id !== 'china' && id !== 'emre')) {
+    expect(elevenBody({ voice: CAST.lagos, who: 'lagos', text: 'One moment.' }, env).model_id).toBe('eleven_v3')
+    for (const who of Object.keys(CAST).filter((id) => !['china', 'emre', 'lagos'].includes(id))) {
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, env).model_id).toBe('eleven_v4_turbo')
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, { ELEVENLABS_MODEL: 'eleven_v4' }).model_id).toBe('eleven_v4')
     }

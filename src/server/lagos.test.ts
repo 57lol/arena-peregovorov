@@ -32,7 +32,7 @@ describe('Лагос на сервере', () => {
     expect(checkLine(sc, f, line, { said: sc.opening, heard: '', mine: [] }).hard).toContain('говори только по-английски')
   })
   it('голос — носитель нигерийского английского из библиотеки; env override работает, все тексты получают английское произношение', () => {
-    expect(LAGOS_VOICE_ID).toBe('nw6EIXCsQ89uJMjytYb8')
+    expect(LAGOS_VOICE_ID).toBe('yH7WW3zeKrRMuKt6sg5a')
     expect(CAST.lagos).toBe(LAGOS_VOICE_ID)
     expect(PERSONAS.lagos.voice).toBe('john')
     expect(castFor('lagos', 'john', {})).toBe(LAGOS_VOICE_ID)
@@ -41,6 +41,7 @@ describe('Лагос на сервере', () => {
       const b = elevenBody({ voice: 'test-native-voice', who: 'lagos', text: forEnglish(r.text, 'eleven') }, { ELEVENLABS_MODEL: 'eleven_v4' })
       expect(b.text).not.toMatch(/[а-яё]|\u0301|Turkish/iu)
       expect(b.voice_settings.stability).toBe(0.5)
+      expect(b.model_id).toBe('eleven_v3')
     }
     expect(knownTexts().filter((k) => k.src.startsWith('lagos:'))).toEqual([])
     for (const r of LAGOS_RECORDINGS) expect(existsSync(`public/${r.file}`), r.file).toBe(true)

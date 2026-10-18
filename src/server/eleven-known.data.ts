@@ -62,7 +62,7 @@ export const ELEVEN_KNOWN: KnownLine[] = [
   },
   {
     who: 'lagos',
-    voice: 'nw6EIXCsQ89uJMjytYb8',
+    voice: 'yH7WW3zeKrRMuKt6sg5a',
     text: 'You are welcome to Lagos. Please, have a seat. I have set aside this hour for the pilot order. For the 100 units, I propose $360,000 for the batch, shipment in 8 weeks, 10% upfront and the balance under the confirmed USD letter of credit. I would also like West Africa exclusivity, on the one-year terms in the brief. Shipment means handover to the sea carrier; we must plan the transit to Apapa separately. Where would you like to begin?',
     file: 'assets/voice-eleven/lagos/opening-lagos.mp3'
   }

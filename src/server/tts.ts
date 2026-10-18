@@ -139,9 +139,9 @@ export interface ElevenTune {
   prefix?: string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
-  // Адебайо: носитель нигерийского английского (Ugochukwu из библиотеки) — язык голоса совпадает с языком текста, v4 Turbo
-  // акцент не выпрямляет, тег не нужен (~/Arena-materials/final/lagos-voice, 18.10: судья — нигерийский 5 из 5, через воркер тоже)
-  lagos: { stability: 0.5, similarity: 0.8 },
+  // Адебайо (голос Frank, выбор капитана 18.10): на v3 нигерийский акцент 5 из 5 у судьи, на v4 Turbo 4–4,5 и в отдельных прогонах
+  // слабеет до 2 — берём v3, хотя первый звук ~0,9 с против ~0,46 с (~/Arena-materials/final/lagos-voice, frank.json); тега акцента нет
+  lagos: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
   // постоянная подача акцента в начале каждой реплики (~/Arena-materials/final/emre-voice, 18.10: судья 5 и 4 из 5 по турецкому)
@@ -280,10 +280,10 @@ export function mainTts(env = process.env): MainTts | undefined {
  * голосов с турецким акцентом и 2 дизайнов (~/Arena-materials/final/emre-voice): прежний Emre Anduv на v4 Turbo — акцент едва слышен.
  * Адебайо — см. LAGOS_VOICE_ID.
  */
-// Адебайо (дело на английском, Лагос) — библиотечный «Ugochukwu - Engaging and Warm» (en-NG, middle-aged, носитель),
-// звучит на v4 Turbo без тега. Подбор 18.10 из 8 нигерийских голосов библиотеки (~/Arena-materials/final/lagos-voice):
-// запасные — Joje (глубже, старше) и Frank (естественнее всего на v3, но v3 медленнее и роняет фразы).
-export const LAGOS_VOICE_ID = 'nw6EIXCsQ89uJMjytYb8'
+// Адебайо (дело на английском, Лагос) — библиотечный «Frank - Professional Educator» (en-NG, middle-aged, носитель
+// нигерийского английского), звучит на eleven_v3 без тега (ELEVEN_TUNE.lagos). Подбор 18.10 из 8 нигерийских голосов библиотеки,
+// из тройки финалистов (Ugochukwu, Joje, Frank) капитан выбрал Frank (~/Arena-materials/final/lagos-voice).
+export const LAGOS_VOICE_ID = 'yH7WW3zeKrRMuKt6sg5a'
 export const CAST: Record<string, string> = {
   lagos: LAGOS_VOICE_ID,
   china: 'qEUg56UIsvkup7EM8Ovt',
