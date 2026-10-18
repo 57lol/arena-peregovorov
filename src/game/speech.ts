@@ -1,7 +1,7 @@
 // Голос в браузере: озвучка собеседника и запись реплики игрока.
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
-import { callVoice, callVoiceActive, resumeCallVoice } from './callVoice'
+import { callVoice, callVoiceActive, callVoiceBroken, callVoiceUsable, resumeCallVoice } from './callVoice'
 import { mediaEvent } from './mediaEvent'
 import { ResourceCache } from './resourceCache'
 
@@ -102,10 +102,14 @@ export function setVolume(v: number) {
   }
 }
 
-/** Звонок навсегда привязан к Web Audio; обычные встречи используют отдельный плеер. */
+/**
+ * Звонок навсегда привязан к Web Audio; обычные встречи используют отдельный плеер. Контекст звонка спит или его часы
+ * стоят — голос звонка тоже идёт отдельным плеером, без обработки: лучше без «связи», чем молча.
+ */
 function player(): HTMLAudioElement {
-  audio = (calling ? callAudio : plainAudio) ?? makePlayer()
-  if (calling) callAudio = audio
+  const call = calling && callVoiceUsable()
+  audio = (call ? callAudio : plainAudio) ?? makePlayer()
+  if (call) callAudio = audio
   else plainAudio = audio
   applyVolume()
   return audio
@@ -243,15 +247,20 @@ export function setCallVoice(on: boolean) {
   if (typeof Audio === 'undefined') return
   if (calling !== on) stopAudio()
   calling = on
-  if (on) callVoice(player(), true)
-  else {
+  if (on) {
+    callAudio ??= makePlayer()
+    callVoice(callAudio, true)
+    player()
+  } else {
     if (callAudio) callVoice(callAudio, false)
     player()
   }
 }
 
 export function stopAudio() {
+  // оба плеера: голос звонка мог перейти на обычный плеер посреди встречи
   audio?.pause()
+  for (const a of [plainAudio, callAudio]) if (a && a !== audio && !a.paused) a.pause()
   lip = null
   if (url) URL.revokeObjectURL(url)
   url = ''
@@ -688,7 +697,25 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
       }
       resolve(ok)
     }
-    const yes = () => end(live === me && !me.stopped && allowed())
+    const yes = () => {
+      // через граф звонка: playing приходит и при спящем контексте — звук считаем пошедшим, когда пошло время плеера
+      if (a === callAudio && callVoiceActive()) {
+        a.removeEventListener('playing', yes)
+        clearTimeout(timer)
+        const t0 = a.currentTime
+        setTimeout(() => {
+          if (live !== me || me.stopped) return end(false)
+          if (a.currentTime !== t0 || a.ended) return end(allowed())
+          // молчит: этот и следующие голоса — обычным плеером, тот же звук с начала
+          callVoiceBroken()
+          a.removeEventListener('error', no)
+          a.pause()
+          resolve(playLive(src, allowed, ms))
+        }, 450)
+        return
+      }
+      end(live === me && !me.stopped && allowed())
+    }
     const no = () => end(false)
     const timer = setTimeout(no, ms)
     a.addEventListener('playing', yes)

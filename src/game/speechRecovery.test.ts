@@ -112,8 +112,26 @@ it('после china обычный голос использует другой
   expect(plain.paused).toBe(false)
   speech.setCallVoice(true)
   await speech.playPrepared(line)
+  // контекст звонка спит и без жеста не будится — голос звонка звучит обычным плеером, а не молча
+  expect(played.at(-1)).toBe(plain)
+  context.state = 'running'
+  await speech.playPrepared(line)
   expect(played.at(-1)).toBe(call)
   expect(context.createMediaElementSource).toHaveBeenCalledOnce()
+})
+
+it('звонок: живая реплика через граф молчит (время плеера стоит) — тот же звук обычным плеером', async () => {
+  speech.setCallVoice(true)
+  await speech.playPrepared(line)
+  const call = played.at(-1)!
+  expect(await speech.playLive('/api/tts/live/x', () => true)).toBe(true)
+  const last = played.at(-1)!
+  expect(last).not.toBe(call)
+  expect(last.src).toBe('/api/tts/live/x')
+  expect(call.paused).toBe(true)
+  // дальше звонок — без обработки
+  await speech.playPrepared({ ...line, url: 'blob:next' })
+  expect(played.at(-1)).toBe(last)
 })
 
 it('первый жест во время подготовки громкости не заменяет ожидающую реплику тишиной', async () => {

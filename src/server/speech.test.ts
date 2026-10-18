@@ -610,9 +610,11 @@ describe('любой отказ ElevenLabs подхватывает SpeechKit', 
     const { url } = await (await app.request('/test-rest')).json() as { url: string }
     const response = await app.request(url)
     const bytes = new Uint8Array(await response.arrayBuffer())
-    expect(bytes.length).toBe(frames.length + mp3.length)
+    // остаток идёт в поток по мере синтеза: при обрыве уже пришедшие байты остатка прозвучали, SpeechKit повторяет остаток
+    const sent = failure === 'обрыв' ? 2 * frames.length : frames.length
+    expect(bytes.length).toBe(sent + mp3.length)
     expect(bytes.slice(0, frames.length)).toEqual(frames)
-    expect(bytes.slice(frames.length)).toEqual(mp3)
+    expect(bytes.slice(sent)).toEqual(mp3)
     expect(eleven).toBe(2)
     expect(sk).toHaveLength(1)
     expect(JSON.parse(sk[0]).text.replace(/\+/g, '')).toBe(rest)

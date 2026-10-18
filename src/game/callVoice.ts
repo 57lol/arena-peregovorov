@@ -40,6 +40,31 @@ export function resumeCallVoice() {
 /** Для проверок: звонок включён и голос идёт через обработку. */
 export const callVoiceActive = () => !!graph && want
 
+/**
+ * Можно ли пускать голос через обработку звонка. <audio>, заведённый в граф, при спящем контексте (Safari без жеста,
+ * iPhone с включённым микрофоном — interrupted, смена устройства вывода) «играет» молча: событие playing приходит,
+ * а звука нет. Тогда голос идёт обычным <audio> без обработки, пока контекст не проснётся.
+ */
+let broken = false
+let clock = { t: -1, at: 0 }
+export function callVoiceUsable(): boolean {
+  if (!ctx || !graph) return true
+  if (broken || ctx.state !== 'running') {
+    resumeCallVoice()
+    return false
+  }
+  // часы контекста стоят — звук через него не идёт, хоть state и running
+  const now = performance.now()
+  const moving = clock.t < 0 || now - clock.at < 150 || ctx.currentTime !== clock.t
+  clock = { t: ctx.currentTime, at: now }
+  return moving
+}
+
+/** Голос через граф так и не пошёл (часы плеера стоят после playing): до конца вкладки — без обработки. */
+export function callVoiceBroken() {
+  broken = true
+}
+
 function wire() {
   if (!ctx || !el) return
   if (!graph && want && ctx.state === 'running') {

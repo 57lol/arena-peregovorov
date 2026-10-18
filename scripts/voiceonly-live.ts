@@ -37,7 +37,8 @@ type Ev = [number, string, unknown]
 const ff = opt('browser', 'chromium') === 'firefox'
 const browser = ff
   ? await firefox.launch({ firefoxUserPrefs: { 'media.navigator.permission.disabled': true, 'media.autoplay.default': 0, 'media.autoplay.blocking_policy': 0, 'media.volume_scale': '0.0' } })
-  : await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  // --real-autoplay: политика автозапуска как у игрока (звук и AudioContext — только после жеста)
+  : await chromium.launch({ args: ['--mute-audio', ...(process.argv.includes('--real-autoplay') ? [] : ['--autoplay-policy=no-user-gesture-required']), '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 if (!ff) await ctx.grantPermissions(['microphone'], { origin: base })
 await ctx.route('**/__wav/*', (r) => r.fulfill({ body: wavs[+r.request().url().split('/').pop()! % wavs.length], contentType: 'audio/wav' }))
@@ -48,6 +49,35 @@ await ctx.addInitScript(`
   localStorage.setItem('peregovorka.pause.v1', ${JSON.stringify(pause)})
   localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
   window.ev = []; const log = (k, s) => window.ev.push([Math.round(performance.now()), k, s])
+  // Слышно ли на самом деле: <audio>, заведённый в Web Audio (видеозвонок), «играет» и при спящем контексте — молча.
+  // Каждое подключение к destination дублируем в анализатор и раз в 40 мс меряем уровень: sound on/off — реальный звук.
+  {
+    const taps = new Map()
+    const C = window.AudioContext
+    const conn = AudioNode.prototype.connect
+    AudioNode.prototype.connect = function (d, ...rest) {
+      const r = conn.call(this, d, ...rest)
+      if (d instanceof AudioDestinationNode && !this.__tapped) {
+        this.__tapped = true
+        let t = taps.get(this.context)
+        if (!t) { t = { an: this.context.createAnalyser(), on: false, state: this.context.state }; t.an.fftSize = 1024; taps.set(this.context, t)
+          this.context.addEventListener('statechange', () => log('wa-state', this.context.state)); log('wa-ctx', this.context.state) }
+        conn.call(this, t.an)
+      }
+      return r
+    }
+    const mes = C.prototype.createMediaElementSource
+    C.prototype.createMediaElementSource = function (el) { el.__wa = this; this.__voice = true; log('wa-capture', this.state); return mes.call(this, el) }
+    const buf = new Float32Array(1024)
+    setInterval(() => {
+      for (const [c, t] of taps) {
+        if (!c.__voice) continue
+        t.an.getFloatTimeDomainData(buf); let s = 0; for (const x of buf) s += x * x
+        const on = c.state === 'running' && Math.sqrt(s / buf.length) > 0.01
+        if (on !== t.on) { t.on = on; log(on ? 'wa-sound' : 'wa-quiet', c.state) }
+      }
+    }, 40)
+  }
   // трасса игры: на their-end (собеседник договорил) — следующая фраза через ${delay} мс после конца его звука
   const tr = []; let said = 0
   tr.push = function (e) {
@@ -129,7 +159,7 @@ await ctx.addInitScript(`
       this.logged = true
       this.addEventListener('ended', (e) => log('ended', { t: Math.round(e.timeStamp), src: this.src.slice(-24) }))
       // что зазвучало: фраза-пауза, реакция или реплика (поток MediaSource и скачанный звук — blob:)
-      this.addEventListener('playing', () => { const s = this.src; log('playing', s.includes('voice-reactions') ? 'reaction' : s.includes('voice-fillers') ? 'filler' : s.startsWith('blob:') ? 'line' : s.includes('/api/tts') ? 'line' : 'other') })
+      this.addEventListener('playing', () => { const s = this.src; log(this.__wa ? 'playing-wa' : 'playing', s.includes('voice-reactions') ? 'reaction' : s.includes('voice-fillers') ? 'filler' : s.startsWith('blob:') ? 'line' : s.includes('/api/tts') ? 'line' : 'other') })
       if (${process.argv.includes('--debug-audio')}) {
         const a = this
         for (const k of ['pause', 'waiting', 'stalled', 'error', 'emptied', 'playing']) a.addEventListener(k, (e) => log('a:' + k, { t: Math.round(e.timeStamp), ct: +a.currentTime.toFixed(2), d: +a.duration.toFixed(2), rs: a.readyState, buf: [...Array(a.buffered.length)].map((_, i) => a.buffered.start(i).toFixed(2) + '-' + a.buffered.end(i).toFixed(2)).join(','), src: a.src.slice(-10) }))
@@ -190,7 +220,11 @@ ends.forEach((te, k) => {
   // после отправки: реакция (фраза-пауза), начало реплики в потоке хода, первый звук реплики, ход целиком
   const after = (kind: string, pick?: (e: Ev) => boolean) => (turn ? ev.find((e) => e[1] === kind && e[0] >= turn[0] && (!pick || pick(e))) : undefined)
   const react = after('playing', (e) => e[2] === 'reaction' || e[2] === 'filler')
-  const sound = after('playing', (e) => e[2] === 'line')
+  // звук реплики: <audio> вне Web Audio заиграл — или анализатор Web Audio услышал звук (видеозвонок)
+  const plainSound = after('playing', (e) => e[2] === 'line')
+  const waSound = after('wa-sound')
+  const sound = [plainSound, waSound].filter(Boolean).sort((a, b) => a![0] - b![0])[0]
+  const silentPlay = after('playing-wa', (e) => e[2] === 'line')
   const line = after('line')
   const tts = after('tts')
   const done = after('done')
@@ -214,6 +248,7 @@ ends.forEach((te, k) => {
     'ход → ход целиком, мс': since(done, turn?.[0]),
     'конец речи → звук реплики, мс': since(sound, speechEnd),
     реакция: react?.[2] ?? '—',
+    'звук через Web Audio': silentPlay ? (waSound ? 'слышно' : 'ТИШИНА') : '—',
     сервер: dms ? JSON.stringify(dms) : '—',
     распознано: turn?.[2] ?? '—',
     поток: all.some((e) => e[0] === 'ev' && e[2] === 'ws<' && String(e[3]).startsWith('final') && (e[1] as number) > say.t && (!turn || (e[1] as number) <= turn[0])) ? 'Scribe' : 'Яндекс',

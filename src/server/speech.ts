@@ -488,8 +488,34 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       return livePrep(text, voice, b.who, roomy)
     }
     let firstText: string | undefined
-    // куски после начала (продолжение после захода): синтез начинается сразу, в поток — по порядку
-    const extras: { text: string; audio: Promise<Uint8Array> }[] = []
+    // куски после начала (продолжение после захода и остаток): синтез каждого начинается сразу, параллельно,
+    // а байты идут в поток по порядку и по мере прихода — не ждём конца синтеза куска (на v3 это 2–3 с тишины)
+    interface Piece { text: string; chunks: Uint8Array[]; ended: boolean; error?: unknown; wake?: () => void }
+    const extras: Piece[] = []
+    // куски после начала встают в очередь ElevenLabs только после того, как начало зазвучало (или не смогло):
+    // иначе при занятой очереди остаток отнял бы место у первых слов
+    let firstGo!: () => void
+    const firstGone = new Promise<void>((r) => (firstGo = r))
+    const startPiece = (text: string): Piece => {
+      const pc: Piece = { text, chunks: [], ended: false }
+      void firstGone.then(() => prep(text))
+        .then((q) => elevenPiece(q, (u) => { pc.chunks.push(u); pc.wake?.() }, Date.now() + WAIT.eleven(), charge))
+        .then(() => {}, (e: unknown) => { pc.error = e })
+        .finally(() => { pc.ended = true; pc.wake?.() })
+      return pc
+    }
+    /** Байты куска — в поток, как приходят; первый кусок файла без своей шапки ID3. */
+    const drain = async (pc: Piece) => {
+      for (let i = 0; ; ) {
+        while (i < pc.chunks.length) {
+          const u = pc.chunks[i]
+          out.push(i++ === 0 ? noId3(u) : u)
+        }
+        if (pc.ended) break
+        await new Promise<void>((r) => (pc.wake = r))
+      }
+      if (pc.error) throw pc.error
+    }
     let moreWake: (() => void) | undefined
     let gotFirst!: (t: string) => void
     const firstP = new Promise<string>((r) => (gotFirst = r))
@@ -518,6 +544,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           // Подготовка и кэш тоже могут отказать — запасной голос подхватит весь текст.
           const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(await prep(start), env) }))
           if (ready) {
+            firstGo()
             setHead({ api: 'elevenlabs', voice })
             out.push(ready)
             out.end()
@@ -525,7 +552,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           }
           const t0 = Date.now()
           let heard!: () => void
-          const firstByte = new Promise<boolean>((r) => (heard = () => r(true)))
+          const firstByte = new Promise<boolean>((r) => (heard = () => { firstGo(); r(true) }))
           // Ошибка обработана сразу: whole может прийти заметно позже первого куска.
           const p1 = prep(start).then((q) => {
             took.push(Date.now() - t0)
@@ -536,6 +563,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
               out.push(u)
             }, t0 + WAIT.elevenFirst(), charge)
           }).then(() => ({ error: undefined }), (error: unknown) => ({ error }))
+          void p1.then(firstGo)
           let timer: ReturnType<typeof setTimeout> | undefined
           const ok = await Promise.race([firstByte, p1.then(() => false), new Promise<boolean>((r) => (timer = setTimeout(r, WAIT.elevenFirst(), false)))])
           clearTimeout(timer)
@@ -569,19 +597,16 @@ export function makeSpeech(opts: SpeechOptions = {}) {
             for (let i = 0; ; i++) {
               while (i >= extras.length && !wholeKnown) await new Promise<void>((r) => (moreWake = r))
               if (i >= extras.length) break
-              out.push(noId3(await extras[i].audio))
+              await drain(extras[i])
               spokenSoFar = `${spokenSoFar} ${extras[i].text}`
             }
             const w = await whole
+            // остаток обычно уже синтезируется (finish); сюда — только если что-то не покрыто кусками
             remaining = spokenTail(w.text, spokenSoFar)
-            if (stripTags(remaining)) {
-              // Остаток отдаём целиком: при обрыве его заменит SpeechKit без повтора полуслов.
-              const chunks: Uint8Array[] = []
-              await elevenPiece(await prep(remaining), (u) => chunks.push(u), Date.now() + WAIT.eleven(), charge)
-              out.push(noId3(glue(chunks)))
-            }
+            if (stripTags(remaining)) await drain(startPiece(remaining))
           }
         } catch (e) {
+          firstGo()
           dead = true
           reason = (e as Error).message
           // Без подтверждённого куска нельзя узнать озвученные слова: повторяем весь текст.
@@ -647,17 +672,16 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           return gotFirst(text)
         }
         if (!el || wholeKnown) return
-        const audio = prep(text).then(async (q) => {
-          const chunks: Uint8Array[] = []
-          await elevenPiece(q, (u) => chunks.push(u), Date.now() + WAIT.eleven(), charge)
-          return glue(chunks)
-        })
-        audio.catch(() => {})
-        extras.push({ text, audio })
+        extras.push(startPiece(text))
         moreWake?.()
       },
       /** реплика целиком (с пометками для голоса) */
       finish(text: string, emotion?: Emotion) {
+        // остаток после уже озвученных кусков — в синтез сразу, параллельно с ними (раньше ждал, пока они прозвучат)
+        if (el && !wholeKnown && firstText !== undefined && firstText !== text) {
+          const tail = spokenTail(text, [firstText, ...extras.map((x) => x.text)].join(' '))
+          if (stripTags(tail)) extras.push(startPiece(tail))
+        }
         wholeKnown = true
         moreWake?.()
         gotWhole({ text, emotion })
