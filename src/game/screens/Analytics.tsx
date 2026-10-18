@@ -12,7 +12,8 @@ import type { RunLog } from '../progress'
 import '../analytics.css'
 
 const signed = (v: number) => v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0'
-const number = (v: number) => Number(v.toFixed(1))
+/** по-русски: «62,5», не «62.5» */
+const number = (v: number) => Number(v.toFixed(1)).toLocaleString('ru-RU')
 const COLORS = ['var(--c-leaf-2)', 'var(--c-stamp)', 'var(--c-denim)']
 interface Series { label: string; values: (number | null)[] }
 
@@ -210,7 +211,7 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
               <span style={{ width: `${(bar.you ?? 0) / bar.max * 100}%` }} />
               {bar.skilled !== null && <i style={{ left: `${bar.skilled / bar.max * 100}%` }} />}
             </span>
-            <span className="g-profile-caption">{row.comparison && 'Все вопросы: '}{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${bar.skilled}` : ' · без численной нормы'}</span>
+            <span className="g-profile-caption">{row.comparison && 'Все вопросы: '}{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${number(bar.skilled)}` : ' · без численной нормы'}</span>
           </summary>
           <div className="g-profile-evidence">
             <p>{plainWords(def.definition)}</p>
