@@ -56,6 +56,14 @@ function clauses(text: string): string[] {
   return text.split(/(?<=[.!?\n;])\s*/u).map((s) => s.trim()).filter(Boolean)
 }
 
+/** «Не нравится — до свидания» — ультиматум, «Я не ухожу» — отрицание, а не уход. */
+export function isWalkAway(text: string): boolean {
+  return clauses(text).some((c) => {
+    const m = WALK.exec(c)
+    return !!m && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
+  })
+}
+
 /** Цитата — предложение, в котором нашёлся маркер (не длиннее 90 символов). */
 function quoteAround(text: string, at: number, len: number): string {
   const before = text.slice(0, at)
@@ -84,12 +92,7 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   const tentative = isTentative(text) || behaviors.some((h) => h.id === 'whatif')
   const offer = parseOffer(sc, extras.main, 'player')
   const toneViolation = RUDE.test(text)
-  // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
-  // «Я не ухожу», «никуда не ухожу» — наоборот.
-  const walksAway = parts.some((c) => {
-    const m = WALK.exec(c)
-    return !!m && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
-  })
+  const walksAway = isWalkAway(extras.main)
 
   const out: MoveAnalysis = { behaviors, ...(extras.choices.length ? { upsells: extras.choices } : {}) }
   if (!tentative && Object.keys(offer).length) out.offer = offer

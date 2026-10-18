@@ -84,10 +84,7 @@ describe.each(CASES)('$id: проверка слов после разметки
     expect(withBareYes(text, { behaviors: [] }, [record(sc, { kind: 'respond', to: ['question'] })]).accepts).not.toBe(true)
   })
 
-  const ambiguous = ['tara', 'client'].includes(keyOf(sc))
-  // Для этих двух дел said распознаётся слишком широко либо не распознаётся вообще.
-  const bareTest = ambiguous ? it.fails : it
-  bareTest(`${ambiguous ? 'BUG ' : ''}голое число подтверждает только пункт из последней реплики собеседника`, () => {
+  it('голое число подтверждает только пункт из последней реплики собеседника', () => {
     const proposed = { ...row.offer, ...row.wrong }
     const analysis = validate(sc, dict, row.text, { ...raw, accepts: true, offer: Object.entries(proposed).map(([issue, option]) => ({ issue, option })) }, row.said)
     expect(analysis.offer).toEqual(row.offer)
@@ -97,7 +94,7 @@ describe.each(CASES)('$id: проверка слов после разметки
 
   it('отказ «только не X» от утвердительных вариантов не становится предложением', () => {
     for (const i of sc.issues) for (const [option, label] of i.options.entries()) {
-      // Отрицательные названия и вариант с запятой проверяются отдельно как BUG ниже.
+      // Отрицательные названия и вариант с запятой проверяются отдельно ниже.
       if (/^(?:не|нет|без)(?!\p{L})/u.test(label)) continue
       if (keyOf(sc) === 'stop' && i.id === 'bus' && option === 1) continue
       const text = `${en ? 'Not' : 'Только не'} ${label}.`
@@ -128,18 +125,22 @@ describe.each(CASES)('$id: проверка слов после разметки
     }
   })
 
-  // groundAnalysis проверяет согласие, но не перепроверяет walksAway словами игрока.
-  it.fails('BUG отрицание «Я не ухожу» не должно сохранять ошибочный walksAway модели', () => {
+  it('отрицание «Я не ухожу» отменяет ошибочный walksAway модели', () => {
     const text = 'Я не ухожу.'
     expect(groundedOffline(sc, text, dict).walksAway).not.toBe(true)
     expect(validate(sc, dict, text, { ...raw, walksAway: true }).walksAway).not.toBe(true)
+    expect(groundAnalysis(sc, text, { behaviors: [], walksAway: true }).walksAway).not.toBe(true)
+    expect(validate(sc, dict, 'Я ухожу.', { ...raw, walksAway: true }).walksAway).toBe(true)
   })
 
   // Вопрос содержит слово согласия, но не является подтверждением сделки.
-  it.fails('BUG вопрос о согласии не должен подтверждать accepts модели', () => {
+  it('вопрос о согласии не подтверждает accepts модели', () => {
     const text = en ? 'Deal?' : 'Договорились?'
     expect(groundedOffline(sc, text, dict).accepts).not.toBe(true)
     expect(validate(sc, dict, text, { ...raw, accepts: true }).accepts).not.toBe(true)
+    expect(groundAnalysis(sc, text, { behaviors: [], accepts: true }).accepts).not.toBe(true)
+    const yes = en ? 'I accept. When do we sign?' : 'Принимаю. Когда подписываем?'
+    expect(validate(sc, dict, yes, { ...raw, accepts: true }).accepts).toBe(true)
   })
 })
 
@@ -152,17 +153,19 @@ describe('отказ от отрицательного варианта и от�
       shop: [['Только не без карты.', 'card', 0], ['Только не без бумажек.', 'paper', 0]],
     }
     for (const [text, issue, option] of examples[keyOf(sc)] ?? []) {
-      // negativeEvidence принимает отвергаемое отрицательное название за выбор этого же варианта.
-      it.fails(`BUG ${sc.id}: «${text}» не предлагает отвергнутый вариант`, () => {
+      it(`${sc.id}: «${text}» не предлагает отвергнутый вариант`, () => {
         const a = validate(sc, dict, text, { ...raw, offer: [{ issue, option }] })
         expect(a.offer?.[issue]).toBeUndefined()
+        expect(groundedOffline(sc, text, dict).offer?.[issue]).toBeUndefined()
       })
     }
     if (keyOf(sc) === 'stop') {
-      // После запятой теряется отказ перед конкретным временем автобуса.
-      it.fails(`BUG ${sc.id}: отказ от следующего автобуса не предлагает 8:20`, () => {
+      it(`${sc.id}: отказ от следующего автобуса не предлагает 8:20`, () => {
         const text = 'Только не следующим, в 8:20.'
         expect(validate(sc, dict, text, { ...raw, offer: [{ issue: 'bus', option: 1 }] }).offer?.bus).toBeUndefined()
+        expect(groundedOffline(sc, text, dict).offer?.bus).toBeUndefined()
+        const counter = 'Только не следующим, в 8:20, предлагаю успеть на 7:52.'
+        expect(validate(sc, dict, counter, { ...raw, offer: [{ issue: 'bus', option: 2 }] }).offer).toEqual({ bus: 2 })
       })
     }
   }

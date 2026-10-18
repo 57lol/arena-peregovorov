@@ -1,6 +1,7 @@
 import { detectBehaviors } from './behaviors'
 import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
+import { isWalkAway } from './offline/analyze'
 import { mentionedIssues, parseOffer, spokenNumber, type Mention } from './offline/parseOffer'
 import { optionQuantity, quantities } from './offline/numbers'
 import type { MoveAnalysis, Offer, Scenario } from './types'
@@ -43,6 +44,18 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
   // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
   // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
   const parts = text.split(CLAUSE).map((p) => p ?? '')
+  // Запятая внутри отвергнутого названия («не следующим, в 8:20») не обрывает отрицание.
+  for (let k = 1; k < parts.length - 1; k += 2) {
+    if (parts[k] !== ',' || !(LEAD_NOT.test(parts[k - 1]) || REFUSAL.test(parts[k - 1]))) continue
+    const joined = parts[k - 1] + parts[k] + parts[k + 1]
+    if (!sc.issues.some((i) => i.options.some((o) => {
+      const comma = o.indexOf(',')
+      return comma >= 0 && parts[k - 1].toLowerCase().endsWith(o.slice(0, comma).toLowerCase()) &&
+        parts[k + 1].toLowerCase().startsWith(o.slice(comma + 1).toLowerCase())
+    }))) continue
+    parts.splice(k - 1, 3, joined)
+    k -= 2
+  }
   const refused = parts.map((part) =>
     REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) ||
     rejectsAlias(part) ||
@@ -108,6 +121,10 @@ function negativeEvidence(sc: Scenario, parts: string[], refused: boolean[]): Of
     for (const i of sc.issues) {
       const n = i.options.findIndex((o) => NEGATED.test(o))
       if (n < 0) continue
+      // «Не без карты» отвергает вариант; собственное отрицание «без карты» его выбирает.
+      const label = [i.options[n], ...(i.aliases?.[n] ?? [])].find((o) => NEGATED.test(o) && part.toLowerCase().includes(o.toLowerCase()))
+      const rest = label ? part.toLowerCase().replace(label.toLowerCase(), '') : ''
+      if (label && (REFUSAL.test(rest) || LEAD_NOT.test(rest) || VETO.test(rest) || BARE_VETO.test(parts[k + 2] ?? ''))) continue
       if (refused[k] && said[i.id] === n) out[i.id] = n
       else if (said[i.id] === undefined && neg && mentionedIssues(sc, part).includes(i.id)) out[i.id] = n
     }
@@ -229,6 +246,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
   const parts = sentences(text)
+  if (other.walksAway && !isWalkAway(text)) delete other.walksAway
   if (!parts.some((p, i) => requestsInformation(p, parts[i + 1]) &&
     (p.includes('?') || /^(?:почему|зачем|расскажите|что|как|сколько|why|tell me|what|how|would|could|can)/iu.test(p)))) {
     delete other.asksAbout
@@ -239,7 +257,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     delete other.upsells
     return other
   }
-  if (other.accepts && (!AGREE_WORD.test(text) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
+  if (other.accepts && (!parts.some((p) => !p.includes('?') && AGREE_WORD.test(p)) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
   const supported = explicitOffer(sc, text, offer, said)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

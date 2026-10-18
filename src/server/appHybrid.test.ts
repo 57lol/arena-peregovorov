@@ -20,8 +20,8 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
-function harness(blockFirst = false) {
-  const main = deferred<unknown>(), quick = deferred<unknown>(), speaking = deferred<void>()
+function harness(blockFirst = false, delayFirst = false) {
+  const main = deferred<unknown>(), quick = deferred<unknown>(), speaking = deferred<void>(), voiceReady = deferred<void>()
   const backup: LLM = { name: 'yandex', model: 'тестовый-pro', json: vi.fn(() => quick.promise) }
   const primary: LLM = { name: 'aitunnel', model: 'тестовый-sonnet', json: vi.fn(() => main.promise), backup }
   const streams = vi.fn()
@@ -31,6 +31,7 @@ function harness(blockFirst = false) {
       streams(signal)
       const blocked = blockFirst && streams.mock.calls.length === 1
       speaking.resolve()
+      if (delayFirst) await voiceReady.promise
       yield JSON.stringify({ agrees: false, terms: [], reveals: [], line, emotion: 'neutral' })
       if (blocked) {
         await new Promise<void>((resolve) => {
@@ -42,7 +43,7 @@ function harness(blockFirst = false) {
     },
   }
   const app = createApp({ ...backup, analyzer: primary, voice: speaker }, undefined, makeSpeech({ key: '', fetch: network, stressAsk: null }))
-  return { app, main, quick, primary, backup, streams, speaking }
+  return { app, main, quick, primary, backup, streams, speaking, voiceReady }
 }
 type Event = {
   t: string; text: string; opponentLine: string; analysis: MoveAnalysis; record: TurnRecord; state: OpponentState;
@@ -108,7 +109,11 @@ describe('гибридный ход: управляемый порядок от�
       h.main.resolve(mainAnswer)
     } else {
       h.main.resolve(mainAnswer)
-      await output.done
+      // Основной уже обработан, быстрый ещё не ответил: завершать ход до выбора рамки нельзя.
+      let done = false
+      void output.done.then(() => { done = true })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(done).toBe(false)
       h.quick.resolve(raw)
     }
     const events = await output.done
@@ -142,11 +147,27 @@ describe('гибридный ход: управляемый порядок от�
     expect(h.backup.json).toHaveBeenCalledTimes(1)
   })
 
-  // app.ts выбирает quick после first, но main до first: один вход имеет разные исходы на холодном кэше.
-  it.fails('BUG одинаковый ход при конфликте quick/main не должен зависеть от порядка их ответов', async () => {
+  it('одинаковый ход при конфликте quick/main не зависит от порядка их ответов', async () => {
     const fast = await ordered('быстрый', { ...raw, toneViolation: true })
     const slow = await ordered('основной', { ...raw, toneViolation: true })
     expect(fast.result.record).toEqual(slow.result.record)
+    expect(slow.result.sources.ms.record).toBe('quick')
+    expect(slow.first.record.decision).toEqual(slow.result.record.decision)
+    expect(slow.first.record.stateAfter).toEqual(slow.result.state)
+  })
+
+  it('совпавший с правилами quick побеждает конфликтующий main и до готовности первой фразы', async () => {
+    const h = harness(false, true), output = await stream(h.app)
+    await h.speaking.promise
+    h.quick.resolve(raw)
+    h.main.resolve({ ...raw, toneViolation: true })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    h.voiceReady.resolve()
+    const result = finished(await output.done)
+    expect(result.sources.ms.record).toBe('quick')
+    expect(result.analysis.toneViolation).not.toBe(true)
+    expect(result.record.decision).toEqual((await output.first).record.decision)
+    expect(h.streams).toHaveBeenCalledTimes(1)
   })
 
   it('ошибка quick не блокирует основной, промах отменяет прежнюю рамку', async () => {
@@ -218,6 +239,7 @@ describe('гибридный ход: управляемый порядок от�
     expect(result.state.status).toBe('open')
     expect(h.primary.json).toHaveBeenCalledTimes(1)
     expect(h.backup.json).toHaveBeenCalledTimes(1)
+    expect(h.streams).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -279,8 +301,7 @@ describe('заготовка во время паузы', () => {
     expect(h.streams.mock.calls[0][0].aborted).toBe(true)
   })
 
-  // Повтор запроса до ответа (например, повтор отправки клиентом) создаёт второй startJob из-за attached.
-  it.fails('BUG два одновременных одинаковых turn не должны повторно вызывать разметчики', async () => {
+  it('два одновременных одинаковых turn используют одно задание разметки и реплики', async () => {
     const h = harness()
     const one = await stream(h.app)
     await h.speaking.promise
@@ -291,5 +312,6 @@ describe('заготовка во время паузы', () => {
     expect(finished(a).record).toEqual(finished(b).record)
     expect(h.primary.json).toHaveBeenCalledTimes(1)
     expect(h.backup.json).toHaveBeenCalledTimes(1)
+    expect(h.streams).toHaveBeenCalledTimes(1)
   })
 })

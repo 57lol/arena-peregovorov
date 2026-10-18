@@ -421,23 +421,22 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         // настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — по модели.
         const rulesKey = spec ? frame({ analysis: groundedOffline(sc, body.playerText, dict), source: 'offline' }, 'rules').key : undefined
         let quickA: AnalyzeResult | undefined
-        void ar.quick?.then((q) => {
+        const quickSeen = ar.quick?.then((q) => {
           if (!q || final || stopped || cur?.sent) return
           quickA = q
           ms.quick = Date.now() - t0
-          // Pro и правила сошлись — рамка надёжна (по записанным партиям тогда сходится и с Sonnet): начало можно
-          // озвучить, не дожидаясь Sonnet. Не сошлись — реплика по Pro, а звучит она, когда подтвердит Sonnet.
+          // Pro и правила сошлись — начало можно озвучить сразу: при конфликте эта рамка важнее Sonnet.
+          // Не сошлись — реплика по Pro, а звучит она, когда подтвердит Sonnet.
           if (frame(q, 'quick').key === rulesKey) cur!.open(q.analysis, q.source)
         }).catch(() => {})
         let main = await ar.main!
         ms.main = Date.now() - t0
+        // Выбор зависит от разборов, а не от порядка ответов или готовности первой фразы.
+        await quickSeen
         if (stopped) throw new Error('Ход больше не нужен')
         if (main.source === 'offline' && quickA) main = quickA
-        if (cur?.sent && quickA) final = keyOf(decide(main.analysis).r) === cur.key ? main : quickA
-        else {
-          final = main
-          if (cur || spec) frame(main, 'main').open(main.analysis, main.source)
-        }
+        final = quickA && cur?.key === rulesKey && keyOf(decide(main.analysis).r) !== rulesKey ? quickA : main
+        if (cur || spec) frame(final, final === quickA ? 'quick' : 'main').open(final.analysis, final.source)
         if (final === quickA && main !== quickA) ms.record = 'quick'
         if (spec) ms.spec = cur!.basis === 'rules' ? 'hit' : 'miss'
       }
@@ -453,7 +452,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
     const done = run()
     let over = false
-    done.then(() => (over = true), () => gotFirst(undefined))
+    done.then(() => (over = true), () => { over = true; gotFirst(undefined) })
     const job: Job = {
       over: () => over,
       who: t.who,
@@ -500,7 +499,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const speaker = lab ? t.llm : asked.llm ?? t.llm.voice ?? t.llm
     stopOthers(t.who, t.key)
     const ready = jobs.get(t.key)
-    const job = ready && !ready.stopped() && !ready.attached ? ready : startJob(t, body, speaker)
+    const job = ready && !ready.stopped() && (!ready.attached || !ready.over()) ? ready : startJob(t, body, speaker)
     job.attached = true
     // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
     let emit: ((ev: object) => void) | undefined
