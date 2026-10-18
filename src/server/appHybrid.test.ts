@@ -88,12 +88,16 @@ function finished(events: Event[]) {
 }
 
 beforeEach(() => {
+  // Срок quick не истекает, пока тест вручную задаёт порядок ответов и ждёт дисковый кэш.
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
   // Два эксперимента с одним входом действительно начинают с холодного кэша.
   for (const kind of ['analyze', 'voice']) rmSync(join(root, kind), { recursive: true, force: true })
   vi.stubGlobal('fetch', network)
   for (const [k, v] of Object.entries({ SPECULATE: 'on', ANALYZE_QUICK: 'on', PREPARE: 'on', SPEECH: 'off', NATURAL_SPEECH: 'off', STRESS_LLM: 'off', YANDEX_API_KEY: '', AITUNNEL_API_KEY: '' })) vi.stubEnv(k, v)
 })
 afterEach(() => {
+  vi.clearAllTimers()
+  vi.useRealTimers()
   expect(network).not.toHaveBeenCalled()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -115,7 +119,7 @@ describe('гибридный ход: управляемый порядок от�
       // Основной уже обработан, быстрый ещё не ответил: завершать ход до выбора рамки нельзя.
       let done = false
       void output.done.then(() => { done = true })
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await vi.advanceTimersByTimeAsync(0)
       expect(done).toBe(false)
       h.quick.resolve(raw)
     }
@@ -164,10 +168,10 @@ describe('гибридный ход: управляемый порядок от�
     await h.speaking.promise
     h.quick.resolve(raw)
     // Quick уже открыл заготовку, но принятый кусок потока ещё не разобран.
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    await vi.advanceTimersByTimeAsync(0)
     expect(h.sound.first).not.toHaveBeenCalled()
     h.main.resolve({ ...raw, toneViolation: true })
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    await vi.advanceTimersByTimeAsync(0)
     h.voiceReady.resolve()
     const result = finished(await output.done)
     expect(result.sources.ms.record).toBe('quick')
@@ -274,7 +278,7 @@ describe('заготовка во время паузы', () => {
     await h.speaking.promise
     if (when === 'после quick') {
       h.quick.resolve(raw)
-      await new Promise<void>((resolve) => setImmediate(resolve))
+      await vi.advanceTimersByTimeAsync(0)
     }
     const output = await stream(h.app, { playerText: 'Обсудим условия и график.', tts: { voice: 'ermil' } })
     expect(h.streams.mock.calls[0][0].aborted).toBe(true)
