@@ -102,7 +102,8 @@ ${priorities(sc)}
 Как идёт игра. В каждом ходе ты видишь весь разговор и своё решение по сделке. Решение уже принято и не меняется: там сказано, что ты делаешь с условиями и что можно рассказать. Всё остальное твоё: слова, шутки, подколки, встречные вопросы.
 
 Как говорить:
-- Это устная речь, тебя озвучит голос, длинное не дослушают. Обычно одна-три короткие фразы, слов десять-двадцать пять, иногда одно слово, а если рассказываешь о себе — чуть больше. Длина каждый раз своя.
+- Это устная речь, тебя озвучит голос, длинное не дослушают. Обычно одна-две короткие фразы, слов десять-двадцать, иногда одно слово. Тридцать слов — потолок, даже когда рассказываешь о себе. Длина каждый раз своя.
+- Только про этот разговор и эту сделку: не заводи новых тем, людей и историй, которых не было в разговоре и в твоей карточке, не пересказывай свою биографию и то, как вы встретились.
 - Сначала отвечаешь на то, что человек сказал: на шутку, вопрос, извинение, имя. Потом про дело, если есть что сказать.
 - Юмор — по характеру: кто любит пошутить, шутит и в торге (подколка, преувеличение, сравнение из своей жизни), кто сухой — сухая ирония. Смешно должно быть по ситуации, а не анекдотом.
 - Условия называешь, только когда они меняются или о них спросили. Что и так лежит на листке, вслух не перечисляешь: листок у собеседника перед глазами.
@@ -182,7 +183,8 @@ You have your own reasons to hold on to your terms. Which of them you may alread
 How the game works. Each turn you see the whole conversation and your decision on the deal. The decision is already made and does not change; it says what you do with the terms and what you may tell. The decision is written in Russian: it is a stage direction for you, never translate it word for word and never speak Russian. Everything else is yours: words, jokes, teasing, counter-questions.
 
 How to speak:
-- This is spoken English, a voice will read it, and long lines nobody listens to. Usually one to three short sentences, ten to twenty-five words, sometimes one word; a bit more when you tell something about yourself. The length is different every time.
+- This is spoken English, a voice will read it, and long lines nobody listens to. Usually one or two short sentences, ten to twenty words, sometimes one word. Thirty words is the ceiling, even when you tell something about yourself. The length is different every time.
+- Stay on this conversation and this deal: no new topics, people or stories that are not in the conversation or your character card, no retelling of your background.
 - First answer what the person said: a joke, a question, an apology, a name. Then the deal, if there is something to say.
 - Humor in character: a quick tease, an exaggeration, a comparison from your own life or the workshop. Funny from the situation, not a canned joke.
 - Name terms only when they change or when asked. What is already on the sheet in front of them you don't read out.
@@ -406,7 +408,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
     }
     case 'respond': {
       const acts = d.to.map((t) => TALK_RU[t]).join(' и ')
-      text = `По сделке ничего не меняется: он ${acts}. Ответь ему на это по-настоящему, из своего характера и жизни: можно подколоть, переспросить, рассказать что-то о себе (но не скрытые причины). Условий не называешь.${d.back ? ' В конце сам коротко поверни разговор к делу.' : ''}`
+      text = `По сделке ничего не меняется: он ${acts}. Ответь ему на это коротко и по-настоящему, из своего характера: можно подколоть или переспросить. Новых тем не заводи, скрытые причины не трогай. Условий не называешь.${d.back ? ' В конце сам коротко поверни разговор к делу.' : ''}`
       break
     }
     case 'hold':
@@ -634,6 +636,9 @@ export interface CheckContext {
   mine: string[]
 }
 
+/** Потолок длины реплики в словах: длинное не дослушают и уходят в сторону; рассказ о себе — чуть длиннее. */
+const maxWords = (d: Decision) => (d.kind === 'reveal' ? 50 : 40)
+
 const isBargaining = (d: Decision) => ((d.kind === 'counter' || d.kind === 'reveal') && !d.final) || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
 
 /** Что модель заявила до реплики (согласие, условия, раскрытые причины) против решения движка. */
@@ -702,7 +707,7 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
   if (d.kind === 'accept' && !agreesNow(line)) hard.push('не прозвучало согласие на сделку')
   if (missingTerms(sc, frame, line).length) hard.push('не прозвучали изменённые условия')
   const soft = startProblems(sc, line, ctx)
-  if (line.split(/\s+/).length > 55) soft.unshift('слишком длинно: скажи короче, как в жизни')
+  if (line.split(/\s+/).length > maxWords(d)) soft.unshift('слишком длинно: скажи короче, как в жизни')
   const listing = d.kind !== 'accept' && d.kind !== 'counter' && !(d.kind === 'reveal' && d.offer)
   if (listing && new Set(out.terms.map((t) => t.issue)).size >= 3) soft.push('не перечисляй условия, листок у него перед глазами')
   return { hard, soft }
@@ -943,7 +948,7 @@ async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ct
         const piece = cleanPiece(raw, true, tagCount(said))
         if (!stripTags(piece)) continue
         const c = checkPiece(sc, frame, piece, ctx, said)
-        if (c.hard.length || wordsOf(`${said} ${piece}`) > 55) {
+        if (c.hard.length || wordsOf(`${said} ${piece}`) > maxWords(d)) {
           r.dropped.push(`«${stripTags(piece)}»: ${c.hard.join('; ') || 'слишком длинно'}`)
           continue
         }

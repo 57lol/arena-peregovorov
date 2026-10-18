@@ -12,6 +12,7 @@ import { offer as offerCase } from './offer'
 import { china } from './china'
 import { tara } from './tara'
 import { shopCase } from './story/shop'
+import { stopCase } from './story/stop'
 
 const shop = shopCase.scenario
 
@@ -125,5 +126,26 @@ describe('живая проверка разметки 18.10: что прове�
     const text = 'Карту не надо, рассылкой завалите.'
     expect(groundAnalysis(shop, text, { behaviors: [], offer: { card: 0 } }).offer).toEqual({ card: 0 })
     expect(groundedOffline(shop, text, BEHAVIOR_DICT).offer).toEqual({ card: 0 })
+  })
+})
+
+describe('партия капитана в «Остановке» (18.10): на полях', () => {
+  it('«извинюсь при пацанах» — настоящая уступка игрока, а не «это у собеседника уже было»', () => {
+    const sc = stopCase.scenario
+    const moves: MoveAnalysis[] = [
+      { behaviors: [], toneViolation: true, offer: { money: 1 } },
+      { behaviors: [], asksAbout: ['money'], talk: ['apology', 'question'] },
+      { behaviors: [] },
+      { behaviors: [], offer: { phone: 1, sorry: 3 } },
+    ]
+    let state = initialState(sc)
+    const history: TurnRecord[] = []
+    for (const m of moves) {
+      const a = withContext(m, state, history, BEHAVIOR_DICT)
+      const r = step(sc, state, a, BEHAVIOR_DICT, history.map((h) => h.analysis))
+      history.push({ turn: r.state.turn, playerText: '', analysis: a, deltas: r.deltas, decision: r.decision, opponentLine: '', emotion: 'neutral', stateAfter: r.state })
+      state = r.state
+    }
+    expect(turnFeedback(sc, history[3], history[2]).notes.map((n) => n.key)).not.toContain('side-free')
   })
 })
