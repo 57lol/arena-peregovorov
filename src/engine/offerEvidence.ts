@@ -25,9 +25,14 @@ const VETO = /(?<!\p{L})(?:не\s+(?:пойд[её]т|годится|годят�
 // кусок, который сам ничего не предлагает, а только отвергает сказанное перед ним: «…, это не пойдёт», «…, нет», «…, no way»
 const BARE_VETO = /^\s*(?:(?:это|так|такое|вот|ну|да|уж|точно|совсем|вообще|мне|нам|же|а|и|но|that'?s|this|is|it'?s|just|so)\s+)*(?:нет|не(?:\s+(?:пойд[её]т|годится|устраивает|устроит|подходит|подойд[её]т|вариант|катит|прокатит|надо|нужно|согласен|согласна|согласны|хочу|хотим|буду|будем))?|no(?:\s+way)?|nope|not\s+(?:ok|okay|good|acceptable))\s*[.!]*\s*$/iu
 const stem5 = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
+// «210, к сожалению, никто сейчас не предоставляет», «это много», «мы не потянем», «nobody pays 480»: число собеседника
+// игрок отвергает, а не предлагает. Иначе «двести десять вы всё-таки назвали, это уже шаг» — радость тому, от чего
+// игрок отказался (партия капитана в «Оффере», 19.10).
+const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:это|так)\s+(?:много|дорого|жирно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:realistic|possible|feasible)|unrealistic|impossible)(?!\p{L})/iu
 
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
 const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
+const OWN_RU = /(?<!\p{L})(?:давай\p{L}*|предлага\p{L}*|готов\p{L}*|могу|можем|дам|дадим|плачу|платим|соглас\p{L}*)(?!\p{L})/iu
 const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| propose| pay| suggest)|let's|let us|how about|what about|our (?:offer|proposal|counter))(?!\p{L})/iu
 
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
@@ -57,7 +62,7 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
     k -= 2
   }
   const refused = parts.map((part) =>
-    REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) ||
+    REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) || IMPOSSIBLE.test(part) ||
     rejectsAlias(part) ||
     // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
     (EN_THIRD.test(part) && !EN_OWN.test(part)))
@@ -67,6 +72,17 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
     let j = k - 1
     while (j >= 0 && !/[\p{L}\d]/u.test(parts[j])) j--
     if (j >= 0) refused[j] = true
+  }
+  // «210, к сожалению, никто не предоставляет»: «невозможно» без своих условий отвергает числа перед ним в том же
+  // предложении, пока не встретится своё предложение («давайте 180, а 210 — это много» — 180 остаётся)
+  for (const [k, part] of parts.entries()) {
+    if (!IMPOSSIBLE.test(part) || Object.keys(parseOffer(sc, part)).length) continue
+    for (let j = k - 1; j >= 0; j--) {
+      if (/[.!?;\n]/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j])) break
+      if (!/[\p{L}\d]/u.test(parts[j])) continue
+      if (OWN_RU.test(parts[j]) || EN_OWN.test(parts[j])) break
+      refused[j] = true
+    }
   }
   return { parts, refused }
 }
@@ -216,7 +232,7 @@ function ownNumber(sc: Scenario, text: string, m: Mention): boolean {
 /** Перед числом в том же предложении «давай/предлагаю/готов», и нет отрицания
  * («двести не потянем», «у конкурента 200» — не предложение). */
 function proposes(before: string, sentence: string): boolean {
-  return /(давай|давайте|предлага|готов|сойд[её]мся|сходимся|можем|могу|возьм[её]м|берём|берем|согласн|let's|let us|how about|what about|we can|i can|we could|i could|we'll|we will|i'll|i will|we'd|i'd|we offer|i offer|we propose|i propose|ready|agree|meet (?:at|in)|settle|make it|go for|go with)/iu.test(before) && !NEG.test(sentence)
+  return /(давай|давайте|предлага|готов|сойд[её]мся|сходимся|можем|могу|будет|будут|составит|возьм[её]м|берём|берем|согласн|let's|let us|how about|what about|we can|i can|we could|i could|we'll|we will|i'll|i will|we'd|i'd|we offer|i offer|we propose|i propose|ready|agree|meet (?:at|in)|settle|make it|go for|go with)/iu.test(before) && !NEG.test(sentence)
 }
 
 const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))
