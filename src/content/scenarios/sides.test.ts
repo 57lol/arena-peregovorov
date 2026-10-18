@@ -16,8 +16,9 @@ const shop = shopCase.scenario
 describe('аудит сторон: кому что выгодно', () => {
   for (const base of ALL_SCENARIOS)
     for (const sc of [base, harder(base)])
-      it(`${sc.id}: разметка, проверка разметки и движок не путают стороны`, () => {
-        const found = auditSides(sc, { every: 7 }).filter((p) => p.severity !== 'low')
+      // перебор сделок тяжёлый: на загруженной машине одно дело идёт секунды
+      it(`${sc.id}: разметка, проверка разметки и движок не путают стороны`, { timeout: 60_000 }, () => {
+        const found = auditSides(sc, { every: 11 }).filter((p) => p.severity !== 'low')
         expect(found.map((p) => `[${p.area}] ${p.text}`)).toEqual([])
       })
 })

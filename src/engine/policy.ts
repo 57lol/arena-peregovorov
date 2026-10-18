@@ -140,9 +140,16 @@ export function makeCounter(
   let best: FullOffer | undefined
   let bestD = Infinity
   let bestU = -Infinity
+  // пункт хуже для обоих, чем просил игрок (или чем было у неё самой), не берём: так она «отдавала» лишнее,
+  // чтобы не стать жаднее прошлого, — в общую кассу или в акт, которые нужны и ей
+  const pl = sc.player.profile.points
+  const worseForBoth = (o: FullOffer) => sc.issues.some((i) => {
+    const s = stance[i.id] ?? ref?.[i.id]
+    return typeof s === 'number' && pl[i.id][o[i.id]] < pl[i.id][s] && opp.points[i.id][o[i.id]] < opp.points[i.id][s]
+  })
   for (const p of allDeals(sc)) {
     const u = p.opponent
-    if (u < need || u > prevU || p.player < given) continue
+    if (u < need || u > prevU || p.player < given || worseForBoth(p.offer)) continue
     const d = distance(sc, p.offer, stance) + (guard ? guard * unevenness(sc, p.offer, stance) : 0)
     if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && (u > bestU || (u === bestU && best && lexLess(sc, p.offer, best))))) {
       best = p.offer
