@@ -50,7 +50,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
 
   const [draft, setDraft] = useState(redo)
   // в обучающей встрече блокнот открывается на том, чего хотите вы: «выбери, чего хочешь» читается сразу
-  const [picks, setPicks] = useState<FullOffer>(() => startPicks(sc, state, tutorial))
+  const [draftPicks, setPicks] = useState<FullOffer>(() => startPicks(sc, state, tutorial))
+  // После подписи обе встречи показывают тот же итог, что и разбор. Черновик
+  // сохраняем отдельно: при переигрывании он снова доступен для редактирования.
+  const picks = state.status === 'deal' && isComplete(sc, state.deal) ? state.deal : draftPicks
   const [reactionEmotion, setReactionEmotion] = useState<PortraitEmotion>('thinking')
   const [pending, setPending] = useState<null | string>(null)
   const [error, setError] = useState<string | null>(null)

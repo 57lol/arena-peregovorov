@@ -28,7 +28,7 @@ export function Slip({
   sure?: boolean
   where: 'stage' | 'side'
 }) {
-  const offer = state.tableOffer
+  const offer = (state.status === 'deal' ? state.deal : undefined) ?? state.tableOffer
   const P = sc.player.profile
   const rows = sc.issues.filter((i) => typeof offer[i.id] === 'number')
   const silent = sc.issues.filter((i) => typeof offer[i.id] !== 'number')

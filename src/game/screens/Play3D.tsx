@@ -617,7 +617,7 @@ function SayForm({ m, paused }: { m: Meeting; paused: boolean }) {
 }
 
 /** Мой блокнот на столе: условия договора, сколько каждое вам даёт, и «Предложить эти условия». */
-function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; lit: string; litOffer: string }) {
+export function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; lit: string; litOffer: string }) {
   const { sc, P, state, picks, myTotal, lowSure, done, pending, name, revealedNow } = m
   return (
     <div className={`w3-note${lit}`}>
@@ -639,6 +639,7 @@ function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; li
               options={i.options}
               points={P.points[i.id]}
               value={picks[i.id]}
+              disabled={state.status === 'deal'}
               onChange={(v) => {
                 m.pick(i.id, v)
                 tut.picked()
@@ -647,13 +648,13 @@ function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; li
             <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
           </div>
         ))}
-        {isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
+        {!done && isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
           <button type="button" className="g-link w3-copy" onClick={() => m.setPicks({ ...(state.lastOpponentOffer as Record<string, number>) })}>
             Переписать условия с листка
           </button>
         )}
       </div>
-      {lowSure && (
+      {!done && lowSure && (
         <p className="w3-low" role="alert">
           Выгода {myTotal} — меньше, чем без сделки ({P.batna}). Если {name} согласится, вы проиграете.
         </p>
@@ -673,9 +674,9 @@ function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; li
 }
 
 /** Листок с предложением, который лежит посреди стола. «Согласиться» — на нём. */
-function SlipPage({ m, lit }: { m: Meeting; lit: string }) {
+export function SlipPage({ m, lit }: { m: Meeting; lit: string }) {
   const { sc, P, state, theirsOnTable, name, canAccept, acceptSure, pending } = m
-  const offer = state.tableOffer ?? {}
+  const offer = (state.status === 'deal' ? state.deal : undefined) ?? state.tableOffer
   const rows = sc.issues.filter((i) => typeof offer[i.id] === 'number')
   const silent = sc.issues.filter((i) => typeof offer[i.id] !== 'number')
   const full = isComplete(sc, offer)

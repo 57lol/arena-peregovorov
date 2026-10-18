@@ -287,7 +287,7 @@ export function Play(props: Props) {
                   Без сделки у меня будет выгода <b>{P.batna}</b>. Меньше брать нет смысла. Справа — насколько мне выгоден каждый
                   вариант.
                 </p>
-                {lowSure && (
+                {!done && lowSure && (
                   <p className="g-low" role="alert">
                     Выгода {myTotal} — меньше, чем без сделки ({P.batna}). Если {name} согласится, вы проиграете.
                   </p>
@@ -300,6 +300,7 @@ export function Play(props: Props) {
                       options={i.options}
                       points={P.points[i.id]}
                       value={picks[i.id]}
+                      disabled={state.status === 'deal'}
                       onChange={(v) => {
                         m.pick(i.id, v)
                         tut.picked()
@@ -308,7 +309,7 @@ export function Play(props: Props) {
                     <Notes sc={sc} state={state} issue={i.id} fresh={revealedNow} name={name} />
                   </div>
                 ))}
-                {isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
+                {!done && isComplete(sc, state.lastOpponentOffer) && !sameOffer(picks, state.lastOpponentOffer) && (
                   <button type="button" className="g-link g-copy" onClick={() => m.setPicks({ ...(state.lastOpponentOffer as Record<string, number>) })}>
                     Переписать условия с листка
                   </button>

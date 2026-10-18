@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Prepared } from './speech'
 import type { MeetingProps } from './useMeeting'
 import { getScenario } from '../content/scenarios'
-import { initialState } from '../engine/turn'
+import { initialState, step } from '../engine/turn'
 import type { TurnRecord } from '../engine/types'
+import { BEHAVIOR_DICT } from '../engine/behaviors'
+import { groundAnalysis } from '../engine/offerEvidence'
+import { buildReport } from '../engine/report'
+import { score } from '../engine/utility'
 
 // Тот же неглубокий жизненный цикл hooks, что в App.test.tsx; сеть и аудиоустройство не нужны.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
@@ -83,6 +87,48 @@ beforeEach(() => {
   }
 })
 afterEach(() => { hooks.cleanups.forEach((fn) => fn?.()); vi.useRealTimers() })
+
+describe('блокнот после сделки', () => {
+  it.each(['accept', 'price200'] as const)('%s: вместо черновика — подписанные условия и выгода из разбора; переигрывание возвращает черновик', async (mode) => {
+    speech.on = false
+    const sc = getScenario('tara')!
+    props.game = { scenario: sc, fromLibrary: true }
+    const offer = { price: 1, payment: 0, rush: 4, term: 2, schedule: 2 }
+    const before = { ...initialState(sc), turn: 7, trust: 45, tension: 16,
+      tableOffer: offer, lastOpponentOffer: offer, playerStance: { ...offer, price: 2 } }
+    props.history = [{ turn: 7, playerText: 'Ранее', opponentLine: 'Предлагаю свои условия.', emotion: 'neutral',
+      analysis: { behaviors: [] }, deltas: [], decision: { kind: 'counter', offer }, stateAfter: before }]
+    render()
+    meeting.setPicks({ price: 0, payment: 2, rush: 1, term: 2, schedule: 1 })
+    render()
+    const draft = { ...meeting.picks }
+    expect(meeting.myTotal).toBe(26)
+    const text = 'Тогда давайте 200 ровно, по факту отгрузки, 48 часов, год, раз в неделю.'
+    api.turn.mockImplementationOnce(async (input) => {
+      const analysis = input.accept ? { behaviors: [], accepts: true }
+        : groundAnalysis(sc, input.text, { behaviors: [], offer: { ...offer, price: 2 } })
+      const result = step(sc, before, analysis, BEHAVIOR_DICT)
+      return { record: { turn: result.state.turn, playerText: input.text, analysis, deltas: result.deltas,
+        decision: result.decision, opponentLine: 'По рукам!', emotion: 'happy', stateAfter: result.state }, source: 'offline' }
+    })
+    if (mode === 'accept') meeting.accept()
+    else void meeting.send(text)
+    await advance()
+    expect(meeting.state.status).toBe('deal')
+    expect(meeting.state.deal).toEqual(offer)
+    const report = buildReport(sc, props.history, BEHAVIOR_DICT)
+    expect(meeting.picks).toEqual(report.deal)
+    expect(meeting.myTotal).toBe(report.outcome.playerPoints)
+    expect(meeting.myTotal).toBe(score(sc.player.profile, offer))
+    expect(sc.issues[0].options[meeting.picks.price]).toBe('204 ₽')
+    expect(meeting.picks).not.toEqual(draft)
+    if (mode === 'accept') expect(api.turn.mock.calls.at(-1)?.[0].accept).toBe(true)
+    meeting.undo(); render()
+    expect(meeting.state.status).toBe('open')
+    expect(meeting.picks).toEqual(draft)
+    expect(meeting.myTotal).toBe(26)
+  })
+})
 
 describe('голосовой режим', () => {
   it('слушаем игрока, только когда реплика прозвучала до конца; печать текста озвученной реплики не держит', async () => {

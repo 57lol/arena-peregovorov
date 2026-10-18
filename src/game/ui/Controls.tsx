@@ -43,12 +43,13 @@ interface StepperProps {
   options: string[]
   value: number
   onChange: (i: number) => void
+  disabled?: boolean
   /** мои очки за каждый вариант — пишутся в блокноте карандашом */
   points?: number[]
 }
 
 /** Строка блокнота: пункт договора и выбор варианта стрелками. */
-export function IssueStepper({ title, options, value, onChange, points }: StepperProps) {
+export function IssueStepper({ title, options, value, onChange, points, disabled = false }: StepperProps) {
   const p = points?.[value]
   // стрелки листают от худшего для вас к лучшему, в каком бы порядке варианты ни лежали в деле
   const order = points ? worstFirst(points) : options.map((_, k) => k)
@@ -61,7 +62,7 @@ export function IssueStepper({ title, options, value, onChange, points }: Steppe
           type="button"
           className="px-step"
           onClick={() => onChange(order[Math.max(0, at - 1)])}
-          disabled={at <= 0}
+          disabled={disabled || at <= 0}
           aria-label={`${title}: предыдущий вариант`}
         >
           <PixelIcon name="left" px={2} />
@@ -73,7 +74,7 @@ export function IssueStepper({ title, options, value, onChange, points }: Steppe
           type="button"
           className="px-step"
           onClick={() => onChange(order[Math.min(order.length - 1, at + 1)])}
-          disabled={at >= order.length - 1}
+          disabled={disabled || at >= order.length - 1}
           aria-label={`${title}: следующий вариант`}
         >
           <PixelIcon name="right" px={2} />

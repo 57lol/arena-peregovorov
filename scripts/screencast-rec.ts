@@ -290,7 +290,7 @@ async function smoothTo(p: Page, top: number, ms = 1600) {
   await p.evaluate((y) => window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }), top)
   await wait(ms)
 }
-const yOf = (p: Page, l: Locator) => l.evaluate((e) => e.getBoundingClientRect().top + window.scrollY)
+const yOf = (_p: Page, l: Locator) => l.evaluate((e) => e.getBoundingClientRect().top + window.scrollY)
 async function typeIn(p: Page, l: Locator, text: string, delay = 35) {
   await click(p, l)
   await l.fill('')
