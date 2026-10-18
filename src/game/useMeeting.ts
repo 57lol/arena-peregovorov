@@ -297,16 +297,21 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // Начало реплики приходит раньше хода целиком: звук — с первых байт (фраза-пауза договаривает), текст печатается,
     // когда звук пошёл. Не пошёл — реплика прозвучит обычным путём, когда придёт ход.
     let started: Promise<boolean> | undefined
+    let streaming = true
+    const current = () => streaming && g === gen.current
     const onLine = (l: TurnLine) => {
+      if (!current()) return
       started ??= (async () => {
         f?.cancel()
         const audible = withVoice && !!l.audio && voiceRef.current
         if (audible) await f?.done
-        if (g !== gen.current) return false
-        const ok = audible && (await playLive(l.audio!, () => voiceRef.current && g === gen.current))
-        if (g === gen.current) setEarly({ text: l.text, cps: liveCps(l.text) })
-        return ok
+        if (!current()) return false
+        return audible && (await playLive(l.audio!, () => voiceRef.current && current()))
       })()
+      // Заход и продолжение приходят отдельными line: звук один, текст дополняется каждым событием.
+      void started.then(() => {
+        if (current()) setEarly({ text: l.text, cps: liveCps(l.text) })
+      })
     }
     try {
       const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(said ? { reaction: said } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
@@ -333,6 +338,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       restored.current = delivery ?? { text: line, record: last }
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
+      // После ошибки начало ещё могло ждать плеер: оно больше не относится к активному ходу.
+      streaming = false
       if (g === gen.current) {
         setPending(null)
         setEarly(null)

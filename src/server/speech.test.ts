@@ -664,6 +664,35 @@ describe('любой отказ ElevenLabs подхватывает SpeechKit', 
     expect(got).toBe(4 * frames.length)
   })
 
+  it.each([5, 12])('BUG: ID3 следующего куска удаляется и при разрыве сети после %s байт', async (cut) => {
+    configure()
+    const id3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 4, 1, 2, 3, 4])
+    const packet = new Uint8Array([...id3, ...frames])
+    let calls = 0
+    const f = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('')
+      calls++
+      return new Response(new ReadableStream<Uint8Array>({ start(c) {
+        c.enqueue(packet.slice(0, cut)); c.enqueue(packet.slice(cut)); c.close()
+      } }))
+    })
+    const speech = makeSpeech({ key: '', fetch: f, stressAsk: null })
+    const app = createApp(offline, undefined, speech)
+    let finished!: Promise<number>
+    app.get('/test-id3', (c) => {
+      const sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+      const start = `First piece ${cut} ${Math.random()}.`, rest = `Next piece ${cut} ${Math.random()}.`
+      sound.first(start); sound.finish(`${start} ${rest}`)
+      finished = sound.ended
+      return c.json({ url: sound.url })
+    })
+    const { url } = await (await app.request('/test-id3')).json() as { url: string }
+    const bytes = new Uint8Array(await (await app.request(url)).arrayBuffer())
+    await finished
+    expect(calls).toBe(2)
+    expect(bytes).toEqual(new Uint8Array([...id3, ...frames, ...frames]))
+  })
+
   it('обрыв первого куска после байт → SpeechKit произносит весь текст, поздние байты не вклеиваются', async () => {
     configure()
     const sk: string[] = []
