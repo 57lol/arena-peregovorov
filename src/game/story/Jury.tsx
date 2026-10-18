@@ -113,15 +113,15 @@ export function Jury(p: Props) {
           <Face sc={english} />
           <span className="jr-step-name">🇬🇧 English: поставщик из Стамбула</span>
           <span className="jr-step-note">
-            командировка в Стамбул: переговоры на английском с экспорт-менеджером {english.opponent.character.name}, {english.turnLimit} реплик; разбор и подсказки —
-            по-русски
+            Командировка в Стамбул · переговоры на английском, собеседник говорит с турецким акцентом: экспорт-менеджер{' '}
+            {english.opponent.character.name}, {english.turnLimit} реплик; разбор и подсказки — по-русски
           </span>
         </button>
 
         <button type="button" className="jr-step jr-en" onClick={() => p.onOpen(lib(chinese))}>
           <Face sc={chinese} />
-          <span className="jr-step-name">🇨🇳 Поставщик из Иу</span>
-          <span className="jr-step-note">Ли Вэй: датчики для завода, торг в юанях и лишние товары в комплекте</span>
+          <span className="jr-step-name">🇨🇳 Поставщик из Шэньчжэня</span>
+          <span className="jr-step-note">видеозвонок в Шэньчжэнь: Ли Вэй, датчики для завода, торг в юанях и лишние товары в комплекте</span>
         </button>
 
         <div className="jr-grid">

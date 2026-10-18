@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-// Видеозвонок с Ли Вэем («Поставщик из Иу») в переговорной «Кама»: вход (камера на большом экране), ответ голосом
+// Видеозвонок с Ли Вэем («Поставщик из Шэньчжэня») в переговорной «Кама»: вход (камера на большом экране), ответ голосом
 // (губы по звуку, голос через обработку «связи»), вид на окно и на доску с дверью, стол с ноутбуком, конец звонка.
 // 1440×900 и 390×844, снимки — ~/Arena-materials/shots/call/ (или --out).
 // Голос подменяется записью вступления Ли Вэя: офлайн-сервер голоса не даёт, а губам и обработке нужен звук.
@@ -71,7 +71,7 @@ async function run(phone: boolean, classic = false, voice = false) {
     await page.getByRole('button', { name: 'Карта недели' }).first().click()
     await page.getByRole('button', { name: 'Все дела', exact: true }).click()
     await page.waitForSelector('.g-folders')
-    await page.locator('.g-folder').filter({ hasText: 'Поставщик из Иу' }).getByRole('button', { name: 'Открыть дело' }).click()
+    await page.locator('.g-folder').filter({ hasText: 'Поставщик из Шэньчжэня' }).getByRole('button', { name: 'Открыть дело' }).click()
     await page.getByRole('button', { name: 'Войти в переговорку' }).click()
     if (classic) {
       await page.waitForSelector('.px-scene', { timeout: 30_000 })

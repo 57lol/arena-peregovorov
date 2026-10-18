@@ -17,7 +17,7 @@ export const PORTRAIT_SIZE = 96
 
 /** id портрета = Character.portrait в сценарии. Первые два — герои дел из папки, остальные — пул для своих дел (src/content/faces.ts). */
 export const PORTRAITS = {
-  china: { sheet: '/assets/portraits/china.png', label: 'Ли Вэй, торговец из Иу', female: false },
+  china: { sheet: '/assets/portraits/china.png', label: 'Ли Вэй, торговец из Шэньчжэня', female: false },
   rinat: { sheet: '/assets/portraits/rinat.png', label: 'Марат Гимадиев', female: false },
   olga: { sheet: '/assets/portraits/olga.png', label: 'Дарина Лукманова', female: true },
   foreman: { sheet: '/assets/portraits/foreman.png', label: 'Прораб, 50', female: false },
@@ -58,7 +58,7 @@ export const SCENES = {
   inei: { bg: '/assets/scenes/inei.png', desk: '/assets/scenes/inei-desk.png', title: 'Кабинет закупок «Инея»' },
   // английское дело «The Istanbul Line»: офис продаж Marmara Coating Systems в Ускюдаре
   istanbul: { bg: '/assets/scenes/istanbul.png', desk: '/assets/scenes/istanbul-desk.png', title: 'Офис Marmara Coating Systems в Ускюдаре' },
-  // видеозвонок (дело «Поставщик из Иу»): большой экран в переговорной «Кама», картинки — tools/art/call_screen.py
+  // видеозвонок (дело «Поставщик из Шэньчжэня»): большой экран в переговорной «Кама», картинки — tools/art/call_screen.py
   meet: { bg: '/assets/scenes/meet.png', desk: '/assets/scenes/meet-desk.png', title: 'Переговорная «Кама», видеозвонок' },
 } as const
 export type SceneId = keyof typeof SCENES

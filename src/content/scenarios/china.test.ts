@@ -21,7 +21,7 @@ const play = (...texts: string[]) => {
   return h
 }
 
-describe('поставщик из Иу', () => {
+describe('поставщик из Шэньчжэня', () => {
   it('пять пунктов, размен, общий интерес, жёсткая версия и восемь своих финалов', () => {
     expect(sc.issues).toHaveLength(5)
     expect(checkScenario(sc).problems).toEqual([])
