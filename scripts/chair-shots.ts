@@ -20,7 +20,7 @@ await requireOffline(base)
 mkdirSync(out, { recursive: true })
 const cases = CHAPTERS.map((chapter) => ({ id: chapter.id, room: chapter.room, face: getScenario(chapter.id)!.opponent.character.portrait }))
 cases.push({ id: 'gen-seat-check', room: 'office', face: 'hr' })
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'] })
 try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport })
