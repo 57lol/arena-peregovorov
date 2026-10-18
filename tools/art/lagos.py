@@ -35,7 +35,7 @@ def spec():
         xs, ys = grid()
         b = f.mask() & (ys > 49) & ((np.abs(xs - CX) > f.hw(ys) - 3) | (ys > 59))
         paint(c, b, band(shade_ellipsoid(42, 57, 20, 12), [0.35, 0.7], [36, 37, 39]))
-        paint(c, b & (ys > 60) & ((xs.astype(int) + ys.astype(int)) % 7 == 0), 40)
+        paint(c, b & (ys > 60) & ((3 * xs.astype(int) + 5 * ys.astype(int)) % 11 == 0), 38)  # sparse stipple, no diagonal stripes
 
     def moustache(c, P, emotion):
         put(c, 42, 51, ['..gggggggg..', '.Gg......gG.'], {'g': 37, 'G': 36})

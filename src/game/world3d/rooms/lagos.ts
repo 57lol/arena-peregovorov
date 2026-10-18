@@ -47,7 +47,8 @@ function buildLagos(): RoomBuild {
   }
 
   // Clock in the central pier: the engine sets the hands to the 17:00 meeting clock.
-  cyl(0.19, 0.19, 0.035, 24, 'c20', CLOCK.x, CLOCK.y, CLOCK.z, 0, PI / 2)
+  // Rim sits behind the face: its front cap must stay below z + 0.025 or it hides the dial and hands.
+  cyl(0.19, 0.19, 0.03, 24, 'c20', CLOCK.x, CLOCK.y, CLOCK.z - 0.015, 0, PI / 2)
   soup.add(new CircleGeometry(0.18, 24), at(CLOCK.x, CLOCK.y, CLOCK.z + 0.025), 'clock', 0)
   const handMat = kit.mat(null, false, 0x341c27)
   const hand = (length: number, width: number) => {

@@ -35,8 +35,8 @@ def fabric(w=64, h=64):
 def panorama(w=544, h=212):
     rng = np.random.default_rng(1810)
     t = Tex(w, h, 30)
-    # Violet blue to copper sunset, stepped/dithered in the shared palette.
-    for a,b,c in [(0,.26,30),(.26,.42,31),(.42,.54,13),(.54,.67,15),(.67,.74,23)]:
+    # Violet blue to orange sunset, stepped/dithered in the shared palette; no wall/teak browns in the sky.
+    for a,b,c in [(0,.24,30),(.24,.38,31),(.38,.5,32),(.5,.6,28),(.6,.68,29),(.68,.74,23)]:
         t.rect(0,int(h*a),w-1,int(h*b),c)
         if a: t.checker(0,int(h*a)-3,w-1,int(h*a)+2,c)
     t.ellipse(w*.73,h*.57,h*.065,h*.065,23)
@@ -120,8 +120,9 @@ def surfaces():
         t.rect(0,t.h-31,w-1,t.h-30,22)
         # Warm window light on the side walls, progressively fading towards the door.
         if name in ('left','right'):
-            for x in range(w//2):
-                if x%3: t.rect(x,9,x,t.h-33,17 if x<w//5 else 16)
+            # Left wall UVs run front -> back, right wall back -> front: light always at the window end.
+            for x in range(w//5):
+                if x%3: t.rect(w-1-x if name=='left' else x,9,w-1-x if name=='left' else x,t.h-33,17)
         out['wall_'+name]=t
     t=Tex(round(2*HW/S),round((FRONT-BACK)/S),13)
     for y in range(0,t.h,10):
@@ -153,7 +154,8 @@ def scene2d():
     for x in (12,57,93,97,135,178):bg.rect(x,4,x+2,77,20)
     bg.rect(10,4,181,5,22);bg.rect(10,76,181,78,13)
     bg.rect(91,4,100,78,12)
-    bg.ellipse(96,18,6,6,23);bg.ellipse(96,18,5,5,45);bg.line([(96,14),(96,18),(99,20)],18)
+    # Small clock high on the pier: the 96x96 face starts at y=21 and must not wear it as a crown.
+    bg.ellipse(96,9,5,5,23);bg.ellipse(96,9,4,4,45);bg.line([(96,6),(96,9),(98,10)],18)
     # Plants frame rather than cover the subject.
     for x in (3,164):
         bg.poly([(x+4,80),(x+18,80),(x+16,93),(x+6,93)],20)

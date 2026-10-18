@@ -7,7 +7,7 @@ it('жюри видит финальную командировку в Лаго�
   const noop = () => {}
   const html = renderToStaticMarkup(<Jury progress={loadProgress()} server={null} onProgress={noop} onOpen={noop} onDemo={noop} onSetup={noop} onCoach={noop} onCareer={noop} onMap={noop} onCutscene={noop} onFilms={noop} onStory={noop} onBack={noop} />)
   expect(html).toContain('🇳🇬 Lagos: экспорт и партнёрство')
-  expect(html).toContain('Вторая командировка · финальный уровень')
+  expect(html).toContain('вторая командировка · финальный уровень')
   expect(html).toContain('/assets/portraits/lagos.png')
   expect(html).toContain('с носителем')
 })
