@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { Scenario } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { amount, unspeaker, GenerateRequest, generateScenario, libraryRequest, scenarioProblems, settle, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
+import { amount, unspeaker, GenerateRequest, generateScenario, libraryRequest, scenarioProblems, settle, sideOf, sideProblems, sideTextProblems, storyProblems, toScenario, userPrompt } from './generate'
 import { pickFromLibrary, SCENARIOS } from '../content/scenarios'
 
 const seed = {
@@ -366,5 +366,32 @@ describe('стороны сделки в своём деле (прод 18.10: «
     const renter = GenerateRequest.parse({ sphere: 'Аренда', playerRole: 'владелец небольшого магазина', opponentRole: 'владелец склада' })
     expect(pickFromLibrary(libraryRequest(renter), SCENARIOS).id).toBe('tara')
     expect(pickFromLibrary(libraryRequest(req), SCENARIOS).id).toBe('tara')
+  })
+})
+
+describe('своё дело: стороны без ложных тревог и тексты под таблицы (аудит сторон 18.10)', () => {
+  it('«собственник кафе», «видеограф, снимаю свадьбы», «кадровое агентство» — сторона не угадывается наоборот', () => {
+    expect(sideOf({ sphere: 'Закупки', playerRole: 'собственник кафе' })).toBeUndefined()
+    expect(sideOf({ sphere: 'Продажи', playerRole: 'видеограф, снимаю свадьбы' })).toBeUndefined()
+    expect(sideOf({ sphere: 'Найм', playerRole: 'кадровое агентство' })).toBeUndefined()
+    // а прямые роли — как раньше
+    expect(sideOf({ sphere: 'Аренда', playerRole: 'снимаю офис под студию' })).toBe('payer')
+    expect(sideOf({ sphere: 'Аренда', playerRole: 'собственник помещения на Тукая' })).toBe('payee')
+    expect(sideOf({ sphere: 'Найм', playerRole: 'менеджер отдела кадров' })).toBe('payer')
+  })
+
+  it('гарантийный депозит у арендатора не «переворачивается»: депозит выгоден тому, кто сдаёт', () => {
+    const lease = { issues: [{ id: 'dep', title: 'Гарантийный депозит', role: 'theirs' as const, options: ['без депозита', '1 месяц', '3 месяца'], bestForPlayer: 'без депозита', bestForOpponent: '3 месяца' }] }
+    expect(sideProblems(lease, 'payer')).toEqual([])
+    expect(sideProblems({ issues: [{ ...lease.issues[0], bestForPlayer: '3 месяца', bestForOpponent: 'без депозита' }] }, 'payer')[0]).toMatch(/перепутаны стороны/)
+  })
+
+  it('интерес собеседника, который называет невыгодный ему вариант, — повод переписать', () => {
+    const sc = toScenario(raw, GenerateRequest.parse({}))
+    expect(sideTextProblems(sc)).toEqual([])
+    // владельцу склада выгоден длинный срок, а интерес написан так, будто ему нужен короткий
+    const said = (text: string): Scenario => ({ ...sc, opponent: { ...sc.opponent, profile: { ...sc.opponent.profile, interests: [{ id: 'z', issue: 'term', trustToReveal: 40, text }] } } })
+    expect(sideTextProblems(said('срок нам удобнее всего 1 год, не дольше'))[0]).toMatch(/перепутаны стороны/)
+    expect(sideTextProblems(said('срок хочу на 3 года, под него кредит'))).toEqual([])
   })
 })
