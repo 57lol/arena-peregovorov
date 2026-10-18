@@ -12,17 +12,28 @@ export interface Judge { id: string; name: string; kind: 'personal' | 'shared' }
 /** Личный номер постоянен для ключа; сам ключ в пропуск не попадает. */
 export const personalJudge = (secret: string, name: string, key: string): Judge => ({ id: sign(secret, `jury.${key}`), name, kind: 'personal' })
 
-export function parseJuryKeys(raw = '') {
+/** По умолчанию строгая проверка для генератора; сервер журналирует ошибку и пропускает запись. */
+export function parseJuryKeys(raw = '', { sharedKey, onInvalid = (message: string) => { throw new Error(message) } }: {
+  sharedKey?: string
+  onInvalid?: (message: string) => void
+} = {}) {
   const entries = raw.trim() ? raw.split(',').map((part) => part.trim().split(':')) : []
   const names = new Set<string>(), keys = new Set<string>()
-  return entries.map(([name, key, extra]) => {
+  return entries.flatMap(([name, key, extra], index) => {
     name = name?.trim()
     key = key?.trim()
-    if (!name || name.length > 80 || /[\p{Cc}\p{Cf}]/u.test(name) || !key || !/^[A-Za-z0-9_-]{32,128}$/.test(key) || extra !== undefined || names.has(name) || keys.has(key))
-      throw new Error('JURY_KEYS: нужны уникальные пары имя:ключ через запятую; ключ — случайный base64url-токен от 32 до 128 символов')
+    const reason = extra !== undefined || !name || !key ? 'нужна пара имя:ключ' :
+      name.length > 80 || /[\p{Cc}\p{Cf}]/u.test(name) ? 'недопустимое имя (до 80 символов, без управляющих символов)' :
+      !/^[A-Za-z0-9_-]{32,128}$/.test(key) ? 'нужен base64url-токен от 32 до 128 символов' :
+      key === sharedKey ? 'личный ключ совпадает с общим JURY_KEY' :
+      names.has(name) ? 'повтор имени' : keys.has(key) ? 'повтор ключа' : undefined
+    if (reason) {
+      onInvalid(`JURY_KEYS: запись ${index + 1} пропущена — ${reason}`)
+      return []
+    }
     names.add(name)
     keys.add(key)
-    return { name, key }
+    return [{ name, key }]
   })
 }
 
@@ -61,9 +72,11 @@ export function readPass(secret: string, value: string | undefined, now = Date.n
 export const passValid = (secret: string, value: string | undefined, now = Date.now()) => !!readPass(secret, value, now)
 
 /** Подпись не отменяет отзыв: личность и актуальное имя берём из реестра. */
-export function verifyPass(secret: string, value: string | undefined, juryKeys = '', now = Date.now()): Judge | undefined {
+export function verifyPass(secret: string, value: string | undefined, juryKeys: string | { name: string; key: string }[] = '', now = Date.now(), sharedKey?: string): Judge | undefined {
   const judge = readPass(secret, value, now)
   if (!judge || judge.kind === 'shared') return judge
-  return parseJuryKeys(juryKeys).map((j) => personalJudge(secret, j.name, j.key))
+  // Ошибки конфигурации уже записаны воротами при запуске; запросы не засоряют журнал.
+  const judges = typeof juryKeys === 'string' ? parseJuryKeys(juryKeys, { sharedKey, onInvalid: () => {} }) : juryKeys
+  return judges.map((j) => personalJudge(secret, j.name, j.key))
     .find((j) => same(j.id, judge.id))
 }

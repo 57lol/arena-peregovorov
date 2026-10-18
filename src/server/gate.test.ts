@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { judgeOf } from './client'
 import { gate, hashPassword, makePass, passValid } from './gate'
 
 const secret = 'test-secret'
+afterEach(() => vi.restoreAllMocks())
 const app = new Hono()
 app.use('*', gate({ secret, juryKey: 'jk123', login: 'arena', passwordHash: hashPassword('pw') }))
 app.get('/api/health', (c) => c.json({ ok: true }))
@@ -129,7 +130,53 @@ describe('личные ключи', () => {
     expect(parseJuryKeys(' Анна : aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa , Борис : bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ')).toHaveLength(2)
     for (const raw of ['Анна:a,Анна:b', 'Анна:a,Борис:a', ':a', 'Анна:', 'Анна:a:b', 'Анна:a,', 'Анна\nБорис:a'])
       expect(() => parseJuryKeys(raw)).toThrow(/JURY_KEYS/)
-    expect(() => gate({ secret, juryKey: 'a', juryKeys: 'Анна:a' })).toThrow(/JURY_KEYS/)
+  })
+
+  it('битые записи не мешают запуску, личному и общему входу; журнал не раскрывает ключи', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const good = 'a'.repeat(32), duplicateName = 'b'.repeat(32), shared = 'c'.repeat(32), second = 'd'.repeat(32)
+    const juryKeys = [
+      'broken', 'Короткий:short', `Лишнее:${good}:extra`, `Анна:${good}`,
+      `Анна:${duplicateName}`, `Копия:${good}`, `Общий:${shared}`, `Борис:${second}`,
+      `Имя\u0000:${duplicateName}`, `Имя\u200b:${duplicateName}`, `${'я'.repeat(81)}:${duplicateName}`,
+      '', `:${duplicateName}`, 'Пустой:', `Недопустимый:${'!'.repeat(32)}`, `Длинный:${'e'.repeat(129)}`,
+    ].join(',')
+    const a = new Hono().use('*', gate({ secret, juryKeys, juryKey: shared }))
+      .get('/api/health', (c) => c.json({ ok: true }))
+      .get('/api/me', (c) => c.json(judgeOf(c)))
+    expect((await a.request('/api/health')).status).toBe(200)
+    expect((await a.request('/api/me')).status).toBe(401)
+    expect(warn).toHaveBeenCalledTimes(14)
+    const warnings = warn.mock.calls.flat().join('\n')
+    for (const key of [good, duplicateName, shared, second, 'short', '!'.repeat(32), 'e'.repeat(129)]) expect(warnings).not.toContain(key)
+    expect(warnings).toContain('запись 1 пропущена — нужна пара имя:ключ')
+    expect(warnings).toContain('повтор имени')
+    expect(warnings).toContain('повтор ключа')
+    expect(warnings).toContain('совпадает с общим JURY_KEY')
+    for (const [key, name, kind] of [[good, 'Анна', 'personal'], [second, 'Борис', 'personal'], [shared, '', 'shared']]) {
+      const entered = await a.request(`/?key=${key}`)
+      expect(entered.status).toBe(303)
+      const r = await a.request('/api/me', { headers: { cookie: cookieOf(entered) } })
+      expect(r.status).toBe(200)
+      expect(await r.json()).toMatchObject({ kind, ...(name ? { name } : {}) })
+    }
+    expect((await a.request(`/?key=${duplicateName}`)).status).toBe(401)
+    const { personalJudge, verifyPass } = await import('./pass')
+    const pass = makePass(secret, Date.now(), personalJudge(secret, 'Анна', good))
+    expect(verifyPass(secret, pass, juryKeys, Date.now(), shared)?.name).toBe('Анна')
+    const skipped = makePass(secret, Date.now(), personalJudge(secret, 'Общий', shared))
+    expect(verifyPass(secret, skipped, juryKeys, Date.now(), shared)).toBeUndefined()
+    expect((await a.request('/api/me', { headers: { cookie: `arena_pass=${skipped}` } })).status).toBe(401)
+    // Дополнительное предупреждение — только об ожидаемой неудачной попытке входа.
+    expect(warn).toHaveBeenCalledTimes(15)
+  })
+
+  it.each(['', ' ', 'broken', 'Анна:short', ',,'])('запускает закрытый сервер без пригодных личных ключей: %j', async (juryKeys) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const a = new Hono().use('*', gate({ secret, juryKeys }))
+      .get('/api/health', (c) => c.text('ok')).get('/api/private', (c) => c.text('private'))
+    expect((await a.request('/api/health')).status).toBe(200)
+    expect((await a.request('/api/private')).status).toBe(401)
   })
 })
 
