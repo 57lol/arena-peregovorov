@@ -51,22 +51,11 @@ colors:
 **Исходники и регенерация.** Портрет: `tools/art/lagos.py`; комната и общие материалы: `tools/art/room_lagos.py`; сборка комнаты: `src/game/world3d/rooms/lagos.ts`; 2D-подключение: `tools/art/scenes_story.py`. Запускать из корня репозитория в существующем окружении с Pillow и numpy:
 
 ```sh
-~/Arena-materials/.venv/bin/python tools/art/portraits.py lagos
-~/Arena-materials/.venv/bin/python tools/art/room_lagos.py
-~/Arena-materials/.venv/bin/python tools/art/scenes_story.py lagos
+python3 tools/art/portraits.py lagos
+python3 tools/art/room_lagos.py
+python3 tools/art/scenes_story.py lagos
 ```
 
 Генераторы обновляют `public/assets/portraits/lagos.png`, `public/assets/world/lagos_*.png`, `src/game/world3d/rooms/lagos.gen.ts` и `public/assets/scenes/lagos*.png`; превью складываются в `tools/art/out/`.
 
-**Озвучка.** Голос Адебайо — библиотечный носитель Nigerian English «Frank - Professional Educator» (`yH7WW3zeKrRMuKt6sg5a`, `LAGOS_VOICE_ID` в `src/server/tts.ts`, выбор капитана из тройки финалистов), реплики на eleven_v3 без тега акцента (stability 0,5, similarity 0,8): на v3 судья gemini даёт нигерийскому 5 из 5, на v4 Turbo 4–4,5 и местами меньше; цена — первый звук ~0,9 с против ~0,46 с. Прослушка и данные — `~/Arena-materials/final/lagos-voice/`.
-
-`src/content/lagos-recordings.ts` — 21 записанный клип (вступление, 6 fillers, 14 реакций; eleven_v3), каждый проверен whisper и судьёй.
-
-**Границы проверки.** Тесты описывают размеры PNG и листа кадров, ссылки на ассеты, сборку комнаты без WebGL-рендера и выход. Внешний вид проверен глазами 18.10.2026 в работающем приложении: 3D на 1440×900 и 390×844, 2D, уход Адебайо в дверь (`scripts/exit-e2e.ts --case lagos`, в том числе `--phone`), карточка в хабе жюри; снимки в `~/Arena-materials/final/lagos-voice/shots/`.
-
-## Do's and Don'ts
-
-- **Do:** сохранять Apollo, общую конструкцию лица, читаемый центр стола и свободный выход при изменении этого уровня.
-- **Do:** передавать местный контекст архитектурой, лагуной, растениями и сдержанными текстильными деталями.
-- **Don't:** превращать делового собеседника в карикатуру или выдавать стилизованный вид за точную панораму Lagos.
-- **Don't:** считать наличие голосового fallback, плана записей или структурных тестов проверкой выбранного голоса и визуального результата 3D.
+**Озвучка.** Голос Адебайо — «Frank - Professional Educator» (`yH7WW3zeKrRMuKt6sg5a`, `LAGOS_VOICE_ID` в `src/server/tts.ts`). В настройке лица задан `eleven_v3` без тега акцента, stability 0,5, similarity 0,8. Заготовки используют v3; живые реплики по умолчанию — `ELEVENLABS_MODEL` (`eleven_v4_turbo`). `ELEVEN_LIVE_V3=on` включает v3 и для живых ответов, `ELEVEN_OPENER_FAST=on` оставляет быстрый заход.
