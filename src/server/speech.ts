@@ -460,7 +460,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     return (text) => {
       const roomy = clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
       void livePrep(text, voice, b.who, roomy)
-        .then((q) => elevenPiece(q, () => {}, Date.now() + WAIT.elevenFirst(), charge))
+        .then((q) => elevenPiece({ ...q, opener: true }, () => {}, Date.now() + WAIT.elevenFirst(), charge))
         .catch((e: Error) => console.warn(`[speech] заход заранее: ${e.message}`))
     }
   }
@@ -495,6 +495,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       return livePrep(text, voice, b.who, roomy)
     }
     let firstText: string | undefined
+    let firstOpener = false
     // куски после начала (продолжение после захода и остаток): синтез каждого начинается сразу, параллельно,
     // а байты идут в поток по порядку и по мере прихода — не ждём конца синтеза куска (на v3 это 2–3 с тишины)
     interface Piece { text: string; chunks: Uint8Array[]; ended: boolean; error?: unknown; wake?: () => void }
@@ -561,7 +562,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           let heard!: () => void
           const firstByte = new Promise<boolean>((r) => (heard = () => { firstGo(); r(true) }))
           // Ошибка обработана сразу: whole может прийти заметно позже первого куска.
-          const p1 = prep(start).then((q) => {
+          const prepStart = () => prep(start).then((q) => (piece && firstOpener ? { ...q, opener: true } : q))
+          const p1 = prepStart().then((q) => {
             took.push(Date.now() - t0)
             return elevenPiece(q, (u) => {
               if (dead) return
@@ -580,7 +582,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
               const w = await whole
               if (!piece) return
               const tail = w.text.startsWith(start) ? w.text.slice(start.length).trim() : ''
-              const q = await prep(start)
+              const q = await prepStart()
               const initial = await read(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(q, env) }))
               if (!initial) return
               const chunks: Uint8Array[] = [initial]
@@ -672,9 +674,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         if (el) elevenConnect(f, env)
       },
       /** начало реплики (с пометками для голоса), которое уже не изменится */
-      first(text: string) {
+      first(text: string, opener = false) {
         if (firstText !== undefined || !stripTags(text)) return
         firstText = text
+        firstOpener = opener
         gotFirst(text)
       },
       /** следующий кусок после начала (продолжение после захода): синтез сразу, звучит за предыдущими */

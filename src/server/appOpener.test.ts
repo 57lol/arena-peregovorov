@@ -74,7 +74,7 @@ describe('заход: первые слова ответа звучат до р�
     const done = ev.at(-1)!
     expect(done.opponentLine).toMatch(/^Главное… чтобы коробы стояли \p{L}+\. Остальное обсудим по ходу\.$/u)
     expect(done.sources.ms.opener).toBeLessThan(done.sources.ms.first)
-    expect(sound.first).toHaveBeenCalledExactlyOnceWith('Главное…')
+    expect(sound.first).toHaveBeenCalledExactlyOnceWith('Главное…', true)
     expect(sound.more.mock.calls[0][0]).toMatch(/^чтобы коробы стояли/)
     expect(sound.finish.mock.calls[0][0]).toMatch(/^Главное… чтобы коробы/)
     expect(s.seen[0]).toContain('Ты уже начал отвечать вслух: «Главное…»')

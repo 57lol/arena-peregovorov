@@ -548,7 +548,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
           lineSent = true
           // и когда заготовка успела всю реплику: звук захода уже синтезирован в паузе и звучит сразу, а остаток
           // синтезируется параллельно (целиком с нуля на v3 — 0,9 с тишины)
-          sound?.first(op)
+          sound?.first(op, true)
           emit?.({ t: 'line', text: stripTags(unstress(op)), sources: { voice: 'opener' }, ...(sound ? { audio: sound.url } : {}) })
         }
         const f = await job.first
