@@ -23,7 +23,7 @@ export const lagos: Scenario = {
   ],
   issues: [
     { id: 'price', title: 'Batch price', options: ['$360,000', '$380,000', '$400,000', '$420,000', '$440,000'], kind: 'distributive' },
-    { id: 'delivery', title: 'Shipment to Lagos', options: ['8 weeks', '10 weeks', '12 weeks', '14 weeks', '16 weeks'], kind: 'integrative' },
+    { id: 'delivery', title: 'Shipment deadline', options: ['8 weeks', '10 weeks', '12 weeks', '14 weeks', '16 weeks'], kind: 'integrative' },
     { id: 'payment', title: 'Payment in USD', options: ['10% upfront', '30% upfront', '50% upfront', '70% upfront', '100% upfront'], kind: 'integrative' },
     { id: 'exclusivity', title: 'Distribution exclusivity', options: ['West Africa exclusivity', 'Nigeria-wide exclusivity', 'South West Nigeria exclusivity', 'Non-exclusive distribution'],
       aliases: [['exclusive across west africa'], ['exclusive throughout nigeria', 'exclusive across nigeria'], ['south west exclusivity', 'south-west nigeria exclusivity'], ['non-exclusive', 'nonexclusive']], kind: 'integrative' },
