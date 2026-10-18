@@ -13,6 +13,7 @@ const terms: Record<string, { issue: string; good: number; bad: number; ru: [str
   client: { issue: 'price', good: 0, bad: 4, ru: ['Предлагаю скидку 0%.', 'Предлагаю скидку 12%.'], en: ['I offer a 0% discount.', 'I offer a 12% discount.'] },
   istanbul: { issue: 'price', good: 4, bad: 0, ru: ['Предлагаю цену 420000 евро.', 'Предлагаю цену 480000 евро.'], en: ['I offer a price of €420,000.', 'I offer a price of €480,000.'] },
   china: { issue: 'price', good: 4, bad: 0, ru: ['Предлагаю 32 юаня за датчик.', 'Предлагаю 48 юаней за датчик.'], en: ['I offer 32 yuan per sensor.', 'I offer 48 yuan per sensor.'] },
+  lagos: { issue: 'price', good: 4, bad: 0, ru: ['Предлагаю цену 440000 долларов.', 'Предлагаю цену 360000 долларов.'], en: ['I offer a price of $440,000.', 'I offer a price of $360,000.'] },
   dorm: { issue: 'wifi', good: 3, bad: 0, ru: ['За вай-фай заплачу 150 рублей.', 'За вай-фай заплачу 600 рублей.'], en: ['I offer 150 rubles for Wi-Fi.', 'I offer 600 rubles for Wi-Fi.'] },
   stop: { issue: 'money', good: 2, bad: 0, ru: ['Предлагаю 150 рублей за энергетик.', 'Предлагаю 2000 рублей на кроссовки.'], en: ['I offer 150 rubles for the energy drink.', 'I offer 2000 rubles for the shoes.'] },
   shop: { issue: 'disc', good: 3, bad: 0, ru: ['Предлагаю скидку 15%.', 'Предлагаю скидку 0%.'], en: ['I offer a 15% discount.', 'I offer a 0% discount.'] },
