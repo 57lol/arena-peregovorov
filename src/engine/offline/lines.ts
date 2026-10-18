@@ -166,14 +166,14 @@ function emotionFor(d: Decision, state: OpponentState): Emotion {
  * `prev` — прошлое предложение собеседника: во встречном он называет только то, что изменилось,
  * а не зачитывает весь листок заново («остальное как было»).
  */
-export function templateLine(sc: Scenario, d: Decision, state: OpponentState, prev?: Offer): { line: string; emotion: Emotion } {
+export function templateLine(sc: Scenario, d: Decision, state: OpponentState, prev?: Offer, stanceBefore?: Offer): { line: string; emotion: Emotion } {
   const k = kindOf(d, state)
   const tone = sc.opponent.character.tone
   // Свои реплики персонажа (из сценария) важнее общих по тону.
   const own = sc.opponent.character.lines?.[k as keyof NonNullable<typeof sc.opponent.character.lines>]
   const en = isEn(sc)
   const table = en ? T_EN : T
-  const pool = own?.length ? own : [...(table[k][tone] ?? []), ...table[k].any]
+  const pool = honest(sc, d, state, prev, stanceBefore, own?.length ? own : [...(table[k][tone] ?? []), ...table[k].any])
   let line = pool[state.turn % pool.length]
   const offer =
     d.kind === 'counter' ? d.offer
@@ -201,6 +201,38 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
     line += say.feigned(what)
   }
   return { line: [line, upsellLine(sc, state)].filter(Boolean).join(' '), emotion: emotionFor(d, state) }
+}
+
+// «Могу подвинуться», «иду навстречу» — только когда встречное правда что-то уступает игроку
+const CLAIMS_MOVE = /подвин|сбавл|навстречу|уступ|сдвин|can move|move a (?:bit|little)|move to|meet you|concession/iu
+// игрок к нему шагнул, а движок держит: «шаг вижу, но мало», а не «дайте что-то взамен»
+const STEPPED = {
+  ru: ['Шаг вижу. Но этого мало: {main}, остальное как было.', 'Это уже ближе. Но пока мало: {main}.'],
+  en: ['I see the step. But it is not enough yet: {main}.', 'That is closer. Still not enough: {main}.'],
+}
+const PLAIN_COUNTER = { ru: ['Давайте так: {offer}.', 'Моё предложение — {offer}.'], en: ['Here is my offer: {offer}.', 'Let\'s do it like this: {offer}.'] }
+
+/**
+ * Заготовка не должна говорить неправду о том, кто уступил: «могу подвинуться», когда встречное ничего не отдаёт,
+ * и «дайте что-то взамен», когда игрок только что к нему шагнул. Такие строки из набора убираем.
+ */
+function honest(sc: Scenario, d: Decision, state: OpponentState, prev: Offer | undefined, before: Offer | undefined, pool: string[]): string[] {
+  const O = (id: string) => sc.opponent.profile.points[id]
+  const lang = isEn(sc) ? 'en' : 'ru'
+  if (d.kind === 'counter' && !d.final && prev) {
+    const gives = sc.issues.some((i) => typeof prev[i.id] === 'number' && O(i.id)[d.offer[i.id]!] < O(i.id)[prev[i.id]!])
+    if (!gives) return pool.filter((l) => !CLAIMS_MOVE.test(l)).length ? pool.filter((l) => !CLAIMS_MOVE.test(l)) : PLAIN_COUNTER[lang]
+  }
+  if (d.kind === 'hold' && d.reason === 'no_movement') {
+    const s = state.playerStance ?? {}
+    const stepped = sc.issues.some((i) => {
+      const x = s[i.id], was = before?.[i.id], ref = prev?.[i.id]
+      if (typeof x !== 'number' || x === was) return false
+      return (typeof was === 'number' && O(i.id)[x] > O(i.id)[was]) || (typeof ref === 'number' && x === ref && sc.player.profile.points[i.id][x] < Math.max(...sc.player.profile.points[i.id]))
+    })
+    if (stepped) return STEPPED[lang]
+  }
+  return pool
 }
 
 function changesOnly(sc: Scenario, offer: Offer, prev: Offer | undefined): string {
