@@ -1,4 +1,4 @@
-// Витрина 3D-комнаты для разработки: /?world=factory, office, dorm, street, shop, bytovka, inei, istanbul, cafe.
+// Витрина 3D-комнаты для разработки: /?world=factory, office, dorm, street, shop, bytovka, inei, istanbul, meet.
 // Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1, &face=rinat, &case=tara.
 // Управление: перетаскивание, стрелки ←→, ↓ стол, ↑ собеседник.
 
@@ -18,7 +18,7 @@ const STORY_ROOM_CASE: Partial<Record<WorldKind, { caseId: string; face: string 
   bytovka: { caseId: 'launch', face: 'palych' },
   inei: { caseId: 'client', face: 'buyer' },
   istanbul: { caseId: 'istanbul', face: 'emre' },
-  cafe: { caseId: 'china', face: 'china' },
+  meet: { caseId: 'china', face: 'china' },
 }
 
 export default function Preview() {
@@ -34,10 +34,12 @@ export default function Preview() {
     const w = new World(ref.current!, { kind, caseId: q.get('case') ?? story?.caseId ?? (kind === 'office' ? 'client' : 'tara'), opponent: face })
     const yaw = q.get('yaw')
     const pitch = q.get('pitch')
-    if (yaw || pitch) {
-      w.head.ty = w.head.yaw = Number(yaw ?? 0) * MathUtils.DEG2RAD
-      w.head.tp = w.head.pitch = Number(pitch ?? -6) * MathUtils.DEG2RAD
-    }
+    // после первого resize: в звонке он сам поворачивает голову к экрану
+    if (yaw || pitch)
+      setTimeout(() => {
+        w.head.ty = w.head.yaw = Number(yaw ?? 0) * MathUtils.DEG2RAD
+        w.head.tp = w.head.pitch = Number(pitch ?? -6) * MathUtils.DEG2RAD
+      }, 300)
     if (q.get('desk')) w.look('desk')
     w.xrayTarget = q.get('xray') ? 1 : 0
     w.fade = 0

@@ -16,13 +16,13 @@ export function portraitFor(sc: Scenario): PortraitId {
   return pickFace({ id: sc.id, female, text: `${sc.sphere} ${sc.title} ${c.role} ${c.company}` })
 }
 
-/** Дела, где собеседник не за столом, а на видеосвязи: игрок в кофейне с ноутбуком, голос — «через наушники». */
+/** Дела, где собеседник не за столом, а на видеосвязи: большой экран в переговорной «Кама», голос — «через связь». */
 const VIDEO_CALLS = new Set(['china'])
 export const isVideoCall = (sc: Scenario) => VIDEO_CALLS.has(baseCaseId(sc.id))
 
 export function sceneFor(sc: Scenario): SceneId {
   const id = baseCaseId(sc.id)
-  if (VIDEO_CALLS.has(id)) return 'cafe'
+  if (VIDEO_CALLS.has(id)) return 'meet'
   const story = chapterOf(id)?.room
   if (story && story !== 'factory' && story !== 'office') return story
   if (id === 'tara') return 'factory'

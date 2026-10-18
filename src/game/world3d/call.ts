@@ -1,7 +1,9 @@
-// Видеозвонок вместо собеседника за столом: на столе открытый ноутбук, на экране — окно связи (склад в Иу,
-// собеседник, плашка с именем, окошко «Вы», таймер и полоски связи). Лицо — тот же лист портретов, что в 2D и
-// у людей за столом: рот по звуку (lipState), моргание, эмоции. Иногда связь проседает: полоски желтеют,
-// картинка на миг рассыпается крупными квадратами. Собеседник «уходит» — звонок завершается на экране.
+// Видеозвонок вместо собеседника за столом: переговорная «Кама» (rooms/meet.ts), на торцевой стене большой экран,
+// перед игроком на столе ноутбук — оба показывают одно окно связи (шоурум в Иу, собеседник, плашка с именем,
+// окошко «Вы», таймер и полоски связи): ноутбук транслирует звонок на экран переговорной. Лицо — тот же лист
+// портретов, что в 2D и у людей за столом: рот по звуку (lipState), моргание, эмоции. Иногда связь проседает:
+// полоски желтеют, картинка на миг рассыпается крупными квадратами. Собеседник «уходит» — звонок завершается.
+// За столом двое коллег-массовка: смотрят на экран, иногда на игрока, отзываются на настроение собеседника.
 //
 // Снаружи это выглядит как Company (company.ts): lead, setMood, stir, update, dispose — stage.ts и экран встречи
 // работают с ним так же, только никто не встаёт и не идёт к двери.
@@ -20,6 +22,10 @@ import {
   type Camera,
 } from 'three'
 import { lipState } from '../speech'
+import { echo } from './company'
+import { Person } from './people'
+import { BIG_SCREEN } from './rooms/meet'
+import { PLACE as MEET } from './rooms/meet.gen'
 import { EMOTIONS, FRAMES, PORTRAITS, PORTRAIT_SIZE as S, spriteEmotion, type PortraitEmotion, type PortraitFrame, type PortraitId } from '../ui/assets'
 import { TABLE } from './layout'
 import { hex } from './palette'
@@ -39,12 +45,6 @@ const BEZEL_LOW = 0.017
 const hingeZ = LAPTOP.front - LAPTOP.depth
 const hingeY = TABLE.y + LAPTOP.base
 
-/** Центр экрана в мире — сюда смотрит игрок и по нему подбирается приближение камеры. */
-export function screenCenter(out = new Vector3()) {
-  const r = BEZEL_LOW + SH / 2
-  return out.set(0, hingeY + r * Math.cos(LAPTOP.tilt), hingeZ - r * Math.sin(LAPTOP.tilt))
-}
-export const SCREEN_SIZE = { w: SW, h: SH }
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -79,6 +79,9 @@ function loadImage(src: string) {
   })
 }
 
+/** Коллеги за столом переговорной: места дальнего ряда (PLACE.crew) и лица из набора — не герои других дел. */
+const CREW: PortraitId[] = ['hr', 'dev']
+
 /** Собеседник на экране: то, что у людей за столом, — без ухода к двери. */
 export class CallLead {
   emotion: PortraitEmotion = 'neutral'
@@ -92,21 +95,28 @@ export class CallLead {
   doorOpen = 0
   ready = false
   private readonly screen: Mesh
-  constructor(screen: Mesh) {
+  private readonly h: number
+  /** screen — экран, на котором его видно крупно (большой в переговорной), h — высота картинки, м */
+  constructor(screen: Mesh, h: number) {
     this.screen = screen
+    this.h = h
   }
 
   /** Точки на экране: «голова» — макушка в кадре, «подбородок» и «грудь» — ниже, у края экрана. */
   anchor(which: 'head' | 'chin' | 'chest', out = new Vector3()) {
     const v = { head: 20, chin: 72, chest: CH + 6 }[which]
     this.screen.updateMatrixWorld()
-    return this.screen.localToWorld(out.set(0, (0.5 - v / CH) * SH, 0.002))
+    return this.screen.localToWorld(out.set(0, (0.5 - v / CH) * this.h, 0.002))
   }
 }
 
 export class VideoCall {
   readonly lead: CallLead
-  readonly extras: never[] = []
+  readonly extras: Person[]
+  /** до какой секунды коллеги смотрят на говорящего */
+  private stirUntil = 0
+  private stirGaze: 'you' | 'table' = 'you'
+  private t = 0
   private readonly group = new Group()
   private readonly canvas = document.createElement('canvas')
   private readonly g: CanvasRenderingContext2D
@@ -185,9 +195,22 @@ export class VideoCall {
     cam.position.set(0, BEZEL_LOW + SH + (LAPTOP.lid - BEZEL_LOW - SH) / 2, 0.0007)
     lid.add(cam)
     this.group.add(lid)
+
+    // большой экран переговорной: та же картинка, что на ноутбуке, — крупно, на торцевой стене
+    const big = new Mesh(this.plane(BIG_SCREEN.w, BIG_SCREEN.h), sm)
+    big.position.set(BIG_SCREEN.x, BIG_SCREEN.y, BIG_SCREEN.z)
+    big.rotation.y = BIG_SCREEN.ry
+    this.group.add(big)
     root.add(this.group)
 
-    this.lead = new CallLead(screen)
+    this.lead = new CallLead(big, BIG_SCREEN.h)
+    // коллеги сидят в дальнем ряду лицом к столу и поглядывают на экран
+    this.extras = MEET.crew.map((i, k) => {
+      const p = new Person({ id: CREW[k % CREW.length], x: MEET.farX[i], z: MEET.farZ + 0.14, facing: 0, focus: { x: BIG_SCREEN.x, z: BIG_SCREEN.z } })
+      p.flip = k % 2 === 1
+      root.add(p.group)
+      return p
+    })
     Promise.all([
       loadImage('/assets/world/call_bg.png'),
       loadImage('/assets/world/call_ui.png'),
@@ -232,14 +255,26 @@ export class VideoCall {
     return m
   }
 
-  stir() {}
+  /** Собеседник заговорил или игрок сказал реплику — коллеги ненадолго поворачиваются к говорящему. */
+  stir(to: 'you' | 'table' = 'you', sec = 2.5) {
+    this.stirGaze = to
+    this.stirUntil = this.t + sec
+    for (const p of this.extras) p.gaze = to
+  }
 
   setMood(e: PortraitEmotion, talking: boolean) {
     this.lead.emotion = e
     this.lead.talking = talking
+    this.extras.forEach((p, k) => (p.emotion = echo(e, k)))
   }
 
-  update(t: number, dt: number, _cam: Camera) {
+  update(t: number, dt: number, cam: Camera) {
+    this.t = t
+    const stir = t < this.stirUntil
+    for (const p of this.extras) {
+      if (stir) p.gaze = this.stirGaze
+      p.update(t, dt, cam, stir)
+    }
     const lead = this.lead
     // рот по звуку, без звука — по печати текста; иначе моргаем
     const lip = lipState()
@@ -343,6 +378,7 @@ export class VideoCall {
     this.group.removeFromParent()
     this.tex.dispose()
     this.texExtra?.dispose()
+    for (const p of this.extras) p.dispose()
     for (const m of this.mats) m.dispose()
     for (const g of this.geos) g.dispose()
   }

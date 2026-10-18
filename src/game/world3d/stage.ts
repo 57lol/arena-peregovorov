@@ -8,7 +8,7 @@ import { DefaultLoadingManager, MathUtils, PerspectiveCamera, Raycaster, Scene, 
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import type { PortraitId } from '../ui/assets'
 import { Company } from './company'
-import { screenCenter, SCREEN_SIZE, VideoCall } from './call'
+import { VideoCall } from './call'
 import { Head, YAW_MAX, type Pose } from './head'
 import { EYE, SEATS, SPRITE_M_PER_PX } from './layout'
 import { Desk, type PaperId } from './papers'
@@ -17,6 +17,7 @@ import { PixelPipeline } from './post'
 import type { ExitPlan } from './exit'
 import type { RoomBuild } from './room'
 import { buildAnyRoom, type WorldKind } from './rooms'
+import { BIG_SCREEN } from './rooms/meet'
 
 const D = MathUtils.DEG2RAD
 
@@ -49,9 +50,9 @@ export class World {
   readonly css: CSS3DRenderer
   readonly desk = new Desk()
   readonly company: Company | VideoCall | null = null
-  /** видеозвонок: собеседник на экране ноутбука, а не за столом (комната cafe) */
+  /** видеозвонок: собеседник на большом экране переговорной и на ноутбуке, а не за столом (комната meet) */
   readonly call: boolean
-  /** угол обзора у стола и приближенный — на экран ноутбука (только в звонке) */
+  /** угол обзора у стола и приближенный — на большой экран переговорной (только в звонке) */
   private fovDesk = 50
   private fovFace = 50
   room: RoomBuild & { exit: ExitPlan }
@@ -107,7 +108,7 @@ export class World {
     this.room = buildAnyRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
-    this.call = o.kind === 'cafe'
+    this.call = o.kind === 'meet'
     if (this.call) {
       // бумаги ложатся по бокам от ноутбука, листок с предложением «приходит» из-под экрана
       this.desk.spots = CALL_SPOTS
@@ -122,7 +123,10 @@ export class World {
     this.ro = new ResizeObserver(() => this.resize())
     this.ro.observe(el)
     this.resize()
-    if (this.call) this.head.pitch = this.head.tp
+    if (this.call) {
+      this.head.pitch = this.head.tp
+      this.head.yaw = this.head.ty
+    }
   }
 
   on(fn: (f: Frame) => void) {
@@ -209,8 +213,9 @@ export class World {
     cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe + this.stand * 0.42, EYE.z - lean * 0.3 + this.stand * 0.25)
     cam.rotation.set(h.pitch, h.yaw, 0)
     if (this.call) {
-      // смотрим на экран — камера приближает его; к столу, по сторонам и вставая — обычный угол
-      const k = Math.max(MathUtils.smoothstep(lean, 0, 0.6), MathUtils.smoothstep(Math.abs(h.yaw), 0.08, 0.45), Math.min(1, this.stand * 2))
+      // смотрим на экран — угол обзора подобран под него; к столу, по сторонам и вставая — обычный угол
+      const off = Math.abs(h.yaw - h.poses.face.yaw)
+      const k = Math.max(MathUtils.smoothstep(lean, 0, 0.6), MathUtils.smoothstep(off, 0.08, 0.45), Math.min(1, this.stand * 2))
       const fov = MathUtils.lerp(this.fovFace, this.fovDesk, k)
       if (Math.abs(fov - cam.fov) > 1e-3) {
         cam.fov = fov
@@ -238,20 +243,38 @@ export class World {
   }
 
   /**
-   * Видеозвонок: взгляд «на собеседника» — это взгляд на экран ноутбука. Угол обзора подбираем так, чтобы экран
-   * занимал половину высоты кадра на ноутбуке и почти всю ширину на телефоне; у стола остаётся обычный угол.
-   * Экран стоит в верхней половине кадра: внизу под ним — реплика собеседника и поле ввода, лицо они не закрывают.
+   * Видеозвонок: взгляд «на собеседника» — это взгляд на большой экран на торцевой стене слева (голова повёрнута
+   * к нему). Угол обзора подбираем так, чтобы экран занимал больше половины высоты кадра на ноутбуке и почти всю
+   * ширину на телефоне; у стола остаётся обычный угол. Экран стоит в верхней части кадра: внизу под ним — реплика
+   * собеседника и поле ввода, лицо они не закрывают, а по краям видно комнату.
    */
   private frameCall(aspect: number) {
-    const c = screenCenter()
-    const dist = Math.hypot(EYE.y - c.y, EYE.z - c.z)
-    const byH = 2 * Math.atan(SCREEN_SIZE.h / 0.5 / 2 / dist)
-    const byW = 2 * Math.atan(SCREEN_SIZE.w / 0.94 / 2 / dist / aspect)
+    const s = BIG_SCREEN
+    const dx = s.x - EYE.x
+    const dz = s.z - EYE.z
+    const flat = Math.hypot(dx, dz)
+    const yaw = Math.atan2(-dx, -dz)
+    const aim = Math.atan2(s.y - EYE.y, flat)
+    // углы экрана в координатах глаза, смотрящего в его центр: экран сбоку, ближний край виден крупнее дальнего
+    let tx = 0
+    let ty = 0
+    for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const p = tmp.set(s.x - EYE.x, s.y + (v * s.h) / 2 - EYE.y, s.z + (u * s.w) / 2 - EYE.z)
+      p.applyAxisAngle(Y_AXIS, -yaw).applyAxisAngle(X_AXIS, -aim)
+      tx = Math.max(tx, Math.abs(p.x / p.z))
+      ty = Math.max(ty, Math.abs(p.y / p.z))
+    }
+    // на ноутбуке экран — половина высоты кадра, на телефоне — почти вся ширина
+    const tall = aspect < 1
+    const half = Math.max(tall ? 0 : ty / 0.48, tx / (tall ? 0.92 : 0.74) / aspect)
     this.fovDesk = this.camera.fov
-    this.fovFace = Math.min(this.fovDesk, Math.max(byH, byW) / D)
-    const pitch = Math.atan2(c.y - EYE.y, EYE.z - c.z) - this.fovFace * D * 0.2
+    this.fovFace = MathUtils.clamp((2 * Math.atan(half)) / D, 30, 80)
+    // экран выше середины кадра: под ним — реплика собеседника и поле ввода; на ноутбуке ещё и чуть правее —
+    // слева сверху встают подсказки наставника и разбор хода
+    const pitch = aim - this.fovFace * D * (tall ? 0.2 : 0.15)
+    const right = tall ? 0 : Math.atan(Math.tan(this.fovFace * D / 2) * aspect * 0.16)
     const facing = this.head.tp > (pitch + this.head.poses.desk.pitch) / 2
-    this.head.poses = { ...this.head.poses, face: { yaw: 0, pitch } }
+    this.head.poses = { ...this.head.poses, face: { yaw: yaw + right, pitch } }
     if (facing) this.head.look('face')
   }
 
@@ -334,5 +357,7 @@ const CALL_SPOTS = {
 }
 
 const tmp = new Vector3()
+const X_AXIS = new Vector3(1, 0, 0)
+const Y_AXIS = new Vector3(0, 1, 0)
 const ray = new Raycaster()
 const ndc = new Vector2()

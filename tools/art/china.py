@@ -1,18 +1,19 @@
-"""Ли Вэй, 38: яркая рубашка, жилет с карманами, телефон в руке."""
+"""Ли Вэй, 38, магазин датчиков в Иу: аккуратная стрижка с пробором, рубашка цвета морской волны,
+тёмно-зелёный стёганый жилет с карманами. Говорит по видеосвязи, руки вне кадра."""
 import numpy as np
-from people import Face, SKIN_MID, builder
+from people import CX, MOUTH_M, Face, SKIN_MID, builder, paint_cloth, shirt_collar
 from pixel import band, ellipse_mask, grid, line, paint, poly_mask, put, shade_ellipsoid
 
-# Глаза уже, чем у общего набора: узкий миндаль, верхнее веко без складки, тёмная радужка почти во весь разрез,
-# внешний уголок на точку выше внутреннего. Левый глаз; правый зеркалим (кроме взгляда в сторону).
+# Глаза уже, чем у общего набора: миндаль без складки века, тёмная радужка почти во весь разрез, блик.
+# Левый глаз; правый зеркалим (кроме взгляда в сторону).
 EYES = {
-    'open':   ['........', '.LLLLL..', 'LwpppwLL', '..ppw...'],
-    'smile':  ['........', '.LLLLLL.', 'LwpppwLL', '.hhhhhh.'],
-    'narrow': ['........', '........', 'LLLLLLLL', '.wwppws.'],
-    'side':   ['........', '.LLLLL..', 'LwwwppLL', '....pp..'],
+    'open':   ['........', '.LLLLLL.', 'LwtppwLL', '.swpppw.'],
+    'smile':  ['........', '.LLLLLL.', 'LwtppwLL', '.hhhhhh.'],
+    'narrow': ['........', '........', 'LLLLLLLL', '.wtppws.'],
+    'side':   ['........', '.LLLLLL.', 'LwwwtppL', '.swwwpp.'],
     'closed': ['........', '........', 'LLLLLLL.', '..ssss..'],
-    'arc':    ['........', '.LLLL...', 'L....LL.', '........'],
-    'glare':  ['L.......', 'LLLLLLLL', '.wwppL..', '.ssssss.'],
+    'arc':    ['........', '.LLLLL..', 'L.....L.', '........'],
+    'glare':  ['L.......', '.LLLLLLL', '.wtppwL.', '..ssss..'],
 }
 EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'happy': 'arc', 'thinking': 'side', 'annoyed': 'narrow', 'angry': 'glare'}
 
@@ -23,50 +24,87 @@ def eyes(c, E, eyL, eyR, ey, emotion, frame):
     put(c, eyR, ey, EYES[st], E, flip=(st != 'side'))
 
 
-def spec():
-    face = Face(top=16, cy=38, rx=20, jaw_y=55, jaw_w=17, chin_y=65, chin_w=8, cheek=2.3)
+# Рот: в покое лёгкая улыбка, в кадре talk рот заметно открыт.
+MOUTHS = {
+    **MOUTH_M,
+    'neutral': ['.........', '.M.....M.', '..MMMMM..', '...kkk...'],
+    'pleased': ['M.......M', '.MtttttM.', '..MMMMM..'],
+    'happy':   ['M.......M', 'MMtttttMM', '.MMMMMMM.'],
+    'annoyed': ['.........', '.MMMMMMM.', 'M.......M'],
+    'angry':   ['.........', 'MMMMMMMMM', 'M.kkkkk.M'],
+}
+TALKS = {
+    'neutral': ['.M.....M.', '.MMMMMMM.', '.MoooooM.', '..MMMMM..'],
+    'pleased': ['M.......M', 'MMtttttMM', 'MoooooooM', '.MoooooM.', '..MMMMM..'],
+    'happy':   ['M.......M', 'MMtttttMM', 'MoooooooM', '.MoooooM.', '..MMMMM..'],
+    'thinking': ['.....MMM.', '..MMMooM.', '..MoooM..', '...MMM...'],
+    'annoyed': ['.........', '.MMMMMMM.', 'MtttttttM', '.MMMMMMM.'],
+    'angry':   ['.MMMMMMM.', 'MtttttttM', 'MoooooooM', '.MMMMMMM.'],
+}
 
-    def body(c, p, mask):
+
+def spec():
+    f = Face(top=17, cy=38, rx=18, jaw_y=55, jaw_w=14, chin_y=64, chin_w=6, jaw_p=1.7, cheek=2.0)
+    HAIR = [36, 37, 38, 39]
+    VEST = [6, 7, 7, 7]
+
+    def body(c, P, m):
         xs, ys = grid()
-        light = shade_ellipsoid(38, 94, 55, 30)
-        paint(c, mask, band(light, [0.3, 0.6, 0.9], [25, 26, 27, 28]))
-        # Рубашка в клетку, тёмный рабочий жилет.
-        paint(c, mask & ((xs % 9 == 0) | (ys % 9 == 0)), 21)
-        for points in ([(29, 73), (38, 71), (42, 96), (18, 96)], [(58, 71), (68, 74), (79, 96), (54, 96)]):
-            paint(c, poly_mask(points), 2)
-        line(c, [(39, 75), (44, 95)], 4)
-        line(c, [(57, 75), (53, 95)], 0)
-        put(c, 26, 83, ['aaaaaaaa', 'abbbbbba', 'abbbbbba', 'aaaaaaaa'], {'a': 0, 'b': 3})
-        for y in (80, 87, 94):
+        # рубашка цвета морской волны
+        paint_cloth(c, m, [2, 3, 3, 4])
+        # стёганый жилет: проймы открывают рукава рубашки, спереди вырез
+        vest = m & poly_mask([(10, 96), (20, 82), (30, 77), (38, 72), (48, 88), (58, 72), (66, 77), (76, 82), (86, 96)])
+        paint_cloth(c, vest, VEST, cuts=(0.25, 0.55, 0.9))
+        for y in range(80, 96, 5):
+            paint(c, vest & (np.abs(ys - y - 0.5) < 0.6), 6)
+        # молния и кант выреза
+        line(c, [(38, 72), (47, 88), (47, 95)], 6)
+        line(c, [(58, 72), (49, 88), (49, 95)], 6)
+        line(c, [(48, 89), (48, 95)], 42)
+        # карманы с клапанами
+        put(c, 29, 86, ['aaaaaa', 'bbbbbb'], {'a': 6, 'b': 8})
+        put(c, 61, 86, ['aaaaaa', 'bbbbbb'], {'a': 6, 'b': 7})
+        # пуговицы рубашки
+        for y in (79, 84):
             c[y, 48] = 45
 
-    def collar(c, p):
-        paint(c, poly_mask([(38, 70), (43, 70), (48, 79), (40, 76)]), 28)
-        paint(c, poly_mask([(53, 70), (58, 70), (55, 78), (49, 79)]), 26)
+    def collar(c, P):
+        shirt_collar(c, 9, 73, light=5, dark=4, edge=2)
 
-    def hair(c, p, emotion):
+    def hair(c, P, emotion):
         xs, ys = grid()
-        cap = ellipse_mask(48, 36, 21, 23)
-        edge = 24 + 2 * ((xs - 48) / 20) ** 2 + np.clip((xs - 44) / 8, 0, 2)
-        mask = cap & ((ys < edge) | ((abs(xs - 48) > 18) & (ys < 39)))
-        paint(c, mask, band(shade_ellipsoid(41, 22, 23, 19), [0.25, 0.65], [36, 37, 38]))
-        for points in ([(34, 22), (40, 18), (48, 17)], [(41, 22), (50, 19), (57, 20)]):
-            line(c, points, 39)
+        part = CX - 7
+        # аккуратная короткая стрижка: виски коротко, сверху объём, от пробора слева зачёс вправо-вверх
+        vol = ellipse_mask(CX + 1, f.cy - 6, f.rx + 2, 21, p=2.5)
+        hl = np.interp(xs, [27, 31, 35, part - 1, part + 1, 46, 54, 61, 65, 69],
+                       [33, 28, 25.5, 24.5, 24, 23.5, 23.5, 25, 28, 33])
+        top = vol & (ys < hl)
+        sides = ellipse_mask(CX, f.cy, f.rx + 1, 22) & (np.abs(xs - CX) > f.rx - 2) & (ys < P['ey'] - 1)
+        h = top | sides
+        sh = shade_ellipsoid(CX - 8, f.cy - 16, f.rx + 4, 22)
+        paint(c, h, 37)
+        paint(c, h & (sh < 0.3), 36)
+        paint(c, top & (sh > 0.75), 38)
+        # виски коротко — с проседью кожи, светлее
+        paint(c, sides & (ys > 27) & (np.abs(xs - CX) > f.rx - 1), 39)
+        # блик-прядь: дуга от пробора по объёму вправо
+        d = np.abs(ys - (16.5 + 0.035 * (xs - 47) ** 2))
+        paint(c, top & (d < 1.6) & (xs > part + 1) & (xs < 60), 39)
+        paint(c, top & (d < 0.7) & (xs > part + 3) & (xs < 54), 40)
+        paint(c, top & (d < 0.6) & (xs > 44) & (xs < 49), 41)
+        # вторая прядь ниже, у края чёлки
+        d2 = np.abs(ys - (21 + 0.03 * (xs - 50) ** 2))
+        paint(c, top & (d2 < 0.7) & (xs > part + 3) & (xs < 59), 39)
+        # слева от пробора — короче, прядь вниз к виску
+        d3 = np.abs(ys - (18 + 0.9 * (part - 2 - xs)))
+        paint(c, top & (d3 < 0.8) & (xs < part - 1) & (xs > 31), 39)
+        # пробор
+        line(c, [(part, 13), (part, 18), (part - 1, 23)], 36)
 
-    def extra(c, p, emotion):
-        # Телефон и пальцы поверх одежды; лицо остаётся открытым.
-        paint(c, poly_mask([(66, 92), (68, 81), (73, 79), (81, 87), (81, 96), (68, 96)]), p['skin'][2])
-        paint(c, poly_mask([(65, 68), (77, 66), (82, 87), (69, 90)]), 36)
-        paint(c, poly_mask([(67, 70), (75, 69), (79, 85), (71, 87)]), 4)
-        line(c, [(69, 73), (74, 72)], 45)
-        line(c, [(70, 77), (75, 76)], 22)
-        line(c, [(71, 81), (76, 80)], 45)
-        line(c, [(67, 84), (71, 82), (74, 84)], p['skin'][3], thick=3)
-        line(c, [(78, 86), (81, 87)], p['skin'][1], thick=2)
-
-    return dict(face=face, skin=SKIN_MID, ey=38, age=38, female=False, neck=9,
-                nose='small', shoulders=42, brow=(37, 1), brow_dy=1, pupil=37, eyes=eyes,
-                body=body, collar=collar, hair=hair, extra=extra, forehead=False)
+    return dict(face=f, skin=SKIN_MID, ey=38, age=38, female=False, neck=8,
+                nose='small', shoulders=40, brow=(36, 2), brow_dy=0, pupil=18, lash=36, eyes=eyes,
+                body=body, collar=collar, hair=hair, forehead=False, mouths=(MOUTHS, TALKS),
+                cuts=[0.08, 0.3, 0.88], blush=28, dark={38: 36, 39: 37})
 
 
 build = builder(spec)

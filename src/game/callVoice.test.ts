@@ -5,12 +5,12 @@ import { callVoice, callVoiceActive } from './callVoice'
 import { SCENES } from './ui/assets'
 
 describe('видеозвонок', () => {
-  it('только «Поставщик из Иу» идёт по видеосвязи — из кофейни', () => {
+  it('только «Поставщик из Иу» идёт по видеосвязи — из переговорной «Кама»', () => {
     const calls = SCENARIOS.filter(isVideoCall).map((s) => s.id)
     expect(calls).toEqual(['china'])
     const china = SCENARIOS.find((s) => s.id === 'china')!
-    expect(sceneFor(china)).toBe('cafe')
-    expect(SCENES.cafe.bg).toBe('/assets/scenes/cafe.png')
+    expect(sceneFor(china)).toBe('meet')
+    expect(SCENES.meet.bg).toBe('/assets/scenes/meet.png')
   })
 
   describe('голос «через связь»', () => {
