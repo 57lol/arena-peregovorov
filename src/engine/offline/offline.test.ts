@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { testDict, testScenario as sc } from '../__fixtures__/fixtures'
 import { analyzeOffline, offlineTurn, parseOffer } from './index'
-import type { TurnRecord } from '../types'
+import type { Decision, TurnRecord } from '../types'
+import { templateLine } from './lines'
+import { initialState } from '../turn'
+import { getScenario } from '../../content/scenarios'
 import { quantities } from './numbers'
 import { dormCase } from '../../content/scenarios/story/dorm'
 
@@ -183,5 +186,17 @@ describe('аудит 17.10: числа, чужие цены, отказ и ух�
     expect(a('Сделки не будет.').walksAway).toBe(true)
     expect(a('Заткнуть дыру в графике поможете?').toneViolation).toBeUndefined()
     expect(a('Заткнись уже.').toneViolation).toBe(true)
+  })
+})
+
+describe('общие реплики — без рода', () => {
+  // Шаблоны по тону общие для всех персонажей, а напротив сидят и Роза Сафина, и Дарина Лукманова:
+  // «Понял вас» и «чтобы я сдвинулся» у собеседницы — ошибка
+  it.each(['client', 'offer'])('%s: собеседница не говорит о себе в мужском роде', (id) => {
+    const sc = getScenario(id)!
+    const lines = new Set<string>()
+    for (const d of [{ kind: 'respond' }, { kind: 'hold', reason: 'no_offer' }] as Decision[])
+      for (let turn = 0; turn < 6; turn++) lines.add(templateLine(sc, d, { ...initialState(sc), turn, playerStance: { x: 1 } }).line)
+    expect([...lines].filter((l) => /(^|\s)(Понял|сдвинулся|готов)([\s.,]|$)/.test(l))).toEqual([])
   })
 })

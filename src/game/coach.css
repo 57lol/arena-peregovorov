@@ -215,6 +215,8 @@
 }
 .g-live,
 .g-room-closed {
+  /* 1240 вместе с полями листа — вровень со ссылкой и сводкой, а не на 16 px шире с каждой стороны */
+  box-sizing: border-box;
   max-width: 1240px;
   margin-bottom: calc(10 * var(--u));
 }
