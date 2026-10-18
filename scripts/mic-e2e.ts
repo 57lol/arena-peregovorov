@@ -29,6 +29,8 @@ const playsSince = (p: Page) => p.evaluate(() => (window as unknown as W).plays.
 const field = (p: Page) => p.locator('#px-speech').inputValue()
 const btn = (p: Page, name: string) => p.getByRole('button', { name, exact: true })
 
+type Ev = [number, string, unknown]
+const traceOf = (p: Page) => p.evaluate(() => (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace)
 let failed = 0
 const check = (ok: boolean, what: string) => {
   console.log(`${ok ? 'ок ' : 'НЕТ'} ${what}`)
@@ -36,9 +38,9 @@ const check = (ok: boolean, what: string) => {
 }
 
 /** stt — что отвечает /api/stt на n-й запрос; gumDelay — сколько «висит окно разрешения». */
-async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; long?: boolean; mute?: boolean; gumDelay?: number; voiceonly?: boolean; voice?: boolean; phone?: boolean; deny?: boolean; echo?: boolean; say?: [number, number] } = {}) {
+async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) => Promise<void>; tts?: number; long?: boolean; mute?: boolean; gumDelay?: number; voiceonly?: boolean; voice?: boolean; phone?: boolean; deny?: boolean; echo?: boolean; say?: [number, number]; tone?: boolean } = {}) {
   const browser = await chromium.launch({
-    args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+    args: ['--mute-audio', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   })
   const ctx = await browser.newContext({ viewport: o.phone ? { width: 390, height: 844 } : { width: 1280, height: 800 } })
   await ctx.grantPermissions(['microphone'], { origin: URL })
@@ -59,7 +61,7 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
       await new Promise((r) => setTimeout(r, ${o.gumDelay ?? 0}))
       if (${!!o.deny}) throw new DOMException('Permission denied', 'NotAllowedError')
       let s = await orig(c)
-      if (${!!(o.voiceonly || o.voice)}) {
+      if (${!!(o.voiceonly || o.voice || o.tone)}) {
         s.getTracks().forEach((t) => t.stop())
         const ctx = new AudioContext()
         await ctx.resume()
@@ -113,7 +115,7 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
   await page.goto(`${URL}/?case=dorm&view=${view}${o.voiceonly ? '&voiceonly' : o.voice ? '' : '&text'}`)
   await page.locator('button.g-big').first().click()
   await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
-  await page.locator(o.voiceonly || o.voice ? '.g-voiceonly, .w3-bar[data-voice], #px-speech' : '.g-mic').first().waitFor({ timeout: 30_000 })
+  await page.locator(o.voiceonly || o.voice ? '.g-voiceonly:visible, .w3-bar[data-voice]:visible, #px-speech:visible' : '.g-mic, .w3-talk').first().waitFor({ timeout: 30_000 })
   return { page, stt, close: () => browser.close() }
 }
 
@@ -124,7 +126,8 @@ async function record(page: Page, ms = 1500) {
   await btn(page, 'Остановить запись и распознать').click()
 }
 
-for (const view of ['classic', '3d'] as const) {
+// в 3D отдельной записи в поле нет: «Говорить» в панели включает голосовой режим (проверка ниже, «3D: Говорить…»)
+for (const view of ['classic'] as const) {
   console.log(`\n— ${view}: запись → текст в поле`)
   const m = await meeting(view)
   await record(m.page)
@@ -231,10 +234,19 @@ for (const view of ['classic', '3d'] as const) {
 }
 
 {
-  console.log('\n— 3D: вышел из встречи посреди записи')
-  const m = await meeting('3d')
-  await btn(m.page, 'Сказать голосом').click()
-  await btn(m.page, 'Остановить запись и распознать').waitFor()
+  console.log('\n— 3D: «Говорить» в текстовом режиме включает голос; вышел из встречи, пока микрофон слушает')
+  // микрофон-тон, как в голосовых проверках: фейковое устройство Chromium в dev (StrictMode открывает микрофон дважды)
+  // иногда не отдаёт второй поток вовсе
+  const m = await meeting('3d', { tone: true })
+  await btn(m.page, 'Говорить голосом').click()
+  await m.page.locator('.w3-bar[data-voice]').waitFor({ timeout: 10_000 }).catch(() => {})
+  check((await m.page.locator('.w3-bar[data-voice]').count()) === 1, 'панель встречи перешла в голосовой режим')
+  // в dev StrictMode микрофон открывается дважды: ждём, пока останется один живой и в трассе «mic on»
+  await m.page.waitForFunction(() => (window as unknown as W).tracks.filter((t) => t.readyState === 'live').length === 1 &&
+    (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace.some((e) => e[1] === 'mic' && e[2] === 'on'), undefined, { timeout: 15_000 }).catch(() => {})
+  check((await live(m.page)) === 1, 'микрофон открыт')
+  check((await m.page.locator('textarea:visible').count()) === 0, 'поле ввода спрятано')
+  await m.page.screenshot({ path: join(OUT, '3d-voice-from-text.png') })
   await m.page.getByRole('button', { name: 'Меню' }).first().click()
   await m.page.getByRole('button', { name: /Выйти к папке дел/ }).click()
   await m.page.getByRole('button', { name: /Точно\?/ }).click()
@@ -243,16 +255,20 @@ for (const view of ['classic', '3d'] as const) {
   await m.close()
 }
 
-type Ev = [number, string, unknown]
-const traceOf = (p: Page) => p.evaluate(() => (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace)
-const said = (p: Page, text = SAID) => p.waitForFunction((t) => document.querySelector('.g-you, .w3-you')?.textContent?.includes(t), text, { timeout: 15_000 })
+// 2D — строка «Вы: …» остаётся; 3D (с 18.10) — «Вы: …» видно только пока ход думает, поэтому ждём и по трассе: после «finish» пришла реплика
+const said = (p: Page, text = SAID) => p.waitForFunction((t) => {
+  if (document.querySelector('.g-you, .w3-you, .w3-status.is-you')?.textContent?.includes(t)) return true
+  const tr = (window as unknown as { __voiceTrace: Ev[] }).__voiceTrace
+  const fin = tr.findIndex((e) => e[1] === 'finish')
+  return fin >= 0 && tr.slice(fin).some((e) => e[1] === 'line')
+}, text, { timeout: 15_000 })
 
 for (const view of ['classic', '3d'] as const) {
   for (const phone of [false, true]) {
     console.log(`\n— ${view} ${phone ? '390' : '1280'}: голос по умолчанию, эхо отсекается, пауза → ход без нажатий`)
     const m = await meeting(view, { voice: true, phone, echo: true, say: [150, 700] })
     await said(m.page).catch(() => {})
-    check((await m.page.locator('textarea').count()) === 0, 'во встрече нет текстового поля')
+    check((await m.page.locator('textarea:visible').count()) === 0, 'во встрече нет текстового поля')
     check((await m.page.getByText(/Бета/).count()) === 0, 'подписи «Бета» нет')
     check(m.stt.length === 1, `пауза сама отправила одну запись (запросов: ${m.stt.length})`)
     const w = await m.page.evaluate(() => { const x = window as unknown as W; return { gumAt: x.gumAt, ended: x.ended } })

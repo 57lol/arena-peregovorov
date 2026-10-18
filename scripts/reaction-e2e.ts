@@ -33,7 +33,7 @@ assert(max < 5, 'Классификатор медленнее 5 мс')
 
 type Event = { kind: 'play' | 'end'; src: string; at: number }
 type WindowLog = { audioEvents: Event[]; sentAt: number; __world?: { company?: { lead: { emotion: string } } } }
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 try {
   for (const view of ['classic', '3d']) for (const mode of ['reaction', 'fast', 'missing', 'speechkit']) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })

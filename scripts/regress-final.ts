@@ -499,7 +499,7 @@ async function noServer(browser: Browser, size: number) {
   await ctx.close()
 }
 
-const browser = await chromium.launch()
+const browser = await chromium.launch({ args: ['--mute-audio'] })
 try {
   for (const size of SIZES) {
     if (PARTS.includes('cases')) for (const sc of SCENARIOS.filter((s) => ONLY.includes(s.id))) await playCase(browser, sc, size).catch((e) => fail(`${sc.id}-${size}: ${e.message}`))

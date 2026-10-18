@@ -120,7 +120,7 @@ async function bestPicks(page: Page) {
 async function play(kase: keyof typeof CASES, phone: boolean) {
   const tag = `${kase}-${phone ? '390' : '1440'}`
   console.log(`\n${tag}${OFFLINE ? ' офлайн' : ''}`)
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  const b = await chromium.launch({ args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
   const ctx = await b.newContext({
     viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     deviceScaleFactor: phone ? 2 : 1,
