@@ -146,7 +146,7 @@ describe('контракты входа и восстановления', () => 
   it('/api/turn: ровно 1500 символов разрешены', async () => {
     expect((await post(plain(), '/api/turn', { scenarioId: 'tara', playerText: 'x'.repeat(1500) })).status).toBe(200)
   })
-  it.fails.each(['/api/turn', '/api/report', '/api/tts'])('BUG %s: испорченный JSON должен давать 400, сейчас 500', async (path) => {
+  it.each(['/api/turn', '/api/report', '/api/tts'])('%s: испорченный JSON — 400, а не 500', async (path) => {
     const r = await plain().request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' })
     expect(r.status).toBe(400)
   })
