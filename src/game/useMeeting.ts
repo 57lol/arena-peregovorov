@@ -7,14 +7,14 @@ import { initialState } from '../engine/turn'
 import { buttonLines } from '../engine/lang'
 import type { Offer, OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type FullOffer } from '../engine/utility'
-import { ApiError, playTurn, type TurnLine } from './api'
+import { ApiError, playTurn, prepareTurn, type TurnLine } from './api'
 import { chooseReaction } from './reactions'
 import type { PortraitEmotion } from './ui/assets'
 import { firstName, isVideoCall, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, PREPARED_REACTION_MS, reactionText, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -237,6 +237,19 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     return () => clearTimeout(t)
   }, [leaving])
 
+  const prepared = useRef<{ text: string; at: number } | null>(null)
+  /**
+   * Голосом: игрок замолчал, текст уже распознан — сервер начинает ход, пока идёт пауза конца реплики. Тот же текст
+   * уйдёт ходом (send), если игрок не заговорит снова; реакция та же, что выберет send, — от неё зависит реплика.
+   */
+  function prepare(text: string) {
+    const t = text.trim()
+    if (pending || done || !t || !online) return
+    const reaction = voiceOn && canVoice ? reactionText(chooseReaction(t, state, portraitFor(sc))) : undefined
+    prepareTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}) })
+    prepared.current = { text: t, at: performance.now() }
+  }
+
   async function send(text: string, opts: SendOpts = {}) {
     if (pending || done) return
     const t = text.trim()
@@ -250,8 +263,11 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
-    // Лицо меняется сразу; короткая запись начинается через 0,32 с.
-    const f = withVoice ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction) : null
+    // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее — реплика близко: запись
+    // только если реплики нет и через PREPARED_REACTION_MS (иначе реплика ждала бы конца записи).
+    const ahead = prepared.current?.text === t && performance.now() - prepared.current.at >= 150
+    prepared.current = null
+    const f = withVoice ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction, ahead ? PREPARED_REACTION_MS : undefined) : null
     filler.current = f
     const g = gen.current
     // Начало реплики приходит раньше хода целиком: звук — с первых байт (фраза-пауза договаривает), текст печатается,
@@ -354,7 +370,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     voiceMode, voiceNote, voicedLine, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
-    send, putOnTable, accept, walk, rewind, undo, hush,
+    send, prepare, putOnTable, accept, walk, rewind, undo, hush,
   }
 }
 

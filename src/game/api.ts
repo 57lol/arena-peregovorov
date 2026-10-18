@@ -136,19 +136,35 @@ async function postStream(path: string, body: object, onLine: (l: TurnLine) => v
   }
 }
 
+const turnBody = (t: TurnInput) => ({
+  ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
+  history: t.history,
+  playerText: t.text,
+  ...(t.reaction ? { reaction: t.reaction } : {}),
+  ...(t.offer ? { offer: t.offer } : {}),
+  ...(t.accept ? { accept: true } : {}),
+  ...(t.walkAway ? { walkAway: true } : {}),
+  ...(t.tts ? { tts: t.tts } : {}),
+  ...(typeof window !== 'undefined' && voiceLlmTest() ? { voiceLlm: voiceLlmTest() } : {}),
+})
+
+/**
+ * Ход заранее: игрок замолчал, текст уже распознан — сервер начинает разбор и реплику, пока идёт пауза конца реплики.
+ * Ход с тем же текстом подхватит начатое; ответа не ждём, ошибки не важны.
+ */
+export function prepareTurn(t: TurnInput): void {
+  if (typeof fetch === 'undefined' || Object.keys(labHeaders()).length) return
+  void fetch('/api/prepare', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(turnBody(t)),
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => {})
+}
+
 /** onLine — начало реплики раньше хода целиком (ход идёт потоком). */
 export async function playTurn(t: TurnInput, onLine?: (l: TurnLine) => void): Promise<TurnResult> {
-  const body = {
-    ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
-    history: t.history,
-    playerText: t.text,
-    ...(t.reaction ? { reaction: t.reaction } : {}),
-    ...(t.offer ? { offer: t.offer } : {}),
-    ...(t.accept ? { accept: true } : {}),
-    ...(t.walkAway ? { walkAway: true } : {}),
-    ...(t.tts ? { tts: t.tts } : {}),
-    ...(typeof window !== 'undefined' && voiceLlmTest() ? { voiceLlm: voiceLlmTest() } : {}),
-  }
+  const body = turnBody(t)
   try {
     const r = onLine ? await postStream('/api/turn', body, onLine) : await post<TurnReply>('/api/turn', body)
     // проверка модели по ссылке: в консоли видно, кто на самом деле написал реплику (не уложилась — основная)

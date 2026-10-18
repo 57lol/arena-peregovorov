@@ -18,6 +18,11 @@ export const PREPARE_MS = 2500
 const TEXT_SETTLE_MS = 250
 /** Конец звука был не раньше стольких мс до «собеседник договорил» — считаем от него, иначе от «сейчас». */
 const END_FRESH_MS = 1500
+/**
+ * Игрок молчит столько — сказанное уходит Scribe (ранний commit, listen.ts): текст со знаками приходит через ~0,25 с,
+ * порог «фраза закончена» срабатывает вовремя, а сервер начинает ход, пока идёт пауза конца реплики.
+ */
+export const EARLY_MS = 450
 
 /**
  * iPhone и iPad: открытый микрофон переводит звук страницы в режим разговора (тише, в динамик у уха) —
@@ -52,6 +57,11 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
       session: (p) => (scribeOn() ? browserScribe(p, 30, sttLangNow()) : null),
       recognize,
       pauseMs: (text) => endOfTurnMs(text, cb.current.pause),
+      earlyMs: EARLY_MS,
+      onEarly: (t) => {
+        trace('early-text', t)
+        cb.current.prepare(t)
+      },
       onPhase: (p) => {
         setPhase(p)
         if (p !== 'speak') setPartial('')
