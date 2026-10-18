@@ -496,7 +496,10 @@ describe('ElevenLabs под нагрузкой (аудит 17.10)', () => {
     const { speech } = setup(f)
     await speech.prewarm()
     const { ELEVEN_KNOWN } = await import('./eleven-known.data')
-    const voices = new Set(ELEVEN_KNOWN.map((k) => k.voice)).size
+    const { ELEVEN_TUNE } = await import('./tts')
+    const first = [...new Map(ELEVEN_KNOWN.map((k) => [k.voice, k.who])).values()]
+    // лица на v3 (Эмре, Ли Вэй) — ещё раз в v4 Turbo: на ней их живые реплики
+    const voices = first.length + first.filter((who) => ELEVEN_TUNE[who]?.model === 'eleven_v3').length
     expect(relayCalls(f)).toBe(voices)
     await speech.prewarm()
     expect(relayCalls(f)).toBe(voices)

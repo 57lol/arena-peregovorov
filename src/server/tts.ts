@@ -61,6 +61,8 @@ export interface TtsRequest {
   liveRole?: string
   /** elevenlabs: кто говорит — по нему настройки и seed лица */
   who?: string
+  /** elevenlabs: живая реплика (поток хода) — у лиц на v3 она звучит v4 Turbo, см. elevenBody */
+  live?: boolean
 }
 
 export interface Audio {
@@ -176,7 +178,10 @@ function cutAt(text: string, max: number): string {
 /** Тело запроса ElevenLabs — одно для воркера и для прямого вызова (локальная проверка). */
 export function elevenBody(q: TtsRequest, env = process.env) {
   const tune = (q.who && ELEVEN_TUNE[q.who]) || {}
-  const model = tune.model ?? env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
+  const main = env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
+  // Эмре и Ли Вэй на v3 начинают звучать через ~0,7 с против ~0,2 с у v4 Turbo (замер с прода 18.10, тот же голос):
+  // живые реплики — v4 Turbo тем же голосом, вступление, фразы-паузы и реакции — v3 с акцентом. ELEVEN_LIVE_V3=on — всё на v3.
+  const model = q.live && tune.model === 'eleven_v3' && env.ELEVEN_LIVE_V3 !== 'on' ? main : tune.model ?? main
   const tags = /v[34]/.test(model)
   const prefix = tags ? (tune.prefix ?? '') : ''
   return {

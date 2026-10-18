@@ -27,7 +27,7 @@ describe('голос Ли Вэя', () => {
     expect(png.subarray(1, 4).toString()).toBe('PNG')
     expect([png.readUInt32BE(16), png.readUInt32BE(20), png[25]]).toEqual([288, 576, 6])
   })
-  it('china и emre всегда v3, другие лица сохраняют модель из окружения', () => {
+  it('china и emre на v3 (живая реплика — v4 Turbo), другие лица сохраняют модель из окружения', () => {
     expect(CAST.china).toBe('qEUg56UIsvkup7EM8Ovt')
     expect(castFor('china', 'denis', {})).toBe(CAST.china)
     const env = { ELEVENLABS_MODEL: 'eleven_v4_turbo' }
@@ -37,6 +37,11 @@ describe('голос Ли Вэя', () => {
       expect(body.voice_settings.stability).toBe(0.5)
     }
     expect(elevenBody({ voice: CAST.emre, who: 'emre', text: 'One moment.' }, env).model_id).toBe('eleven_v3')
+    // живая реплика хода — v4 Turbo тем же голосом и с той же пометкой акцента; ELEVEN_LIVE_V3=on — как раньше
+    const live = elevenBody({ voice: CAST.emre, who: 'emre', text: 'One moment.', live: true }, env)
+    expect(live).toMatchObject({ model_id: 'eleven_v4_turbo', text: '[strong Turkish accent] One moment.', voice_settings: { stability: 0.5 } })
+    expect(elevenBody({ voice: CAST.china, who: 'china', text: 'Друг.', live: true }, env).model_id).toBe('eleven_v4_turbo')
+    expect(elevenBody({ voice: CAST.china, who: 'china', text: 'Друг.', live: true }, { ...env, ELEVEN_LIVE_V3: 'on' }).model_id).toBe('eleven_v3')
     for (const who of Object.keys(CAST).filter((id) => id !== 'china' && id !== 'emre')) {
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, env).model_id).toBe('eleven_v4_turbo')
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, { ELEVENLABS_MODEL: 'eleven_v4' }).model_id).toBe('eleven_v4')
