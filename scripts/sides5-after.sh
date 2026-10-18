@@ -36,4 +36,6 @@ PY
 
 # 4. промпты судьи; вердикты — субагентами Claude (как для «до»: judge-before/*.json) или платно: sides5-judge.ts без --export
 npx tsx scripts/sides5-judge.ts "$D/after-all.json" --export "$D/judge-after"
-echo "дальше: вердикты в $D/judge-after/<партия>.json, затем npx tsx scripts/sides5-judge.ts $D/after-all.json --import $D/judge-after"
+echo "дальше: судьи-субагенты по ~/Arena-materials/final/sides5-live/judge-agent-prompt.txt (по 14 партий на агента) для judge-after и judge-nudge-*,"
+echo "затем: npx tsx scripts/sides5-judge.ts $D/after-all.json --import $D/judge-after (и так же nudge-before/nudge-after)."
+echo "или платно (Sonnet через AITunnel, ≈ 2,5 ₽ за партию): npx tsx scripts/sides5-judge.ts $D/after-all.json"
