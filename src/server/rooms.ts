@@ -5,7 +5,7 @@
 // (по id своего браузера). Отказ стирает сохранённую переписку.
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -14,6 +14,9 @@ import { attemptOf, better, type Board, type PlayerRow, type ShareState, type Ta
 import { isSilent, needsHelp, PULSE_TTL, trustTrail, type Pulse, type TrustPoint, type LiveRow } from '../engine/live'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { dict } from './library'
+import { createJson, writeJson } from './storage'
+import { quotaOf } from './client'
+import { clientLimiter, DAY, limitOf } from './limits'
 
 export const ROOM_LIMITS = { players: 200, attemptsPerPlayer: 100 }
 
@@ -64,6 +67,7 @@ interface Deps {
 
 export function roomsApi({ dir, resolve, normalize }: Deps) {
   const app = new Hono()
+  const count = clientLimiter()
   const file = (id: string) => join(dir, `${id}.json`)
   // записи в одну комнату по очереди, чтобы два участника не затёрли друг друга
   const queue = new Map<string, Promise<unknown>>()
@@ -87,12 +91,8 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
       return null
     }
   }
-  const save = async (room: RoomFile) => {
-    await mkdir(dir, { recursive: true })
-    const tmp = `${file(room.id)}.${process.pid}.tmp`
-    await writeFile(tmp, JSON.stringify(room))
-    await rename(tmp, file(room.id))
-  }
+  const maxBytes = () => limitOf('ROOM_MAX_BYTES', 8 * 1024 * 1024)
+  const save = (room: RoomFile) => writeJson(file(room.id), room, maxBytes())
 
   const memberCount = (room: RoomFile) => new Set([...Object.keys(room.byClient), ...Object.values(room.pulses ?? {}).map((p) => p.clientId)]).size
 
@@ -100,9 +100,12 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
     const { caseId, name } = Create.parse(await c.req.json())
     const sc = await resolve(caseId).catch(() => null)
     if (!sc) return c.json({ error: 'Нет такого дела' }, 404)
+    if (!count.take('room', quotaOf(c), limitOf('ROOM_SESSION_DAY_LIMIT', 50), DAY))
+      return c.json({ error: 'Слишком много тренировок. Попробуйте завтра.' }, 429)
     const id = randomBytes(6).toString('base64url')
     const key = randomBytes(18).toString('base64url')
-    await save({ id, caseId, name, createdAt: Date.now(), keyHash: sha(key).toString('hex'), byClient: {} })
+    if (!await createJson(file(id), { id, caseId, name, createdAt: Date.now(), keyHash: sha(key).toString('hex'), byClient: {} }, limitOf('ROOM_MAX_FILES', 1000), maxBytes()))
+      return c.json({ error: 'Нет места для новой тренировки. Уже созданные тренировки доступны.' }, 507)
     return c.json({ id, key, caseId, name })
   })
 
@@ -127,6 +130,8 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
         return c.json({ error: 'В тренировке уже максимум участников' }, 409)
       if ((room.byClient[body.clientId]?.attempts ?? 0) >= ROOM_LIMITS.attemptsPerPlayer)
         return c.json({ error: 'Слишком много попыток' }, 429)
+      if (!prev && Object.values(pulses).filter((p) => p.clientId === body.clientId).length >= ROOM_LIMITS.attemptsPerPlayer)
+        return c.json({ error: 'Слишком много живых попыток' }, 429)
       // Повтор и опоздавший запрос не откатывают доску и не воскрешают записанную попытку.
       if (prev?.submitted || (prev && body.seq <= prev.seq)) return c.json({ ok: true })
       const sc = await resolve(room.caseId).catch(() => null)

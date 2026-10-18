@@ -7,6 +7,7 @@
 import { randomBytes, scryptSync } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
+import { bodyLimit } from 'hono/body-limit'
 import { clientIp, PASS_COOKIE as COOKIE } from './client'
 import { makePass, parseJuryKeys, personalJudge, readPass, verifyPass, same, type Judge } from './pass'
 export { makePass, passValid } from './pass'
@@ -17,6 +18,7 @@ const TTL = 30 * 24 * 3600
 const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
 const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
+const loginBody = bodyLimit({ maxSize: 8192 })
 
 export type GateConfig = { secret: string; juryKey?: string; juryKeys?: string; login?: string; passwordHash?: string; voteKey?: string }
 
@@ -32,16 +34,21 @@ function checkPassword(password: string, stored: string) {
 export function gate(cfg: GateConfig): MiddlewareHandler {
   const judges = parseJuryKeys(cfg.juryKeys, { sharedKey: cfg.juryKey, onInvalid: (message) => console.warn(message) })
   const fails = new Map<string, { n: number; until: number }>()
+  let sweepAt = 0
   const blocked = (ip: string) => {
+    const now = Date.now()
+    if (now >= sweepAt) {
+      for (const [key, f] of fails) if (f.until <= now) fails.delete(key)
+      sweepAt = now + 60_000
+    }
     const f = fails.get(ip)
-    return !!f && f.until > Date.now() && f.n >= MAX_FAILS
+    return f ? f.until > now && f.n >= MAX_FAILS : fails.size >= 10000
   }
   const fail = (ip: string, c: Context) => {
     console.warn(`вход: неудача ip=${ip} xff=${c.req.header('x-forwarded-for') ?? '-'}`)
     const f = fails.get(ip)
     if (!f || f.until < Date.now()) fails.set(ip, { n: 1, until: Date.now() + FAIL_WINDOW })
     else f.n++
-    if (fails.size > 10000) fails.clear()
   }
   const letIn = (c: Context, to: string, judge?: Judge) => {
     const pass = makePass(cfg.secret, Date.now(), judge)
@@ -50,7 +57,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     setCookie(c, COOKIE, pass, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: TTL })
     c.header('Cache-Control', 'no-store')
     c.header('Referrer-Policy', 'no-referrer')
-    return c.redirect(to, 303)
+    return c.redirect(safeNext(to), 303)
   }
   const page = (c: Context, next: string, error = '', status: 200 | 401 | 429 = 200, login = '') => {
     c.header('Cache-Control', 'no-store')
@@ -67,6 +74,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     if (path === '/api/admin/jury' && ['GET', 'HEAD'].includes(c.req.method)) return next()
 
     if (path === '/auth/login' && c.req.method === 'POST') {
+      await loginBody(c, async () => {})
       const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)
       const to = safeNext(String(form.next ?? '/'))
       const login = String(form.login ?? '').trim()
@@ -111,7 +119,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
 }
 
 function safeNext(s: string) {
-  return s.startsWith('/') && !s.startsWith('//') && !s.includes('\\') ? s : '/'
+  return s.startsWith('/') && !s.startsWith('//') && !/[\\\p{Cc}]/u.test(s) ? s : '/'
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)

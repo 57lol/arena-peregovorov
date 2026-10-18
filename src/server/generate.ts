@@ -476,7 +476,15 @@ const TRUST: Record<Role, number> = { shared: 30, mine: 40, theirs: 50, split: 6
 
 export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scenario {
   const seen = new Map<Role, number>()
-  const ids = raw.issues.map((i, n) => (i.id.replace(/[^a-z0-9_]/gi, '').toLowerCase() || `issue${n}`) + (raw.issues.findIndex((j) => j.id === i.id) < n ? n : ''))
+  const used = new Set<string>()
+  const ids = raw.issues.map((i, n) => {
+    const clean = i.id.replace(/[^a-z0-9_]/gi, '').toLowerCase().slice(0, 32)
+    const base = !clean || Object.hasOwn(Object.prototype, clean) || clean === 'prototype' ? `issue${n}` : clean
+    let id = base, suffix = 1
+    while (used.has(id)) id = `${base}_${suffix++}`
+    used.add(id)
+    return id
+  })
   const h = hashOf(raw)
   const tables = raw.issues.map((i, n) => {
     const k = seen.get(i.role) ?? 0
@@ -603,7 +611,7 @@ function clerical(raw: z.infer<typeof Raw>): string[] {
  */
 export function libraryRequest(req: GenerateRequest): GenerateRequest {
   const side = sideOf(req)
-  if (side === 'payee' && !/найм/i.test(req.sphere)) return { ...req, sphere: 'Продажи' }
+  if (side === 'payee') return { ...req, sphere: 'Продажи' }
   if (side === 'payer' && !/найм|закуп/i.test(req.sphere)) return { ...req, sphere: 'Закупки' }
   return req
 }
@@ -633,7 +641,8 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
         continue
       }
       const r = scenarioProblems(toScenario(raw, req))
-      const soft = r.problems.length ? [] : [...storyProblems(raw), ...sideTextProblems(r.scenario)]
+      if (!r.problems.length) r.problems.push(...sideTextProblems(r.scenario))
+      const soft = r.problems.length ? [] : storyProblems(raw)
       // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту
       if (!r.problems.length && soft.length < passableSoft) {
         passable = r.scenario
@@ -644,8 +653,8 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
       if (!problems.length && r.scenario) return { scenario: finish(r.scenario), source: 'llm', attempts, problems: [] }
       // дело рабочее, замечания только к тексту — ещё одну попытку тратим, только если время есть
       if (!r.problems.length && attempts >= 2) break
-    } catch (e) {
-      problems = [`Ответ не разобрался: ${(e as Error).message.slice(0, 300)}`]
+    } catch {
+      problems = ['Ответ модели не удалось разобрать. Нужен кейс по указанной схеме.']
     }
   }
   if (passable) return { scenario: finish(passable), source: 'llm', attempts, problems: [] }
