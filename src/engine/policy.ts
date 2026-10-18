@@ -65,12 +65,18 @@ export function openingAnchor(sc: Scenario): Offer {
   return anchor
 }
 
-/** Насколько предложение далеко от позиции игрока (в долях шкалы каждого пункта). */
+/**
+ * Насколько предложение далеко от позиции игрока (в долях шкалы каждого пункта). Считается только недобор: дать игроку
+ * по пункту больше, чем он просил, — не «далеко». Иначе на просьбу, которая хуже для обоих («без акта», «на старых
+ * линиях»), собеседник тянулся к ней и отдаривал игрока в другом пункте сверх того, что тот просил.
+ */
 function distance(sc: Scenario, offer: FullOffer, stance: Offer): number {
   let d = 0
   for (const i of sc.issues) {
     const s = stance[i.id]
     if (typeof s !== 'number') continue
+    const pl = sc.player.profile.points[i.id]
+    if (pl[offer[i.id]] >= pl[s]) continue
     d += Math.abs(offer[i.id] - s) / Math.max(1, i.options.length - 1)
   }
   return d
@@ -93,7 +99,9 @@ function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
   for (const i of sc.issues) {
     const s = stance[i.id]
     const best = opp.points[i.id].indexOf(Math.max(...opp.points[i.id]))
-    if (typeof s !== 'number' || s === best) continue
+    const pl = sc.player.profile.points[i.id]
+    // уступка — только шаг к тому, что игроку лучше её варианта; к просьбе «хуже для обоих» не тянутся
+    if (typeof s !== 'number' || s === best || pl[s] <= pl[best]) continue
     fr.push(Math.min(1, Math.abs(offer[i.id] - best) / Math.abs(s - best)))
   }
   if (fr.length < 2) return 0
