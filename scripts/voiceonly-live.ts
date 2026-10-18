@@ -19,7 +19,7 @@ const wavDir = join(homedir(), 'Arena-materials/final/stt/wav')
 const files = opt('wav', 'p2.wav,p3.wav,p5.wav').split(',')
 const wavs = files.map((f) => readFileSync(f.includes('/') ? f : join(wavDir, f)))
 const tag = opt('tag', `${caseId}-${pause}`)
-const out = join(homedir(), 'Arena-materials/final/voice-main/live')
+const out = opt('out', join(homedir(), 'Arena-materials/final/voice-main/live'))
 mkdirSync(out, { recursive: true })
 
 /** Где в WAV кончается речь (последний отсчёт громче порога), мс от начала файла. */
@@ -86,17 +86,44 @@ await ctx.addInitScript(`
     constructor(u, p) { super(u, p); log('ws', 'open'); this.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.type !== 'partial') log('ws<', m.type + ' ' + (m.text ?? '')) }); this.addEventListener('close', (e) => log('ws', 'close ' + e.code + ' ' + e.reason)) }
   }
   const f = window.fetch
-  window.fetch = (u, o) => {
+  window.fetch = async (u, o) => {
     const p = String(u instanceof Request ? u.url : u)
-    if (p.includes('/api/turn')) { let text = ''; try { text = JSON.parse(o.body).playerText } catch {} ; log('turn', text) }
-    else if (p.includes('/api/stt')) log('fetch', p.replace(location.origin, ''))
-    return f(u, o)
+    if (p.includes('/api/prepare')) { let text = ''; try { text = JSON.parse(o.body).playerText } catch {} ; log('prep', text) }
+    if (!p.includes('/api/turn')) {
+      if (p.includes('/api/stt')) log('fetch', p.replace(location.origin, ''))
+      return f(u, o)
+    }
+    let text = ''; try { text = JSON.parse(o.body).playerText } catch {} ; log('turn', text)
+    const r = await f(u, o)
+    if (!r.body || !(r.headers.get('content-type') || '').includes('ndjson')) return r
+    // копия потока хода: когда пришло начало реплики (line) и ход целиком (done, с замерами сервера)
+    const [a, b] = r.body.tee()
+    ;(async () => {
+      const rd = b.pipeThrough(new TextDecoderStream()).getReader()
+      let buf = ''
+      for (;;) {
+        const { value, done } = await rd.read()
+        if (done) break
+        buf += value
+        for (let i; (i = buf.indexOf('\\n')) >= 0; ) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1)
+          try {
+            const ev = JSON.parse(line)
+            if (ev.t === 'line') log('line', ev.text.slice(0, 80))
+            else if (ev.t === 'done') log('done', { ms: ev.sources && ev.sources.ms, analysis: ev.sources && ev.sources.analysis, voice: ev.sources && ev.sources.voice, line: ev.opponentLine })
+          } catch {}
+        }
+      }
+    })().catch(() => {})
+    return new Response(a, { status: r.status, statusText: r.statusText, headers: r.headers })
   }
   const play = HTMLMediaElement.prototype.play
   HTMLMediaElement.prototype.play = function () {
     if (!this.logged) {
       this.logged = true
       this.addEventListener('ended', (e) => log('ended', { t: Math.round(e.timeStamp), src: this.src.slice(-24) }))
+      // что зазвучало: фраза-пауза, реакция или реплика (поток MediaSource и скачанный звук — blob:)
+      this.addEventListener('playing', () => { const s = this.src; log('playing', s.includes('voice-reactions') ? 'reaction' : s.includes('voice-fillers') ? 'filler' : s.startsWith('blob:') ? 'line' : s.includes('/api/tts') ? 'line' : 'other') })
       if (${process.argv.includes('--debug-audio')}) {
         const a = this
         for (const k of ['pause', 'waiting', 'stalled', 'error', 'emptied', 'playing']) a.addEventListener(k, (e) => log('a:' + k, { t: Math.round(e.timeStamp), ct: +a.currentTime.toFixed(2), d: +a.duration.toFixed(2), rs: a.readyState, buf: [...Array(a.buffered.length)].map((_, i) => a.buffered.start(i).toFixed(2) + '-' + a.buffered.end(i).toFixed(2)).join(','), src: a.src.slice(-10) }))
@@ -154,6 +181,15 @@ ends.forEach((te, k) => {
   const turn = ev.find((e) => e[1] === 'turn' && say && e[0] > say.t)
   const speechEnd = say ? say.t + speechEnds[k] : undefined
   if (!say) return
+  // после отправки: реакция (фраза-пауза), начало реплики в потоке хода, первый звук реплики, ход целиком
+  const after = (kind: string, pick?: (e: Ev) => boolean) => (turn ? ev.find((e) => e[1] === kind && e[0] >= turn[0] && (!pick || pick(e))) : undefined)
+  const react = after('playing', (e) => e[2] === 'reaction' || e[2] === 'filler')
+  const sound = after('playing', (e) => e[2] === 'line')
+  const line = after('line')
+  const done = after('done')
+  const prep = ev.find((e) => e[1] === 'prep' && e[0] > say.t && (!turn || e[0] <= turn[0]))
+  const dms = (done?.[2] as { ms?: Record<string, unknown> } | undefined)?.ms
+  const since = (e: Ev | undefined, from: number | undefined) => (e && from !== undefined ? Math.round(e[0] - from) : '—')
   rows.push({
     ход: k + 1,
     'конец звука (ended)': raw?.t,
@@ -162,9 +198,22 @@ ends.forEach((te, k) => {
     'open() позвали, мс': raw && open ? open[0] - raw.t : '—',
     'фраза с, мс': raw ? Math.round(say.t - raw.t) : '—',
     'конец речи → ход, мс': turn && speechEnd ? Math.round(turn[0] - speechEnd) : '—',
+    'конец речи → заготовка, мс': since(prep, speechEnd),
+    'ход → реакция, мс': since(react, turn?.[0]),
+    'ход → начало реплики (line), мс': since(line, turn?.[0]),
+    'ход → звук реплики, мс': since(sound, turn?.[0]),
+    'ход → ход целиком, мс': since(done, turn?.[0]),
+    'конец речи → звук реплики, мс': since(sound, speechEnd),
+    реакция: react?.[2] ?? '—',
+    сервер: dms ? JSON.stringify(dms) : '—',
     распознано: turn?.[2] ?? '—',
     поток: all.some((e) => e[0] === 'ev' && e[2] === 'ws<' && String(e[3]).startsWith('final') && (e[1] as number) > say.t && (!turn || (e[1] as number) <= turn[0])) ? 'Scribe' : 'Яндекс',
   })
 })
 console.table(rows)
 writeFileSync(join(out, `${tag}-rows.json`), JSON.stringify(rows, null, 1))
+const med = (k: string) => {
+  const v = rows.map((r) => r[k]).filter((x): x is number => typeof x === 'number').sort((a, b) => a - b)
+  return v.length ? v[Math.floor((v.length - 1) / 2)] : '—'
+}
+console.log('медианы:', JSON.stringify(Object.fromEntries(['конец речи → ход, мс', 'ход → реакция, мс', 'ход → начало реплики (line), мс', 'ход → звук реплики, мс', 'конец речи → звук реплики, мс'].map((k) => [k, med(k)]))))
