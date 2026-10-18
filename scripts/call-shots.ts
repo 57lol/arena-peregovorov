@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
-// Видеозвонок с Ли Вэем («Поставщик из Иу»): вход, экран ноутбука, стол, ответ голосом (губы по звуку,
-// голос через обработку «связи»), уход собеседника. 1440×900 и 390×844, снимки — ~/Arena-materials/shots/call/.
+// Видеозвонок с Ли Вэем («Поставщик из Иу») в переговорной «Кама»: вход (камера на большом экране), ответ голосом
+// (губы по звуку, голос через обработку «связи»), вид на окно и на доску с дверью, стол с ноутбуком, конец звонка.
+// 1440×900 и 390×844, снимки — ~/Arena-materials/shots/call/ (или --out).
 // Голос подменяется записью вступления Ли Вэя: офлайн-сервер голоса не даёт, а губам и обработке нужен звук.
 // Запуск: npm run dev:offline, потом npx tsx scripts/call-shots.ts [--url http://localhost:5173] [--only wide,phone]
 // Браузер без звука (--mute-audio): прогон не должен шуметь в колонках.
@@ -95,24 +96,21 @@ async function run(phone: boolean, classic = false) {
     await page.waitForTimeout(1200)
     await shot('02-говорит')
 
-    // осмотреться
+    // осмотреться: экран слева, прямо — окна на Каму, правее — доска и дверь; потом обратно к экрану
     if (!phone) {
       await page.locator('body').click({ position: { x: 700, y: 300 } })
-      await page.keyboard.down('ArrowLeft')
-      await page.waitForTimeout(800)
-      await page.keyboard.up('ArrowLeft')
-      await page.waitForTimeout(900)
-      await shot('03-слева')
       await page.keyboard.down('ArrowRight')
-      await page.waitForTimeout(1600)
+      await page.waitForTimeout(780)
       await page.keyboard.up('ArrowRight')
       await page.waitForTimeout(900)
-      await shot('04-справа')
-      await page.keyboard.down('ArrowLeft')
-      await page.waitForTimeout(800)
-      await page.keyboard.up('ArrowLeft')
+      await shot('03-окна')
+      await page.keyboard.down('ArrowRight')
+      await page.waitForTimeout(600)
+      await page.keyboard.up('ArrowRight')
+      await page.waitForTimeout(900)
+      await shot('04-доска-дверь')
       await page.keyboard.press('ArrowUp')
-      await page.waitForTimeout(1200)
+      await page.waitForTimeout(1600)
     }
 
     // реплика и ответ

@@ -56,8 +56,8 @@ export const SCENES = {
   shop: { bg: '/assets/scenes/shop.png', desk: '/assets/scenes/shop-desk.png', title: 'Магазин у общежития' },
   bytovka: { bg: '/assets/scenes/bytovka.png', desk: '/assets/scenes/bytovka-desk.png', title: 'Бытовка цеха' },
   inei: { bg: '/assets/scenes/inei.png', desk: '/assets/scenes/inei-desk.png', title: 'Кабинет закупок «Инея»' },
-  // видеозвонок (дело «Поставщик из Иу»): экран ноутбука в кофейне, картинки — tools/art/call_screen.py
-  cafe: { bg: '/assets/scenes/cafe.png', desk: '/assets/scenes/cafe-desk.png', title: 'Видеозвонок из кофейни' },
+  // видеозвонок (дело «Поставщик из Иу»): большой экран в переговорной «Кама», картинки — tools/art/call_screen.py
+  meet: { bg: '/assets/scenes/meet.png', desk: '/assets/scenes/meet-desk.png', title: 'Переговорная «Кама», видеозвонок' },
 } as const
 export type SceneId = keyof typeof SCENES
 

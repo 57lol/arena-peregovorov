@@ -8,9 +8,9 @@ import type { WorldKind } from './rooms'
 import { ROOM, SEATED_FORWARD, SEATS } from './layout'
 import { PLACE as OFFICES } from './room3d.gen'
 import { PLACE as BYTOVKA } from './rooms/bytovka.gen'
-import { PLACE as CAFE } from './rooms/cafe.gen'
 import { PLACE as DORM } from './rooms/dorm.gen'
 import { PLACE as INEI } from './rooms/inei.gen'
+import { PLACE as MEET } from './rooms/meet.gen'
 import { PLACE as SHOP } from './rooms/shop.gen'
 
 export type Pt = readonly [number, number]
@@ -56,9 +56,9 @@ const PATHS: Record<WorldKind, Pt[]> = {
   shop: [SEAT, [0, -1.6], [-2.45, -1.6], [-2.45, mid(SHOP.door)], [-HW - 0.18, mid(SHOP.door)], [-HW - 0.18, SHOP.glass[0] - 0.45]],
   // остановка: перешагивает лавку, мимо собаки по тропинке назад-налево и за ларёк
   street: [SEAT, [0, -1.62], [-1.2, -2.2], [-2.5, -2.75], [-4.3, -3.5], [-4.4, -6.3]],
-  // кофейня: собеседник на экране ноутбука и не ходит; путь на всякий случай — за стульями, между столом
-  // и барными табуретами к выходу в передней стене
-  cafe: [SEAT, [GAP_X, SEAT[1] - 0.04], [GAP_X, BEHIND], [-1.85, BEHIND], [-1.85, 1.6], [mid(CAFE.door), 1.95], [mid(CAFE.door), ROOM.front + 0.3]],
+  // переговорная «Кама»: собеседник на экране и не ходит; путь на всякий случай — между пустыми креслами
+  // дальнего ряда назад, вдоль окон направо, в дверь в дальней стене и по коридору за ней
+  meet: [SEAT, [0, -1.78], [mid(MEET.door), -1.78], [mid(MEET.door), MEET.room[2] - 0.9], [0, MEET.room[2] - 0.9]],
 }
 
 /** Дверь в стене: открывается за 1,6 м пути до точки перед проёмом, закрывается, когда он скрылся за стеной. */
@@ -73,7 +73,7 @@ export const EXITS: Record<WorldKind, ExitPlan> = {
   // автоматическая дверь магазина закрывается, когда он вышел на улицу
   shop: { path: PATHS.shop, door: { at: pathLength(PATHS.shop.slice(0, -2)) - 1.6, shut: pathLength(PATHS.shop.slice(0, -1)) + 0.4 }, dusk: { x: -HW } },
   street: { path: PATHS.street },
-  cafe: { path: PATHS.cafe },
+  meet: { path: PATHS.meet },
 }
 
 export function pathLength(path: readonly Pt[]) {

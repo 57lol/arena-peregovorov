@@ -371,6 +371,8 @@ export interface PersonOpts {
   lead?: boolean
   /** куда повёрнут, когда не смотрит на нас: точка на столе */
   focus?: { x: number; z: number }
+  /** куда смотрит стул (рыскание); по умолчанию — по месту за обычным столом (seatYaw) */
+  facing?: number
   /** собеседнику — как уйти из этой комнаты и какой дверью (exit.ts, RoomBuild.door) */
   exit?: ExitPlan
   door?: (open: number) => void
@@ -428,7 +430,7 @@ export class Person {
     this.focus = o.focus ?? { x: 0, z: -0.3 }
     this.exit = o.exit
     this.door = o.door
-    this.facing = this.turn = seatYaw(o.x)
+    this.facing = this.turn = o.facing ?? seatYaw(o.x)
     this.group.position.set(o.x + Math.sin(this.facing) * SEATED_FORWARD, 0, o.z + Math.cos(this.facing) * SEATED_FORWARD)
     loadSheet(o.id).then((s) => this.build(s))
   }

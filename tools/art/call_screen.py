@@ -1,14 +1,14 @@
-"""Видеозвонок с Ли Вэем: экран ноутбука и 2D-сцена «кофейня, ноутбук, звонок».
+"""Видеозвонок с Ли Вэем: окно связи на экранах и 2D-сцена «переговорная «Кама», большой экран, звонок».
 
-Экран (для 3D, src/game/world3d/call.ts) — 192×120, как 16:10:
-  call_bg.png  — верхняя полоса окна, видео со склада в Иу, нижняя панель кнопок;
-  call_ui.png  — то, что лежит поверх собеседника: плашка с именем, окошко «Вы».
+Экран (для 3D, src/game/world3d/call.ts: ноутбук игрока и большой экран переговорной) — 192×120, как 16:10:
+  call_bg.png  — верхняя полоса окна, видео из шоурума в Иу, нижняя панель кнопок;
+  call_ui.png  — то, что лежит поверх собеседника: плашка с именем, окошко «Вы» (камера переговорной).
 Портрет (96×96) встаёт между ними в x=48, y=10. Таймер и полоски связи рисует сам браузер.
 
-2D-сцена для классического вида встречи (scenes/cafe.png и cafe-desk.png, 192×108): то же окно звонка
-на экране ноутбука, по краям — стол и кофейня. Портрет — как во всех сценах, x=48, y=4.
+2D-сцена для запасного вида встречи (scenes/meet.png и meet-desk.png, 192×108): то же окно звонка на большом
+экране, по краям — дубовые рейки стены и фикус, внизу край стола. Портрет — как во всех сценах, x=48, y=4.
 
-Запуск: ~/.venvs/saferoute/bin/python tools/art/call_screen.py
+Запуск: ~/Arena-materials/.venv/bin/python tools/art/call_screen.py
 """
 import os
 import sys
@@ -53,70 +53,94 @@ def carton(t, x, y, w, h, light=BOX_L, tape=True, label=True):
         t.px(lx + 1, ly + 1, MIST)
 
 
+def product_box(t, x, y, w, h, top=BLUE, face=WHITE):
+    """Коробка датчиков: белая с синей полосой и окошком-этикеткой — так упакованы образцы."""
+    t.rect(x, y, x + w - 1, y + h - 1, face)
+    t.rect(x, y, x + w - 1, y + 1, top)
+    t.rect(x + w - 1, y + 2, x + w - 1, y + h - 1, PALE)
+    if w >= 6 and h >= 6:
+        t.rect(x + 1, y + h - 3, x + 3, y + h - 3, MIST)
+
+
+def sensor(t, x, y, c=PALE, cable=ORANGE):
+    """Индуктивный датчик M12 на крючке: резьбовой цилиндр и кабель."""
+    t.rect(x, y, x + 1, y + 6, c)
+    t.px(x, y + 1, WHITE)
+    t.px(x, y + 3, WHITE)
+    t.px(x, y + 5, WHITE)
+    t.rect(x, y + 7, x + 1, y + 7, cable)
+    t.line([(x + 1, y + 8), (x + 2, y + 11), (x, y + 14)], cable)
+
+
 def warehouse(t, x0, y0, w, h):
-    """Склад-шоурум в Иу: бетонная стена, лампы, стеллажи с коробками, стол с образцами."""
+    """Шоурум Ли Вэя в Иу: светлая стена, аккуратные белые стеллажи с коробками образцов, стенд с датчиками,
+    фонарик-подвеска и бамбук «на удачу». За головой — спокойная стена, чтобы лицо читалось."""
     x1, y1 = x0 + w - 1, y0 + h - 1
-    # стена и пол
-    t.rect(x0, y0, x1, y1, SLATE)
-    t.rect(x0, y0, x1, y0 + h // 3, STEEL)
-    t.checker(x0, y0 + h // 3, x1, y0 + h // 3 + 1, SLATE)
-    floor = y0 + int(h * 0.78)
-    t.rect(x0, floor, x1, y1, STEEL)
-    t.rect(x0, floor, x1, floor, MIST)
-    t.checker(x0, floor + 1, x1, y1, SLATE, 1)
-    # лампы под потолком
-    for lx in range(x0 + 10, x1 - 6, 44):
-        t.rect(lx, y0 + 1, lx + 16, y0 + 2, WHITE)
-        t.rect(lx, y0 + 3, lx + 16, y0 + 3, PALE)
-        t.checker(lx - 2, y0 + 4, lx + 18, y0 + 6, PALE)
-    # стеллажи: синие стойки, оранжевые балки, на полках коробки
-    def rack(rx, rw, top):
-        levels = [top, top + 18, top + 36]
-        for lv in levels:
-            x = rx + 2
-            while x < rx + rw - 6:
-                bw = int(rng.integers(7, 13))
-                bh = int(rng.integers(8, 14))
-                if x + bw > rx + rw - 2:
-                    break
-                carton(t, x, lv + 16 - bh, bw, bh, label=rng.random() < 0.7)
-                if rng.random() < 0.35 and bh < 11:
-                    carton(t, x + 1, lv + 16 - bh - 6, bw - 2, 6, tape=False, label=False)
+    # стена: светлая, к потолку чуть темнее; плинтус и пол из плитки
+    t.rect(x0, y0, x1, y1, PALE)
+    t.rect(x0, y0, x1, y0 + 2, MIST)
+    t.checker(x0, y0 + 3, x1, y0 + 4, MIST)
+    floor = y0 + int(h * 0.84)
+    t.rect(x0, floor, x1, y1, MIST)
+    t.rect(x0, floor, x1, floor, STEEL)
+    for xx in range(x0, x1, 12):
+        t.rect(xx, floor + 1, xx, y1, PALE)
+    # потолочные светильники
+    for lx in (x0 + 26, x1 - 42):
+        t.rect(lx, y0, lx + 16, y0, WHITE)
+        t.checker(lx - 1, y0 + 1, lx + 17, y0 + 1, WHITE)
+    # стеллаж слева: белые стойки, три полки, коробки ровными рядами
+    def shelf(sx, sw, top, rows=3):
+        for r in range(rows):
+            ly = top + r * 17
+            x = sx + 2
+            k = 0
+            while x + 8 <= sx + sw - 2:
+                bw = 8 if k % 3 else 10
+                bh = 9 if k % 2 else 11
+                product_box(t, x, ly + 14 - bh, bw, bh, top=(BLUE, BLUE_L, RED)[(k + r) % 3] if k % 4 else BLUE)
                 x += bw + 1
-            t.rect(rx, lv + 16, rx + rw - 1, lv + 17, ORANGE)
-            t.rect(rx, lv + 16, rx + rw - 1, lv + 16, ORANGE_L)
-        for sx in (rx, rx + rw - 2):
-            t.rect(sx, top - 4, sx + 1, floor, BLUE)
-            t.rect(sx, top - 4, sx, floor, BLUE_L)
-        # метка полки
-    rack(x0 - 4, 62, y0 + 8)
-    rack(x1 - 58, 62, y0 + 8)
-    text(t, x0 + 8, y0 + 8, 'А-12', WHITE)
-    text(t, x1 - 50, y0 + 8, 'В-07', WHITE)
-    # середина за спиной: рольставня и стопка коробок
-    mx = x0 + w // 2
-    t.rect(mx - 28, y0 + 14, mx + 28, floor, MIST)
-    for yy in range(y0 + 15, floor, 3):
-        t.rect(mx - 28, yy, mx + 28, yy, STEEL)
-    t.rect(mx - 30, y0 + 12, mx + 30, y0 + 13, SLATE)
-    # стол с образцами справа внизу: столешница, датчики на подставке, кабель
-    tx = x1 - 52
-    ty = floor - 6
-    t.rect(tx, ty, tx + 46, ty + 2, BAR2)
-    t.rect(tx, ty, tx + 46, ty, SLATE)
-    t.rect(tx + 2, ty + 3, tx + 3, y1, BAR)
-    t.rect(tx + 43, ty + 3, tx + 44, y1, BAR)
-    for k in range(5):
-        sx = tx + 6 + k * 5
-        t.rect(sx, ty - 7, sx + 2, ty - 1, PALE)
-        t.rect(sx, ty - 7, sx + 2, ty - 7, WHITE)
-        t.rect(sx + 1, ty - 9, sx + 1, ty - 8, ORANGE_L)
-    t.rect(tx + 34, ty - 5, tx + 41, ty - 1, BOX)
-    t.rect(tx + 34, ty - 5, tx + 41, ty - 5, BOX_L)
-    # коробки на полу слева, ближе к камере — крупнее
-    carton(t, x0 + 2, floor - 14, 18, 18)
-    carton(t, x0 + 21, floor - 8, 14, 12)
-    carton(t, x0 + 4, floor - 24, 13, 10)
+                k += 1
+            t.rect(sx, ly + 14, sx + sw - 1, ly + 15, WHITE)
+            t.rect(sx, ly + 16, sx + sw - 1, ly + 16, MIST)
+        for px_ in (sx, sx + sw - 1):
+            t.rect(px_, top - 3, px_, floor, WHITE)
+            t.rect(px_ + (1 if px_ == sx else -1), top - 3, px_ + (1 if px_ == sx else -1), floor, MIST)
+    shelf(x0 + 2, 40, y0 + 12)
+    text(t, x0 + 6, y0 + 5, 'А-12', STEEL)
+    # справа — стенд с образцами датчиков на крючках и подписи
+    bx0, bx1 = x1 - 44, x1 - 4
+    t.rect(bx0, y0 + 8, bx1, y0 + 52, WHITE)
+    t.frame(bx0, y0 + 8, bx1, y0 + 52, MIST)
+    t.rect(bx0, y0 + 8, bx1, y0 + 13, BLUE)
+    text(t, bx0 + 4, y0 + 9, 'ДАТЧИКИ', WHITE)
+    for r in range(2):
+        for k in range(6):
+            sensor(t, bx0 + 4 + k * 6, y0 + 17 + r * 18, cable=(ORANGE, BLUE_L, GREEN)[(k + r) % 3])
+    # за головой: спокойная стена; правее головы на стене — красный фонарик с кисточкой
+    lx, ly = bx0 - 12, y0 + 10
+    t.rect(lx, y0, lx, ly - 1, STEEL)
+    t.rect(lx - 3, ly, lx + 3, ly + 7, RED)
+    t.rect(lx - 2, ly - 1, lx + 2, ly + 8, RED)
+    t.rect(lx - 3, ly + 1, lx - 3, ly + 6, RED_L)
+    t.rect(lx - 2, ly - 1, lx + 2, ly - 1, ORANGE_L)
+    t.rect(lx - 2, ly + 8, lx + 2, ly + 8, ORANGE_L)
+    t.rect(lx, ly + 9, lx, ly + 12, ORANGE_L)
+    # бамбук «на удачу» в стеклянной вазе на тумбе слева от головы
+    vx = x0 + 47
+    t.rect(vx - 6, floor - 12, vx + 8, floor, WHITE)
+    t.rect(vx - 6, floor - 12, vx + 8, floor - 12, PALE)
+    t.rect(vx - 2, floor - 18, vx + 2, floor - 13, 4)
+    for k, (dx, top) in enumerate(((-1, 34), (1, 40), (0, 28))):
+        t.rect(vx + dx, floor - top, vx + dx, floor - 18, GREEN if k % 2 else GREEN_L)
+        for yy in range(floor - top + 4, floor - 18, 6):
+            t.px(vx + dx, yy, 8)
+        t.px(vx + dx - 1, floor - top + 1, GREEN_L)
+        t.px(vx + dx + 1, floor - top + 2, GREEN)
+    # коробки стопкой у правого стенда на полу
+    product_box(t, bx0 + 2, floor - 12, 16, 12)
+    product_box(t, bx0 + 19, floor - 9, 14, 9, top=RED)
+    product_box(t, bx0 + 5, floor - 20, 11, 8, top=BLUE_L)
     # лёгкая виньетка камеры телефона
     xs, ys = t.grid()
     d = ((xs - (x0 + w / 2)) / (w / 2)) ** 2 + ((ys - (y0 + h / 2)) / (h / 2)) ** 2
@@ -209,20 +233,20 @@ def name_plate(t, x, y, s='ЛИ ВЭЙ', place='ИУ'):
 
 
 def you_tile(t, x, y, w=40, h=30):
-    """Окошко «Вы»: тёплая кофейня за спиной, свет из окна, вы в зелёном свитере."""
-    v = Tex(w, h, BOX_H)
-    v.rect(0, 0, w - 1, 6, TAPE)
-    # окно с утренним светом и подвесная лампа
-    v.rect(2, 3, 12, 16, 5)
-    v.rect(7, 3, 7, 16, 4)
-    v.rect(2, 9, 12, 9, 4)
-    v.rect(w - 9, 0, w - 9, 4, BAR2)
-    v.rect(w - 11, 5, w - 7, 6, ORANGE_L)
-    # полка с чашками
-    v.rect(w - 14, 13, w - 3, 13, BOX_D)
-    for k in range(3):
-        v.rect(w - 13 + k * 4, 11, w - 12 + k * 4, 12, WHITE)
-    # человек: плечи, шея, голова, волосы
+    """Окошко «Вы»: камера над экраном переговорной — белая стена, окно, дубовый стол, вы и коллеги за ним."""
+    v = Tex(w, h, PALE)
+    v.rect(0, 0, w - 1, 3, WHITE)
+    # окно справа: небо и золото берёз
+    v.rect(w - 12, 2, w - 1, 17, 5)
+    v.rect(w - 12, 11, w - 1, 17, 4)
+    v.ellipse(w - 6, 9, 4, 3, ORANGE_L)
+    v.rect(w - 13, 2, w - 13, 17, BAR2)
+    # коллеги по бокам: слева светлые волосы и сиреневый, справа рыжий в фиолетовом
+    for cx, hair, body in ((7, 23, 33), (w - 9, 22, 32)):
+        v.ellipse(cx + 0.5, h - 6, 5, 4, body)
+        v.ellipse(cx + 0.5, h - 12, 2.6, 3, BOX_L)
+        v.ellipse(cx + 0.5, h - 14, 2.8, 1.6, hair)
+    # вы — в центре, ближе к камере
     cx = w // 2
     v.ellipse(cx + 0.5, h + 3, 12, 10, 7)
     v.ellipse(cx + 0.5, h + 4, 11, 9, 8)
@@ -234,6 +258,9 @@ def you_tile(t, x, y, w=40, h=30):
     v.px(cx - 2, h - 13, DARK)
     v.px(cx + 2, h - 13, DARK)
     v.rect(cx - 1, h - 10, cx + 1, h - 10, BOX_D)
+    # край дубового стола
+    v.rect(0, h - 3, w - 1, h - 1, BOX_H)
+    v.rect(0, h - 3, w - 1, h - 3, TAPE)
     # подпись
     v.rect(0, h - 7, 11, h - 1, DARK)
     text(v, 2, h - 6, 'ВЫ', WHITE)
@@ -274,86 +301,61 @@ W2, H2 = 192, 108
 SX0, SX1, SY1 = 24, 167, 91  # экран ноутбука внутри рамки (y от верха кадра)
 
 
-def cafe_side(t, x0, x1):
-    """Кофейня по краям кадра: тёплая стена, окно, растение, столешница."""
-    t.rect(x0, 0, x1, H2 - 1, BOX_H)
-    t.rect(x0, 0, x1, 30, TAPE)
-    t.checker(x0, 31, x1, 32, BOX_H)
-    # кирпич
-    for yy in range(36, 84, 4):
-        t.rect(x0, yy, x1, yy, BOX_L)
-        off = 0 if (yy // 4) % 2 else 3
-        for xx in range(x0 + off, x1 + 1, 7):
-            t.px(xx, yy + 1, BOX_L)
-            t.px(xx, yy + 2, BOX_L)
+def slat_wall(t, x0, x1):
+    """Стена переговорной по краям кадра: дубовые рейки с тёмными щелями, подсветка сверху."""
+    t.rect(x0, 0, x1, H2 - 1, BOX_L)
+    for xx in range(x0, x1 + 1, 3):
+        t.rect(xx, 0, xx, H2 - 1, BOX_H)
+        t.rect(xx + 2, 0, xx + 2, H2 - 1, BOX_D)
+    t.checker(x0, 0, x1, 3, TAPE)
 
 
 def scene2d():
     bg = Tex(W2, H2, BAR)
-    # видео за портретом: склад, верхняя полоса окна
+    # видео за портретом: шоурум, верхняя полоса окна
     top_bar(bg, SX0, 0, SX1 - SX0 + 1, 7)
     warehouse(bg, SX0, 7, SX1 - SX0 + 1, SY1 - 7 - 9)
 
     fg = Tex(W2, H2)
-    # кофейня слева и справа
-    cafe_side(fg, 0, SX0 - 5)
-    cafe_side(fg, SX1 + 5, W2 - 1)
-    # слева окно с осенней Елабугой
-    fg.rect(2, 6, 15, 40, 5)
-    fg.rect(2, 26, 15, 40, 4)
-    fg.ellipse(6, 30, 4, 5, ORANGE_L)
-    fg.ellipse(12, 33, 3, 4, 23)
-    fg.rect(2, 36, 15, 40, BOX)
-    fg.rect(8, 6, 8, 40, TAPE)
-    fg.rect(1, 41, 16, 42, BOX_D)
-    # справа лампа и полка с чашками
-    fg.rect(184, 0, 184, 12, BAR2)
-    fg.ellipse(184.5, 15, 4, 3, ORANGE_L)
-    fg.checker(178, 18, 190, 22, 23)
-    fg.rect(173, 40, 191, 41, BOX_D)
-    for k in range(3):
-        fg.rect(175 + k * 6, 36, 178 + k * 6, 39, WHITE)
-    # растение слева на столе
-    fg.rect(4, 72, 13, 84, BOX_D)
-    fg.rect(4, 72, 13, 72, BOX)
-    for (ex, ey, rx, ry) in ((6, 64, 4, 6), (11, 62, 4, 7), (8, 57, 3, 5)):
+    # стена из реек слева и справа от экрана
+    slat_wall(fg, 0, SX0 - 4)
+    slat_wall(fg, SX1 + 4, W2 - 1)
+    # слева табличка «Кама», справа фикус у окна
+    fg.rect(2, 30, 15, 39, WHITE)
+    fg.rect(2, 30, 3, 39, BLUE)
+    fg.rect(5, 33, 13, 33, BAR2)
+    fg.rect(5, 36, 10, 36, MIST)
+    for (ex, ey, rx, ry) in ((178, 40, 6, 8), (186, 34, 5, 7), (182, 52, 7, 8), (188, 60, 4, 7), (176, 62, 5, 6)):
         fg.ellipse(ex, ey, rx, ry, 8)
-    fg.checker(4, 56, 14, 70, 9)
-    # стол
-    fg.rect(0, 84, W2 - 1, H2 - 1, BOX)
-    fg.rect(0, 84, W2 - 1, 84, BOX_L)
-    for yy in (89, 95, 102):
-        fg.rect(0, yy, W2 - 1, yy, BOX_D)
-    # чашка справа
-    fg.ellipse(181, 87, 8, 3, PALE)
-    fg.rect(176, 78, 186, 86, WHITE)
-    fg.rect(176, 78, 186, 78, PALE)
-    fg.rect(177, 79, 185, 79, BOX_D)
-    fg.rect(187, 80, 189, 80, WHITE)
-    fg.rect(189, 81, 189, 83, WHITE)
-    fg.rect(187, 84, 188, 84, WHITE)
-    fg.checker(179, 72, 183, 76, PALE)
-    # рамка ноутбука
-    fg.rect(SX0 - 4, 0, SX0 - 1, SY1 + 4, INK)
-    fg.rect(SX1 + 1, 0, SX1 + 4, SY1 + 4, INK)
-    fg.rect(SX0 - 4, SY1 + 1, SX1 + 4, SY1 + 4, INK)
-    fg.rect(SX0 - 4, 0, SX0 - 4, SY1 + 4, BAR)
-    fg.rect(SX1 + 4, 0, SX1 + 4, SY1 + 4, BAR)
+        fg.ellipse(ex - 1, ey - 2, rx * 0.6, ry * 0.5, 9)
+    fg.rect(181, 62, 182, 84, 13)
+    # рамка большого экрана: тонкая чёрная, сверху видеобар
+    fg.rect(SX0 - 3, 0, SX0 - 1, SY1 + 3, INK)
+    fg.rect(SX1 + 1, 0, SX1 + 3, SY1 + 3, INK)
+    fg.rect(SX0 - 3, SY1 + 1, SX1 + 3, SY1 + 3, INK)
+    fg.rect(SX0 - 3, 0, SX0 - 3, SY1 + 3, BAR)
+    fg.rect(SX1 + 3, 0, SX1 + 3, SY1 + 3, BAR)
     # панель кнопок звонка — поверх портрета
     controls(fg, SX0, SY1 - 9, SX1 - SX0 + 1, 10)
     name_plate(fg, SX0 + 2, SY1 - 20)
     you_tile(fg, SX1 - 41, SY1 - 40, 38, 28)
-    # корпус: шарнир и клавиатура, светлый алюминий
-    fg.poly([(SX0 - 6, SY1 + 5), (SX1 + 6, SY1 + 5), (SX1 + 14, H2), (SX0 - 14, H2)], PALE)
-    fg.rect(SX0 - 6, SY1 + 5, SX1 + 6, SY1 + 5, MIST)
-    for row in range(3):
-        y = SY1 + 8 + row * 4
-        inset = 2 - row * 2
-        for x in range(SX0 - 4 + inset, SX1 + 4 - inset, 5):
-            fg.rect(x, y, x + 3, y + 2, MIST)
-            fg.rect(x, y + 2, x + 3, y + 2, STEEL)
-    # камера над экраном
-    fg.rect(95, 0, 96, 0, BAR2)
+    # под экраном — белая тумба, перед ней край длинного дубового стола
+    fg.rect(SX0 + 10, SY1 + 4, SX1 - 10, 99, WHITE)
+    fg.rect(SX0 + 10, SY1 + 4, SX1 - 10, SY1 + 4, BOX_H)
+    for xx in range(SX0 + 40, SX1 - 10, 36):
+        fg.rect(xx, SY1 + 5, xx, 99, PALE)
+    fg.rect(0, 99, W2 - 1, H2 - 1, BOX_H)
+    fg.rect(0, 99, W2 - 1, 99, TAPE)
+    for yy in (102, 105):
+        fg.rect(0, yy, W2 - 1, yy, BOX_L)
+    # на столе: бутылка воды и стакан справа, блокнот слева
+    fg.rect(170, 86, 173, 100, 5)
+    fg.rect(171, 84, 172, 85, BLUE)
+    fg.rect(170, 91, 173, 93, BLUE_L)
+    fg.rect(176, 94, 179, 100, 5)
+    fg.rect(176, 94, 179, 94, WHITE)
+    fg.poly([(10, 101), (30, 100), (32, 106), (8, 107)], WHITE)
+    fg.line([(13, 103), (25, 102)], BLUE)
     return bg, fg
 
 
@@ -376,13 +378,13 @@ def main():
 
     bg2, fg2 = scene2d()
     b2, f2 = bg2.image(), fg2.image()
-    b2.save(os.path.join(scenes, 'cafe.png'))
-    f2.save(os.path.join(scenes, 'cafe-desk.png'))
+    b2.save(os.path.join(scenes, 'meet.png'))
+    f2.save(os.path.join(scenes, 'meet-desk.png'))
     comp = b2.copy()
     comp.alpha_composite(portrait, (48, 4))
     comp.alpha_composite(f2)
-    comp.resize((W2 * 4, H2 * 4), Image.NEAREST).save(os.path.join(prev, 'cafe_x4.png'))
-    print('ok call_screen, cafe')
+    comp.resize((W2 * 4, H2 * 4), Image.NEAREST).save(os.path.join(prev, 'meet_x4.png'))
+    print('ok call_screen, meet')
 
 
 if __name__ == '__main__':

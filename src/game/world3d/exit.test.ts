@@ -3,9 +3,9 @@ import { EXITS, SEAT, exitDone, exitFrame, pathLength, pointAt, walkFor, type Pt
 import { EYE, ROOM, SEATS, TABLE } from './layout'
 import { PLACE as OFFICES } from './room3d.gen'
 import { PLACE as BYTOVKA } from './rooms/bytovka.gen'
-import { PLACE as CAFE } from './rooms/cafe.gen'
 import { PLACE as DORM } from './rooms/dorm.gen'
 import { PLACE as INEI } from './rooms/inei.gen'
+import { PLACE as MEET } from './rooms/meet.gen'
 import { PLACE as SHOP } from './rooms/shop.gen'
 import { PLACE as STREET } from './rooms/street.gen'
 
@@ -58,11 +58,15 @@ const OBSTACLES: Record<keyof typeof EXITS, Obstacle[]> = {
     { c: [STREET.dog[0], STREET.dog[1], 0.4], what: 'собака' },
     { r: [STREET.kiosk[0], STREET.kiosk[1], STREET.kiosk[2] - STREET.kiosk[3], STREET.kiosk[2]], what: 'ларёк' },
   ],
-  cafe: [
-    table, chairs[0], chairs[1],
-    { r: [-HW, CAFE.bar[1], CAFE.bar[2], CAFE.bar[3]], what: 'барная стойка' },
-    ...CAFE.stools.map(([x, z]) => ({ c: [x, z, 0.19], what: 'барный табурет' }) as Circle),
-    { c: [CAFE.coat[0], CAFE.coat[1], 0.25], what: 'вешалка' },
+  meet: [
+    table,
+    // стол переговорной длиннее обычного: его концы за пределами стандартного
+    { r: [MEET.table[0], -TABLE.halfLen, TABLE.far, TABLE.near], what: 'левый конец стола' },
+    { r: [TABLE.halfLen, MEET.table[1], TABLE.far, TABLE.near], what: 'правый конец стола' },
+    ...MEET.farX.map((x): Rect => ({ r: [x - 0.3, x + 0.3, MEET.farZ - 0.3, MEET.farZ + 0.3], what: `стул ${x}` })),
+    ...MEET.crew.map((i): Circle => ({ c: [MEET.farX[i], MEET.farZ + 0.14, 0.22], what: `коллега ${MEET.farX[i]}` })),
+    { c: [MEET.doorplant[0], MEET.doorplant[1], 0.3], what: 'стрелиция у двери' },
+    { c: [MEET.bigplant[0], MEET.bigplant[1], 0.3], what: 'фикус' },
   ],
 }
 
