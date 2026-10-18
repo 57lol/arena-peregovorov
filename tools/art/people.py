@@ -157,7 +157,8 @@ def person(P, emotion, frame):
     # уши
     for side in (-1, 1):
         ex = CX + side * (f.rx - 0.2)
-        ear = ellipse_mask(ex + side * 1.5, ey + 3.5, 3.6, 6.0)
+        erx, ery = P.get('ear', (3.6, 6.0))
+        ear = ellipse_mask(ex + side * 1.5, ey + 3.5, erx, ery)
         paint(c, ear, S[2] if side < 0 else S[1])
         line(c, [(int(ex + side * 1.5), ey + 1), (int(ex + side * 1.5), ey + 6)], S[0])
 
@@ -185,8 +186,11 @@ def person(P, emotion, frame):
     E = {'w': 44, 'p': P.get('pupil', 37), 'L': P.get('lash', 12), 's': S[1], 'h': S[3], 't': 45, 'o': 19,
          'M': P.get('lip_line', 12), 'k': S[1], 'm': 26, 'r': 27, 'R': 28, 'S': S[0]}
     E.update(P.get('lips', {}))
-    draw_eyes(c, E, eyL, eyR, ey, emotion, frame)
-    if P['female']:
+    if 'eyes' in P:
+        P['eyes'](c, E, eyL, eyR, ey, emotion, frame)
+    else:
+        draw_eyes(c, E, eyL, eyR, ey, emotion, frame)
+    if P['female'] and 'eyes' not in P:
         c[ey, eyL - 1] = E['L']
         c[ey, eyR + 8] = E['L']
 
@@ -233,7 +237,8 @@ def person(P, emotion, frame):
 
     my = P.get('mouth_y', ey + 15)
     if P['female']:
-        put(c, CX - 3, my, (TALK_F if frame == 'talk' else MOUTH_F)[emotion], E)
+        idle_m, talk_m = P.get('mouths', (MOUTH_F, TALK_F))
+        put(c, CX - 3, my, (talk_m if frame == 'talk' else idle_m)[emotion], E)
     else:
         idle_m, talk_m = P.get('mouths', (MOUTH_M, TALK_M))
         put(c, CX - 4, my, (talk_m if frame == 'talk' else idle_m)[emotion], E)

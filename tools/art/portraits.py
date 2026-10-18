@@ -1,14 +1,15 @@
 """Портреты оппонентов: собираются из частей по сетке 96x96, как лица в Papers, Please.
 Одно лицо — все эмоции (меняются только брови, глаза, рот), поэтому персонаж узнаваем.
 
-Запуск: ~/Arena-materials/.venv/bin/python tools/art/portraits.py [id ...] [--rinat old|v1|v2|v3]
+Запуск: ~/Arena-materials/.venv/bin/python tools/art/portraits.py [id ...] [--rinat old|v1|v2|v3|v3y] [--olga old|v1|v2|v3]
 Выход: public/assets/portraits/<id>.png — лист 3 кадра (idle, talk, blink) x 6 эмоций,
 плюс превью в tools/art/out/. Без id — все листы.
 
-Марат (rinat): --rinat выбирает лицо из marat.py, по умолчанию old — прежнее build_rinat.
-  portraits.py rinat --rinat v2     — записать в игру вариант v2
-  portraits.py --rinat-variants     — только tools/art/out/rinat_v1..v3.png и сравнение rinat_variants.png,
-                                      public/ не трогает
+Марат (rinat) и Дарина (olga): лица в marat.py и darina.py, по умолчанию — выбранные там DEFAULT
+(Марат v3y, Дарина v1); old — прежние build_rinat / build_olga.
+  portraits.py olga --olga v2       — записать в игру другой вариант Дарины
+  portraits.py --olga-variants      — только tools/art/out/olga_v1..v3.png и сравнение olga_variants.png,
+                                      public/ не трогает (то же --rinat-variants)
 """
 import os
 import sys
@@ -280,6 +281,7 @@ def build_olga(emotion, frame):
 
 
 from people import PEOPLE  # noqa: E402
+import darina  # noqa: E402
 import marat  # noqa: E402
 
 CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, **PEOPLE}
@@ -293,14 +295,14 @@ def make_sheet(fn):
     return sheet
 
 
-def rinat_variants(prev_dir):
-    """Варианты Марата в out/: полный лист каждого и сравнение — строка на вариант, последняя — текущий лист."""
+def variants(cid, mod, prev_dir):
+    """Варианты лица в out/: полный лист каждого и сравнение — строка на вариант, последняя — текущий лист."""
     sheets = {}
-    for v in marat.VARIANTS:
-        sheets[v] = make_sheet(marat.builder(v))
-        sheets[v].save(os.path.join(prev_dir, f'rinat_{v}.png'))
-        print('ok', f'out/rinat_{v}.png')
-    cur = os.path.join(ROOT, 'public', 'assets', 'portraits', 'rinat.png')
+    for v in mod.VARIANTS:
+        sheets[v] = make_sheet(mod.builder(v))
+        sheets[v].save(os.path.join(prev_dir, f'{cid}_{v}.png'))
+        print('ok', f'out/{cid}_{v}.png')
+    cur = os.path.join(ROOT, 'public', 'assets', 'portraits', f'{cid}.png')
     rows = list(sheets.values()) + [Image.open(cur).convert('RGBA')]
     pad = 4
     cmp_ = Image.new('RGBA', (len(EMOTIONS) * (W + pad) - pad, len(rows) * (H + pad) - pad), RGB[40] + (255,))
@@ -309,7 +311,7 @@ def rinat_variants(prev_dir):
             tile = Image.new('RGBA', (W, H), RGB[41] + (255,))
             tile.alpha_composite(sh.crop((0, k * H, W, (k + 1) * H)))
             cmp_.alpha_composite(tile, (k * (W + pad), r * (H + pad)))
-    cmp_.resize((cmp_.width * 3, cmp_.height * 3), Image.NEAREST).save(os.path.join(prev_dir, 'rinat_variants.png'))
+    cmp_.resize((cmp_.width * 3, cmp_.height * 3), Image.NEAREST).save(os.path.join(prev_dir, f'{cid}_variants.png'))
     return sheets
 
 
@@ -317,18 +319,25 @@ def main(argv):
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument('ids', nargs='*')
-    ap.add_argument('--rinat', default='old', choices=['old', *marat.VARIANTS])
+    ap.add_argument('--rinat', default=marat.DEFAULT, choices=['old', *marat.VARIANTS])
+    ap.add_argument('--olga', default=darina.DEFAULT, choices=['old', *darina.VARIANTS])
     ap.add_argument('--rinat-variants', action='store_true')
+    ap.add_argument('--olga-variants', action='store_true')
     a = ap.parse_args(argv)
     out_dir = os.path.join(ROOT, 'public', 'assets', 'portraits')
     prev_dir = os.path.join(os.path.dirname(__file__), 'out')
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(prev_dir, exist_ok=True)
-    if a.rinat_variants:
-        rinat_variants(prev_dir)
+    if a.rinat_variants or a.olga_variants:
+        if a.rinat_variants:
+            variants('rinat', marat, prev_dir)
+        if a.olga_variants:
+            variants('olga', darina, prev_dir)
         return
     if a.rinat != 'old':
         CHARACTERS['rinat'] = marat.builder(a.rinat)
+    if a.olga != 'old':
+        CHARACTERS['olga'] = darina.builder(a.olga)
     for cid in a.ids or list(CHARACTERS):
         sheet = make_sheet(CHARACTERS[cid])
         sheet.save(os.path.join(out_dir, f'{cid}.png'))
