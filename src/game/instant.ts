@@ -114,7 +114,8 @@ function sideNotes(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): MarginNote
     })
   }
   const others = sc.issues.some((i) => typeof asked[i.id] === 'number' && asked[i.id] !== sheet[i.id])
-  const free = sc.issues.filter((i) => typeof asked[i.id] === 'number' && asked[i.id] === sheet[i.id] && before[i.id] !== asked[i.id])
+  // только то, что и вам лучше всего (акт в «Чайнике»): «извинюсь при пацанах» Серому — настоящая ваша уступка
+  const free = sc.issues.filter((i) => typeof asked[i.id] === 'number' && asked[i.id] === sheet[i.id] && before[i.id] !== asked[i.id] && P[i.id][asked[i.id]!] >= Math.max(...P[i.id]))
   if (free.length && others)
     out.push({
       key: 'side-free',
