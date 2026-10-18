@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
@@ -41,6 +41,8 @@ const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ defa
 /** Откуда открыли дело. «Сюжет» возвращает на титул: карты в нём нет. */
 type Origin = 'story' | 'map' | 'setup' | 'jury'
 const home = (o: Origin): Screen => (o === 'story' ? 'title' : o)
+/** Подпись кнопки «туда, откуда открыли дело» — в брифе и в разборе одна и та же. */
+const backLabelOf = (o: Origin) => (o === 'story' ? 'В меню' : o === 'map' ? 'К карте недели' : o === 'jury' ? 'К жюри' : undefined)
 
 export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films'
 
@@ -135,7 +137,8 @@ export default function App() {
   useEffect(() => {
     currentRef.current = current
   }, [current])
-  useRoomPulse(room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
+  // готовая встреча жюри — не партия игрока: на доску тренировки её не шлём
+  useRoomPulse(demo ? null : room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
 
@@ -234,6 +237,10 @@ export default function App() {
     } finally { setAdmitting(false) }
   }
   useEffect(() => {
+    // первая запись истории — экран, с которого вошли (?jury — хаб): «Назад» из дела возвращает на него, а не на титул
+    if (!window.history.state?.screen) window.history.replaceState({ screen: firstScreen() }, '')
+  }, [])
+  useEffect(() => {
     const back = async (e: PopStateEvent) => {
       const nav = ++navigation.current
       const s = (e.state?.screen as Screen | undefined) ?? 'title'
@@ -246,7 +253,13 @@ export default function App() {
         setStartedAt(Date.now())
         setPlayKey((k) => k + 1)
       }
-      setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
+      // катсцена уже сыграна: «Назад» на неё не проигрывает её снова и не открывает главу второй раз — на титул.
+      // Разбор недоигранной встречи («Назад» после «Сыграть ещё раз» или «Переиграть с хода») пуст и записал бы
+      // её в прогресс — возвращаем туда, откуда открыли дело
+      const last = history[history.length - 1]
+      if (s === 'cutscene') setScreen('title')
+      else if (s === 'report' && (!last || last.stateAfter.status === 'open')) setScreen(home(from))
+      else setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
     }
     window.addEventListener('popstate', back)
     return () => window.removeEventListener('popstate', back)
@@ -517,13 +530,18 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} speech={server?.speech} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} /></>
+  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} speech={server?.speech} onStart={start} onBack={() => go(home(from))} backLabel={backLabelOf(from)} /></>
 
   if (screen === 'play') {
     const meeting = {
       game: current,
       history,
-      setHistory,
+      setHistory: (next: SetStateAction<TurnRecord[]>) => {
+        // разбор этой партии уже записан («Назад» из разбора, потом «Отменить последний ход»): дальше — новая попытка,
+        // иначе прогресс узнает её по прежней и не запишет. В тренировке новую попытку открывает «Назад» (admit)
+        if (recorded && recorded === runKey(current, history) && room?.caseId !== current.scenario.id) setAttemptId(newAttemptId())
+        setHistory(next)
+      },
       redo,
       // сервер так и не ответил — голоса нет; пока отвечает (undefined) — считаем, что есть
       speech: server === null ? { tts: false, stt: false } : server?.speech,
@@ -577,7 +595,7 @@ export default function App() {
           : undefined
       }
       onOther={() => go(home(from))}
-      otherLabel={from === 'story' ? 'В меню' : from === 'map' ? 'К карте недели' : from === 'jury' ? 'К жюри' : undefined}
+      otherLabel={backLabelOf(from)}
       // «Сюжет»: главная кнопка — «Дальше»: катсцена-переход и следующая глава
       onNext={
         from === 'story' && chapterOf(current.scenario.id)
@@ -588,7 +606,8 @@ export default function App() {
           : undefined
       }
       receipt={
-        room && room.caseId === current.scenario.id && history.length ? (
+        // готовая встреча жюри — не партия игрока: в тренировку её не отправляем
+        room && !demo && room.caseId === current.scenario.id && history.length ? (
           <RoomReceipt
             key={attemptId}
             room={room}

@@ -70,5 +70,6 @@ async function fetchSaved(id: string): Promise<Scenario | undefined> {
 }
 
 export function clearLink() {
-  history.replaceState(null, '', location.pathname)
+  // экран в записи истории оставляем: иначе «Назад» на неё приводит на титул, а не туда, откуда открыли дело
+  history.replaceState(history.state, '', location.pathname)
 }
