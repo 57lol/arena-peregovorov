@@ -172,10 +172,10 @@ export function buildRoom(kind: RoomKind): RoomBuild {
   /** коробки в координатах стула: место в (x, z), стул смотрит по ry */
   const local = (x: number, z: number, ry: number) => (w: number, h: number, d: number, f: Faces, lx: number, y0: number, lz: number) =>
     box(w, h, d, f, x + lx * Math.cos(ry) + lz * Math.sin(ry), y0, z - lx * Math.sin(ry) + lz * Math.cos(ry), ry)
+  // кожаное кресло начальника, но со спинкой по плечи: высокая спинка с валиком над головой читалась как трон
   const boss = (x: number, z: number, ry: number) => {
     const b = local(x, z, ry)
-    b(0.64, 0.88, 0.12, F('chair_boss', 'leather', 'leather', 'leather'), 0, 0.5, -0.18)
-    b(0.6, 0.11, 0.15, 'leather', 0, 1.38, -0.19)
+    b(0.58, 0.64, 0.12, F('chair_boss', 'leather', 'leather', 'leather'), 0, 0.5, -0.18)
     b(0.62, 0.12, 0.55, 'leather', 0, 0.42, 0.12)
     for (const s of [-1, 1]) {
       b(0.08, 0.06, 0.46, 'leather', s * 0.35, 0.64, 0.06)

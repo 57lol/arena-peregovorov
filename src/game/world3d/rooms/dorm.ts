@@ -277,22 +277,10 @@ function buildDorm(): RoomBuild {
   box(2 * L - 0.1, 0.08, td - 0.1, 'wood_d', 0, ty - TABLE.thick - 0.08, tz)
   for (const sx of [-1, 1]) for (const sz_ of [-1, 1]) box(0.055, ty - TABLE.thick, 0.055, 'wood_d', sx * (L - 0.1), 0, tz + sz_ * (td / 2 - 0.1))
 
-  // ------------------------------------------------------------------ сиденья: кресло Тимура, табуретки, стулья
+  // ------------------------------------------------------------------ сиденья: стул Тимура, табуретки, стулья
+  // У Тимура такой же деревянный стул, как у всех в общаге: игровое кресло с высокой спинкой и «ушами» за ним
+  // читалось как трон босса (капитан, 18.10)
   const seat = (x: number, z: number, ry: number) => local(x, z, ry)
-  const gaming = (x: number, z: number) => {
-    const b = seat(x, z, 0)
-    b(0.58, 0.86, 0.12, F('gaming', 'c37', 'c37'), 0, 0.56, -0.2)
-    for (const s of [-1, 1]) b(0.07, 0.7, 0.16, F('c27', 'c37', 'c37'), s * 0.31, 0.6, -0.17)
-    b(0.3, 0.12, 0.08, 'c27', 0, 1.24, -0.12)
-    b(0.56, 0.1, 0.5, F('c37', 'c37', 'gaming_seat'), 0, 0.42, 0.08)
-    for (const s of [-1, 1]) {
-      b(0.07, 0.04, 0.3, 'c37', s * 0.32, 0.66, 0.06)
-      b(0.04, 0.14, 0.04, 'c37', s * 0.32, 0.52, 0.06)
-    }
-    b(0.05, 0.34, 0.05, 'chrome', 0, 0.08, 0.08)
-    b(0.62, 0.04, 0.06, 'c37', 0, 0.04, 0.08)
-    b(0.06, 0.04, 0.62, 'c37', 0, 0.04, 0.08)
-  }
   const stool = (x: number, z: number, ry: number) => {
     const b = seat(x, z, ry)
     b(0.34, 0.03, 0.34, F('wood_l', 'wood_l', 'stool_top'), 0, 0.44, 0)
@@ -309,7 +297,7 @@ function buildDorm(): RoomBuild {
     for (const sx of [-1, 1]) b(0.035, 0.5, 0.035, 'wood_d', sx * 0.18, 0.48, -0.15)
     b(0.42, 0.2, 0.04, F('chair_back', 'wood_d'), 0, 0.72, -0.15)
   }
-  gaming(SEATS.opponent.x, SEATS.opponent.z)
+  chair(SEATS.opponent.x, SEATS.opponent.z, 0)
   const side = (s: { x: number }) => seatYaw(s.x)
   const [e0, e1, e2, e3] = SEATS.extras
   stool(e0.x, e0.z, side(e0))
