@@ -1,0 +1,149 @@
+{
+  "id": "gen-9fa47bfbb5",
+  "title": "Станки для учебного цеха",
+  "sphere": "Закупки",
+  "difficulty": 2,
+  "turnLimit": 12,
+  "issues": [
+    {
+      "id": "price",
+      "title": "Цена",
+      "options": [
+        "1 200 ₽",
+        "1 500 ₽",
+        "1 800 ₽"
+      ],
+      "kind": "distributive",
+      "preferences": {
+        "player": 0,
+        "opponent": 2
+      }
+    },
+    {
+      "id": "delivery",
+      "title": "Поставка",
+      "options": [
+        "2 недели",
+        "4 недели",
+        "6 недель"
+      ],
+      "kind": "integrative",
+      "preferences": {
+        "player": 0,
+        "opponent": 2
+      }
+    },
+    {
+      "id": "advance",
+      "title": "Предоплата",
+      "options": [
+        "0%",
+        "50%",
+        "100%"
+      ],
+      "kind": "integrative",
+      "preferences": {
+        "player": 0,
+        "opponent": 2
+      }
+    },
+    {
+      "id": "warranty",
+      "title": "Гарантия",
+      "options": [
+        "3 года",
+        "2 года",
+        "1 год"
+      ],
+      "kind": "compatible",
+      "preferences": {
+        "player": 0,
+        "opponent": 0
+      }
+    }
+  ],
+  "player": {
+    "role": "закупщик завода",
+    "brief": "Нужны дешёвые станки за две недели. Предоплату хотим минимальную. Длинная гарантия нужна обоим: поставщик продаёт сервис.",
+    "profile": {
+      "points": {
+        "price": [
+          37,
+          19,
+          0
+        ],
+        "delivery": [
+          33,
+          17,
+          0
+        ],
+        "advance": [
+          10,
+          5,
+          0
+        ],
+        "warranty": [
+          20,
+          11,
+          0
+        ]
+      },
+      "batna": 28,
+      "batnaText": "Купить у другого поставщика.",
+      "interests": []
+    }
+  },
+  "opponent": {
+    "character": {
+      "name": "Игорь Соколов",
+      "role": "менеджер поставщика",
+      "company": "Станки",
+      "tone": "neutral",
+      "portrait": "foreman",
+      "speech": "Спокойно и коротко",
+      "bio": "Продаёт станки десять лет."
+    },
+    "brief": "Хочет высокую цену, предоплату сразу и больше времени на доставку. Длинная гарантия продаёт сервис.",
+    "profile": {
+      "points": {
+        "price": [
+          0,
+          20,
+          38
+        ],
+        "delivery": [
+          0,
+          5,
+          11
+        ],
+        "advance": [
+          0,
+          17,
+          33
+        ],
+        "warranty": [
+          18,
+          9,
+          0
+        ]
+      },
+      "batna": 32,
+      "batnaText": "Продать другой фабрике.",
+      "interests": [
+        {
+          "id": "i1",
+          "text": "мне нужны деньги сразу, чтобы оплатить производство",
+          "issue": "advance",
+          "trustToReveal": 50
+        },
+        {
+          "id": "i2",
+          "text": "я хочу длинную гарантию, потому что продаю сервис",
+          "issue": "warranty",
+          "trustToReveal": 30
+        }
+      ]
+    }
+  },
+  "opening": "Добрый день. Мои условия такие: цена — 1 800 ₽, поставка — 6 недель, предоплата — 100%."
+}
