@@ -101,6 +101,16 @@ const MOVES: Record<string, (sc: Scenario, s: OpponentState) => Move> = {
     const o: Offer = Object.fromEntries(forHim(sc).filter((i) => typeof sheet[i.id] === 'number').slice(0, 2).map((i) => [i.id, sheet[i.id]!]))
     return { label: 'согласие с его листком (часть)', a: { behaviors: [], offer: o }, text: en(sc) ? `On these two I agree with your sheet: ${say(sc, o)}.` : `По этим двум согласен с вашим листком: ${say(sc, o)}.` }
   },
+  /** шаг за шагом, как капитан с Эмре: по одному пункту на ход — на вариант лучше для меня, чем у него в листке */
+  nudge: (sc, s) => {
+    const sheet = sheetOf(s)
+    const tops = forMe(sc).slice(0, 3)
+    const i = tops[(s.turn ?? 0) % tops.length]
+    const p = P(sc, i.id), cur = sheet[i.id] ?? best(O(sc, i.id))
+    const better = i.options.map((_, n) => n).filter((n) => p[n] > p[cur]).sort((a, b) => p[a] - p[b])[0] ?? best(p)
+    const o: Offer = { [i.id]: better }
+    return { label: 'шаг за шагом', a: { behaviors: [], offer: o }, text: en(sc) ? `What about ${i.title.toLowerCase()}: ${i.options[better]}?` : `А если ${i.title.toLowerCase()} — ${i.options[better]}?` }
+  },
   /** согласие с его листком целиком */
   agreeAll: (sc) => ({ label: 'согласие с его листком', a: { behaviors: [], accepts: true }, text: en(sc) ? `Okay. I accept your terms as they are.` : `Ладно. Согласен на ваши условия, как на листке.` }),
 }
@@ -109,6 +119,7 @@ const GAMES: Record<string, string[]> = {
   soft: ['soft', 'trade', 'agreeAll'],
   hard: ['hard', 'refuse', 'askBad'],
   concede: ['concede', 'agreePart', 'soft'],
+  nudge: ['nudge', 'nudge', 'nudge', 'nudge'],
 }
 
 const BASE = ['dorm', 'stop', 'shop', 'launch', 'client', 'tara', 'offer', 'istanbul', 'lagos', 'china']
