@@ -10,6 +10,7 @@ import { PLACE as OFFICES } from './room3d.gen'
 import { PLACE as BYTOVKA } from './rooms/bytovka.gen'
 import { PLACE as DORM } from './rooms/dorm.gen'
 import { PLACE as INEI } from './rooms/inei.gen'
+import { PLACE as ISTANBUL } from './rooms/istanbul.gen'
 import { PLACE as SHOP } from './rooms/shop.gen'
 
 export type Pt = readonly [number, number]
@@ -50,6 +51,8 @@ const PATHS: Record<WorldKind, Pt[]> = {
   bytovka: [SEAT, [GAP_X, SEAT[1] - 0.04], [GAP_X, BEHIND], [-2.35, BEHIND], [-2.55, -1.2], [-2.55, mid(BYTOVKA.door)], [OUT, mid(BYTOVKA.door)]],
   // «Иней»: у двери фикус (z 0,95) и вешалка (z 2,0) — входим между ними
   inei: leave(-2.4, (INEI.ficus[1] + INEI.coat[1]) / 2),
+  // Стамбул: вдоль стойки с образцами и мимо оливы у двери
+  istanbul: leave(-2.45, mid(ISTANBUL.door)),
   // магазин: из-за кассы назад, вдоль стеллажей налево, между промостойкой и рамкой у входа, в автоматическую дверь
   // и по улице за витриной налево, пока не скроется за глухой стеной
   shop: [SEAT, [0, -1.6], [-2.45, -1.6], [-2.45, mid(SHOP.door)], [-HW - 0.18, mid(SHOP.door)], [-HW - 0.18, SHOP.glass[0] - 0.45]],
@@ -66,6 +69,7 @@ export const EXITS: Record<WorldKind, ExitPlan> = {
   dorm: inDoor(PATHS.dorm),
   bytovka: inDoor(PATHS.bytovka),
   inei: inDoor(PATHS.inei),
+  istanbul: inDoor(PATHS.istanbul),
   // автоматическая дверь магазина закрывается, когда он вышел на улицу
   shop: { path: PATHS.shop, door: { at: pathLength(PATHS.shop.slice(0, -2)) - 1.6, shut: pathLength(PATHS.shop.slice(0, -1)) + 0.4 }, dusk: { x: -HW } },
   street: { path: PATHS.street },

@@ -21,6 +21,7 @@ export function sceneFor(sc: Scenario): SceneId {
   const story = chapterOf(id)?.room
   if (story && story !== 'factory' && story !== 'office') return story
   if (id === 'tara') return 'factory'
+  if (id === 'istanbul') return 'istanbul'
   if (id === 'offer') return 'office'
   return /закуп|постав|производ|завод|цех|подряд|логист|склад|стро/i.test(`${sc.sphere} ${sc.title}`) ? 'factory' : 'office'
 }
