@@ -60,6 +60,7 @@ interface Saved {
   current: Case | null
   history: TurnRecord[]
   recorded?: string
+  demo?: boolean
   /** тренировка команды, на которую пришли по ссылке */
   room?: RoomRef | null
   attemptId?: string
@@ -101,6 +102,7 @@ export default function App() {
   const [current, setCurrent] = useState<Case | null>(saved?.current ?? null)
   const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
   const [recorded, setRecorded] = useState(saved?.recorded ?? '')
+  const [demo, setDemo] = useState(saved?.demo ?? false)
   const [room, setRoom] = useState<RoomRef | null>(saved?.room ?? null)
   // ссылка тренировки ещё грузится: имя спрашиваем сразу, иначе результат уйдёт «Без имени»
   const [roomWait, setRoomWait] = useState(false)
@@ -143,11 +145,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, room, attemptId, startedAt, sent, from } satisfies Saved))
+      if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, demo, room, attemptId, startedAt, sent, from } satisfies Saved))
     } catch {
       // нет хранилища — после перезагрузки начнём с титула
     }
-  }, [screen, current, history, recorded, room, attemptId, startedAt, sent, from])
+  }, [screen, current, history, recorded, demo, room, attemptId, startedAt, sent, from])
 
   useEffect(() => {
     // /api/health под нагрузкой бывает дольше таймаута: не ответил — переспрашиваем, иначе голос и распознавание
@@ -266,6 +268,8 @@ export default function App() {
     setAttemptId(id)
     setFrom(origin)
     setCurrent(c)
+    setDemo(false)
+    setRecorded('')
     setHistory([])
     setRedo('')
     go('brief')
@@ -280,6 +284,8 @@ export default function App() {
     if (!(await admit(current, id))) return
     if (nav !== navigation.current) return
     setAttemptId(id)
+    setDemo(false)
+    setRecorded('')
     setHistory([])
     setRedo('')
     setStartedAt(Date.now())
@@ -359,6 +365,8 @@ export default function App() {
     // turn — номер хода (с 1); оставляем всё, что было до него
     const before = history.slice(0, Math.max(0, turn - 1))
     setRedo(history[turn - 1]?.playerText ?? '')
+    setDemo(false)
+    setRecorded('')
     setHistory(before)
     setStartedAt(Date.now())
     setPlayKey((k) => k + 1)
@@ -400,6 +408,7 @@ export default function App() {
             // готовая встреча: сразу разбор, в прогресс игрока её не пишем
             setFrom('jury')
             setCurrent(c)
+            setDemo(true)
             setHistory(h)
             setRecorded(runKey(c, h))
             go('report')
@@ -567,6 +576,7 @@ export default function App() {
       game={current}
       history={history}
       recorded={recorded === runKey(current, history)}
+      demo={demo}
       onRecorded={(p) => {
         setProgress(p)
         setRecorded(runKey(current, history))

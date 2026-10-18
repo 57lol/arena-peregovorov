@@ -35,6 +35,8 @@ export interface RunLog {
   turns: number
   /** в скольких репликах встретился каждый приём */
   beh: Record<string, number>
+  /** В старых партиях этих измерений нет. */
+  result?: { player: number; opponent: number; trust: number }
 }
 
 export interface Progress {
@@ -128,6 +130,7 @@ export function runLogOf(caseId: string, r: Report, turns: number, turnLimit: nu
     early: deal && turns < turnLimit,
     turns,
     beh,
+    result: { player: o.playerPoints, opponent: o.opponentPoints, trust: o.relationship },
   }
 }
 

@@ -15,6 +15,8 @@ import { baseCaseId } from '../../content/scenarios'
 import { SkillGain } from './Career'
 import { Button, PixelIcon, Portrait, Row, toPortraitEmotion } from '../ui'
 import { DealMap } from './DealMap'
+import { AttemptGrowth, BehaviorProfile, MeetingAnalytics } from './Analytics'
+import { nextPractice } from '../../engine/analytics'
 import { Finale } from './Finale'
 import { Method } from './Method'
 import { ShareButton } from './ShareButton'
@@ -28,6 +30,7 @@ interface Props {
   history: TurnRecord[]
   /** эту партию уже записали в прогресс (например, разбор открыт после перезагрузки) */
   recorded: boolean
+  demo?: boolean
   onRecorded: (p: Progress) => void
   onReplayFrom: (turn: number) => void
   onAgain: () => void
@@ -43,11 +46,12 @@ interface Props {
 }
 
 /** Разбор встречи: ведомость, карта сделок, что было под столом, поведение, три момента. */
-export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, onReplayFrom, onAgain, onHarder, onOther, otherLabel, onNext, receipt }: Props) {
+export function Debrief({ game, history, recorded: alreadyRecorded, demo = false, onRecorded, onReplayFrom, onAgain, onHarder, onOther, otherLabel, onNext, receipt }: Props) {
   const sc = game.scenario
   const report = useMemo(() => buildReport(sc, history, BEHAVIOR_DICT), [sc, history])
   const name = firstName(sc)
   const recorded = useRef(false)
+  const [previousRuns] = useState(() => ({ runs: loadProgress().runs, recorded: alreadyRecorded }))
   const [improved, setImproved] = useState<number | null>(null)
   const last = history[history.length - 1]
   const ending = useMemo(() => endingOf(sc, report, last?.stateAfter, isFemale(sc)), [sc, report, last])
@@ -141,11 +145,15 @@ export function Debrief({ game, history, recorded: alreadyRecorded, onRecorded, 
             </section>
           </div>
 
+          <MeetingAnalytics sc={sc} history={history} report={report} />
+
           <Moments sc={sc} report={report} history={history} onReplayFrom={onReplayFrom} wide={wide} />
 
           <UnderTable sc={sc} report={report} state={last?.stateAfter} />
 
-          <Behavior sc={sc} rows={report.benchmark} history={history} wide={wide} />
+          <Behavior sc={sc} rows={report.benchmark} history={history} wide={wide} tips={nextPractice(report)} />
+
+          {history.length > 0 && <AttemptGrowth runs={previousRuns.runs} current={run} recorded={previousRuns.recorded} demo={demo} />}
 
           <section className="g-sheet">
             <Method />
@@ -529,7 +537,7 @@ function verdictRu(r: ProfileRow) {
   return VERDICT[r.verdict!]
 }
 
-function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[]; history: TurnRecord[]; wide: boolean }) {
+function Behavior({ sc, rows, history, wide, tips }: { sc: Scenario; rows: ProfileRow[]; history: TurnRecord[]; wide: boolean; tips: string[] }) {
   const quotes = new Map<string, string[]>()
   for (const h of history) for (const b of h.analysis.behaviors) quotes.set(b.id, [...(quotes.get(b.id) ?? []), b.quote])
   const n = history.length
@@ -546,6 +554,7 @@ function Behavior({ sc, rows, history, wide }: { sc: Scenario; rows: ProfileRow[
         Сколько раз за {n} {plural(n, 'реплику', 'реплики', 'реплик')} вы использовали каждый приём и как часто его используют сильные
         и средние переговорщики. Частоты взяты из наблюдений за 103 настоящими переговорами (Rackham & Carlisle).
       </p>
+      <BehaviorProfile rows={rows} history={history} tips={tips} />
       <Fold
         wide={wide}
         summary={`Работало ${strong.length}, мешало ${weak.length}, не хватило ${missing.length} — подробнее`}
