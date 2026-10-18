@@ -89,6 +89,12 @@ await ctx.addInitScript(`
   window.fetch = async (u, o) => {
     const p = String(u instanceof Request ? u.url : u)
     if (p.includes('/api/prepare')) { let text = ''; try { text = JSON.parse(o.body).playerText } catch {} ; log('prep', text) }
+    if (p.includes('/api/tts/live/')) {
+      // звук реплики: когда пришли заголовки (= первый байт ElevenLabs), x-tts-ms — подготовка текста и первый байт
+      const r = await f(u, o)
+      log('tts', { took: r.headers.get('x-tts-ms'), api: r.headers.get('x-tts-api') })
+      return r
+    }
     if (!p.includes('/api/turn')) {
       if (p.includes('/api/stt')) log('fetch', p.replace(location.origin, ''))
       return f(u, o)
@@ -186,6 +192,7 @@ ends.forEach((te, k) => {
   const react = after('playing', (e) => e[2] === 'reaction' || e[2] === 'filler')
   const sound = after('playing', (e) => e[2] === 'line')
   const line = after('line')
+  const tts = after('tts')
   const done = after('done')
   const prep = ev.find((e) => e[1] === 'prep' && e[0] > say.t && (!turn || e[0] <= turn[0]))
   const dms = (done?.[2] as { ms?: Record<string, unknown> } | undefined)?.ms
@@ -202,6 +209,8 @@ ends.forEach((te, k) => {
     'ход → реакция, мс': since(react, turn?.[0]),
     'ход → начало реплики (line), мс': since(line, turn?.[0]),
     'ход → звук реплики, мс': since(sound, turn?.[0]),
+    'начало → заголовки звука, мс': since(tts, line?.[0]),
+    'ElevenLabs (подготовка,первый байт)': (tts?.[2] as { took?: string } | undefined)?.took ?? '—',
     'ход → ход целиком, мс': since(done, turn?.[0]),
     'конец речи → звук реплики, мс': since(sound, speechEnd),
     реакция: react?.[2] ?? '—',
