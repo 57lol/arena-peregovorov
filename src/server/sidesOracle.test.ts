@@ -38,6 +38,7 @@ describe('оракул сторон: требование собеседника
         const title = `«${o.i.title.toLowerCase()}: ${o.i.options[o.his]}»`
         if (o.costsPlayer) {
           expect(frame.text, `${sc.id}/${o.i.id}`).toContain(`${title} — это твоё же требование, и он на него согласился`)
+          expect(frame.text, `${sc.id}/${o.i.id}`).not.toContain('Он ничего не дал взамен')
           expect(frame.text, `${sc.id}/${o.i.id}`).not.toMatch(new RegExp(`${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} он называет как свой шаг`))
         } else {
           expect(frame.text, `${sc.id}/${o.i.id}`).toContain(`${title} он называет как свой шаг`)

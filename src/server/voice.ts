@@ -274,11 +274,15 @@ function mood(sc: Scenario, s: OpponentState): string {
  * Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте — по очкам собеседника, а не по порядку вариантов:
  * в «Чайнике» с «обмена» на «деньги сегодня» — это не шаг к Ларисе Петровне, а хуже и ей.
  */
-function steppedToward(sc: Scenario, before: Offer, after: Offer): boolean {
+function steppedToward(sc: Scenario, before: Offer, after: Offer, sheet: Offer = {}): boolean {
   const op = sc.opponent.profile.points
+  const pl = sc.player.profile.points
   return sc.issues.some((i) => {
-    const a = before[i.id], b = after[i.id]
-    return typeof a === 'number' && typeof b === 'number' && op[i.id][b] > op[i.id][a]
+    const a = before[i.id], b = after[i.id], s = sheet[i.id]
+    if (typeof b !== 'number') return false
+    if (typeof a === 'number') return op[i.id][b] > op[i.id][a]
+    // впервые назвал и сразу согласился на твоё, а ему это чего-то стоит («извинюсь при пацанах») — тоже шаг
+    return typeof s === 'number' && op[i.id][b] >= op[i.id][s] && pl[i.id][b] < Math.max(...pl[i.id])
   })
 }
 
@@ -416,7 +420,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
         case 'no_movement': {
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
-          const stepped = steppedToward(sc, stanceBefore, stance)
+          const stepped = steppedToward(sc, stanceBefore, stance, prev)
           text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)} Новых цифр не называешь, листок не перечисляешь.${reasons}`
           break
         }
