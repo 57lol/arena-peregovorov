@@ -28,7 +28,7 @@ function unit(b: Uint8Array, at: number): number | null {
  * Поток mp3 → тот же поток, но пока источник молчит дольше idleMs, отданное дополняется нулями до границы BLOCK.
  * Кадры не режутся: недошедший кадр ждёт своего конца.
  */
-export async function* padToBlocks(src: AsyncIterator<Uint8Array>, idleMs = 150): AsyncGenerator<Uint8Array> {
+export async function* padToBlocks(src: AsyncIterator<Uint8Array>, idleMs = 80): AsyncGenerator<Uint8Array> {
   let held: Uint8Array = new Uint8Array(0)
   let sent = 0
   let next = src.next()
