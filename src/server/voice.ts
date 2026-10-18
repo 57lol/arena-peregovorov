@@ -898,18 +898,38 @@ export function completeLine(sc: Scenario, frame: Frame, text: string): string {
 
 // ——— эмоция ———
 
-/** Эмоцию модели берём, только если она не спорит с состоянием: спрайт не должен злиться при доверии 80. */
-function pickEmotion(e: string, d: Decision, s: OpponentState, engine: Emotion): Emotion {
-  if (d.kind === 'accept' || d.kind === 'walk_away' || d.kind === 'warn_tone') return engine
+/**
+ * Он только уступает, а игрок в этом ходе к нему не шагнул: лицо не должно радоваться (как и слова). По очкам: свои
+ * пункты хуже листка до хода, шагов игрока к нему нет.
+ */
+function onlyGives(sc: Scenario, frame: Frame): boolean {
+  const O = (id: IssueId) => sc.opponent.profile.points[id]
+  const stance = frame.stance ?? {}, before = frame.before ?? {}
+  const gives = sc.issues.some((i) => typeof frame.prev[i.id] === 'number' && typeof frame.position[i.id] === 'number' && O(i.id)[frame.position[i.id]!] < O(i.id)[frame.prev[i.id]!])
+  const got = sc.issues.some((i) => {
+    const x = stance[i.id]
+    if (typeof x !== 'number' || x === before[i.id]) return false
+    return (typeof before[i.id] === 'number' && O(i.id)[x] > O(i.id)[before[i.id]!]) || (typeof frame.prev[i.id] === 'number' && O(i.id)[x] >= O(i.id)[frame.prev[i.id]!])
+  })
+  return gives && !got
+}
+
+/** Эмоцию модели берём, только если она не спорит с состоянием: спрайт не должен злиться при доверии 80 и улыбаться своей уступке. */
+function pickEmotion(sc: Scenario, frame: Frame, e: string, s: OpponentState, engine: Emotion): Emotion {
+  const d = frame.decision
+  if (d.kind === 'walk_away' || d.kind === 'warn_tone') return engine
+  const glum = onlyGives(sc, frame)
+  const calm = (x: Emotion) => (glum && (x === 'pleased' || x === 'happy') ? 'thinking' : x)
+  if (d.kind === 'accept') return calm(engine)
   const ok: Record<Emotion, boolean> = {
     neutral: true,
     thinking: true,
-    pleased: s.trust >= 50 && s.tension < 50,
+    pleased: s.trust >= 50 && s.tension < 50 && !glum,
     happy: d.kind === 'respond' && s.trust >= 45 && s.tension < 50,
     annoyed: s.tension >= 40,
     angry: s.tension >= 70,
   }
-  return EMOTIONS.includes(e as Emotion) && ok[e as Emotion] ? (e as Emotion) : engine
+  return EMOTIONS.includes(e as Emotion) && ok[e as Emotion] ? (e as Emotion) : calm(engine)
 }
 
 // ——— поток ———
@@ -1268,15 +1288,15 @@ export async function voice(
         const problems = [...check.hard, ...check.soft]
         const rest = check.hard.some((h) => !h.startsWith('вырезано')) ? prune(sc, frame, out, ctx) : undefined
         const line = completeLine(sc, frame, rest?.startsWith(opts.opener ?? spoken.first) ? rest : out.line)
-        return { line, emotion: pickEmotion(out.emotion, d, state, fallback.emotion), kind: check.hard.length ? ('safe' as const) : ('llm' as const), problems, attempts: tries.length }
+        return { line, emotion: pickEmotion(sc, frame, out.emotion, state, fallback.emotion), kind: check.hard.length ? ('safe' as const) : ('llm' as const), problems, attempts: tries.length }
       }
       const best = [...tries].filter((t) => t.out.line !== '…').sort((a, b) => a.check.hard.length - b.check.hard.length || a.check.soft.length - b.check.soft.length)[0]
       if (!best) return { line: withOpener(opts.opener, fallback.line), emotion: fallback.emotion, kind: 'template' as const, problems: tries.flatMap((t) => t.check.hard), attempts: tries.length }
       const problems = [...best.check.hard, ...best.check.soft]
       if (!best.check.hard.length)
-        return { line: best.out.line, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'llm' as const, problems, attempts: tries.length }
+        return { line: best.out.line, emotion: pickEmotion(sc, frame, best.out.emotion, state, fallback.emotion), kind: 'llm' as const, problems, attempts: tries.length }
       const safe = prune(sc, frame, best.out, ctx)
-      if (safe && (!opts.opener || safe.startsWith(opts.opener))) return { line: safe, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'safe' as const, problems, attempts: tries.length }
+      if (safe && (!opts.opener || safe.startsWith(opts.opener))) return { line: safe, emotion: pickEmotion(sc, frame, best.out.emotion, state, fallback.emotion), kind: 'safe' as const, problems, attempts: tries.length }
       // ничего живого не осталось — заготовка; её тоже кладём в кэш, чтобы повтор диалога дал ту же реплику
       return { line: withOpener(opts.opener, fallback.line), emotion: fallback.emotion, kind: 'template' as const, problems, attempts: tries.length }
     })
