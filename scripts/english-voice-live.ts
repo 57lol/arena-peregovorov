@@ -14,7 +14,7 @@ const wavs = opt('wav', '').split(',').filter(Boolean).map((f) => readFileSync(f
 const out = opt('out', join(homedir(), 'Arena-materials/final/english-shots'))
 mkdirSync(out, { recursive: true })
 
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 await ctx.grantPermissions(['microphone'], { origin: base })
 await ctx.route('**/__wav/*', (r) => r.fulfill({ body: wavs[+r.request().url().split('/').pop()! % wavs.length], contentType: 'audio/wav' }))

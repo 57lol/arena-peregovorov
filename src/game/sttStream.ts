@@ -108,9 +108,15 @@ export function createScribe(io: StreamIO) {
   }
 }
 
+/**
+ * Дело на английском, а Scribe вернул кириллицу: с языком «ru» он не пишет английскую речь с русским акцентом, а
+ * переводит её («450 000 Евро, 2 недели обучения…» — проверено 18.10 через воркер). Такой текст не берём: распознает Яндекс en-US.
+ */
+export const wrongScript = (text: string | null, lang: 'ru' | 'en') => lang === 'en' && !!text && /[А-Яа-яЁё]/.test(text)
+
 /** lang — язык дела: 'en' сервер кладёт в пропуск потока */
 export function browserScribe(partial: (text: string) => void, seconds: number, lang: 'ru' | 'en' = 'ru') {
-  return createScribe({
+  const s = createScribe({
     partial,
     url: async (signal) => {
       const r = await fetch('/api/stt/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(lang === 'en' ? { seconds, lang } : { seconds }), signal })
@@ -123,4 +129,6 @@ export function browserScribe(partial: (text: string) => void, seconds: number, 
     },
     socket: (url) => new WebSocket(url) as unknown as StreamSocket,
   })
+  const finish = s.finish
+  return Object.assign(s, { finish: () => finish().then((t) => (wrongScript(t, lang) ? null : t)) })
 }

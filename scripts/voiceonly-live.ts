@@ -3,11 +3,11 @@
 // каждая звучит через --delay мс после конца реплики собеседника (по событию игры their-end, оно несёт время конца звука).
 // Меряет: «конец реплики собеседника → микрофон принимает» (первый принятый кадр) и «конец моей речи → ход ушёл».
 // Запуск: npx tsx scripts/voiceonly-live.ts [--url http://127.0.0.1:8091] [--case stop] [--view 3d] [--pause medium]
-//   [--delay 150] [--wav p2.wav,p3.wav,p5.wav] [--key ключ_жюри] [--tag имя]
+//   [--delay 150] [--wav p2.wav,p3.wav,p5.wav] [--key ключ_жюри] [--tag имя] [--browser firefox]
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { chromium } from 'playwright'
+import { chromium, firefox } from 'playwright'
 
 const opt = (name: string, fallback: string) => { const i = process.argv.indexOf(`--${name}`); return i < 0 ? fallback : process.argv[i + 1] }
 const base = opt('url', 'http://127.0.0.1:8091')
@@ -33,9 +33,13 @@ function speechEndMs(buf: Buffer) {
 const speechEnds = wavs.map(speechEndMs)
 
 type Ev = [number, string, unknown]
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+// Firefox — движок Zen, в котором играет капитан
+const ff = opt('browser', 'chromium') === 'firefox'
+const browser = ff
+  ? await firefox.launch({ firefoxUserPrefs: { 'media.navigator.permission.disabled': true, 'media.autoplay.default': 0, 'media.autoplay.blocking_policy': 0, 'media.volume_scale': '0.0' } })
+  : await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
-await ctx.grantPermissions(['microphone'], { origin: base })
+if (!ff) await ctx.grantPermissions(['microphone'], { origin: base })
 await ctx.route('**/__wav/*', (r) => r.fulfill({ body: wavs[+r.request().url().split('/').pop()! % wavs.length], contentType: 'audio/wav' }))
 // строкой: tsx добавляет в функции __name, которого в браузере нет
 await ctx.addInitScript(`
@@ -69,6 +73,8 @@ await ctx.addInitScript(`
     if (!ac) {
       ac = new AudioContext(); await ac.resume()
       dest = ac.createMediaStreamDestination()
+      // живой микрофон шумит всегда; без этого между фразами у Firefox поток пустой (ноль каналов) — кадров нет вовсе
+      if (${!process.argv.includes('--gap')}) { const keep = ac.createConstantSource(); keep.offset.value = 0; keep.connect(dest); keep.start() }
       // заранее декодируем фразы: на ход — без задержки
       for (let i = 0; i < ${wavs.length}; i++) buffers[i] = await ac.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer())
     }
@@ -108,6 +114,7 @@ await ctx.addInitScript(`
 `)
 const page = await ctx.newPage()
 page.on('pageerror', (e) => console.log('pageerror', e.message))
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('console', m.type(), m.text().slice(0, 300)) })
 const key = opt('key', '')
 if (key) await page.goto(`${base}/?key=${key}`)
 await page.goto(`${base}/?case=${caseId}${view ? `&view=${view}` : ''}`)
