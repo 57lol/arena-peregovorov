@@ -6,6 +6,8 @@ import type { Emotion } from '../engine/types'
 import { YANDEX_VOICES, type VoiceInfo } from '../content/voices'
 import { WAIT } from './timeouts'
 import { looksEnglish } from '../engine/lang'
+import { zhAccent } from './zhAccent'
+import { sayNumbers } from './numWords'
 
 export { YANDEX_VOICES, type VoiceInfo }
 
@@ -137,9 +139,13 @@ export interface ElevenTune {
   stability?: number
   similarity?: number
   prefix?: string
+  /** переписать текст только для голоса (на экране он прежний) */
+  respell?: (text: string) => string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
-  china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
+  // Ли Вэй: китайский акцент v3 сам почти не даёт (судья 0–2 из 5) — текст для голоса переписан под акцент (zhAccent.ts),
+  // числа — словами (numWords.ts), чтобы акцент не пропадал на ценах и сроках
+  china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, respell: (t) => zhAccent(sayNumbers(t)) },
   // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
   // постоянная подача акцента в начале каждой реплики (~/Arena-materials/final/emre-voice, 18.10: судья 5 и 4 из 5 по турецкому)
   emre: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, prefix: '[strong Turkish accent] ' },
@@ -179,8 +185,9 @@ export function elevenBody(q: TtsRequest, env = process.env) {
   const model = tune.model ?? env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
   const tags = /v[34]/.test(model)
   const prefix = tags ? (tune.prefix ?? '') : ''
+  const text = tune.respell ? tune.respell(q.text) : q.text
   return {
-    text: prefix + cutAt(tags ? q.text : stripTags(q.text), 1000 - prefix.length),
+    text: prefix + cutAt(tags ? text : stripTags(text), 1000 - prefix.length),
     model_id: model,
     voice_settings: {
       stability: tune.stability ?? Number(env.ELEVEN_STABILITY ?? 0.6),

@@ -51,13 +51,13 @@ export const ELEVEN_KNOWN: KnownLine[] = [
   {
     who: 'china',
     voice: 'qEUg56UIsvkup7EM8Ovt',
-    text: 'Здравствуйте, друг! Я Ли Вэй, Иу. Датчики есть: 48 юаней за штуку, MOQ 2000 штук. Доставка 40 дней, сборный груз; Alipay — 100% предоплата. Хотите быстро-быстро — обсудим маршрут через Казахстан. Ещё адаптеры за 2400 юаней и держатели за 1200 юаней, к держателям фонарик подарок. Это отдельно, добавлять только с вашего согласия. С чего начнём?',
+    text: 'Здравствуйте, друг! Я Ли Вэй, «Хуамин Электроникс», Шэньчжэнь. Датчики есть: 48 юаней за штуку, MOQ 2000 штук. Доставка 40 дней, сборный груз; Alipay — 100% предоплата. Хотите быстро-быстро — обсудим маршрут через Казахстан. Ещё адаптеры за 2400 юаней и держатели за 1200 юаней, к держателям фонарик подарок. Это отдельно, добавлять только с вашего согласия. С чего начнём?',
     file: 'assets/voice-eleven/china/opening-china.mp3'
   },
   {
     who: 'emre',
     voice: 'ezjpFmpyFJhaCJxPZlXg',
-    text: 'Welcome to Istanbul! Sit, sit, the tea is fresh, and try the baklava, it\'s from the shop downstairs. So. Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
+    text: 'Hoş geldiniz! Welcome to Istanbul! Buyurun, please, sit. Çay için, drink your tea, it is fresh, and try the baklava, it\'s from the shop downstairs. So. Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
     file: 'assets/voice-eleven/emre/opening-istanbul.mp3'
   }
 ]

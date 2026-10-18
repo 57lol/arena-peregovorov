@@ -25,7 +25,7 @@ it.each(cases)('сбой API: локальные ходы проходят дл�
 it.each([
   ['Добавьте', 'accepted'], ['Да, добавьте.', 'accepted'], ['Беру!', 'accepted'],
   ['Не надо', 'refused'], ['Нет, спасибо.', 'refused'], ['Спасибо, не нужно', 'refused'],
-])('Поставщик из Иу: короткий ответ «%s» относится к предложенным адаптерам', (text, choice) => {
+])('Поставщик из Шэньчжэня: короткий ответ «%s» относится к предложенным адаптерам', (text, choice) => {
   const input = { scenario: china, fromLibrary: true }
   const pitch = localTurn({ ...input, history: [], text: 'Здравствуйте. Что для вас важно?' })
   expect(pitch.opponentLine).toContain(china.upsells![0].pitch)

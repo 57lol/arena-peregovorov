@@ -16,7 +16,7 @@ export const istanbul: Scenario = {
   sphere: 'Закупки · English',
   difficulty: 2,
   turnLimit: 12,
-  blurb: 'Командировка в Стамбул: торг на английском с поставщиком линии покраски, за чаем с видом на Босфор. Разбор и подсказки — по-русски.',
+  blurb: 'Командировка в Стамбул · переговоры на английском, собеседник говорит с турецким акцентом. Торг с поставщиком линии покраски за чаем с видом на Босфор; разбор и подсказки — по-русски.',
   // В брифе — навыки, без ответов (по-русски: это подсказки для сотрудника, а не слова за столом).
   goals: [
     'Вести торг на английском: называть цифры и условия так, чтобы их поняли однозначно',
@@ -46,7 +46,7 @@ export const istanbul: Scenario = {
       'overhead conveyor. Three suppliers sent bids. Your engineers liked Marmara Coating Systems from Istanbul best: ' +
       'solid welding, good references, a sensible oven. So the plant sent you to Istanbul to close the deal. ' +
       'Yesterday you saw their workshop in Tuzla. Today their export sales manager, Emre Kaya, meets you at the sales ' +
-      'office in Üsküdar, with the Bosphorus outside the window. Tea comes first, numbers later. The meeting is in English.\n\n' +
+      'office in Üsküdar, with the Bosphorus outside the window. Tea comes first, numbers later. The meeting is in English; Emre speaks it with a strong Turkish accent and greets guests in Turkish.\n\n' +
       'What matters to you. Delivery: until the line is running, the plant keeps buying painted casings at a markup, ' +
       'so every week counts. Price: the CFO will see it first. Training: your operators have never worked with powder ' +
       'coating. Suppliers usually charge for every day their engineer spends on site, so expect a push for remote ' +
@@ -90,7 +90,9 @@ export const istanbul: Scenario = {
         'no idioms from business books. Uses first names once he knows them; says "my friend" rarely, only when he means ' +
         'it. Thinks out loud with numbers: "eight weeks, okay, but then the oven goes by truck, not by sea". Small stories ' +
         'from the workshop, football and Istanbul traffic instead of arguments. Never "win-win", "I appreciate", ' +
-        '"valued partner", "at the end of the day". Moves only for something in return.',
+        '"valued partner", "at the end of the day". Moves only for something in return. Now and then, not in every reply, one short ' +
+        'Turkish word a guest understands from context, right next to its English meaning: "tamam, okay", "buyurun, please", ' +
+        '"çok güzel, very nice".',
       voiceExamples: [
         'Nice words. Now put a number on them.',
         'Sixteen weeks, yes. The oven alone is three weeks of welding.',
@@ -166,7 +168,7 @@ export const istanbul: Scenario = {
   },
   // Совпадает с тем, что движок кладёт на стол первым ходом: максимум Эмре по всем пунктам, кроме совместимого.
   opening:
-    'Welcome to Istanbul! Sit, sit, the tea is fresh, and try the baklava, it\'s from the shop downstairs. So. ' +
+    'Hoş geldiniz! Welcome to Istanbul! Buyurun, please, sit. Çay için, drink your tea, it is fresh, and try the baklava, it\'s from the shop downstairs. So. ' +
     'Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is ' +
     'four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. ' +
     'Where do we start?',
