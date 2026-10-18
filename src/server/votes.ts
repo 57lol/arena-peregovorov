@@ -9,7 +9,7 @@ import { CACHE_DIR } from './cache'
 import { clientIp } from './client'
 import { DAY, limiter } from './limits'
 import { VOTE_CAST } from './voteCatalog'
-import { resultsPage, votePage } from './votePage'
+import { resultsPage, resultsLoginPage, votePage } from './votePage'
 
 export const sameSecret = (a: string, b: string) => {
   const x = Buffer.from(a), y = Buffer.from(b)
@@ -76,7 +76,7 @@ function store(dir: string) {
   }
 }
 
-export function votesApp({ key = process.env.VOTE_KEY, adminKey = process.env.ADMIN_KEY, dir = CACHE_DIR, root = process.env.NODE_ENV === 'production' ? './dist' : './public', ipLimit = 20 }: {
+export function votesApp({ key = process.env.VOTE_KEY, adminKey = process.env.VOTE_ADMIN_KEY, dir = CACHE_DIR, root = process.env.NODE_ENV === 'production' ? './dist' : './public', ipLimit = 20 }: {
   key?: string; adminKey?: string; dir?: string; root?: string; ipLimit?: number
 } = {}) {
   const app = new Hono()
@@ -95,7 +95,11 @@ export function votesApp({ key = process.env.VOTE_KEY, adminKey = process.env.AD
     const tail = votePath(c.req.path, key)!
     if (c.req.method === 'GET' && tail === '') return c.html(votePage(key!))
     if (c.req.method === 'GET' && tail === 'итоги') {
-      if (!adminKey || !sameSecret(c.req.query('admin') ?? '', adminKey)) return c.text('Нужен ключ капитана.', 403)
+      if (c.req.query('admin') !== undefined) return c.text('Вход по старой ссылке отключён. Уберите ?admin= из адреса и введите отдельный ключ голосования. Ранее переданный в URL ключ нужно заменить.', 403)
+      if (!adminKey) return c.text('Итоги выключены: нужен VOTE_ADMIN_KEY на сервере.', 403)
+      const auth = c.req.header('authorization')
+      if (!auth) return c.html(resultsLoginPage(key!))
+      if (!sameSecret(auth, `Bearer ${adminKey}`)) return c.text('Ключ голосования не подошёл.', 403)
       try { return c.html(resultsPage(await votes.read(), key!)) }
       catch { return c.text('Не удалось прочитать голоса. Проверьте файл на сервере.', 503) }
     }

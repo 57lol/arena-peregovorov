@@ -17,21 +17,23 @@ const COLORS = ['var(--c-leaf-2)', 'var(--c-stamp)', 'var(--c-denim)']
 interface Series { label: string; values: (number | null)[] }
 
 
-function Trend({ title, labels, series, max, min = 0, selected, onSelect, reference }: {
+export function Trend({ title, labels, series, max, min = 0, selected, onSelect, reference }: {
   title: string; labels: string[]; series: Series[]; max: number; min?: number
   selected?: number; onSelect?: (i: number) => void; reference?: { value: number; label: string }
 }) {
-  const x = (i: number) => labels.length <= 1 ? 310 : 44 + i / (labels.length - 1) * 532
+  const width = Math.max(600, 88 + (labels.length - 1) * 48)
+  const x = (i: number) => labels.length <= 1 ? width / 2 : 44 + i / (labels.length - 1) * (width - 88)
   const y = (v: number) => 166 - (v - min) / Math.max(1, max - min) * 144
   return (
     <figure className="g-trend">
       <figcaption>{title}</figcaption>
-      <svg viewBox="0 0 600 206" role={onSelect ? 'group' : 'img'} aria-label={title}>
+      <div className="g-trend-scroll">
+      <svg style={{ width }} viewBox={`0 0 ${width} 206`} role={onSelect ? 'group' : 'img'} aria-label={title}>
         {[min, (max + min) / 2, max].map((v, i) => <g key={i}>
-          <line x1="44" x2="576" y1={y(v)} y2={y(v)} className="g-trend-grid" />
+          <line x1="44" x2={width - 44} y1={y(v)} y2={y(v)} className="g-trend-grid" />
           <text x="34" y={y(v) + 5} textAnchor="end">{number(v)}</text>
         </g>)}
-        {reference && <line x1="44" x2="576" y1={y(reference.value)} y2={y(reference.value)} className="g-trend-reference" />}
+        {reference && <line x1="44" x2={width - 44} y1={y(reference.value)} y2={y(reference.value)} className="g-trend-reference" />}
         {selected !== undefined && <line x1={x(selected)} x2={x(selected)} y1="16" y2="172" className="g-trend-cursor" />}
         {series.map((s, k) => <g key={s.label} style={{ color: COLORS[k] }}>
           <path d={chartPath(s.values, x, y)} fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={k === 1 ? '8 4' : k === 2 ? '2 4' : undefined} />
@@ -39,25 +41,27 @@ function Trend({ title, labels, series, max, min = 0, selected, onSelect, refere
         </g>)}
         {labels.map((label, i) => {
           const desc = `${label}: ${series.map((s) => `${s.label} ${s.values[i] === null ? 'нет данных' : number(s.values[i]!)}`).join(', ')}`
-          return <g key={i} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined}
+          return <g key={i} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? (i === (selected ?? 0) ? 0 : -1) : undefined}
             aria-label={desc} aria-pressed={onSelect ? selected === i : undefined}
             onClick={() => onSelect?.(i)} onKeyDown={(e) => {
               if (!onSelect) return
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(i) }
-              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+              if (['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) {
                 e.preventDefault()
-                const next = Math.max(0, Math.min(labels.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
+                const next = e.key === 'Home' ? 0 : e.key === 'End' ? labels.length - 1 : Math.max(0, Math.min(labels.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
                 onSelect(next)
                 const nodes = e.currentTarget.parentElement?.querySelectorAll<SVGGElement>('[role="button"]')
                 nodes?.[next]?.focus()
+                nodes?.[next]?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
               }
             }}>
             <title>{desc}</title>
-            {onSelect && <rect className="g-trend-hit" x={x(i) - 17} y="12" width="34" height="164" />}
-            <text x={x(i)} y="196" textAnchor="middle">{label.replace('Ход ', '').replace('Попытка ', '')}</text>
+            {onSelect && <rect className="g-trend-hit" x={x(i) - 22} y="12" width="44" height="164" />}
+            {(labels.length <= 12 || i % 2 === 0 || i === labels.length - 1) && <text x={x(i)} y="196" textAnchor="middle">{label.replace('Ход ', '').replace('Попытка ', '')}</text>}
           </g>
         })}
       </svg>
+      </div>
       <ul className="g-trend-legend">{series.map((s, i) => <li key={s.label}>
         <svg width="26" height="10" aria-hidden="true"><line x1="0" x2="26" y1="5" y2="5" stroke={COLORS[i]} strokeWidth="3" strokeDasharray={i === 1 ? '8 4' : i === 2 ? '2 4' : undefined} /></svg>{s.label}
       </li>)}{reference && <li>Пунктир: {reference.label} ({reference.value})</li>}</ul>
@@ -193,12 +197,12 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
   </div>
 }
 
-export function AttemptGrowth({ runs, current, recorded, demo = false }: { runs: RunLog[]; current: RunLog; recorded: boolean; demo?: boolean }) {
-  const points = attemptSeries(runs, current, recorded)
-  const [selected, setSelected] = useState(points.length - 1)
+export function AttemptGrowth({ runs, current, demo = false }: { runs: RunLog[]; current: RunLog; demo?: boolean }) {
+  const points = attemptSeries(runs, current)
+  const [selected, setSelected] = useState(() => { const i = points.findIndex((p) => p.current); return i >= 0 ? i : points.length - 1 })
   const point = points[selected] ?? points[points.length - 1]
-  const prev = points.at(-2)
-  const diff = prev ? points[points.length - 1].stars - prev.stars : null
+  const prev = points[selected - 1]
+  const diff = prev ? point.stars - prev.stars : null
   if (demo) return <section className="g-sheet g-attempts"><h2 className="g-sheet-title">История попыток</h2><p>Это демонстрационная встреча. Она не входит в вашу историю. Сыграйте это дело, чтобы сравнивать собственные результаты.</p></section>
   return <section className="g-sheet g-attempts" aria-label="Сравнение попыток этого дела">
     <h2 className="g-sheet-title">Ваш путь в этом деле</h2>
@@ -212,7 +216,7 @@ export function AttemptGrowth({ runs, current, recorded, demo = false }: { runs:
         </select>
       </label>
       <p aria-live="polite">Попытка {point.attempt}{point.current ? ' (сейчас)' : ''}: {point.stars} из 3 звёзд. {point.player === null ? 'Очки в старой записи не сохранены.' : `Ваша выгода: ${point.player}.`} {point.trust !== null && `Доверие: ${point.trust}.`}</p>
-      <p><b>К прошлой попытке: {signed(diff!)} звёзд.</b> {diff! > 0 ? 'Есть рост.' : diff === 0 ? 'Звёзд столько же — сравните приёмы и условия.' : 'Результат ниже. Выберите один совет и проверьте его в следующей встрече.'}</p>
+      {diff !== null && <p><b>К прошлой попытке: {signed(diff!)} звёзд.</b> {diff! > 0 ? 'Есть рост.' : diff === 0 ? 'Звёзд столько же — сравните приёмы и условия.' : 'Результат ниже. Выберите один совет и проверьте его в следующей встрече.'}</p>}
     </> : <p>Это первая доступная попытка. Сейчас — <b>{points[0].stars} из 3 звёзд</b>. После следующей встречи здесь появится сравнение.</p>}
   </section>
 }

@@ -22,7 +22,7 @@ export interface MeetingPoint {
 }
 
 /** Не достраиваем неполный договор и не выдаём его за нулевую выгоду. */
-export function dealValue(sc: Scenario, offer: Offer | undefined, space: Report['space']): DealValue | null {
+export function dealValue(sc: Scenario, offer: Offer | undefined, space: ReadonlyArray<{ player: number; opponent: number }>): DealValue | null {
   if (!isComplete(sc, offer)) return null
   const player = score(sc.player.profile, offer)
   const opponent = score(sc.opponent.profile, offer)
@@ -33,7 +33,12 @@ export function dealValue(sc: Scenario, offer: Offer | undefined, space: Report[
 
 export function meetingAnalytics(sc: Scenario, history: TurnRecord[], report: Report) {
   const start = initialState(sc)
-  const value = (offer: Offer | undefined) => dealValue(sc, offer, report.space)
+  const values = new Map<string, DealValue | null>()
+  const value = (offer: Offer | undefined) => {
+    const key = JSON.stringify(sc.issues.map((issue) => offer?.[issue.id] ?? null))
+    if (!values.has(key)) values.set(key, dealValue(sc, offer, report.frontier))
+    return values.get(key)!
+  }
   const points: MeetingPoint[] = [{ turn: 0, trust: start.trust, tension: start.tension,
     shift: { trust: 0, tension: 0 }, events: [], table: value(start.tableOffer), playerOffer: null }]
   history.forEach((h, i) => {
@@ -60,7 +65,7 @@ export function meetingAnalytics(sc: Scenario, history: TurnRecord[], report: Re
       shift: { trust: after.trust - before.trust, tension: after.tension - before.tension },
       events, table: value(after.status === 'deal' ? after.deal : after.tableOffer), playerOffer: value(after.playerStance) })
   })
-  const feasible = report.space.filter((p) => p.player >= report.batna.player && p.opponent >= report.batna.opponent)
+  const feasible = report.frontier.filter((p) => p.player >= report.batna.player && p.opponent >= report.batna.opponent)
   const bestPlayer = feasible.length ? Math.max(...feasible.map((p) => p.player)) : null
   const bestJoint = feasible.length ? Math.max(...feasible.map((p) => p.player + p.opponent)) : null
   return { points, initialOffer: start.tableOffer, bestPlayer, bestJoint }

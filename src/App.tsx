@@ -573,6 +573,7 @@ export default function App() {
     <>
     {roomError && <p className="g-view-note" role="alert">{roomError}</p>}
     <Debrief
+      attemptId={attemptId}
       game={current}
       history={history}
       recorded={recorded === runKey(current, history)}

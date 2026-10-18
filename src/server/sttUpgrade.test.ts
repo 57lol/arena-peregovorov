@@ -53,3 +53,23 @@ it('разрешённый Upgrade создаёт только один upstream
   expect(client.terminate).not.toHaveBeenCalled()
   server.emit('close')
 })
+
+it('WebSocket отвергает выданный ранее личный пропуск после удаления ключа', async () => {
+  const { personalJudge } = await import('./pass')
+  const key = 'a'.repeat(32)
+  const env = { GATE_SECRET: 'gate', JURY_KEYS: `Анна:${key}`, ELEVEN_RELAY_URL: 'https://relay.example', ELEVEN_RELAY_SECRET: 'secret' }
+  const s = makeSttStream(makeBudget(mkdtempSync(join(tmpdir(), 'stt-revoke-'))), env)
+  const pass = makePass('gate', Date.now(), personalJudge('gate', 'Анна', key))
+  const headers = { cookie: `arena_pass=${pass}` }
+  const response = await s.app.request('/api/stt/session', { method: 'POST', headers, body: '{"seconds":30}' })
+  expect(response.status).toBe(200)
+  const { url } = await response.json() as { url: string }
+  env.JURY_KEYS = ''
+  const server = new EventEmitter(), socket = { end: vi.fn() }
+  s.attach(server as Server)
+  const before = state.upgrades
+  server.emit('upgrade', { url, headers, socket: {} }, socket, Buffer.alloc(0))
+  expect(socket.end).toHaveBeenCalledWith(expect.stringContaining('401'))
+  expect(state.upgrades).toBe(before)
+  server.emit('close')
+})

@@ -26,7 +26,7 @@ const app = new Hono()
 // ворота: без GATE_SECRET сайт открыт (локально), на проде секрет обязателен
 const secret = process.env.GATE_SECRET
 if (secret) {
-  app.use('*', gate({ secret, voteKey: process.env.VOTE_KEY, juryKey: process.env.JURY_KEY, login: process.env.SITE_LOGIN, passwordHash: process.env.SITE_PASSWORD_HASH }))
+  app.use('*', gate({ secret, voteKey: process.env.VOTE_KEY, juryKey: process.env.JURY_KEY, juryKeys: process.env.JURY_KEYS, login: process.env.SITE_LOGIN, passwordHash: process.env.SITE_PASSWORD_HASH }))
 } else if (process.env.NODE_ENV === 'production' || process.env.PASSENGER_APP_ENV) {
   console.warn('GATE_SECRET не задан — сайт открыт всем')
 }

@@ -25,6 +25,8 @@ interface CaseRecord {
 
 /** Одна сыгранная партия — ровно то, из чего потом считаются навыки. Без реплик, только факты. */
 export interface RunLog {
+  /** В старых записях идентификатора нет. */
+  attemptId?: string
   caseId: string
   status: string
   stars: Stars
@@ -117,13 +119,14 @@ export function starsOf(r: Report): Stars {
 export const countStars = (s: Stars) => Number(s.deal) + Number(s.value) + Number(s.trust)
 
 /** Факты партии для истории: звёзды, приёмы, чем кончилось. */
-export function runLogOf(caseId: string, r: Report, turns: number, turnLimit: number): RunLog {
+export function runLogOf(caseId: string, r: Report, turns: number, turnLimit: number, attemptId?: string): RunLog {
   const o = r.outcome
   const deal = o.status === 'deal'
   const beh: Record<string, number> = {}
   for (const row of r.benchmark) if (row.count > 0) beh[row.id] = row.count
   return {
     caseId,
+    ...(attemptId ? { attemptId } : {}),
     status: o.status,
     stars: starsOf(r),
     fair: deal && o.playerPoints - r.batna.player >= o.opponentPoints - r.batna.opponent && o.playerPoints >= r.batna.player,
@@ -134,9 +137,10 @@ export function runLogOf(caseId: string, r: Report, turns: number, turnLimit: nu
   }
 }
 
-export function recordRun(sc: Scenario, r: Report, turns: number, ending?: EndingId): Progress {
+export function recordRun(sc: Scenario, r: Report, turns: number, ending?: EndingId, attemptId?: string): Progress {
   const caseId = sc.id
   const p = loadProgress()
+  if (attemptId && p.runs.some((r) => r.caseId === caseId && r.attemptId === attemptId)) return p
   const prev = p.cases[caseId]
   const stars = starsOf(r)
   const n = countStars(stars)
@@ -159,7 +163,7 @@ export function recordRun(sc: Scenario, r: Report, turns: number, ending?: Endin
         lastStatus: r.outcome.status,
       },
     },
-    runs: [...p.runs, runLogOf(caseId, r, turns, sc.turnLimit)].slice(-MAX_RUNS),
+    runs: [...p.runs, runLogOf(caseId, r, turns, sc.turnLimit, attemptId)].slice(-MAX_RUNS),
   }
   save(next)
   return next

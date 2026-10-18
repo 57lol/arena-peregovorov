@@ -7,6 +7,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CACHE_DIR } from './cache'
+import { usageContext } from './usage'
+import type { Judge } from './pass'
 
 export type Mode = 'pro' | 'lite' | 'offline'
 
@@ -17,8 +19,23 @@ interface Model {
   rub: number
 }
 
+export interface JudgeUsage extends Judge {
+  turns: number
+  starts: number
+  finishes: number
+  llmCalls: number
+  llmRub: number
+  ttsRub: number
+  sttRub: number
+  rub: number
+  ttsChars: number
+  sttSec: number
+  lastAt: string
+}
+
 export interface Day {
   date: string
+  judges: Record<string, JudgeUsage>
   rub: number
   llm: Record<string, Model>
   ttsChars: number
@@ -27,6 +44,7 @@ export interface Day {
 
 export interface Total {
   since: string
+  judges: Record<string, JudgeUsage>
   rub: number
   llmRub: number
   ttsRub: number
@@ -73,8 +91,21 @@ export const sttPrice = (sec: number, env = process.env) => Math.ceil(sec / 15) 
 
 const r4 = (x: number) => Math.round(x * 1e4) / 1e4
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Moscow' })
-const empty = (date: string): Day => ({ date, rub: 0, llm: {}, ttsChars: 0, sttSec: 0 })
-const emptyTotal = (): Total => ({ since: new Date().toISOString(), rub: 0, llmRub: 0, ttsRub: 0, sttRub: 0, ttsChars: 0, sttSec: 0 })
+const empty = (date: string): Day => ({ date, judges: {}, rub: 0, llm: {}, ttsChars: 0, sttSec: 0 })
+const emptyTotal = (): Total => ({ since: new Date().toISOString(), judges: {}, rub: 0, llmRub: 0, ttsRub: 0, sttRub: 0, ttsChars: 0, sttSec: 0 })
+
+type UsageDelta = Partial<Pick<JudgeUsage, 'turns' | 'starts' | 'finishes' | 'llmCalls' | 'llmRub' | 'ttsRub' | 'sttRub' | 'rub' | 'ttsChars' | 'sttSec'>>
+function track(d: Day, t: Total, who: Judge | undefined, delta: UsageDelta) {
+  if (!who) return
+  for (const target of [d, t]) {
+    const row = target.judges[who.id] ??= { ...who, turns: 0, starts: 0, finishes: 0, llmCalls: 0,
+      llmRub: 0, ttsRub: 0, sttRub: 0, rub: 0, ttsChars: 0, sttSec: 0, lastAt: '' }
+    row.name = who.name
+    row.lastAt = new Date().toISOString()
+    for (const key of Object.keys(delta) as (keyof UsageDelta)[]) row[key] = r4(row[key] + delta[key]!)
+  }
+  console.log(`[расход] судья=${JSON.stringify(who.name)} id=${who.id} ${JSON.stringify(delta)}`)
+}
 
 export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
   let day: Day = empty('')
@@ -162,6 +193,13 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       await both()
       return modeNow()
     },
+    async addPlay(start: boolean, finish: boolean) {
+      const who = usageContext.getStore()
+      if (!who) return
+      const [d, t] = await both()
+      track(d, t, who, { turns: 1, starts: Number(start), finishes: Number(finish) })
+      await save()
+    },
     /** rub — готовая цена (AITunnel пишет её в ответе), иначе по тарифу YandexGPT */
     async addLlm(model: string, tokensIn: number, tokensOut: number, price?: number) {
       const [d, t] = await both()
@@ -174,6 +212,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       d.rub = r4(d.rub + rub)
       t.llmRub = r4(t.llmRub + rub)
       t.rub = r4(t.rub + rub)
+      track(d, t, usageContext.getStore(), { llmCalls: 1, llmRub: rub, rub })
       await save()
     },
     /** Озвучка: общий бюджет не кончился и (если задан) хватает суточного лимита символов. */
@@ -183,6 +222,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     },
     /** Резерв до очереди; отказ возвращает деньги и символы ровно один раз. */
     reserveTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {
+      const who = usageContext.getStore()
       return serial(async () => {
         const [d, t] = await both()
         const l = limits(env)
@@ -192,6 +232,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
         d.rub = r4(d.rub + rub)
         t.rub = r4(t.rub + rub)
         t.ttsRub = r4(t.ttsRub + rub)
+        track(d, t, who, { ttsChars: chars, ttsRub: rub, rub })
         await save()
         let released = false
         return { release: () => serial(async () => {
@@ -202,6 +243,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
           d.rub = r4(d.rub - rub)
           t.rub = r4(t.rub - rub)
           t.ttsRub = r4(t.ttsRub - rub)
+          track(d, t, who, { ttsChars: -chars, ttsRub: -rub, rub: -rub })
           // Резерв мог пережить полночь.
           if (d !== day) await writeFile(join(dir, `${d.date}.json`), JSON.stringify(d)).catch(() => {})
           await save()
@@ -215,10 +257,13 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       t.ttsChars += chars
       t.ttsRub = r4(t.ttsRub + rub)
       t.rub = r4(t.rub + rub)
+      d.rub = r4(d.rub + rub)
+      track(d, t, usageContext.getStore(), { ttsChars: chars, ttsRub: rub, rub })
       await save()
     },
     /** Атомарно занимаем секунды и деньги до запроса, включая параллельные попытки. */
     reserveStt(sec: number, rub = sttPrice(sec, env)): Promise<boolean> {
+      const who = usageContext.getStore()
       const job = reserving.then(async () => {
         const [d, t] = await both()
         const l = limits(env)
@@ -228,6 +273,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
         t.sttRub = r4(t.sttRub + rub)
         t.rub = r4(t.rub + rub)
         d.rub = r4(d.rub + rub)
+        track(d, t, who, { sttSec: sec, sttRub: rub, rub })
         await save()
         return true
       })
@@ -244,6 +290,8 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       t.sttSec = Math.round((t.sttSec + sec) * 10) / 10
       t.sttRub = r4(t.sttRub + rub)
       t.rub = r4(t.rub + rub)
+      d.rub = r4(d.rub + rub)
+      track(d, t, usageContext.getStore(), { sttSec: sec, sttRub: rub, rub })
       await save()
     },
     async total() {
@@ -260,9 +308,10 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       const models = Object.entries(d.llm)
         .map(([name, m]) => `${name}: ${m.calls} вызовов, ${m.in} вх. + ${m.out} исх. ток., ${m.rub.toFixed(2)} ₽`)
         .join('; ')
+      const judges = Object.values(t.judges).map((j) => `${JSON.stringify(j.name)}: ${j.turns} ходов, ${j.starts} начал, ${j.finishes} завершений, ${j.rub.toFixed(2)} ₽`).join('; ')
       return (
         `[бюджет] всего ${t.rub.toFixed(2)} из ${l.total} ₽ с ${t.since.slice(0, 10)} (модель ${t.llmRub.toFixed(2)}, озвучка ${t.ttsRub.toFixed(2)}, распознавание ${t.sttRub.toFixed(2)}), режим ${modeNow()}; ` +
-        `${d.date}: модель ${d.rub.toFixed(2)}${lim(l.rub)} ₽${models ? ` (${models})` : ''}; озвучка ${d.ttsChars}${lim(l.ttsChars)} симв.; распознавание ${d.sttSec}${lim(l.sttSec)} с`
+        `${d.date}: расход ${d.rub.toFixed(2)}${lim(l.rub)} ₽${models ? ` (${models})` : ''}; озвучка ${d.ttsChars}${lim(l.ttsChars)} симв.; распознавание ${d.sttSec}${lim(l.sttSec)} с${judges ? `; судьи: ${judges}` : ''}`
       )
     },
   }

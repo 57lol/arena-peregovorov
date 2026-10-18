@@ -14,8 +14,11 @@ import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
 import { CACHE_DIR, hashOf } from './cache'
-import { clientIp, sessionOf } from './client'
-import { DAY, limiter, limitOf, MINUTE } from './limits'
+import { quotaOf, judgeOf } from './client'
+import { budget } from './budget'
+import { usageMiddleware } from './usage'
+import { juryAdmin } from './juryAdmin'
+import { DAY, clientLimiter, limitOf, MINUTE } from './limits'
 import { llmFromSpec, llmMode, llmStatus, makeLLM, voiceChoices, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
@@ -169,8 +172,10 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
 
 export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS, votesRoot = './public') {
   const app = new Hono()
+  const count = clientLimiter()
+  app.use('*', usageMiddleware())
   app.route('/', votesApp({ root: votesRoot }))
-  const count = limiter()
+  app.route('/', juryAdmin())
   // вступления дел — тексты сервера: их можно озвучивать голосом ElevenLabs
   for (const sc of allScenarios) speech.issue(sc.opening)
 
@@ -182,16 +187,16 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
   )
 
-  // Чужая модель на запрос — чужие деньги: тот же суточный лимит на IP, что у лаборатории (LAB_IP_DAY_LIMIT).
-  const labRoom = (ip: string) => count.take(`lab:${ip}`, limitOf('LAB_IP_DAY_LIMIT', 200), DAY)
+  // Чужая модель на запрос — тот же лимит на пропуск, что у лаборатории.
+  const labRoom = (c: Context) => count.take('lab', quotaOf(c), limitOf('LAB_IP_DAY_LIMIT', 200), DAY)
 
   // Модель реплики на запрос (страница сравнения моделей): только из разрешённого списка и не при LAB=off.
   // Разметка и решения движка при этом те же — меняются только слова собеседника.
   const voiceLlms = new Map<string, LLM>()
-  function voiceLLM(want: string | undefined, ip: string): { llm?: LLM; note?: string } {
+  function voiceLLM(want: string | undefined, c: Context): { llm?: LLM; note?: string } {
     if (!want || process.env.LAB === 'off' || llm.name === 'offline') return {}
     if (!voiceChoices().includes(want)) return { note: `модель ${want} не в списке` }
-    if (!labRoom(ip)) return { note: 'лимит лаборатории на сегодня' }
+    if (!labRoom(c)) return { note: 'лимит лаборатории на сегодня' }
     let m = voiceLlms.get(want)
     if (!m) {
       try {
@@ -207,7 +212,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // Лаборатория (/?lab): ход можно сыграть другой моделью — заголовок x-lab-llm. Модель создаётся один раз,
   // без ключа заголовок молча не действует. LAB=off выключает всё.
   const labLlms = new Map<string, LLM>()
-  function labLLM(want: string | undefined, ip: string): { llm: LLM; lab?: string } {
+  function labLLM(want: string | undefined, c: Context): { llm: LLM; lab?: string } {
     if (!want || process.env.LAB === 'off' || !(want in llmStatus())) return { llm }
     let alt = labLlms.get(want)
     if (!alt) {
@@ -216,7 +221,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       alt = made.llm
       labLlms.set(want, alt)
     }
-    if (!labRoom(ip)) return { llm, lab: 'лимит лаборатории на сегодня' }
+    if (!labRoom(c)) return { llm, lab: 'лимит лаборатории на сегодня' }
     return { llm: alt, lab: `${alt.name}:${alt.model.split('/').pop()}` }
   }
 
@@ -259,13 +264,12 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   })
 
   /** Ходов в минуту на сессию: человек больше не успеет, а бот за минуту сожжёт бюджет (без модели ход бесплатный). */
-  const tooFast = (c: Context) => llm.name !== 'offline' && !count.take(`turn:${sessionOf(c)}`, limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
+  const tooFast = (c: Context) => llm.name !== 'offline' && !count.take('turn', quotaOf(c), limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
 
   app.post('/api/turn', BODY, async (c) => {
     const body = TurnBody.parse(await c.req.json())
     if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
-    const ip = clientIp(c)
-    const { llm, lab } = labLLM(c.req.header('x-lab-llm'), ip)
+    const { llm, lab } = labLLM(c.req.header('x-lab-llm'), c)
     const sc = await resolveScenario({ ...body, scenario: body.scenario as Scenario | undefined })
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
@@ -281,7 +285,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
     const marks = !nh && naturalMode() === 'voices+'
     // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
-    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), ip)
+    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
     const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
     // голос включён: сервер озвучивает реплику сам, с первой фразы; игра берёт звук по ссылке или тем же /api/tts
     const sound = body.tts ? speech.live(body.tts, c) : undefined
@@ -371,6 +375,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       }
       if (ms.first === undefined) emit?.({ t: 'line', text: v.line, record, sources: { analysis: a.source, voice: v.source }, ...(sound ? { audio: sound.url } : {}) })
       const done = r.state.status !== 'open'
+      await budget().addPlay(history.length === 0, done)
+      const judge = judgeOf(c)
+      console.log(`[игра] судья=${JSON.stringify(judge?.name ?? 'Аноним')} id=${judge?.id ?? '-'} дело=${sc.id} ход=${r.state.turn} завершена=${done}`)
       return {
         analysis,
         deltas: r.deltas,
@@ -421,7 +428,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // Своё дело: до трёх запросов к Pro по 3000 токенов — свой суточный лимит на сессию
   app.post('/api/scenario/generate', bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
     const req = GenerateRequest.parse(await c.req.json().catch(() => ({})))
-    const mayAsk = count.take(`gen:${sessionOf(c)}`, limitOf('GENERATE_SESSION_DAY_LIMIT', 20), DAY)
+    const mayAsk = count.take('gen', quotaOf(c), limitOf('GENERATE_SESSION_DAY_LIMIT', 20), DAY)
     const r = await generateScenario(mayAsk ? llm : makeLLM('offline').llm, req, scenarios)
     if (r.source === 'llm') {
       await mkdir(SAVED, { recursive: true })

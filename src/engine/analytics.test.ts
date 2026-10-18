@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getScenario } from '../content/scenarios'
 import { dealValue, meetingAnalytics, nextPractice, profileBar } from './analytics'
 import { BEHAVIOR_DICT, BEHAVIORS, behaviorProfile } from './behaviors'
@@ -135,4 +135,21 @@ describe('полосы 17 приёмов и советы', () => {
     expect(tips).toEqual(nextPractice(reportOf(h)))
     expect(tips[0]).toBe(BEHAVIORS.find((b) => b.id === 'split')!.advice)
   })
+})
+
+it('поиск по границе даёт прежние значения без повторного чтения пространства сделок', () => {
+  const report = reportOf([])
+  for (const p of allDeals(sc)) {
+    expect(dealValue(sc, p.offer, report.frontier)).toEqual(dealValue(sc, p.offer, report.space))
+  }
+  const offer = allDeals(sc)[20].offer
+  const history = Array.from({ length: 20 }, (_, i) => record({ turn: i + 1,
+    stateAfter: { ...initialState(sc), lastOpponentOffer: { ...offer }, tableOffer: { ...offer }, playerStance: { ...offer } } }))
+  const expected = meetingAnalytics(sc, history, report)
+  const guarded = { ...report, get space(): never { throw new Error('Не сканировать space в аналитике') } }
+  const reduce = vi.spyOn(report.frontier, 'reduce')
+  try {
+    expect(meetingAnalytics(sc, history, guarded)).toEqual(expected)
+    expect(reduce).toHaveBeenCalledTimes(1)
+  } finally { reduce.mockRestore() }
 })

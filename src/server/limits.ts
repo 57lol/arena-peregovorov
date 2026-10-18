@@ -1,3 +1,5 @@
+import type { ClientQuota } from './client'
+
 // Лимиты «столько-то раз за окно» на сессию и адрес. Счёт в памяти: перезапуск его обнуляет, а деньги в любом
 // случае держит общий бюджет (budget.ts).
 
@@ -21,6 +23,22 @@ export function limiter() {
       if (n >= limit) return false
       if (hits.size > 50_000) hits.clear()
       hits.set(k, n + 1)
+      return true
+    },
+  }
+}
+
+/** Обычный лимит на пропуск и высокий общий потолок на адрес. */
+export function clientLimiter(count = limiter()) {
+  const left = (scope: string, who: ClientQuota, limit: number, window: number) =>
+    count.left(`${scope}:ip:${who.ip}`, limit * (who.verified ? 10 : 1), window) &&
+    (!who.verified || count.left(`${scope}:pass:${who.key}`, limit, window))
+  return {
+    left,
+    take(scope: string, who: ClientQuota, limit: number, window: number) {
+      if (!left(scope, who, limit, window)) return false
+      if (who.verified) count.take(`${scope}:pass:${who.key}`, limit, window)
+      count.take(`${scope}:ip:${who.ip}`, Infinity, window)
       return true
     },
   }

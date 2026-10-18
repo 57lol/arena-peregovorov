@@ -7,7 +7,8 @@
 .g-analytics > *, .g-profile, .g-attempts { min-width: 0; }
 .g-trend { margin: calc(8 * var(--u)) 0; }
 .g-trend > figcaption { font-weight: 700; margin-bottom: calc(4 * var(--u)); }
-.g-trend > svg { display: block; width: 100%; height: auto; overflow: visible; }
+.g-trend-scroll { overflow-x: auto; padding: 3px; scrollbar-color: var(--c-steel) var(--c-paper-2); }
+.g-trend-scroll > svg { display: block; max-width: none; height: 206px; }
 .g-trend text { font: 18px var(--f-ui); fill: var(--c-steel-2); }
 .g-trend-grid { stroke: var(--c-mist); stroke-width: 1; }
 .g-trend-reference { stroke: var(--c-steel-2); stroke-width: 2; stroke-dasharray: 12 8; }
@@ -103,7 +104,7 @@
 @media (max-width: 699px) {
   .g-profile-grid { grid-template-columns: minmax(0, 1fr); }
   .g-turn-detail, .g-value-detail { padding: calc(5 * var(--u)); }
-  .g-trend text { font-size: 22px; }
+
 }
 @media (prefers-reduced-motion: reduce) {
   .g-report-more[open] .g-analytics { animation: none; }
