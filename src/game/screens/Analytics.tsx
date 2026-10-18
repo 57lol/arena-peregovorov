@@ -6,7 +6,7 @@ import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { formatOffer } from '../../engine/utility'
 import { attemptSeries } from '../attempts'
-import { chartPath } from '../chart'
+import { chartPath, trendWidth } from '../chart'
 import { plainWords, turnFeedback } from '../instant'
 import type { RunLog } from '../progress'
 import '../analytics.css'
@@ -21,8 +21,6 @@ type TrendProps = {
   title: string; labels: string[]; series: Series[]; max: number; min?: number
   selected?: number; onSelect?: (i: number) => void; reference?: { value: number; label: string }
 }
-/** Ширина графика: во всю колонку (на 1440 — не половина листа), но не теснее 48 px на ход; уже — прокрутка. */
-export const trendWidth = (points: number, fit = 0) => Math.max(fit > 0 ? fit : 600, 88 + (points - 1) * 48)
 
 /** График во всю ширину колонки; если ходов много и он прокручивается — выбранная точка в кадре. */
 function FitTrend(props: TrendProps) {

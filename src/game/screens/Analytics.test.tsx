@@ -7,9 +7,9 @@ import { nextPractice } from '../../engine/analytics'
 import { offlineTurn } from '../../engine/offline'
 import { buildReport } from '../../engine/report'
 import { turnFeedback } from '../instant'
-import { AttemptGrowth, BehaviorProfile, MeetingAnalytics, Trend, trendWidth } from './Analytics'
+import { AttemptGrowth, BehaviorProfile, MeetingAnalytics, Trend } from './Analytics'
 import { Debrief } from './Debrief'
-import { chartPath } from '../chart'
+import { chartPath, trendWidth } from '../chart'
 import { runLogOf } from '../progress'
 
 const sc = getScenario('tara')!

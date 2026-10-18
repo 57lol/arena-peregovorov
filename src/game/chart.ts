@@ -9,3 +9,6 @@ export function chartPath(values: (number | null)[], x: (i: number) => number, y
   }).join(' ')
 }
 
+
+/** Ширина графика: во всю колонку (на 1440 — не половина листа), но не теснее 48 px на ход; уже — прокрутка. */
+export const trendWidth = (points: number, fit = 0) => Math.max(fit > 0 ? fit : 600, 88 + (points - 1) * 48)
