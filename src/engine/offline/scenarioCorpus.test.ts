@@ -65,13 +65,12 @@ describe.each(CASES)('$id: русская и английская офлайн-�
     it(`${lang}: отрицание согласия не заканчивает встречу`, () => {
       expect(groundedOffline(sc, words.refuse, dict).accepts).not.toBe(true)
     })
-    const conditional = baseCaseId(sc.id) === 'china' && lang === 'en' ? it.fails : it
-    conditional(`${lang}: условное прощание не является уходом (BUG china: разбор допродаж теряет условие If you refuse)`, () => {
+    it(`${lang}: условное прощание не является уходом (china: разбор допродаж терял условие If you refuse)`, () => {
       expect(groundedOffline(sc, words.ultimatum, dict).walksAway).not.toBe(true)
     })
   }
 
-  it.fails('BUG: «Я не ухожу» должно сохранять встречу, разметчик игнорирует отрицание ухода', () => {
+  it('«Я не ухожу» сохраняет встречу: отрицание ухода — не уход', () => {
     expect(groundedOffline(sc, 'Я не ухожу.', dict).walksAway).not.toBe(true)
   })
 })

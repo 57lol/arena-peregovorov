@@ -85,7 +85,11 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   const offer = parseOffer(sc, extras.main, 'player')
   const toneViolation = RUDE.test(text)
   // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
-  const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
+  // «Я не ухожу», «никуда не ухожу» — наоборот.
+  const walksAway = parts.some((c) => {
+    const m = WALK.exec(c)
+    return !!m && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
+  })
 
   const out: MoveAnalysis = { behaviors, ...(extras.choices.length ? { upsells: extras.choices } : {}) }
   if (!tentative && Object.keys(offer).length) out.offer = offer

@@ -19,7 +19,8 @@ export function parseUpsells(sc: Scenario, text: string) {
       for (const u of items) choices.set(u.id, { id: u.id, choice: refuse ? 'refused' : 'accepted', ...(refuse && /спасибо|пожалуйста|благодарю/iu.test(text) ? { polite: true } : {}) })
     }
   }
-  return { choices: [...choices.values()], main: main.join('. '), mentioned }
+  // о доптоварах ни слова — реплика как была: «If you refuse, goodbye» не должно рассыпаться на безусловное «goodbye»
+  return { choices: [...choices.values()], main: mentioned ? main.join('. ') : text, mentioned }
 }
 
 /** Цена согласованных доптоваров учитывается только при заключении сделки. */
