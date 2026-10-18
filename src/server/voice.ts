@@ -19,7 +19,7 @@ import { unstress } from './stress'
 import { isEn } from '../engine/lang'
 import { normalizeTags, stripTags } from './tags'
 
-const VOICE_VERSION = 'v15'
+const VOICE_VERSION = 'v16'
 const EMOTIONS: Emotion[] = ['neutral', 'pleased', 'happy', 'thinking', 'annoyed', 'angry']
 
 /** Что модель заявила до самой реплики: по этому рамку проверяем раньше, чем реплика зазвучит. */
@@ -297,10 +297,33 @@ function backSteps(sc: Scenario, next: Offer, prev: Offer, stance: Offer) {
  */
 function echoFree(sc: Scenario, stance: Offer, stanceBefore: Offer, prev: Offer): string {
   const same = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === prev[i.id] && stanceBefore[i.id] !== stance[i.id])
-  return same.length
-    ? ` ${same.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(', ')} он называет как свой шаг, но это и так было в твоём предложении: соглашаешься по ${same.length > 1 ? 'ним' : 'нему'} коротко, уступкой это не считаешь.`
-    : ''
+  // Ничего ему не стоит только то, что и для него лучшее (акт в «Чайнике»). «Извинюсь при пацанах» Серому — это
+  // уступка игрока ему: так и было в его требованиях, и это его выигрыш, а не «не подарок».
+  const pl = sc.player.profile.points
+  const free = same.filter((i) => pl[i.id][stance[i.id]!] >= Math.max(...pl[i.id]))
+  const given = same.filter((i) => !free.includes(i))
+  const list = (xs: Issue[]) => xs.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(', ')
+  return (
+    (free.length ? ` ${list(free)} он называет как свой шаг, но это и так было в твоём предложении: соглашаешься по ${free.length > 1 ? 'ним' : 'нему'} коротко, уступкой это не считаешь.` : '') +
+    (given.length ? ` ${list(given)} — это твоё же требование, и он на него согласился: для тебя это выигрыш, ему это чего-то стоит. Прими это коротко и довольно, как его шаг к тебе; не спорь с этим и не говори, что он ничего не дал.` : '')
+  )
 }
+
+/** Что этот вариант значит для собеседника — чтобы модель не путала, чьё это требование и кому оно выгодно. */
+function forYou(sc: Scenario, id: IssueId, n: number, sheet: Offer): string {
+  const i = sc.issues.find((x) => x.id === id)
+  if (!i) return ''
+  const O = sc.opponent.profile.points[id]
+  if (i.kind === 'compatible') return O[n] >= Math.max(...O) ? 'тебе подходит, но виду не подаёшь' : 'тебе так хуже'
+  if (O[n] >= Math.max(...O)) return 'лучшее для тебя, ты этого и добиваешься'
+  const s = sheet[id]
+  if (typeof s !== 'number') return O[n] <= Math.min(...O) ? 'худшее для тебя' : 'тебе так хуже, чем лучшее'
+  return O[n] > O[s] ? 'тебе даже лучше, чем у тебя на листке' : O[n] === O[s] ? 'как у тебя на листке' : O[n] <= Math.min(...O) ? 'худшее для тебя' : 'тебе хуже, чем у тебя на листке'
+}
+
+/** Его вариант по пунктам, и при каждом — что это для собеседника. */
+const hisTerms = (sc: Scenario, stance: Offer, sheet: Offer) =>
+  sc.issues.filter((i) => typeof stance[i.id] === 'number').map((i) => `${lc(i.title)} — ${i.options[stance[i.id]!]} (${forYou(sc, i.id, stance[i.id]!, sheet)})`).join('; ')
 
 export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: Offer, stanceBefore: Offer = {}): Frame {
   const ints = sc.opponent.profile.interests
@@ -341,7 +364,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
         ? ` Против прошлого меняется: ${show(changed)}. Скажи именно про это, остальное не повторяй.`
         : ' Назови главное своими словами, а не перечнем через запятую.'
       const agreed = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === d.offer[i.id] && changed.includes(i.id))
-      const yes = agreed.length ? ` По ${agreed.map((i) => `«${lc(i.title)}»`).join(', ')} ты сходишься с тем, что он просил, — так и скажи, как согласие по этому пункту.` : ''
+      const yes = agreed.length ? ` По ${agreed.map((i) => `«${lc(i.title)}»`).join(', ')} ты сходишься с тем, что он предлагал, — так и скажи, как согласие по этому пункту.` : ''
       // что он просил, а ты не даёшь: самое важное для тебя — коротко отказать, иначе непонятно, что его вариант не прошёл
       const opp = sc.opponent.profile
       const pl = sc.player.profile.points
@@ -352,12 +375,18 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
         .sort((a, b) => issueWeight(opp, b.id) - issueWeight(opp, a.id))
         .slice(0, 2)
       const refuse = no.length ? ` Его ${no.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} ты не принимаешь — скажи это коротко, своими словами; своё по этому пункту можешь назвать.` : ''
-      const worse = selfHarm.length ? ` Он просит ${selfHarm.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} — это хуже для него самого, чем у тебя («${selfHarm.map((i) => i.options[d.offer[i.id]!]).join('», «')}»). Оставляешь своё; не спорь с этим как с его требованием.` : ''
+      const worse = selfHarm.length ? ` Он называет ${selfHarm.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} — это хуже для него самого, чем у тебя («${selfHarm.map((i) => i.options[d.offer[i.id]!]).join('», «')}»). Оставляешь своё, оно ему же лучше; не спорь с этим как с его требованием.` : ''
       const hush = quiet.length ? ` ${quiet.map((i) => `«${lc(i.title)}: ${i.options[d.offer[i.id]!]}»`).join(', ')} — молча в листке, вслух не называй: это и ему выгодно, не выдавай за своё условие.` : ''
       const back = backSteps(sc, d.offer, prev, stance)
-      const trade = back.length ? ` По ${back.map((i) => `«${lc(i.title)}»`).join(', ')} ты отходишь от того, что он просил: подай это как размен («раз…, то…»).` : ''
+      const trade = back.length ? ` По ${back.map((i) => `«${lc(i.title)}»`).join(', ')} ты отходишь от того, что он предлагал: подай это как размен («раз…, то…»).` : ''
       const free = echoFree(sc, stance, stanceBefore, prev)
-      text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${free}${refuse}${worse}${trade}${feigned}${hush}${fin}${reasons}`
+      // всё, что он назвал, совпадает с твоим листком, а остальное — молча вписанный пункт, выгодный обоим: это не торг,
+      // а почти сделка. Без этой строки модель слышит «встречное» и выдумывает «это ещё не всё».
+      const both = (i: Issue) => i.kind === 'compatible' && d.offer[i.id] === bestOption(opp, i.id) && d.offer[i.id] === bestOption(sc.player.profile, i.id)
+      const whole = Object.keys(stance).length > 0 && sc.issues.every((i) => (typeof stance[i.id] === 'number' ? stance[i.id] === d.offer[i.id] : both(i)))
+      text = whole
+        ? `По всему, что он назвал, вы сошлись: ${terms(sc, Object.fromEntries(sc.issues.filter((i) => typeof stance[i.id] === 'number').map((i) => [i.id, d.offer[i.id]])))}. Тебе это подходит.${changed.length ? ` Против прошлого ты сдвинулся: ${show(changed)} — скажи это как согласие с ним.` : ''}${free} Сделку ты ещё не объявляешь (agrees — false): скажи, что так пойдёт, и спроси, по рукам ли, — «да» за ним. Новых требований не добавляй, не говори, что это ещё не всё.${hush}${d.final ? fin : ''}`
+        : `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${free}${refuse}${worse}${trade}${feigned}${hush}${fin}${reasons}`
       break
     }
     case 'reveal': {
@@ -418,7 +447,7 @@ export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: stri
   const talk = [`Ты: «${sc.opening}»`, ...history.flatMap((h) => [`Собеседник: «${h.playerText}»`, `Ты: «${h.opponentLine}»`])].join('\n')
   const stance = state.playerStance ?? {}
   const sheet = Object.keys(prev).length ? `На листке у собеседника твоё предложение: ${terms(sc, prev)}.` : ''
-  const his = Object.keys(stance).length ? ` Он со своей стороны просит: ${terms(sc, stance)}.` : ''
+  const his = Object.keys(stance).length ? ` Его вариант (в скобках — что это для тебя): ${hisTerms(sc, stance, prev)}.` : ''
   const can = frame.allowed.length ? `Причины, которые уже можно рассказывать:\n${frame.allowed.map((i) => `- [${i.id}] ${tame(i.text)}`).join('\n')}` : 'Из своих причин пока ничего не рассказываешь.'
   const last = history.slice(-2).map((h) => `«${h.opponentLine.split(/\s+/).slice(0, 4).join(' ')}…»`)
   return `Разговор с начала:
