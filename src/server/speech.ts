@@ -337,10 +337,38 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
   }
 
+  // Куски, которые синтезируются прямо сейчас: заход хода начинают заранее (preheat), ход подхватывает тот же звук —
+  // второй запрос того же куска получает уже пришедшее и дальше по мере прихода, второй раз не платим.
+  const piecesNow = new Map<string, { chunks: Uint8Array[]; listeners: Set<(u: Uint8Array) => void>; done: Promise<void> }>()
+
   /** Кусок реплики голосом ElevenLabs потоком: звук отдаём по мере прихода (onChunk), «занято» (429) — один повтор. */
   async function elevenPiece(q: TtsRequest, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void): Promise<void> {
+    const file = fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice: q.voice, body: elevenBody(q, env) })
+    const now = piecesNow.get(file)
+    if (now) {
+      for (const u of now.chunks) onChunk(u)
+      now.listeners.add(onChunk)
+      try {
+        return await now.done
+      } finally {
+        now.listeners.delete(onChunk)
+      }
+    }
+    const entry = { chunks: [] as Uint8Array[], listeners: new Set([onChunk]), done: Promise.resolve() }
+    entry.done = synthPiece(q, file, (u) => {
+      entry.chunks.push(u)
+      for (const l of entry.listeners) l(u)
+    }, deadline, charge)
+    piecesNow.set(file, entry)
+    try {
+      await entry.done
+    } finally {
+      piecesNow.delete(file)
+    }
+  }
+
+  async function synthPiece(q: TtsRequest, file: string, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void): Promise<void> {
     const body = elevenBody(q, env)
-    const file = fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice: q.voice, body })
     const cached = await read(file)
     if (cached) { onChunk(cached); return }
     if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
@@ -405,6 +433,38 @@ export function makeSpeech(opts: SpeechOptions = {}) {
    * в кэш. Без first — вся реплика одним куском. ElevenLabs не начал отвечать за WAIT.elevenFirst или его нет —
    * реплика целиком голосом SpeechKit. Звук идёт по url с первых байт.
    */
+  // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
+  async function livePrep(text: string, voice: string, who: string | undefined, roomy: boolean): Promise<TtsRequest> {
+    if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who, live: true }
+    const marked = await speakable(forEleven(unstress(text)), roomy)
+    return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who, live: true }
+  }
+
+  /**
+   * Заход хода (первые слова ответа) голосом, пока игрок ещё в паузе: синтез начинается заранее, тем же голосом и
+   * с теми же лимитами, что у живой реплики. Ход с тем же заходом подхватит этот звук (piecesNow, кэш) без второй оплаты.
+   */
+  function heater(b: TtsVoice, c: Context): ((text: string) => void) | undefined {
+    const asIs = !b.provider && b.api === undefined && b.natural === undefined && b.live === undefined
+    if (env.SPEECH === 'off' || !asIs || !(elevenOn() || (b.test === 'eleven' && elevenReady())) || Date.now() < eleven.until) return undefined
+    const who = quotaOf(c)
+    const voice = castFor(b.who, b.voice, env)
+    const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
+    let charged = false
+    const charge = () => {
+      if (charged) return
+      if (!clients.take('el:s', who, perSession, HOUR) || !clients.take('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
+      charged = true
+    }
+    elevenConnect(f, env)
+    return (text) => {
+      const roomy = clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
+      void livePrep(text, voice, b.who, roomy)
+        .then((q) => elevenPiece(q, () => {}, Date.now() + WAIT.elevenFirst(), charge))
+        .catch((e: Error) => console.warn(`[speech] заход заранее: ${e.message}`))
+    }
+  }
+
   function live(b: TtsVoice, c: Context) {
     if (env.SPEECH === 'off') return undefined
     const asIs = !b.provider && b.api === undefined && b.natural === undefined && b.live === undefined
@@ -423,14 +483,14 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (!clients.take('el:s', who, perSession, HOUR) || !clients.take('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
       charged = true
     }
-    // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
-    const prep = async (text: string): Promise<TtsRequest> => {
-      if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who, live: true }
+    const prep = (text: string) => {
       roomy ??= clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
-      const marked = await speakable(forEleven(unstress(text)), roomy)
-      return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who, live: true }
+      return livePrep(text, voice, b.who, roomy)
     }
     let firstText: string | undefined
+    // куски после начала (продолжение после захода): синтез начинается сразу, в поток — по порядку
+    const extras: { text: string; audio: Promise<Uint8Array> }[] = []
+    let moreWake: (() => void) | undefined
     let gotFirst!: (t: string) => void
     const firstP = new Promise<string>((r) => (gotFirst = r))
     let gotWhole!: (w: { text: string; emotion?: Emotion }) => void
@@ -444,9 +504,11 @@ export function makeSpeech(opts: SpeechOptions = {}) {
 
     // мс от начала синтеза: подготовка текста (ударения), первый байт ElevenLabs
     const took: number[] = []
+    let wholeKnown = false
     const play = async (): Promise<Clip | undefined> => {
       let reason = ''
       let remaining: string | undefined
+      let spokenSoFar = ''
       if (el) {
         const start = await Promise.race([firstP, whole.then((w) => w.text)])
         const piece = firstText === start
@@ -501,9 +563,17 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           const first = await p1
           if (first.error) throw first.error
           complete = true
+          spokenSoFar = start
           if (piece) {
+            // продолжение после захода — по кускам, пока реплика не готова целиком
+            for (let i = 0; ; i++) {
+              while (i >= extras.length && !wholeKnown) await new Promise<void>((r) => (moreWake = r))
+              if (i >= extras.length) break
+              out.push(noId3(await extras[i].audio))
+              spokenSoFar = `${spokenSoFar} ${extras[i].text}`
+            }
             const w = await whole
-            remaining = spokenTail(w.text, start)
+            remaining = spokenTail(w.text, spokenSoFar)
             if (stripTags(remaining)) {
               // Остаток отдаём целиком: при обрыве его заменит SpeechKit без повтора полуслов.
               const chunks: Uint8Array[] = []
@@ -515,7 +585,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
           dead = true
           reason = (e as Error).message
           // Без подтверждённого куска нельзя узнать озвученные слова: повторяем весь текст.
-          if (!complete) remaining = undefined
+          remaining = complete ? spokenTail((await whole).text, spokenSoFar) : undefined
           console.warn(`[speech] запасной голос: ${reason}`)
         }
       }
@@ -569,8 +639,27 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         firstText = text
         gotFirst(text)
       },
+      /** следующий кусок после начала (продолжение после захода): синтез сразу, звучит за предыдущими */
+      more(text: string) {
+        if (!stripTags(text)) return
+        if (firstText === undefined) {
+          firstText = text
+          return gotFirst(text)
+        }
+        if (!el || wholeKnown) return
+        const audio = prep(text).then(async (q) => {
+          const chunks: Uint8Array[] = []
+          await elevenPiece(q, (u) => chunks.push(u), Date.now() + WAIT.eleven(), charge)
+          return glue(chunks)
+        })
+        audio.catch(() => {})
+        extras.push({ text, audio })
+        moreWake?.()
+      },
       /** реплика целиком (с пометками для голоса) */
       finish(text: string, emotion?: Emotion) {
+        wholeKnown = true
+        moreWake?.()
         gotWhole({ text, emotion })
         const k = textKey(b.voice, b.who, stripTags(unstress(text)))
         livesByText.set(k, sound)
@@ -837,7 +926,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     return r
   })
 
-  return { app, status, live, issue, prewarm }
+  return { app, status, live, heater, issue, prewarm }
 }
 
 export type Speech = ReturnType<typeof makeSpeech>

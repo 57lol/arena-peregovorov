@@ -38,6 +38,8 @@ export interface LLM {
   analyzerEn?: LLM
   /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
   voice?: LLM
+  /** заход — первые слова ответа (opener.ts): YandexGPT Pro, пока Claude пишет реплику; OPENER=off — без захода */
+  opener?: LLM
 }
 
 /** Достаём JSON из ответа модели: бывает в ```json ...```, бывает с текстом вокруг. */
@@ -441,5 +443,13 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
   // английские дела — тот же разметчик, если не задан свой (замер 18.10: Sonnet 97–100%, Pro 94% и 2 сломанных JSON)
   attach('analyzerEn', env.ANALYZE_LLM_EN ?? env.ANALYZE_LLM ?? claude)
   attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
+  // заход нужен, только когда реплику пишет Claude: у YandexGPT первые слова и так через ~0,3 с
+  if (env.OPENER !== 'off' && llm.voice?.name === 'aitunnel') {
+    try {
+      llm.opener = env.OPENER_LLM ? llmFromSpec(env.OPENER_LLM, env) : llm.name === 'yandex' ? llm : undefined
+    } catch (e) {
+      errors.push(`opener: ${(e as Error).message}`)
+    }
+  }
   return { llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
 }

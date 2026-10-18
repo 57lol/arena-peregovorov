@@ -264,8 +264,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   function prepare(text: string) {
     const t = text.trim()
     if (pending || done || !t || !online) return
-    const reaction = voiceOn && canVoice ? reactionText(chooseReaction(t, state, portraitFor(sc))) : undefined
-    prepareTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}) })
+    const withVoice = voiceOn && canVoice
+    const reaction = withVoice ? reactionText(chooseReaction(t, state, portraitFor(sc))) : undefined
+    // голос — тот же, что у хода: сервер синтезирует заход (первые слова ответа) ещё в паузе
+    prepareTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
     prepared.current = { text: t, at: performance.now() }
   }
 
@@ -283,10 +285,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
-    // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее (голосом) — реплика придёт
-    // через 1,5–2 с, а запись длится 1,6–2,9 с и реплика ждёт её конца (живой прогон 18.10: звук реплики на 2 с позже,
-    // чем она пришла). Тогда записи нет: реагирует лицо, а первым звучит сам ответ. Текст реакции модели — тот же.
-    const ahead = prepared.current?.text === t
+    // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее (голосом) или сервер начинает
+    // ответ заходом (первые слова через ~0,5 с) — тогда записи нет: она длится 1,6–2,9 с, и ответ ждал бы её конца
+    // (живой прогон 18.10: звук реплики на 2 с позже, чем она пришла). Реагирует лицо, первым звучит сам ответ.
+    const ahead = prepared.current?.text === t || (!!speech?.opener && !speech.openerSkip?.includes(sc.id))
     prepared.current = null
     const said = withVoice ? reactionText(reaction) : undefined
     const f = withVoice && !ahead ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction) : null

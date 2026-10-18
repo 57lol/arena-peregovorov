@@ -857,7 +857,7 @@ interface Streamed {
  * проверяем и сразу отдаём в голос (speak), следующие фразы проверяем по одной и вырезаем то, что сказать нельзя.
  * Без speak — только ранний обрыв по заголовку.
  */
-async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ctx: CheckContext, speak?: (piece: string) => void, signal?: AbortSignal): Promise<Streamed> {
+async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ctx: CheckContext, speak?: (piece: string) => void, signal?: AbortSignal, opener?: string): Promise<Streamed> {
   const t0 = Date.now()
   const ac = new AbortController()
   const stop = () => ac.abort(signal?.reason)
@@ -870,10 +870,11 @@ async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ct
   let header: Header | null | undefined
   let used = 0
   let pending = ''
-  let said = ''
+  // заход уже прозвучал: с него реплика начинается, по нему проверяются следующие фразы
+  let said = opener ?? ''
   const halt = (check: Check, line: string) => {
     r.stop = check
-    r.out = { ...(header ?? { agrees: false, terms: [], reveals: [] }), line: line || '…', emotion: 'neutral' }
+    r.out = { ...(header ?? { agrees: false, terms: [], reveals: [] }), line: withOpener(opener, line) || '…', emotion: 'neutral' }
     ac.abort()
     return r
   }
@@ -898,11 +899,12 @@ async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ct
         if (r.first === undefined) {
           pending = pending ? `${pending} ${raw}` : raw
           if (wordsOf(pending) < FIRST_WORDS && !(p.closed && raw === list[list.length - 1])) continue
-          const piece = cleanPiece(pending, false, 0)
+          const piece = cleanPiece(pending, !!opener, tagCount(said))
           if (!stripTags(piece)) continue
-          const c = checkPiece(sc, frame, piece, ctx, '', true)
+          const c = checkPiece(sc, frame, piece, ctx, said, !opener)
           if (c.hard.length || c.soft.length) return halt(c, piece)
-          r.first = said = piece
+          r.first = piece
+          said = withOpener(opener, piece)
           r.firstAt = Date.now() - t0
           if (!signal?.aborted) speak(piece)
           continue
@@ -934,11 +936,11 @@ async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ct
   }
   if (r.first !== undefined) {
     r.out = { ...(full ?? { ...header!, emotion: 'neutral' }), line: said }
-  } else if (full) r.out = full
+  } else if (full) r.out = { ...full, line: withOpener(opener, clean(full.line)) }
   else {
     const p = partialReply(text)
     if (!p.line.trim()) throw new Error('В ответе нет реплики')
-    r.out = Raw.parse({ ...(p.header ?? {}), line: p.line })
+    r.out = Raw.parse({ ...(p.header ?? {}), line: withOpener(opener, p.line) })
   }
   return r
 }
@@ -978,6 +980,11 @@ export interface VoiceOptions {
   onFirst?: (piece: string) => void
   /** реплика больше не нужна (спекуляция не угадала): поток обрывается, запасную модель не зовём */
   signal?: AbortSignal
+  /**
+   * Первые слова ответа уже прозвучали (заход быстрой модели, opener.ts): модель продолжает с них, реплика начинается
+   * с них, а onFirst получает первую фразу продолжения.
+   */
+  opener?: string
 }
 
 // ремарки, которые модели иногда пишут вместо пометок для голоса: [[laughs]], *вздыхает*, (смеётся), длинное [в квадратных скобках]
@@ -985,12 +992,23 @@ const STAGE = /\[\[[^\]\n]{1,60}\]\]|\*[^*\n]{1,40}\*|\([^()\n]{1,40}\)|\[[^\]\n
 const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 /** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
-export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction'> = {}) {
+export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction' | 'opener'> = {}) {
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
   const frame = frameFor(sc, d, state, prev, stanceBefore)
-  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + (opts.reaction ? `\nИнтерфейс может проиграть короткую реакцию: «${opts.reaction}». Она может не прозвучать: ответ должен быть самостоятельным. Не повторяй её.` : '') }
+  const reaction = opts.reaction && !opts.opener ? `\nИнтерфейс может проиграть короткую реакцию: «${opts.reaction}». Она может не прозвучать: ответ должен быть самостоятельным. Не повторяй её.` : ''
+  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + reaction + (opts.opener ? openerNote(sc, opts.opener) : '') }
 }
+
+/** Заход уже прозвучал: продолжить с него одной репликой, без повтора и без нового начала. */
+const openerNote = (sc: Scenario, opener: string) =>
+  isEn(sc)
+    ? `\nYou have already started your answer out loud: "${opener}". It has been said. Continue the line right after these words, as one utterance: don't repeat or rephrase them, don't start over or greet again. "line" is only the continuation.`
+    : `\nТы уже начал отвечать вслух: «${opener}». Это прозвучало. Продолжи реплику сразу после этих слов, как одну фразу: не повторяй и не пересказывай их, не начинай заново и не здоровайся. В "line" — только продолжение.`
+
+/** Заход и продолжение — одна реплика. Продолжение не начинается заново с многоточия или тире: «Чайник сломался… через неделю». */
+export const withOpener = (opener: string | undefined, line: string) =>
+  opener ? `${opener} ${line.trim().replace(/^(?:\.+|…|[,—–-])+\s*/u, '')}`.trim() : line
 
 /**
  * Рамка, при которой реплика годится: решение, что можно назвать и рассказать, что он просит. Настроение (доверие,
@@ -1047,7 +1065,7 @@ export async function voice(
         let out: Raw
         try {
           if (m.stream) {
-            const got = await streamed(m, req, sc, frame, ctx, opts.onFirst, opts.signal)
+            const got = await streamed(m, req, sc, frame, ctx, opts.onFirst, opts.signal, opts.opener)
             ms.ttft ??= got.ttft === undefined ? undefined : t1 - t0 + got.ttft
             ms.header ??= got.header === undefined ? undefined : t1 - t0 + got.header
             if (got.stop) {
@@ -1062,14 +1080,17 @@ export async function voice(
               ms.first = t1 - t0 + got.firstAt!
               spoken = { first: got.first, dropped: got.dropped }
             }
-          } else out = Raw.parse(await m.json(req))
+          } else {
+            out = Raw.parse(await m.json(req))
+            out.line = withOpener(opts.opener, clean(out.line))
+          }
         } catch (e) {
           if (opts.signal?.aborted || !tries.length) throw e
           // переписка не удалась: живой вариант первой попытки берём, а с нарушением — пусть пишет запасная модель (не в кэш)
           if (tries[0].check.hard.length && spare) throw e
           break
         }
-        if (!spoken) out.line = clean(out.line)
+        if (!spoken && !opts.opener) out.line = clean(out.line)
         // пункт не из дела или номер варианта вне диапазона — не условие, а ошибка модели
         out.terms = out.terms.filter((t) => sc.issues.find((i) => i.id === t.issue)?.options[t.option] !== undefined)
         const check = checkLine(sc, frame, out, ctx)
@@ -1086,18 +1107,18 @@ export async function voice(
         const { out, check } = tries[tries.length - 1]
         const problems = [...check.hard, ...check.soft]
         const rest = check.hard.some((h) => !h.startsWith('вырезано')) ? prune(sc, frame, out, ctx) : undefined
-        const line = completeLine(sc, frame, rest?.startsWith(spoken.first) ? rest : out.line)
+        const line = completeLine(sc, frame, rest?.startsWith(opts.opener ?? spoken.first) ? rest : out.line)
         return { line, emotion: pickEmotion(out.emotion, d, state, fallback.emotion), kind: check.hard.length ? ('safe' as const) : ('llm' as const), problems, attempts: tries.length }
       }
       const best = [...tries].filter((t) => t.out.line !== '…').sort((a, b) => a.check.hard.length - b.check.hard.length || a.check.soft.length - b.check.soft.length)[0]
-      if (!best) return { line: fallback.line, emotion: fallback.emotion, kind: 'template' as const, problems: tries.flatMap((t) => t.check.hard), attempts: tries.length }
+      if (!best) return { line: withOpener(opts.opener, fallback.line), emotion: fallback.emotion, kind: 'template' as const, problems: tries.flatMap((t) => t.check.hard), attempts: tries.length }
       const problems = [...best.check.hard, ...best.check.soft]
       if (!best.check.hard.length)
         return { line: best.out.line, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'llm' as const, problems, attempts: tries.length }
       const safe = prune(sc, frame, best.out, ctx)
-      if (safe) return { line: safe, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'safe' as const, problems, attempts: tries.length }
+      if (safe && (!opts.opener || safe.startsWith(opts.opener))) return { line: safe, emotion: pickEmotion(best.out.emotion, d, state, fallback.emotion), kind: 'safe' as const, problems, attempts: tries.length }
       // ничего живого не осталось — заготовка; её тоже кладём в кэш, чтобы повтор диалога дал ту же реплику
-      return { line: fallback.line, emotion: fallback.emotion, kind: 'template' as const, problems, attempts: tries.length }
+      return { line: withOpener(opts.opener, fallback.line), emotion: fallback.emotion, kind: 'template' as const, problems, attempts: tries.length }
     })
     const { kind, problems, attempts, ...v } = value
     return {
@@ -1112,18 +1133,20 @@ export async function voice(
     }
   }
 
+  // заход уже прозвучал — заготовка идёт после него
+  const spare = { ...fallback, line: withOpener(opts.opener, fallback.line) }
   try {
     return await run(llm)
   } catch (e) {
     const err = (e as Error).message
-    if (opts.signal?.aborted) return { ...fallback, source: 'template', error: err, ms: { done: Date.now() - t0 } }
+    if (opts.signal?.aborted) return { ...spare, source: 'template', error: err, ms: { done: Date.now() - t0 } }
     if (opts.fallback && opts.fallback !== llm && opts.fallback.name !== 'offline') {
       try {
         return { ...(await run(opts.fallback)), error: `${llm.model}: ${err}` }
       } catch (e2) {
-        return { ...fallback, source: 'template', error: `${err}; ${(e2 as Error).message}` }
+        return { ...spare, source: 'template', error: `${err}; ${(e2 as Error).message}` }
       }
     }
-    return { ...fallback, source: 'template', error: err }
+    return { ...spare, source: 'template', error: err }
   }
 }

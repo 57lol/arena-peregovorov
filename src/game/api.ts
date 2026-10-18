@@ -193,7 +193,7 @@ export interface Health {
   model?: string
   providerError?: string
   /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ; eleven — говорит ElevenLabs */
-  speech?: { tts: boolean; stt: boolean; eleven?: boolean; scribe?: boolean }
+  speech?: { tts: boolean; stt: boolean; eleven?: boolean; scribe?: boolean; opener?: boolean; openerSkip?: string[] }
 }
 
 export async function health(): Promise<Health | null> {

@@ -18,6 +18,8 @@ export const WAIT = {
    * С прода 18.10: Sonnet — 2,2–2,3 с, но ~20% ходов дольше 4 с (сбои Vertex)
    */
   analyzeRace: ms('ANALYZE_RACE_TIMEOUT_MS', 3_000),
+  /** заход (первые слова ответа, opener.ts): YandexGPT Pro с прода отвечает за 0,2–0,3 с; не успел — реплика без захода */
+  opener: ms('OPENER_TIMEOUT_MS', 800),
   /** модель реплики, когда есть запасная; не успела — пишет запасная */
   voice: ms('VOICE_TIMEOUT_MS', 8_000),
   /** модель реплики без запасной */

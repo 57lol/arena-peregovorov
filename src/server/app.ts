@@ -9,7 +9,8 @@ import { buildReport } from '../engine/report'
 import { initialState, step, type StepResult } from '../engine/turn'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { groundedOffline, walkAwayMove, withBareYes, withContext, withFormalOffer } from '../engine/offline'
+import { groundedOffline, isRude, walkAwayMove, withBareYes, withContext, withFormalOffer } from '../engine/offline'
+import { WAIT } from './timeouts'
 import { startAnalysis, type AnalyzeResult, type AnalyzeRun } from './analyze'
 import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
@@ -25,7 +26,8 @@ import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
-import { completeLine, frameKey, voice, voicePrompt, type VoiceResult } from './voice'
+import { completeLine, frameKey, voice, voicePrompt, withOpener, type VoiceResult } from './voice'
+import { writeOpener } from './opener'
 import { stripTags } from './tags'
 import { votesApp } from './votes'
 import { roomsApi } from './rooms'
@@ -193,6 +195,8 @@ interface Job {
   who: string
   t0: number
   ms: Record<string, number | string>
+  /** заход — первые слова ответа быстрой моделью (opener.ts): звучат сразу, до разбора; undefined — без захода */
+  opener: Promise<string | undefined>
   /** начало реплики подтверждено разбором — можно озвучивать; undefined — отдельного начала не будет */
   first: Promise<JobFirst | undefined>
   /** рамка реплики известна (разбор готов) */
@@ -224,8 +228,10 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     : c.json({ error: e.message }, 500))
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
+  // заход: первым звучит сам ответ, а не запись-реакция; дела без захода (OPENER_SKIP) — с реакцией, как раньше
+  const openerCaps = () => (llm.opener ? { opener: true, ...(process.env.OPENER_SKIP ? { openerSkip: process.env.OPENER_SKIP.split(',').map((x) => x.trim()) } : {}) } : {})
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: speech.status() }),
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: { ...speech.status(), ...openerCaps() } }),
   )
 
   // Чужая модель на запрос — тот же лимит на пропуск, что у лаборатории.
@@ -343,14 +349,30 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
   }
 
-  /** Разбор → решение → реплика. Начало реплики (first) — как только его подтвердил разбор. */
-  function startJob(t: TurnInput, body: z.infer<typeof TurnBody>, speaker: LLM): Job {
+  /**
+   * Разбор → решение → реплика. Заход (opener) — сразу, как его написала быстрая модель; начало реплики (first) — как
+   * только его подтвердил разбор. heat — синтез захода заранее (заготовка хода, игрок ещё в паузе).
+   */
+  function startJob(t: TurnInput, body: z.infer<typeof TurnBody>, speaker: LLM, heat?: (text: string) => void): Job {
     const { llm, lab, sc, history, before, natural, marks } = t
     const t0 = Date.now()
     const ms: Record<string, number | string> = {}
     let stopped = false
     let gotFirst!: (f: JobFirst | undefined) => void
     const first = new Promise<JobFirst | undefined>((r) => (gotFirst = r))
+    // Заход пишет YandexGPT Pro (llm.opener): ~0,2 с с прода против 1,0–1,5 с до первых слов Sonnet.
+    // Только когда реплику озвучивают и пишет её модель с потоком через AITunnel; уход по кнопке — без захода.
+    const skip = (process.env.OPENER_SKIP ?? '').split(',').map((x) => x.trim()).includes(sc.id)
+    const opens = !skip && !lab && !!body.tts && !body.walkAway && speaker.name === 'aitunnel' && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
+    const openerP: Promise<string | undefined> = opens
+      ? writeOpener(opens, sc, history, body.playerText, before, isRude(body.playerText), WAIT.opener())
+      : Promise.resolve(undefined)
+    void openerP.then((o) => {
+      if (!o || stopped) return
+      ms.opener = Date.now() - t0
+      heat?.(o)
+    })
+    let opener: string | undefined
     let analyzed!: () => void
     const analysisSeen = new Promise<void>((r) => (analyzed = r))
 
@@ -373,18 +395,19 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         sent = true
         ms.first = Date.now() - t0
         const rr = decide(confirmed.analysis).r
-        const safe = completeLine(sc, voicePrompt(sc, history, body.playerText, rr.decision, rr.state).frame, piece)
+        const safe = completeLine(sc, voicePrompt(sc, history, body.playerText, rr.decision, rr.state).frame, withOpener(opener, piece))
         const record: TurnRecord = {
           turn: rr.state.turn, playerText: body.playerText, analysis: decide(confirmed.analysis).analysis,
           deltas: rr.deltas, decision: rr.decision, stateAfter: rr.state,
           opponentLine: stripTags(unstress(safe)), emotion: 'neutral',
         }
-        gotFirst({ text: piece, screen: stripTags(unstress(piece)), record, source: confirmed.source })
+        gotFirst({ text: piece, screen: stripTags(unstress(withOpener(opener, piece))), record, source: confirmed.source })
       }
       const said = voice(speaker, sc, history, body.playerText, r.decision, r.state, {
         natural,
         marks,
         reaction: body.reaction,
+        opener,
         fallback: llm,
         signal: ac.signal,
         onFirst: (p) => {
@@ -406,6 +429,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const ar: AnalyzeRun = body.walkAway
         ? { ready: { analysis: walkAwayMove(), source: 'offline' }, keep: async () => {} }
         : await startAnalysis(analyzer, sc, dict, history, body.playerText, before.lastOpponentOffer, quick)
+      // Реплика продолжает заход, поэтому пишется после него; заход приходит раньше любой разметки.
+      opener = await openerP
       let final: AnalyzeResult | undefined = ar.ready && { ...ar.ready, ...(body.walkAway ? { source: 'button' as never } : {}) }
       const frame = (a: AnalyzeResult, basis: string) => {
         if (stopped) throw new Error('Ход больше не нужен')
@@ -462,6 +487,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       who: t.who,
       t0,
       ms,
+      opener: openerP.then((o) => (stopped ? undefined : o)),
       first,
       analyzed: analysisSeen,
       done,
@@ -486,7 +512,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const t = await turnInput(c, body)
     if (t.before.status !== 'open') return c.json({ ok: false }, 409)
     stopOthers(t.who, t.key)
-    if (!jobs.get(t.key) || jobs.get(t.key)!.stopped()) startJob(t, body, llm.voice ?? llm)
+    if (!jobs.get(t.key) || jobs.get(t.key)!.stopped()) startJob(t, body, llm.voice ?? llm, body.tts ? speech.heater(body.tts, c) : undefined)
     return c.json({ ok: true }, 202)
   })
 
@@ -515,12 +541,20 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // заготовка успела всю реплику — звук одним куском, без склейки начала и остатка
       const whole = job.over()
       let lineSent = false
-      const early = job.first.then((f) => {
+      const early = (async () => {
+        // заход звучит сразу, до разбора; начало реплики — за ним, когда его подтвердил разбор
+        const op = await job.opener
+        if (op) {
+          lineSent = true
+          if (!whole) sound?.first(op)
+          emit?.({ t: 'line', text: stripTags(unstress(op)), sources: { voice: 'opener' }, ...(sound ? { audio: sound.url } : {}) })
+        }
+        const f = await job.first
         if (!f) return
         lineSent = true
-        if (!whole) sound?.first(f.text)
+        if (!whole) (op ? sound?.more(f.text) : sound?.first(f.text))
         emit?.({ t: 'line', text: f.screen, record: f.record, sources: { analysis: f.source, voice: 'partial' }, ...(sound ? { audio: sound.url } : {}) })
-      })
+      })()
       const { said, analysis, r, a } = await job.done
       await early
       // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
