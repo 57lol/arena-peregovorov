@@ -147,6 +147,14 @@ describe('заход не выражает оценку: он звучит до 
     for (const ok of ['Хм… интересно…', 'Восемь недель?..', 'Ё-моё, серьёзно?', 'Секунду…', 'Eight weeks…', 'Let me see…', 'Аккредитив, говоришь?…', 'Ого, братан…'])
       expect(checkOpener(ok, 'Давайте восемь недель, eight weeks'), ok).toBe(ok)
   })
+  it('обязательства до решения движка не проходят: принять, оформить, подписать, его число утверждением (ревью Codex)', () => {
+    for (const bad of ['I accept your offer.', 'Оформляем сделку.', "Let's sign…", 'Принимаю…', 'Подписываем?', 'Shake on it…', "It's a deal…", 'Сошлись…', 'Done.'])
+      expect(checkOpener(bad), bad).toBeUndefined()
+    expect(checkOpener('Цена сорок юаней.', 'Давайте сорок юаней')).toBeUndefined()
+    expect(checkOpener('Forty yuan!', 'Forty yuan, please')).toBeUndefined()
+    for (const ok of ['Сорок юаней?..', 'Сорок юаней…', 'Сорок юаней', 'Сорок юаней?']) expect(checkOpener(ok, 'Давайте сорок юаней'), ok).toBeTruthy()
+  })
+
   it('промпт захода запрещает оценку на обоих языках', () => {
     for (const sc of CASES) {
       const p = openerPrompt(sc, [], '…', initialState(sc))

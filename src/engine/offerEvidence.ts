@@ -1,7 +1,7 @@
 import { detectBehaviors } from './behaviors'
 import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
-import { isWalkAway } from './offline/analyze'
+import { confirmsWalkAway, isWalkAway } from './offline/analyze'
 import { mentionedIssues, parseOffer, spokenNumber, type Mention } from './offline/parseOffer'
 import { optionQuantity, quantities } from './offline/numbers'
 import type { MoveAnalysis, Offer, Scenario } from './types'
@@ -262,7 +262,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
   const parts = sentences(text)
-  if (other.walksAway && !isWalkAway(text)) delete other.walksAway
+  if (other.walksAway && !isWalkAway(text) && !confirmsWalkAway(text)) delete other.walksAway
   if (!parts.some((p, i) => requestsInformation(p, parts[i + 1]) &&
     (p.includes('?') || /^(?:почему|зачем|расскажите|что|как|сколько|why|tell me|what|how|would|could|can)/iu.test(p)))) {
     delete other.asksAbout
