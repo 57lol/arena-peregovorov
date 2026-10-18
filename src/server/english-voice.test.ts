@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // Дело на английском (istanbul, Эмре): голос и распознавание без русских правил чтения.
 process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-en-voice-'))
 const { makeSpeech } = await import('./speech')
-const { CAST, castFor, elevenSeed } = await import('./tts')
+const { CAST, ELEVEN_TUNE, castFor, elevenSeed } = await import('./tts')
 const { forEnglish, liveVoiceFor } = await import('./direct')
 const { makeSttStream } = await import('./sttStream')
 const { makeBudget } = await import('./budget')
@@ -31,7 +31,7 @@ describe('английская реплика: голос', () => {
   })
 
   it('лицо emre: свой голос ElevenLabs и английский запасной голос SpeechKit', () => {
-    expect(CAST.emre).toBe('TcOBSQQ3Mm1U95izQTyI')
+    expect(CAST.emre).toBe('ezjpFmpyFJhaCJxPZlXg')
     expect(castFor('emre', 'john')).toBe(CAST.emre)
     expect(PERSONAS.emre.voice).toBe('john')
     // голоса livetts по-английски не говорят: john не заменяем на denis
@@ -78,7 +78,8 @@ describe('английская реплика: голос', () => {
     const body = JSON.parse(String((f.mock.calls[0] as unknown as Call)[1].body))
     expect(body.voice_id).toBe(CAST.emre)
     expect(body.seed).toBe(elevenSeed('emre'))
-    expect(body.text).toBe(forEnglish(text, 'eleven'))
+    expect(body.model_id).toBe('eleven_v3')
+    expect(body.text).toBe(ELEVEN_TUNE.emre.prefix + forEnglish(text, 'eleven'))
     expect(body.text).toContain('[laughs] Wi-Fi')
     expect(body.text).not.toMatch(/\u0301|[а-яё]/iu)
   })

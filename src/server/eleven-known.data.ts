@@ -19,12 +19,6 @@ export const ELEVEN_KNOWN: KnownLine[] = [
     file: 'assets/voice-eleven/gopnik/opening-stop.mp3'
   },
   {
-    who: 'emre',
-    voice: 'TcOBSQQ3Mm1U95izQTyI',
-    text: 'Hello, hello! Emre Kaya, Marmara Coating. I brought lokum from Istanbul, it\'s for your team. So. Your engineers saw the line: the tunnel, the booth, the oven. I think they liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
-    file: 'assets/voice-eleven/emre/opening-istanbul.mp3'
-  },
-  {
     who: 'olga',
     voice: 'pS0Vm2TDyApKkwL0YIqj',
     text: 'Добрый день. Спасибо, что позвали на финальный разговор. Экскурсию по цеху я прошла. Покрасочная камера у вас красивая. Пока пустая. Если честно, я ещё сравниваю варианты. Мой ориентир — двести десять тысяч, квартира на год, выход через два месяца и один учебный день в неделю. Но я готова слушать.',
@@ -59,5 +53,11 @@ export const ELEVEN_KNOWN: KnownLine[] = [
     voice: 'qEUg56UIsvkup7EM8Ovt',
     text: 'Здравствуйте, друг! Я Ли Вэй, Иу. Датчики есть: 48 юаней за штуку, MOQ 2000 штук. Доставка 40 дней, сборный груз; Alipay — 100% предоплата. Хотите быстро-быстро — обсудим маршрут через Казахстан. Ещё адаптеры за 2400 юаней и держатели за 1200 юаней, к держателям фонарик подарок. Это отдельно, добавлять только с вашего согласия. С чего начнём?',
     file: 'assets/voice-eleven/china/opening-china.mp3'
+  },
+  {
+    who: 'emre',
+    voice: 'ezjpFmpyFJhaCJxPZlXg',
+    text: 'Welcome to Istanbul! Sit, sit, the tea is fresh, and try the baklava, it\'s from the shop downstairs. So. Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
+    file: 'assets/voice-eleven/emre/opening-istanbul.mp3'
   }
 ]
