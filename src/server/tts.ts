@@ -143,6 +143,9 @@ export interface ElevenTune {
   respell?: (text: string) => string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
+  // Адебайо (голос Frank, выбор капитана 18.10): на v3 нигерийский акцент 5 из 5 у судьи, на v4 Turbo 4–4,5 и в отдельных прогонах
+  // слабеет до 2 — берём v3, хотя первый звук ~0,9 с против ~0,46 с (~/Arena-materials/final/lagos-voice, frank.json); тега акцента нет
+  lagos: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   // Ли Вэй: китайский акцент v3 сам почти не даёт (судья 0–2 из 5) — текст для голоса переписан под акцент (zhAccent.ts),
   // числа — словами (numWords.ts), чтобы акцент не пропадал на ценах и сроках
   china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, respell: (t) => zhAccent(sayNumbers(t)) },
@@ -282,8 +285,14 @@ export function mainTts(env = process.env): MainTts | undefined {
  * Эмре (дело на английском) — дизайн-голос «Arena Эмре · дизайн d1A» (Voice Design, eleven_ttv_v3: стамбулец за 40, густой
  * турецкий акцент в английском), звучит на eleven_v3 с тегом акцента (ELEVEN_TUNE.emre). Подбор 18.10 из 22 библиотечных
  * голосов с турецким акцентом и 2 дизайнов (~/Arena-materials/final/emre-voice): прежний Emre Anduv на v4 Turbo — акцент едва слышен.
+ * Адебайо — см. LAGOS_VOICE_ID.
  */
+// Адебайо (дело на английском, Лагос) — библиотечный «Frank - Professional Educator» (en-NG, middle-aged, носитель
+// нигерийского английского), звучит на eleven_v3 без тега (ELEVEN_TUNE.lagos). Подбор 18.10 из 8 нигерийских голосов библиотеки,
+// из тройки финалистов (Ugochukwu, Joje, Frank) капитан выбрал Frank (~/Arena-materials/final/lagos-voice).
+export const LAGOS_VOICE_ID = 'yH7WW3zeKrRMuKt6sg5a'
 export const CAST: Record<string, string> = {
+  lagos: LAGOS_VOICE_ID,
   china: 'qEUg56UIsvkup7EM8Ovt',
   sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'ezjpFmpyFJhaCJxPZlXg', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }

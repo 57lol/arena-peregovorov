@@ -10,6 +10,7 @@ import { endingCatalog, endingOf } from './endings'
 import { client } from './scenarios/client'
 import { offer } from './scenarios/offer'
 import { tara } from './scenarios/tara'
+import { lagos } from './scenarios/lagos'
 import { istanbul } from './scenarios/istanbul'
 
 const say = (analysis: Partial<MoveAnalysis>) => ({ text: '', analysis: { behaviors: [], ...analysis } as MoveAnalysis })
@@ -63,12 +64,22 @@ function explore(sc: Scenario): Map<EndingId, string> {
         if (found.size === ENDING_IDS.length) return found
       }
   }
+  // На высокой сложности уступки приходят поздно. Короткие серии выше не покрывают
+  // пакет с давлением в предпоследний ход и принятие встречного в последний.
+  if (!found.has('cold_win')) {
+    const wait = Array.from({ length: sc.turnLimit - 2 }, () => say({}))
+    for (const p of allDeals(sc)) {
+      const late = play(sc, [...wait, say({ offer: p.offer, behaviors: hits('attack', 'ultimatum') }), say({ accepts: true })])
+      note(late.ending, `поздний пакет с давлением ${JSON.stringify(p.offer)}, приняли встречное`)
+      if (found.has('cold_win')) break
+    }
+  }
   return found
 }
 
 const best = (p: number[]) => p.indexOf(Math.max(...p))
 
-const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['istanbul', istanbul], ['своё дело', testScenario]]
+const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['istanbul', istanbul], ['lagos', lagos], ['своё дело', testScenario]]
 
 describe('финалы', () => {
   for (const [label, sc] of CASES) {

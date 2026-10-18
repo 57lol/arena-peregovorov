@@ -3,12 +3,13 @@ import { client } from './client'
 import { offer } from './offer'
 import { tara } from './tara'
 import { china } from './china'
+import { lagos } from './lagos'
 import { istanbul } from './istanbul'
 import { HARD_SUFFIX, harder } from './harder'
 import { STORY_SCENARIOS } from './story'
 
 // Папка по сложности: 1 — идёт навстречу, 2 — торгуется, 3 — стоит до последнего.
-export const SCENARIOS: Scenario[] = [offer, tara, client, istanbul, china]
+export const SCENARIOS: Scenario[] = [offer, tara, client, istanbul, china, lagos]
 
 /** Все дела с id: папка и кампания «Новенький». */
 export const ALL_SCENARIOS: Scenario[] = [...SCENARIOS, ...STORY_SCENARIOS]

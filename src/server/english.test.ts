@@ -110,4 +110,11 @@ describe('реплика собеседника на английском', () =
     expect(line).toMatch(/^Okay\. It's a deal: price — €480,000/)
     expect(line).not.toMatch(/[а-яё]/iu)
   })
+
+  it('«Then we have a deal.» в начале фразы — согласие, а «…, then we have a deal» после условия — нет', () => {
+    const frame = frameFor(sc, { kind: 'accept' }, { ...state, deal: { ...state.lastOpponentOffer, training: 2 } }, state.lastOpponentOffer ?? {})
+    expect(completeLine(sc, frame, 'Then we have a deal. Let us put it in writing.')).toBe('Then we have a deal. Let us put it in writing.')
+    expect(completeLine(sc, frame, 'Good, then we have a deal.')).toBe('Good, then we have a deal.')
+    expect(check(hold, state, 'Move to seventy percent upfront, then we have a deal.').hard.join()).not.toMatch(/соглашаешься/)
+  })
 })

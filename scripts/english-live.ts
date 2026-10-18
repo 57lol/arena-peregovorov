@@ -32,10 +32,9 @@ const turns: Turn[] = []
 
 const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
-// как живой игрок: не webdriver (звук и 3D), обучение пройдено; проверка «не тянет 3D» выключена (программный рендер)
+// как живой игрок: не webdriver (звук и 3D), обучение пройдено. document.hidden не подменяем: в скрытой вкладке 3D теперь не рисует кадры (frameLoop) — экран встречи был чёрным
 await ctx.addInitScript(`
   Object.defineProperty(navigator, 'webdriver', { get: () => false })
-  Object.defineProperty(Document.prototype, 'hidden', { get: () => true })
   localStorage.setItem('peregovorka.voice.v2', '1')
   localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
   // копия ответа хода (поток не трогаем): последнее событие done — запись хода целиком

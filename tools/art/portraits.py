@@ -16,6 +16,7 @@ import sys
 
 import numpy as np
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 from apollo import RGB  # noqa: E402
@@ -284,8 +285,9 @@ from people import PEOPLE  # noqa: E402
 import darina  # noqa: E402
 import marat  # noqa: E402
 import china  # noqa: E402
+import lagos  # noqa: E402
 
-CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, 'china': china.build, **PEOPLE}
+CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, 'china': china.build, 'lagos': lagos.build, **PEOPLE}
 
 
 def make_sheet(fn):
@@ -341,7 +343,9 @@ def main(argv):
         CHARACTERS['olga'] = darina.builder(a.olga)
     for cid in a.ids or list(CHARACTERS):
         sheet = make_sheet(CHARACTERS[cid])
-        sheet.save(os.path.join(out_dir, f'{cid}.png'))
+        meta = PngInfo()
+        meta.add_text('impeccable:prompt', f'Original procedural Apollo pixel portrait, character {cid}; source tools/art/portraits.py CHARACTERS mapping. Six expressions, idle/talk/blink frames; shared 96x96 face construction.')
+        sheet.save(os.path.join(out_dir, f'{cid}.png'), pnginfo=meta)
         bg = Image.new('RGBA', sheet.size, RGB[41] + (255,))
         bg.alpha_composite(sheet)
         bg.resize((sheet.width * 4, sheet.height * 4), Image.NEAREST).save(os.path.join(prev_dir, f'{cid}_x4.png'))

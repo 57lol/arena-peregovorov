@@ -10,6 +10,7 @@ import sys
 
 import numpy as np
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 sys.path.insert(0, os.path.dirname(__file__))
 from font import text, text_w  # noqa: E402
@@ -1001,7 +1002,9 @@ def istanbul():
 
 
 
-SCENES = {'dorm': (dorm, 'sosed'), 'street': (street, 'gopnik'), 'shop': (shop, 'admin'), 'bytovka': (bytovka, 'foreman'), 'inei': (inei, 'buyer'),
+from room_lagos import scene2d as lagos  # noqa: E402
+
+SCENES = {'lagos': (lagos, 'lagos'), 'dorm': (dorm, 'sosed'), 'street': (street, 'gopnik'), 'shop': (shop, 'admin'), 'bytovka': (bytovka, 'foreman'), 'inei': (inei, 'buyer'),
           'istanbul': (istanbul, 'emre')}
 
 
@@ -1015,8 +1018,10 @@ def main():
         fn, face = SCENES[name]
         bg, fg = fn()
         bgi, fgi = bg.image(), fg.image()
-        bgi.save(os.path.join(out, f'{name}.png'))
-        fgi.save(os.path.join(out, f'{name}-desk.png'))
+        meta = PngInfo()
+        meta.add_text('impeccable:prompt', f'Original procedural Apollo pixel scene, room {name}; source tools/art/scenes_story.py SCENES mapping. 192x108 background and transparent foreground desk, matching the 3D room.')
+        bgi.save(os.path.join(out, f'{name}.png'), pnginfo=meta)
+        fgi.save(os.path.join(out, f'{name}-desk.png'), pnginfo=meta)
         comp = bgi.copy()
         sheet = os.path.join(ROOT, 'public', 'assets', 'portraits', face + '.png')
         if os.path.exists(sheet):

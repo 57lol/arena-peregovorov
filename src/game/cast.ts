@@ -26,6 +26,7 @@ export function sceneFor(sc: Scenario): SceneId {
   const story = chapterOf(id)?.room
   if (story && story !== 'factory' && story !== 'office') return story
   if (id === 'tara') return 'factory'
+  if (id === 'lagos') return 'lagos'
   if (id === 'istanbul') return 'istanbul'
   if (id === 'offer') return 'office'
   return /закуп|постав|производ|завод|цех|подряд|логист|склад|стро/i.test(`${sc.sphere} ${sc.title}`) ? 'factory' : 'office'
@@ -66,6 +67,7 @@ export const g = (sc: Scenario, m: string, f: string) => (isFemale(sc) ? f : m)
 
 /** Часы встречи: с какой минуты суток начинается и сколько идёт. Главы кампании — в своё время (остановка — 7:35 и до автобуса). */
 export function meetingClock(sc: Scenario): { start: number; minutes: number } {
+  if (baseCaseId(sc.id) === 'lagos') return { start: 17 * 60, minutes: 60 }
   const ch = chapterOf(baseCaseId(sc.id))
   const m = ch?.time.match(/^(\d{1,2}):(\d{2})$/)
   return m ? { start: Number(m[1]) * 60 + Number(m[2]), minutes: ch?.minutes ?? 60 } : { start: 10 * 60, minutes: 60 }

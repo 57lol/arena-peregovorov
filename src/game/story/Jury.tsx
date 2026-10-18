@@ -50,6 +50,7 @@ const PROVIDER: Record<string, string> = { yandex: 'YandexGPT', anthropic: 'Clau
 export function Jury(p: Props) {
   const demo = getScenario(DEMO)!
   const english = getScenario(ENGLISH)!
+  const lagos = getScenario('lagos')!
   const chinese = getScenario('china')!
   const lib = (sc: Scenario) => ({ scenario: sc, fromLibrary: true })
   return (
@@ -122,6 +123,15 @@ export function Jury(p: Props) {
           <Face sc={chinese} />
           <span className="jr-step-name">🇨🇳 Поставщик из Шэньчжэня</span>
           <span className="jr-step-note">видеозвонок в Шэньчжэнь: Ли Вэй, датчики для завода, торг в юанях и лишние товары в комплекте</span>
+        </button>
+
+        <button type="button" className="jr-step jr-en" onClick={() => p.onOpen(lib(lagos))}>
+          <Face sc={lagos} />
+          <span className="jr-step-name">🇳🇬 Lagos: экспорт и партнёрство</span>
+          <span className="jr-step-note">
+            вторая командировка · финальный уровень: переговоры на английском с носителем языка {lagos.opponent.character.name}, {lagos.turnLimit} реплик; разбор и
+            подсказки — по-русски
+          </span>
         </button>
 
         <div className="jr-grid">
