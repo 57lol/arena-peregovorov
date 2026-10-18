@@ -23,9 +23,12 @@ if (Number(process.versions.node.split('.')[0]) >= 22) {
   var log = fs.openSync(LOG, 'a')
   // Passenger ограничивает виртуальную память, а WebAssembly в V8 резервирует её гигабайтами
   // (под ним работает fetch) — без этого флага первый же запрос к YandexGPT роняет процесс.
-  var child = require('child_process').spawn(NODE, ['--disable-wasm-trap-handler'].concat(process.argv.slice(1)), {
+  // Хостинг ограничивает число потоков на аккаунт: при упоре pthread_create падает (Resource temporarily unavailable),
+  // и сайт ~1,5 мин отвечает 500. Node 22 по умолчанию держит ~11 потоков: пул V8 по числу ядер и 4 потока libuv.
+  // Нам хватает по два: тяжёлой работы в процессе нет, worker_threads не используем.
+  var child = require('child_process').spawn(NODE, ['--disable-wasm-trap-handler', '--v8-pool-size=2'].concat(process.argv.slice(1)), {
     stdio: ['inherit', log, log],
-    env: process.env,
+    env: Object.assign({}, process.env, { UV_THREADPOOL_SIZE: '2' }),
   })
   child.on('exit', function (code) {
     process.exit(code == null ? 1 : code)
