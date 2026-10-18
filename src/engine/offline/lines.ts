@@ -1,3 +1,4 @@
+import { lowerFirst } from '../text'
 import { upsellLine } from '../upsells'
 // Шаблонные реплики оппонента: озвучивают решение движка в характере персонажа.
 // Вариант выбирается по номеру хода — без случайности, чтобы повтор давал тот же текст.
@@ -226,5 +227,3 @@ const EN_SAY: typeof RU_SAY = {
   rest: ', the rest as before',
   mine: 'my offer',
 }
-
-const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)

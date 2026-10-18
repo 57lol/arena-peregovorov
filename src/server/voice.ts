@@ -1,3 +1,4 @@
+import { lowerFirst } from '../engine/text'
 // Реплика собеседника. Движок решает сделку: согласиться или нет, какие условия, что можно рассказать. Это рамка.
 // Модель играет живого человека внутри рамки: видит весь разговор, свою карточку и скрытые причины, говорит как хочет.
 // Проверяем не слова регулярками, а то, что модель сама заявила (условия, согласие, раскрытые причины), плюс
@@ -709,8 +710,6 @@ export function completeLine(sc: Scenario, frame: Frame, text: string): string {
   if (missing.length) text += `${en ? ' So: ' : ' Давай так: '}${terms(sc, Object.fromEntries(missing.map((id) => [id, frame.position[id]])))}.`
   return text.trim()
 }
-
-const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)
 
 // ——— эмоция ———
 

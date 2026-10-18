@@ -72,8 +72,10 @@ export default function Play3D(props: Props) {
     world.desk.show('card', cardOn)
   }, [world, notebookOn, slipOn, cardOn])
 
+  // Мир владеет DOM и RAF: останавливаем его в layout-cleanup до удаления узлов и сброса refs.
+  // Passive cleanup может выполниться уже после следующего кадра.
   // ---------- мир ----------
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = rootRef.current!
     let w: World
     try {

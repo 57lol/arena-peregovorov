@@ -1,3 +1,4 @@
+import { lowerFirst } from '../../engine/text'
 import { useEffect } from 'react'
 import type { Case } from '../../App'
 import type { Scenario } from '../../engine/types'
@@ -172,8 +173,6 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам', spee
     </div>
   )
 }
-
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
 
 /** Два-три пункта, где у вас самый большой разброс выгоды, — то, за что стоит держаться. */
 function mainIssues(sc: Scenario): string {
