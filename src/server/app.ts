@@ -552,7 +552,10 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         const f = await job.first
         if (!f) return
         lineSent = true
-        if (!whole) (op ? sound?.more(f.text) : sound?.first(f.text))
+        if (whole) {
+          // заготовка успела всю реплику — звук целиком в finish
+        } else if (op) sound?.more(f.text)
+        else sound?.first(f.text)
         emit?.({ t: 'line', text: f.screen, record: f.record, sources: { analysis: f.source, voice: 'partial' }, ...(sound ? { audio: sound.url } : {}) })
       })()
       const { said, analysis, r, a } = await job.done

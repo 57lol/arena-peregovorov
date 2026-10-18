@@ -76,7 +76,7 @@ describe('заход: первые слова ответа звучат до р�
     const id3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 4, 1, 2, 3, 4])
     const frame = (n: number) => Uint8Array.from({ length: 417 }, (_, i) => (i === 0 ? 0xff : i === 1 ? 0xfb : i === 2 ? 0x90 : n))
     const texts: string[] = []
-    const f = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    const f = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === 'GET') return new Response('forbidden', { status: 401 })
       const n = texts.push(JSON.parse(String(init?.body)).text)
       const parts = [new Uint8Array([...id3, ...frame(n)]), frame(n)]
