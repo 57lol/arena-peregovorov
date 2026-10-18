@@ -22,7 +22,7 @@ import { Method } from './Method'
 import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 import { often, summarize } from '../summary'
-import { plainWords } from '../instant'
+import { decisionTag, plainWords } from '../instant'
 import '../onboarding.css'
 
 interface Props {
@@ -312,7 +312,7 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
         <dl className="g-ledger-rows">
           <Row label="Ваша выгода" value={o.playerPoints} strong />
           <Row label={<>Без сделки было бы <Term>BATNA</Term></>} value={report.batna.player} />
-          <Row label="Сделка лучше, чем без неё, на" value={diff >= 0 ? `+${diff}` : `−${-diff}`} tone={diff >= 0 ? 'good' : 'bad'} />
+          <Row label={diff >= 0 ? 'Сделка лучше, чем без неё, на' : 'Сделка хуже, чем без неё, на'} value={diff >= 0 ? `+${diff}` : -diff} tone={diff >= 0 ? 'good' : 'bad'} />
           <Row label={`Выгода: ${name}`} value={o.opponentPoints} />
           <Row label="Упустили вдвоём: можно было лучше обоим" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />
           <Row label={<>Насколько сделка выгодна обоим <Term>эффективность по Парето</Term></>} value={`${Math.round(o.paretoEfficiency * 100)}%`} />
@@ -340,15 +340,6 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
 /** Термин для тех, кто знает теорию, — мелко после простых слов. */
 const Term = ({ children }: { children: React.ReactNode }) => <small className="g-term">({children})</small>
 
-const DECISION_RU: Record<string, string> = {
-  accept: 'сделка',
-  counter: 'встречное',
-  reveal: 'рассказал о себе',
-  hold: 'держит позицию',
-  warn_tone: 'замечание за тон',
-  walk_away: 'ушёл',
-}
-
 function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; report: Report; history: TurnRecord[]; onReplayFrom: (t: number) => void; wide: boolean }) {
   if (!report.keyMoments.length) return null
   return (
@@ -372,7 +363,7 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
               <p className="g-moment-shift">
                 <Shift label="доверие" v={m.shift.trust} good={m.shift.trust > 0} />
                 <Shift label="напряжение" v={m.shift.tension} good={m.shift.tension < 0} />
-                <span className="g-tag">{decisionRu(sc, m.decision)}</span>
+                <span className="g-tag">{h ? decisionTag(sc, h.decision) : m.decision}</span>
               </p>
               <p className="g-moment-why">{m.why}.</p>
               {hits.length > 0 && (
@@ -407,12 +398,6 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
       </ol>
     </section>
   )
-}
-
-function decisionRu(sc: Scenario, d: string) {
-  if (d === 'reveal') return g(sc, 'рассказал о себе', 'рассказала о себе')
-  if (d === 'walk_away') return g(sc, 'ушёл', 'ушла')
-  return DECISION_RU[d] ?? d
 }
 
 function whyWorks(b: Behavior) {

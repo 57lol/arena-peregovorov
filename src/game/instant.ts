@@ -5,8 +5,9 @@
 
 import { behaviorById } from '../engine/behaviors'
 import { isEn } from '../engine/lang'
-import type { OpponentState, Scenario, TurnRecord } from '../engine/types'
+import type { Decision, OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { initialState } from '../engine/turn'
+import { upsellPenalty } from '../engine/upsells'
 import { isComplete, score } from '../engine/utility'
 import { firstName, g, plural } from './cast'
 
@@ -153,7 +154,8 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): 
   const st = rec.stateAfter
   const offer = st.status === 'deal' ? st.deal : rec.analysis.offer && Object.keys(rec.analysis.offer).length ? st.playerStance : undefined
   if (isComplete(sc, offer)) {
-    const mine = score(P, offer)
+    // доптовары, на которые уже согласились, снижают выгоду — как в разборе
+    const mine = score(P, offer) - upsellPenalty(sc, st)
     const deal = st.status === 'deal'
     notes.push(
       mine < P.batna
@@ -189,7 +191,7 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
     case 'accept':
       return `${n} ${g(sc, 'согласился', 'согласилась')}. Сделка.`
     case 'counter': {
-      const mine = isComplete(sc, d.offer) ? score(P, d.offer) : null
+      const mine = isComplete(sc, d.offer) ? score(P, d.offer) - upsellPenalty(sc, rec.stateAfter) : null
       const what = d.final ? 'последний вариант' : 'свой вариант'
       return mine === null
         ? `${n} ${g(sc, 'предложил', 'предложила')} ${what}.`
@@ -221,6 +223,23 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
   }
 }
 
+const DECISION_RU: Partial<Record<Decision['kind'], string>> = {
+  accept: 'сделка',
+  counter: 'встречное',
+  hold: 'держит позицию',
+  warn_tone: 'замечание за тон',
+  respond: 'поговорили',
+}
+
+/** Штамп хода в разборе: что сделал собеседник (или вы — уход по кнопке и конец времени). */
+export function decisionTag(sc: Scenario, d: Decision): string {
+  if (d.kind === 'reveal') return g(sc, 'рассказал о себе', 'рассказала о себе')
+  if (d.kind === 'walk_away') return g(sc, 'ушёл', 'ушла')
+  if (d.kind === 'hold' && d.reason === 'player_left') return 'вы ушли'
+  if (d.kind === 'hold' && d.reason === 'timeout') return 'время вышло'
+  return DECISION_RU[d.kind] ?? d.kind
+}
+
 const used = (h: TurnRecord, id: string) => h.analysis.behaviors.some((b) => b.id === id)
 // вопросы SPIN о последствиях и выгоде — тоже вопросы о том, что важно собеседнику
 const asked = (h: TurnRecord) => used(h, 'ask_interest') || used(h, 'implication') || used(h, 'need_payoff')
@@ -250,17 +269,17 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   }
 
   if (state.lastCall && isComplete(sc, state.lastOpponentOffer)) {
-    const mine = score(P, state.lastOpponentOffer)
+    const mine = score(P, state.lastOpponentOffer) - upsellPenalty(sc, state)
     out.push({
       id: 'last',
       text:
         `Это последнее предложение, дальше торга не будет. Ваша выгода ${mine}, без сделки — ${P.batna}. ` +
-        (mine >= P.batna ? 'Это больше — можно соглашаться.' : 'Это меньше — выгоднее уйти.'),
+        (mine > P.batna ? 'Это больше — можно соглашаться.' : mine === P.batna ? 'Это столько же: сделка ничего не добавит и не отнимет.' : 'Это меньше — выгоднее уйти.'),
     })
   }
 
   if (offered(last) && isComplete(sc, state.playerStance)) {
-    const mine = score(P, state.playerStance)
+    const mine = score(P, state.playerStance) - upsellPenalty(sc, state)
     if (mine < P.batna)
       out.push({
         id: 'below',
