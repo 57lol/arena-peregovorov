@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { Scenario } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { GenerateRequest, generateScenario, libraryRequest, orderProblems, scenarioProblems, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
+import { amount, unspeaker, GenerateRequest, generateScenario, libraryRequest, scenarioProblems, settle, sideOf, sideProblems, storyProblems, toScenario, userPrompt } from './generate'
 import { pickFromLibrary, SCENARIOS } from '../content/scenarios'
 
 const seed = {
@@ -46,9 +46,13 @@ describe('генерация сценария', () => {
   it('варианты выравниваются по «лучше игроку»: последний назван лучшим — переворачиваем, средний — переписать', () => {
     const flipped = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, options: [...i.options].reverse(), bestForPlayer: '700 ₽/м²' } : i)) }
     expect(toScenario(flipped, GenerateRequest.parse({})).issues[0].options[0]).toBe('700 ₽/м²')
-    expect(orderProblems(flipped)).toEqual([])
+    expect(settle(flipped, undefined).problems).toEqual([])
+    // средний вариант назван лучшим игроку — берём противоположный лучшему для собеседника
     const middle = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, bestForPlayer: '800 ₽/м²' } : i)) }
-    expect(orderProblems(middle)).toHaveLength(1)
+    expect(settle(middle, undefined).raw.issues[0].bestForPlayer).toBe('700 ₽/м²')
+    // ни одной стороны не понять — пункт убираем
+    const lost = { ...raw, issues: raw.issues.map((i) => (i.id === 'rate' ? { ...i, bestForPlayer: '800 ₽/м²', bestForOpponent: '750 ₽/м²' } : i)) }
+    expect(settle(lost, undefined).raw.issues.map((i) => i.id)).not.toContain('rate')
   })
 
   it('вариант длиннее пяти слов — замечание, цифры словами не считаются', () => {
@@ -198,7 +202,7 @@ describe('согласованность предпочтений: склад и
         return { ...i, role: roles[id], bestForPlayer: i.options[wanted[id][0]], bestForOpponent: i.options[wanted[id][1]] }
       }),
     }
-    expect(orderProblems(corrected)).toEqual([])
+    expect(settle(corrected, undefined).problems).toEqual([])
     const result = checkScenario(toScenario(corrected, GenerateRequest.parse(qa.request)))
     expect(result.problems).toEqual([])
     for (const issue of result.scenario.issues) {
@@ -239,23 +243,128 @@ describe('согласованность предпочтений: склад и
     expect(checkScenario(broken).problems.join(' ')).toMatch(/должен давать максимум.*неизвестный желаемый вариант/)
   })
 
-  it('проверяет обе декларации, повторяет один раз и не возвращает противоречивый кейс', async () => {
+  it('один лучший вариант у денежного пункта движок разводит сам, без повтора', async () => {
     const bad = { ...raw, issues: raw.issues.map((i) => i.id === 'rate' ? { ...i, bestForOpponent: i.bestForPlayer } : i) }
-    expect(orderProblems(bad).join(' ')).toContain('противоположными')
     const json = vi.fn(async () => bad)
     const result = await generateScenario({ name: 'yandex', model: 'qa-preferences', json }, GenerateRequest.parse(qa.request), SCENARIOS)
-    expect(json).toHaveBeenCalledTimes(2)
-    expect(json.mock.calls[1]).toBeDefined()
+    expect(json).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe('llm')
+    expect(result.scenario.issues.find((i) => i.id === 'rate')!.preferences).toEqual({ player: 0, opponent: 4 })
+  })
+
+  it('нет общего пункта — повтор с подсказкой, после трёх неудач — папка, а не тупик', async () => {
+    const noShared = { ...raw, issues: raw.issues.map((i) => i.role === 'shared' ? { ...i, role: 'theirs' as const, bestForOpponent: i.options[i.options.length - 1] } : i) }
+    const json = vi.fn(async (_req: { user: string }) => noShared)
+    const result = await generateScenario({ name: 'yandex', model: 'qa-no-shared', json }, GenerateRequest.parse(qa.request), SCENARIOS)
+    expect(json).toHaveBeenCalledTimes(3)
+    expect(json.mock.calls[1][0].user).toContain('shared')
     expect(result.source).toBe('library')
+    expect(result.problems.join(' ')).toMatch(/общего пункта/)
   })
 
   it('после замечаний принимает исправленный вариант и сохраняет предпочтения', async () => {
-    const bad = { ...raw, issues: raw.issues.map((i) => i.id === 'rate' ? { ...i, bestForOpponent: i.bestForPlayer } : i) }
+    const bad = { ...raw, issues: raw.issues.filter((i) => i.role !== 'shared') }
     const json = vi.fn().mockResolvedValueOnce(bad).mockResolvedValue(raw)
     const result = await generateScenario({ name: 'yandex', model: 'qa-preferences-fixed', json }, GenerateRequest.parse({}), SCENARIOS)
     expect(result.source).toBe('llm')
     expect(result.attempts).toBe(2)
     expect(result.scenario.issues[0].preferences).toEqual({ player: 0, opponent: 4 })
-    expect(json.mock.calls[1][0].user).toContain('противоположными')
+    expect(json.mock.calls[1][0].user).toContain('общего пункта')
+  })
+
+})
+
+describe('стороны сделки в своём деле (прод 18.10: «подшипники» не собрались ни разу)', () => {
+  // ответ YandexGPT 5.1 на форму с питча, попытка 1: стороны верные, но «1 год → 3 месяца» считался перевёрнутым
+  const bearings = {
+    ...raw,
+    title: 'Подшипники для нового цеха', playerRole: 'менеджер по закупкам завода', opponentRole: 'менеджер поставщика',
+    issues: [
+      { id: 'price', title: 'Цена за партию подшипников', role: 'split' as const, options: ['350 тыс. ₽', '375 тыс. ₽', '400 тыс. ₽'], bestForPlayer: '350 тыс. ₽', bestForOpponent: '400 тыс. ₽' },
+      { id: 'advance', title: 'Предоплата', role: 'split' as const, options: ['без предоплаты', '10% предоплата', '50% предоплата'], bestForPlayer: 'без предоплаты', bestForOpponent: '50% предоплата' },
+      { id: 'warranty', title: 'Гарантия на подшипники', role: 'mine' as const, options: ['1 год', '6 месяцев', '3 месяца'], bestForPlayer: '1 год', bestForOpponent: '3 месяца' },
+      { id: 'freq', title: 'Частота поставок', role: 'theirs' as const, options: ['раз в три месяца', 'раз в месяц', 'каждую неделю'], bestForPlayer: 'раз в три месяца', bestForOpponent: 'каждую неделю' },
+      // «общий» пункт, где модель сама назвала разные лучшие варианты
+      { id: 'quality', title: 'Проверка качества', role: 'shared' as const, options: ['совместная проверка', 'проверяет поставщик', 'проверяем мы'], bestForPlayer: 'совместная проверка', bestForOpponent: 'проверяет поставщик' },
+    ],
+    shared: { id: 'specs', title: 'Технические требования', options: ['пишем вместе', 'пишет поставщик', 'пишем сами'], best: 'пишем вместе', interest: 'если требования писать вместе, у меня не будет возвратов' },
+    interests: [{ issue: 'advance', text: 'мне нужны деньги сразу — плачу за кредит' }, { issue: 'freq', text: 'частые отгрузки разгружают мой склад' }],
+  }
+  const req = GenerateRequest.parse({ sphere: 'Закупки', theme: 'Поставка подшипников для нового цеха', playerRole: 'менеджер по закупкам завода в Алабуге', opponentRole: 'менеджер поставщика из Набережных Челнов', opponentTone: 'cold' })
+
+  it('сроки и суммы сравниваются с единицами: год больше трёх месяцев, миллион больше 900 тысяч', () => {
+    expect(amount('1 год')).toBeGreaterThan(amount('3 месяца'))
+    expect(amount('полгода')).toBeGreaterThan(amount('3 месяца'))
+    expect(amount('1,2 млн ₽')).toBeGreaterThan(amount('900 тыс. ₽'))
+    expect(amount('через год')).toBeGreaterThan(amount('2 недели'))
+    expect(amount('без предоплаты')).toBe(0)
+  })
+
+  it('верные стороны больше не считаются перепутанными, дело собирается с первой попытки', async () => {
+    expect(sideOf(req)).toBe('payer')
+    expect(sideProblems(bearings, 'payer')).toEqual([])
+    const json = vi.fn(async () => bearings)
+    const r = await generateScenario({ name: 'yandex', model: 'bearings', json }, req, SCENARIOS)
+    expect(json).toHaveBeenCalledTimes(1)
+    expect(r.source).toBe('llm')
+    const sc = r.scenario
+    const best = (side: 'player' | 'opponent', id: string) => {
+      const p = sc[side].profile.points[id]
+      return sc.issues.find((i) => i.id === id)!.options[p.indexOf(Math.max(...p))]
+    }
+    // закупщику — низкая цена, без предоплаты, длинная гарантия; поставщику — наоборот
+    expect([best('player', 'price'), best('opponent', 'price')]).toEqual(['350 тыс. ₽', '400 тыс. ₽'])
+    expect([best('player', 'advance'), best('opponent', 'advance')]).toEqual(['без предоплаты', '50% предоплата'])
+    expect([best('player', 'warranty'), best('opponent', 'warranty')]).toEqual(['1 год', '3 месяца'])
+    // общий пункт — из поля shared, а «общий» со спорными целями стал обычным спорным
+    expect(sc.issues.find((i) => i.id === 'specs')!.kind).toBe('compatible')
+    expect(sc.issues.find((i) => i.id === 'quality')!.kind).not.toBe('compatible')
+    expect(sc.opponent.profile.interests.some((i) => i.issue === 'specs')).toBe(true)
+    expect(scenarioProblems(sc).problems).toEqual([])
+  })
+
+  it('перепутанные стороны у денег движок переворачивает сам (закупщику «выгодна» 100% предоплата)', () => {
+    const swapped = { ...bearings, issues: bearings.issues.map((i) => i.id === 'advance' ? { ...i, bestForPlayer: '50% предоплата', bestForOpponent: 'без предоплаты' } : i) }
+    expect(sideProblems(swapped, 'payer')[0]).toMatch(/перепутаны стороны/)
+    const s = settle(swapped, 'payer')
+    expect(s.problems).toEqual([])
+    expect(s.raw.issues.find((i) => i.id === 'advance')!.bestForPlayer).toBe('без предоплаты')
+    expect(s.fixes.join(' ')).toMatch(/перепутаны стороны/)
+    expect(scenarioProblems(toScenario(s.raw, req)).problems).toEqual([])
+  })
+
+  it('роли раздаёт движок: без «важного мне» один из лишних делимых становится им', () => {
+    const noMine = { ...bearings, issues: bearings.issues.map((i) => i.id === 'warranty' ? { ...i, role: 'split' as const } : i) }
+    const s = settle(noMine, 'payer')
+    const roles = s.raw.issues.map((i) => i.role)
+    expect(roles).toContain('mine')
+    expect(roles).toContain('theirs')
+    expect(s.raw.issues.find((i) => i.id === 'price')!.role).toBe('split')
+    expect(scenarioProblems(toScenario(s.raw, req)).problems).toEqual([])
+  })
+
+  it('одинаковый лучший вариант у спорного пункта: верим стороне со скрытым интересом', () => {
+    const rent = { ...bearings, issues: bearings.issues.map((i) => i.id === 'freq' ? { ...i, bestForPlayer: 'каждую неделю', bestForOpponent: 'каждую неделю' } : i) }
+    const s = settle(rent, 'payer')
+    const f = s.raw.issues.find((i) => i.id === 'freq')!
+    expect([f.bestForPlayer, f.bestForOpponent]).toEqual(['раз в три месяца', 'каждую неделю'])
+  })
+
+  it('реплика без имени говорящего, как в пьесе', () => {
+    expect(unspeaker('Юрий: здравствуйте! Скидка 25%.', 'Юрий Смирнов')).toBe('здравствуйте! Скидка 25%.')
+    expect(unspeaker('Юрий Смирнов: добрый день.', 'Юрий Смирнов')).toBe('добрый день.')
+    expect(unspeaker('Условия такие: цена 400.', 'Юрий Смирнов')).toBe('Условия такие: цена 400.')
+  })
+
+  it('сторона по собеседнику, если своя роль ничего не говорит', () => {
+    expect(sideOf({ sphere: 'Аренда', playerRole: 'владелец небольшого магазина', opponentRole: 'владелец склада' })).toBe('payer')
+    expect(sideOf({ sphere: 'Найм', playerRole: 'аналитик данных', opponentRole: 'HR-директор банка' })).toBe('payee')
+    expect(sideOf({ sphere: 'Закупки', playerRole: 'контрактный управляющий' })).toBe('payer')
+  })
+
+  it('запасное дело — с той же стороной: арендатору не «Удержать клиента», закупщику — «Тара»', () => {
+    const renter = GenerateRequest.parse({ sphere: 'Аренда', playerRole: 'владелец небольшого магазина', opponentRole: 'владелец склада' })
+    expect(pickFromLibrary(libraryRequest(renter), SCENARIOS).id).toBe('tara')
+    expect(pickFromLibrary(libraryRequest(req), SCENARIOS).id).toBe('tara')
   })
 })

@@ -12,7 +12,11 @@ export interface LibraryRequest {
 /** Ближайший по сфере и сложности сценарий из библиотеки, с нужным характером оппонента. */
 export function pickFromLibrary(req: LibraryRequest, library: Scenario[]): Scenario {
   const sphere = req.sphere.toLowerCase()
-  const near = (s: Scenario) => (s.sphere.toLowerCase().includes(sphere) || sphere.includes(s.sphere.toLowerCase()) ? 0 : 1)
+  // сначала точная сфера («Закупки» — «Тара», а не «Закупки · Китай»), потом похожая
+  const near = (s: Scenario) => {
+    const x = s.sphere.toLowerCase()
+    return x === sphere ? 0 : x.includes(sphere) || sphere.includes(x) ? 1 : 2
+  }
   const ranked = [...library].sort(
     (a, b) => near(a) - near(b) || Math.abs(a.difficulty - req.difficulty) - Math.abs(b.difficulty - req.difficulty) || a.id.localeCompare(b.id),
   )
