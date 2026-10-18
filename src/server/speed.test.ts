@@ -57,6 +57,8 @@ describe('реплика потоком', () => {
     expect(partialReply('{"line":"Ха.","emotion":"happy"}')).toMatchObject({ header: null, line: 'Ха.', closed: true })
     // поля не по порядку: заголовка нет, раньше времени не говорим
     expect(partialReply('{"emotion":"happy","line":"Ха').header).toBeNull()
+    // без строгой схемы ответ изредка в ```json — заголовок всё равно разбираем
+    expect(partialReply('```json\n{"agrees": false, "terms": [], "reveals": [], "line": "Ну').header).toEqual({ agrees: false, terms: [], reveals: [] })
   })
 
   it('начало реплики уходит в голос до конца ответа, реплика начинается с него', async () => {
@@ -167,6 +169,85 @@ describe('ход потоком и спекуляция', () => {
     expect(j.sources.ms.spec).toBeUndefined()
     expect(j.sources.ms.analyze).toBeGreaterThanOrEqual(30)
     vi.unstubAllEnvs()
+  })
+})
+
+describe('быстрая разметка и заготовка хода', () => {
+  const lines = async (r: Response) => (await r.text()).trim().split('\n').map((l) => JSON.parse(l) as Record<string, any>)
+  const body = (playerText: string, extra: object = {}) => JSON.stringify({ scenarioId: 'tara', history: [], playerText, stream: true, ...extra })
+  const turn = (app: ReturnType<typeof createApp>, playerText: string) =>
+    app.request('/api/turn', { method: 'POST', headers: { 'content-type': 'application/json' }, body: body(playerText) })
+  const prepare = (app: ReturnType<typeof createApp>, playerText: string) =>
+    app.request('/api/prepare', { method: 'POST', headers: { 'content-type': 'application/json' }, body: body(playerText) })
+  const model = (name: string, answer: object, ms: number) => {
+    const m: LLM & { calls: number } = { name: 'aitunnel', model: name, calls: 0, json: async () => (m.calls++, await tick(ms), answer) }
+    return m
+  }
+  const empty = { behaviors: [], offer: [], accepts: false, walksAway: false, asksAbout: [], toneViolation: false, talk: [] }
+  /** Sonnet (медленный) с запасным Pro (быстрый) — как на проде */
+  const llmWith = (sonnet: LLM, pro: LLM, speaker: LLM): LLM => ({ name: 'yandex', model: 'pro', json: pro.json, analyzer: { ...sonnet, backup: pro }, voice: speaker })
+
+  it('Pro и правила сошлись — начало звучит до ответа Sonnet, ход записан по Sonnet', async () => {
+    const speaker = streaming([reply(`Двести двенадцать — цена честная ${uniq()}. Я своё слово сказал.`)])
+    const sonnet = model('sonnet', empty, 150)
+    const app = createApp(llmWith(sonnet, model('pro', empty, 10), speaker))
+    const ev = await lines(await turn(app, `Ну и погодка сегодня ${uniq()}`))
+    const done = ev[ev.length - 1]
+    expect(ev.map((e) => e.t)).toEqual(['line', 'done'])
+    expect(done.sources.ms.first).toBeLessThan(done.sources.ms.main)
+    expect(done.sources.ms.spec).toBe('hit')
+    expect(done.sources.ms.record).toBeUndefined()
+    expect(sonnet.calls).toBe(1)
+    expect(speaker.calls).toBe(1)
+  })
+
+  it('Pro не сошёлся с правилами — реплика по Pro пишется сразу, а звучит, только когда подтвердит Sonnet', async () => {
+    const seen: { aborted: boolean }[] = []
+    const speaker = streaming([reply(`Это первая, её не должно быть ${uniq()}. ${'Долго. '.repeat(30)}`), reply(`По делу ${uniq()}: давайте так, я подумаю. Пока всё как лежит.`)], seen)
+    const rude = { ...empty, toneViolation: true }
+    const app = createApp(llmWith(model('sonnet', rude, 120), model('pro', rude, 10), speaker))
+    const ev = await lines(await turn(app, `Слушайте ${uniq()}, ну вы поняли`))
+    const done = ev[ev.length - 1]
+    expect(seen[0].aborted).toBe(true)
+    expect(done.sources.ms.spec).toBe('miss')
+    expect(done.sources.ms.quick).toBeLessThan(done.sources.ms.main)
+    expect(done.sources.ms.first).toBeGreaterThanOrEqual(done.sources.ms.main)
+    expect(ev.filter((e) => e.t === 'line').map((e) => e.text).join()).not.toMatch(/первая/)
+  })
+
+  it('Sonnet пришёл после начала звука с другой рамкой — ход записан по Pro, реплика ему не противоречит', async () => {
+    const speaker = streaming([reply(`Двести двенадцать — цена честная ${uniq()}. Я своё слово сказал.`)])
+    const app = createApp(llmWith(model('sonnet', { ...empty, toneViolation: true }, 150), model('pro', empty, 10), speaker))
+    const ev = await lines(await turn(app, `Ну и погодка сегодня ${uniq()}`))
+    const done = ev[ev.length - 1]
+    expect(done.sources.ms.record).toBe('quick')
+    expect(done.analysis.toneViolation).toBeFalsy()
+    expect(done.record.analysis).toEqual(done.analysis)
+  })
+
+  it('заготовка: ход с тем же текстом подхватывает начатое — реплику второй раз не пишем', async () => {
+    const speaker = streaming([reply(`Двести двенадцать — цена честная ${uniq()}. Я своё слово сказал.`)])
+    const app = createApp(llmWith(model('sonnet', empty, 60), model('pro', empty, 10), speaker))
+    const text = `Ну и погодка сегодня ${uniq()}`
+    expect((await prepare(app, text)).status).toBe(202)
+    await tick(40)
+    const ev = await lines(await turn(app, text))
+    const done = ev[ev.length - 1]
+    expect(ev.map((e) => e.t)).toEqual(['line', 'done'])
+    expect(done.sources.ms.prepared).toBeGreaterThanOrEqual(30)
+    expect(speaker.calls).toBe(1)
+  })
+
+  it('игрок продолжил фразу — старая заготовка остановлена, ход пишется по новой', async () => {
+    const seen: { aborted: boolean }[] = []
+    const speaker = streaming([reply(`Старая ${uniq()}. ${'Долго. '.repeat(40)}`), reply(`Новая ${uniq()}, вот это разговор. Давайте дальше.`)], seen)
+    const app = createApp(llmWith(model('sonnet', empty, 30), model('pro', empty, 5), speaker))
+    const text = `Ну и погодка сегодня ${uniq()}`
+    await prepare(app, text)
+    await tick(15)
+    const ev = await lines(await turn(app, `${text}, а у вас как`))
+    expect(seen[0].aborted).toBe(true)
+    expect(ev[ev.length - 1].opponentLine).toMatch(/^Новая/)
   })
 })
 

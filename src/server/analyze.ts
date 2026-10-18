@@ -9,7 +9,7 @@ import { groundAnalysis } from '../engine/offerEvidence'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TalkAct, type TurnRecord } from '../engine/types'
 import { formatOffer } from '../engine/utility'
 import { buttonLines, isEn } from '../engine/lang'
-import { cached } from './cache'
+import { peek, put } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
@@ -182,21 +182,38 @@ export interface AnalyzeResult {
   analysis: MoveAnalysis
   source: 'llm' | 'cache' | 'offline'
   error?: string
+  /** ответ модели после проверки, до правил-страховки (guardBehaviors, groundAnalysis): он и ложится в кэш */
+  value?: MoveAnalysis
 }
 
-export async function analyzeMove(
+/**
+ * Разбор хода, который можно ждать по частям. ready — готов сразу (кэш, служебная строка, офлайн). Иначе main — основной
+ * разметчик (Claude; не ответил за ANALYZE_TIMEOUT_MS или не по схеме — запасной, потом правила), quick — быстрый
+ * (YandexGPT Pro, ~0,8 с против ~2,2 с у Sonnet с прода): по нему реплику можно начать раньше. keep — разбор, по которому
+ * сыгран ход, кладётся в кэш под ключом основного: тот же ход — тот же разбор, кто бы его ни размечал.
+ */
+export interface AnalyzeRun {
+  ready?: AnalyzeResult
+  main?: Promise<AnalyzeResult>
+  quick?: Promise<AnalyzeResult | undefined>
+  keep: (r: AnalyzeResult) => Promise<void>
+}
+
+export async function startAnalysis(
   llm: LLM,
   sc: Scenario,
   dict: BehaviorDict,
   history: TurnRecord[],
   text: string,
   lastOpponentOffer?: Offer,
-): Promise<AnalyzeResult> {
+  quick?: LLM,
+): Promise<AnalyzeRun> {
+  const keepNothing = async () => {}
   const offline = () => groundedOffline(sc, text, dict)
-  if (llm.name === 'offline') return { analysis: offline(), source: 'offline' }
+  if (llm.name === 'offline') return { ready: { analysis: offline(), source: 'offline' }, keep: keepNothing }
   // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
   // один и тот же разбор, без капризов модели.
-  if (isNotebookLine(sc, text)) return { analysis: offline(), source: 'offline' }
+  if (isNotebookLine(sc, text)) return { ready: { analysis: offline(), source: 'offline' }, keep: keepNothing }
   const key = {
     v: PROMPT_VERSION,
     llm: `${llm.name}:${llm.model}`,
@@ -206,6 +223,9 @@ export async function analyzeMove(
     text,
     lastOpponentOffer,
   }
+  const post = (value: MoveAnalysis) => groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) })
+  const hit = await peek<MoveAnalysis>('analyze', key)
+  if (hit) return { ready: { analysis: post(hit), source: 'cache' }, keep: keepNothing }
   const ask = async (m: LLM, timeoutMs: number) =>
     validate(sc, dict, text, await m.json({
       system: systemPrompt(sc, dict),
@@ -215,21 +235,41 @@ export async function analyzeMove(
       timeoutMs,
       schema: schemaFor(sc, dict),
     }))
-  try {
-    // Ответ запасного ложится в кэш под ключом основного: тот же ход — тот же разбор, кто бы его ни размечал.
-    const { value, hit } = await cached('analyze', key, async () => {
-      const backup = llm.backup
-      if (!backup) return ask(llm, WAIT.analyze())
-      const t0 = Date.now()
-      try {
-        return await ask(llm, WAIT.analyzeFirst())
-      } catch (e) {
-        console.warn(`[разметка] ${llm.model}: ${(e as Error).message.slice(0, 120)} — размечает ${backup.model.split('/').pop()}`)
-        return ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500))
-      }
-    })
-    return { analysis: groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }), source: hit ? 'cache' : 'llm' }
-  } catch (e) {
-    return { analysis: offline(), source: 'offline', error: (e as Error).message }
+  const done = (value: MoveAnalysis): AnalyzeResult => ({ analysis: post(value), source: 'llm', value })
+  // быстрый — тот же запасной (Pro): если основной не ответил, второй раз его не зовём
+  const fast = quick && quick.model !== llm.model ? ask(quick, WAIT.analyze()) : undefined
+  void fast?.catch(() => undefined)
+  const t0 = Date.now()
+  const main = (async () => {
+    const backup = llm.backup
+    if (!backup) return done(await ask(llm, WAIT.analyze()))
+    try {
+      return done(await ask(llm, fast ? WAIT.analyzeRace() : WAIT.analyzeFirst()))
+    } catch (e) {
+      console.warn(`[разметка] ${llm.model}: ${(e as Error).message.slice(0, 120)} — размечает ${backup.model.split('/').pop()}`)
+      if (fast && backup.model === quick!.model) return done(await fast)
+      return done(await ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500)))
+    }
+  })().catch((e: Error): AnalyzeResult => ({ analysis: offline(), source: 'offline', error: e.message }))
+  return {
+    main,
+    ...(fast ? { quick: fast.then(done, () => undefined) } : {}),
+    keep: async (r) => (r.value ? put('analyze', key, r.value) : undefined),
   }
+}
+
+/** Разбор целиком: основной разметчик (с запасным), ответ — в кэш. */
+export async function analyzeMove(
+  llm: LLM,
+  sc: Scenario,
+  dict: BehaviorDict,
+  history: TurnRecord[],
+  text: string,
+  lastOpponentOffer?: Offer,
+): Promise<AnalyzeResult> {
+  const run = await startAnalysis(llm, sc, dict, history, text, lastOpponentOffer)
+  if (run.ready) return run.ready
+  const { value, ...r } = await run.main!
+  await run.keep({ ...r, value })
+  return r
 }

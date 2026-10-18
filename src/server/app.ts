@@ -6,11 +6,11 @@ import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { buildReport } from '../engine/report'
-import { initialState, step } from '../engine/turn'
+import { initialState, step, type StepResult } from '../engine/turn'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
 import { groundedOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
-import { analyzeMove } from './analyze'
+import { startAnalysis, type AnalyzeResult, type AnalyzeRun } from './analyze'
 import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
@@ -25,7 +25,7 @@ import { ttsStatus } from './tts'
 import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
-import { completeLine, frameKey, voice, voicePrompt } from './voice'
+import { completeLine, frameKey, voice, voicePrompt, type VoiceResult } from './voice'
 import { stripTags } from './tags'
 import { votesApp } from './votes'
 import { roomsApi } from './rooms'
@@ -181,6 +181,31 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
   return out
 }
 
+interface JobFirst {
+  /** начало реплики с пометками для голоса */
+  text: string
+  /** то же для экрана */
+  screen: string
+  record: TurnRecord
+  source: string
+}
+interface Job {
+  who: string
+  t0: number
+  ms: Record<string, number | string>
+  /** начало реплики подтверждено разбором — можно озвучивать; undefined — отдельного начала не будет */
+  first: Promise<JobFirst | undefined>
+  /** рамка реплики известна (разбор готов) */
+  analyzed: Promise<void>
+  done: Promise<{ said: VoiceResult; analysis: MoveAnalysis; r: StepResult; a: AnalyzeResult }>
+  /** к заготовке пришёл настоящий ход */
+  attached: boolean
+  /** реплика и разбор готовы */
+  over: () => boolean
+  stopped: () => boolean
+  stop: () => void
+}
+
 export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS, votesRoot = './public') {
   const app = new Hono()
   const count = clientLimiter()
@@ -277,29 +302,52 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   /** Ходов в минуту на сессию: человек больше не успеет, а бот за минуту сожжёт бюджет (без модели ход бесплатный). */
   const tooFast = (c: Context) => llm.name !== 'offline' && !count.take('turn', quotaOf(c), limitOf('TURN_SESSION_MINUTE_LIMIT', 20), MINUTE)
 
-  app.post('/api/turn', BODY, async (c) => {
-    const body = TurnBody.parse(await c.req.json())
-    if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
+  /**
+   * Ход, который уже готовится. /api/prepare начинает его по тексту раннего commit Scribe, пока у игрока идёт пауза
+   * конца реплики (0,5–1 с); /api/turn того же хода подхватывает начатое — разбор, реплику, её начало. Голос, счёт
+   * партий и журнал — только у настоящего хода. Ключ — сессия и всё, что меняет ход; другой ход той же сессии
+   * останавливает заготовку (игрок продолжил фразу — старую реплику дописывать незачем).
+   */
+  const jobs = new Map<string, Job>()
+
+  async function turnInput(c: Context, body: z.infer<typeof TurnBody>) {
     const { llm, lab } = labLLM(c.req.header('x-lab-llm'), c)
     const sc = await resolveScenario({ ...body, scenario: body.scenario as Scenario | undefined })
     const history = normalizeHistory(sc, body.history)
     const before = history.length ? history[history.length - 1].stateAfter : initialState(sc)
-    if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
-
-    const t0 = Date.now()
-    const ms: Record<string, number | string> = {}
-    // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
-    let emit: ((ev: object) => void) | undefined
     // естественная речь: общий флаг NATURAL_SPEECH или лаборатория (заголовок x-lab-natural: 1 / 0)
     const nh = process.env.LAB === 'off' ? undefined : c.req.header('x-lab-natural')
     const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
     // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
     const marks = !nh && naturalMode() === 'voices+'
-    // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
-    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
-    const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
-    // голос включён: сервер озвучивает реплику сам, с первой фразы; игра берёт звук по ссылке или тем же /api/tts
-    const sound = body.tts ? speech.live(body.tts, c) : undefined
+    const q = quotaOf(c)
+    const who = `${q.key}|${q.ip}`
+    const key = hashOf({
+      who, sc: body.scenarioId ?? hashOf(sc), history: history.map((h) => [h.playerText, h.opponentLine, h.analysis]), text: body.playerText,
+      reaction: body.reaction, offer: body.offer, accept: body.accept, walkAway: body.walkAway, natural, marks, lab, voiceLlm: body.voiceLlm ?? c.req.header('x-voice-llm'),
+    })
+    return { llm, lab, sc, history, before, natural, marks, who, key }
+  }
+  type TurnInput = Awaited<ReturnType<typeof turnInput>>
+
+  function stopOthers(who: string, key: string) {
+    for (const [k, j] of jobs) {
+      if (j.who !== who || k === key || j.attached) continue
+      j.stop()
+      jobs.delete(k)
+    }
+  }
+
+  /** Разбор → решение → реплика. Начало реплики (first) — как только его подтвердил разбор. */
+  function startJob(t: TurnInput, body: z.infer<typeof TurnBody>, speaker: LLM): Job {
+    const { llm, lab, sc, history, before, natural, marks } = t
+    const t0 = Date.now()
+    const ms: Record<string, number | string> = {}
+    let stopped = false
+    let gotFirst!: (f: JobFirst | undefined) => void
+    const first = new Promise<JobFirst | undefined>((r) => (gotFirst = r))
+    let analyzed!: () => void
+    const analysisSeen = new Promise<void>((r) => (analyzed = r))
 
     /** Разбор → решение движка. Уход по кнопке — служебная реплика: разбор как есть, без контекста. */
     const decide = (found: MoveAnalysis) => {
@@ -307,26 +355,26 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       if (body.accept) analysis = { ...analysis, accepts: true }
       return { analysis, r: step(sc, before, analysis, dict, history.map((h) => h.analysis)) }
     }
+    const keyOf = (r: ReturnType<typeof step>) => frameKey(sc, history, body.playerText, r.decision, r.state)
     /** Реплика по решению. Её начало уходит в голос и в поток, только когда решение подтверждено (open). */
-    const speak = (r: ReturnType<typeof step>) => {
+    const speak = (r: ReturnType<typeof step>, basis: string) => {
       const ac = new AbortController()
       const at = Date.now() - t0
-      let first: string | undefined
+      let piece: string | undefined
       let confirmed: { analysis: MoveAnalysis; source: string } | undefined
       let sent = false
       const release = () => {
-        if (sent || !confirmed || first === undefined) return
+        if (sent || stopped || !confirmed || piece === undefined) return
         sent = true
         ms.first = Date.now() - t0
-        sound?.first(first)
-        const safe = completeLine(sc, voicePrompt(sc, history, body.playerText, r.decision, r.state).frame, first)
+        const rr = decide(confirmed.analysis).r
+        const safe = completeLine(sc, voicePrompt(sc, history, body.playerText, rr.decision, rr.state).frame, piece)
         const record: TurnRecord = {
-          turn: r.state.turn, playerText: body.playerText, analysis: confirmed.analysis,
-          deltas: r.deltas, decision: r.decision, stateAfter: r.state,
+          turn: rr.state.turn, playerText: body.playerText, analysis: decide(confirmed.analysis).analysis,
+          deltas: rr.deltas, decision: rr.decision, stateAfter: rr.state,
           opponentLine: stripTags(unstress(safe)), emotion: 'neutral',
         }
-        emit?.({ t: 'line', text: stripTags(unstress(first)), record,
-          sources: { analysis: confirmed.source, voice: 'partial' }, ...(sound ? { audio: sound.url } : {}) })
+        gotFirst({ text: piece, screen: stripTags(unstress(piece)), record, source: confirmed.source })
       }
       const said = voice(speaker, sc, history, body.playerText, r.decision, r.state, {
         natural,
@@ -334,41 +382,139 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         reaction: body.reaction,
         fallback: llm,
         signal: ac.signal,
-        onFirst: (piece) => {
-          first = piece
+        onFirst: (p) => {
+          piece = p
           release()
         },
       })
-      return { at, said, ac, key: frameKey(sc, history, body.playerText, r.decision, r.state), open: (analysis: MoveAnalysis, source: string) => ((confirmed = { analysis, source }), release()) }
+      return { at, said, ac, basis, key: keyOf(r), get sent() { return sent }, open: (analysis: MoveAnalysis, source: string) => ((confirmed = { analysis, source }), release()) }
     }
+    let cur: ReturnType<typeof speak> | undefined
+
+    const run = async () => {
+      // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
+      // Спекуляция — только у модели с потоком: промах обрывается сразу и почти ничего не стоит.
+      const spec = !body.walkAway && !lab && process.env.SPECULATE !== 'off' && !!speaker.stream
+      const analyzer = lab ? llm : (isEn(sc) && llm.analyzerEn) || llm.analyzer || llm
+      // быстрый разметчик — запасной Claude (YandexGPT Pro): рамку реплики знаем через ~0,8 с, а не через ~2,2 с
+      const quick = spec && process.env.ANALYZE_QUICK !== 'off' ? analyzer.backup : undefined
+      const ar: AnalyzeRun = body.walkAway
+        ? { ready: { analysis: walkAwayMove(), source: 'offline' }, keep: async () => {} }
+        : await startAnalysis(analyzer, sc, dict, history, body.playerText, before.lastOpponentOffer, quick)
+      let final: AnalyzeResult | undefined = ar.ready && { ...ar.ready, ...(body.walkAway ? { source: 'button' as never } : {}) }
+      const frame = (a: AnalyzeResult, basis: string) => {
+        if (stopped) throw new Error('Ход больше не нужен')
+        const d = decide(a.analysis)
+        if (cur?.key !== keyOf(d.r)) {
+          cur?.ac.abort()
+          cur = speak(d.r, basis)
+        }
+        return cur
+      }
+      if (!final) {
+        // Спекуляция: пока модели размечают ход, реплику уже пишет модель — по разбору правил. Рамка та же, что по
+        // настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — по модели.
+        const rulesKey = spec ? frame({ analysis: groundedOffline(sc, body.playerText, dict), source: 'offline' }, 'rules').key : undefined
+        let quickA: AnalyzeResult | undefined
+        void ar.quick?.then((q) => {
+          if (!q || final || stopped || cur?.sent) return
+          quickA = q
+          ms.quick = Date.now() - t0
+          // Pro и правила сошлись — рамка надёжна (по записанным партиям тогда сходится и с Sonnet): начало можно
+          // озвучить, не дожидаясь Sonnet. Не сошлись — реплика по Pro, а звучит она, когда подтвердит Sonnet.
+          if (frame(q, 'quick').key === rulesKey) cur!.open(q.analysis, q.source)
+        }).catch(() => {})
+        let main = await ar.main!
+        ms.main = Date.now() - t0
+        if (stopped) throw new Error('Ход больше не нужен')
+        if (main.source === 'offline' && quickA) main = quickA
+        if (cur?.sent && quickA) final = keyOf(decide(main.analysis).r) === cur.key ? main : quickA
+        else {
+          final = main
+          if (cur || spec) frame(main, 'main').open(main.analysis, main.source)
+        }
+        if (final === quickA && main !== quickA) ms.record = 'quick'
+        if (spec) ms.spec = cur!.basis === 'rules' ? 'hit' : 'miss'
+      }
+      ms.analyze = Date.now() - t0
+      analyzed()
+      if (!cur) frame(final, 'main').open(final.analysis, final.source)
+      await ar.keep(final)
+      const said = await cur!.said
+      gotFirst(undefined)
+      const { analysis, r } = decide(final.analysis)
+      for (const [k, x] of Object.entries(said.ms ?? {})) if (x !== undefined && k !== 'first') ms[k] = cur!.at + x
+      return { said, analysis, r, a: final }
+    }
+    const done = run()
+    let over = false
+    done.then(() => (over = true), () => gotFirst(undefined))
+    const job: Job = {
+      over: () => over,
+      who: t.who,
+      t0,
+      ms,
+      first,
+      analyzed: analysisSeen,
+      done,
+      attached: false,
+      stopped: () => stopped,
+      stop: () => {
+        stopped = true
+        cur?.ac.abort()
+      },
+    }
+    void done.finally(() => setTimeout(() => jobs.get(t.key) === job && jobs.delete(t.key), 60_000).unref?.()).catch(() => {})
+    jobs.set(t.key, job)
+    return job
+  }
+
+  // Ход заранее: голосовой клиент шлёт текст раннего commit Scribe, пока у игрока идёт пауза конца реплики.
+  // Без голоса и звука: только разбор и реплика. Лаборатория и чужая модель реплики — без заготовок.
+  app.post('/api/prepare', BODY, async (c) => {
+    const body = TurnBody.parse(await c.req.json())
+    if (llm.name === 'offline' || body.voiceLlm || c.req.header('x-lab-llm') || c.req.header('x-voice-llm') || process.env.PREPARE === 'off') return c.json({ ok: false })
+    if (!count.take('prep', quotaOf(c), limitOf('PREPARE_SESSION_MINUTE_LIMIT', 20), MINUTE)) return c.json({ ok: false }, 429)
+    const t = await turnInput(c, body)
+    if (t.before.status !== 'open') return c.json({ ok: false }, 409)
+    stopOthers(t.who, t.key)
+    if (!jobs.get(t.key) || jobs.get(t.key)!.stopped()) startJob(t, body, llm.voice ?? llm)
+    return c.json({ ok: true }, 202)
+  })
+
+  app.post('/api/turn', BODY, async (c) => {
+    const body = TurnBody.parse(await c.req.json())
+    if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
+    const t = await turnInput(c, body)
+    const { lab, sc, history, before } = t
+    if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
+
+    const t0 = Date.now()
+    // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
+    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
+    const speaker = lab ? t.llm : asked.llm ?? t.llm.voice ?? t.llm
+    stopOthers(t.who, t.key)
+    const ready = jobs.get(t.key)
+    const job = ready && !ready.stopped() && !ready.attached ? ready : startJob(t, body, speaker)
+    job.attached = true
+    // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
+    let emit: ((ev: object) => void) | undefined
+    // голос включён: сервер озвучивает реплику сам, с первой фразы; игра берёт звук по ссылке или тем же /api/tts
+    const sound = body.tts ? speech.live(body.tts, c) : undefined
 
     const turn = async () => {
-      // Уход по кнопке — служебная реплика, а не приём: не размечаем, иначе «Я ухожу» станет ультиматумом в разборе.
-      const analyzing: Promise<{ analysis: MoveAnalysis; source: string; error?: string }> = body.walkAway
-        ? Promise.resolve({ analysis: walkAwayMove(), source: 'button' })
-        : analyzeMove(lab ? llm : ((isEn(sc) && llm.analyzerEn) || llm.analyzer || llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
-      // Спекуляция: пока модель размечает ход (Sonnet ~1,5–2 с), реплику уже пишет модель — по разбору правил. Рамка та же,
-      // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда по модели.
-      let guess: ReturnType<typeof speak> | undefined
-      // только у модели с потоком: промах обрывается сразу и почти ничего не стоит
-      if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.stream) {
-        const quick = await Promise.race([analyzing.then(() => true), new Promise<boolean>((r) => setTimeout(r, 15, false))])
-        if (!quick) guess = speak(decide(groundedOffline(sc, body.playerText, dict)).r)
-      }
-      const a = await analyzing
-      ms.analyze = Date.now() - t0
-      sound?.connect()
-      const { analysis, r } = decide(a.analysis)
-      let run = guess
-      if (guess && guess.key !== frameKey(sc, history, body.playerText, r.decision, r.state)) {
-        guess.ac.abort()
-        run = undefined
-      }
-      if (guess) ms.spec = run ? 'hit' : 'miss'
-      run ??= speak(r)
-      run.open(analysis, a.source)
-      const said = await run.said
-      for (const [k, x] of Object.entries(said.ms ?? {})) if (x !== undefined && k !== 'first') ms[k] = run.at + x
+      void job.analyzed.then(() => sound?.connect())
+      // заготовка успела всю реплику — звук одним куском, без склейки начала и остатка
+      const whole = job.over()
+      let lineSent = false
+      const early = job.first.then((f) => {
+        if (!f) return
+        lineSent = true
+        if (!whole) sound?.first(f.text)
+        emit?.({ t: 'line', text: f.screen, record: f.record, sources: { analysis: f.source, voice: 'partial' }, ...(sound ? { audio: sound.url } : {}) })
+      })
+      const { said, analysis, r, a } = await job.done
+      await early
       // на экран — без пометок для голоса и без «+»; синтезу — с ними (rememberSpoken), ElevenLabs их поймёт
       const v = { ...said, line: stripTags(unstress(said.line)) }
       rememberSpoken(v.line, said.line)
@@ -384,11 +530,15 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         emotion: v.emotion,
         stateAfter: r.state,
       }
-      if (ms.first === undefined) emit?.({ t: 'line', text: v.line, record, sources: { analysis: a.source, voice: v.source }, ...(sound ? { audio: sound.url } : {}) })
+      if (!lineSent) emit?.({ t: 'line', text: v.line, record, sources: { analysis: a.source, voice: v.source }, ...(sound ? { audio: sound.url } : {}) })
       const done = r.state.status !== 'open'
       await budget().addPlay(history.length === 0, done)
       const judge = judgeOf(c)
       console.log(`[игра] судья=${JSON.stringify(judge?.name ?? 'Аноним')} id=${judge?.id ?? '-'} дело=${sc.id} ход=${r.state.turn} завершена=${done}`)
+      // мс от прихода хода; заготовка начата раньше — на prepared мс
+      const lead = t0 - job.t0
+      const ms: Record<string, number | string> = Object.fromEntries(Object.entries(job.ms).map(([k, x]) => [k, typeof x === 'number' ? x - lead : x]))
+      if (lead > 0) ms.prepared = lead
       return {
         analysis,
         deltas: r.deltas,

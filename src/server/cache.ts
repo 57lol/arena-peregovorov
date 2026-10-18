@@ -8,20 +8,32 @@ export const CACHE_DIR = process.env.CACHE_DIR ?? join(process.cwd(), '.cache')
 
 export const hashOf = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex')
 
-export async function cached<T>(kind: string, key: unknown, make: () => Promise<T>): Promise<{ value: T; hit: boolean }> {
-  const file = join(CACHE_DIR, kind, `${hashOf(key)}.json`)
+const fileOf = (kind: string, key: unknown) => join(CACHE_DIR, kind, `${hashOf(key)}.json`)
+
+/** Ответ из кэша или undefined. */
+export async function peek<T>(kind: string, key: unknown): Promise<T | undefined> {
   try {
-    return { value: JSON.parse(await readFile(file, 'utf8')) as T, hit: true }
+    return JSON.parse(await readFile(fileOf(kind, key), 'utf8')) as T
   } catch {
-    // нет в кэше
+    return undefined
   }
-  const value = await make()
-  // оплаченный ответ не теряем из-за записи (квота диска на хостинге): предупреждение в лог, ответ игроку
+}
+
+/** Оплаченный ответ не теряем из-за записи (квота диска на хостинге): предупреждение в лог, ответ игроку. */
+export async function put(kind: string, key: unknown, value: unknown): Promise<void> {
+  const file = fileOf(kind, key)
   try {
     await mkdir(join(CACHE_DIR, kind), { recursive: true })
     await writeFile(file, JSON.stringify(value, null, 1))
   } catch (e) {
     console.warn(`[кэш] не записал ${file}: ${(e as Error).message}`)
   }
+}
+
+export async function cached<T>(kind: string, key: unknown, make: () => Promise<T>): Promise<{ value: T; hit: boolean }> {
+  const hit = await peek<T>(kind, key)
+  if (hit !== undefined) return { value: hit, hit: true }
+  const value = await make()
+  await put(kind, key, value)
   return { value, hit: false }
 }
