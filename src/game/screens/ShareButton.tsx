@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Scenario } from '../../engine/types'
 import { shareLink } from '../share'
 import { Button } from '../ui'
@@ -6,12 +6,16 @@ import { Button } from '../ui'
 /** «Ссылка для команды»: копирует адрес дела; если буфер недоступен — показывает ссылку, чтобы скопировать руками. */
 export function ShareButton({ scenario, fromLibrary }: { scenario: Scenario; fromLibrary: boolean }) {
   const [state, setState] = useState<'idle' | 'copied' | { manual: string }>('idle')
+  useEffect(() => {
+    if (state !== 'copied') return
+    const timer = setTimeout(() => setState('idle'), 2400)
+    return () => clearTimeout(timer)
+  }, [state])
   const click = async () => {
     const link = await shareLink(scenario, fromLibrary)
     try {
       await navigator.clipboard.writeText(link)
       setState('copied')
-      setTimeout(() => setState('idle'), 2400)
     } catch {
       setState({ manual: link })
     }

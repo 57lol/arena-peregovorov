@@ -1,3 +1,4 @@
+import '../career.css'
 import type { Case } from '../../App'
 import { SCENARIOS, harder } from '../../content/scenarios'
 import { ENDING_IDS } from '../../engine/endings'

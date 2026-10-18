@@ -101,6 +101,10 @@ export default function Play3D(props: Props) {
       w.canvas.removeEventListener('webglcontextlost', lost)
       off()
       w.dispose()
+      if (import.meta.env.DEV) {
+        const debug = window as unknown as { __world?: World }
+        if (debug.__world === w) delete debug.__world
+      }
     }
     // мир строится один раз на встречу
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -951,9 +955,9 @@ function useVisualViewport(ref: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
+    const play = ref.current?.parentElement
     const on = () => {
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      const play = ref.current?.parentElement
       play?.style.setProperty('--kb', `${Math.round(kb)}px`)
       // клавиатура открыта: плашки разбора хода прячем, иначе реплика собеседника упирается в них
       play?.toggleAttribute('data-kb', kb > 80)
@@ -964,6 +968,8 @@ function useVisualViewport(ref: RefObject<HTMLDivElement | null>) {
     return () => {
       vv.removeEventListener('resize', on)
       vv.removeEventListener('scroll', on)
+      play?.style.removeProperty('--kb')
+      play?.removeAttribute('data-kb')
     }
   }, [ref])
 }

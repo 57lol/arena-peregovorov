@@ -104,7 +104,8 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: calc(var(--s) * 4px);
   background: var(--c-paper);
   color: var(--c-ink);
@@ -117,8 +118,8 @@
   background: var(--c-brass);
   color: var(--c-ink);
   font-family: var(--f-read);
-  font-size: calc(var(--s) * 6px);
-  line-height: calc(var(--s) * 7px);
+  font-size: max(14px, calc(var(--s) * 6px));
+  line-height: max(18px, calc(var(--s) * 7px));
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -130,16 +131,16 @@
   margin: auto 0 calc(var(--s) * 5px);
   font-family: var(--f-ui);
   font-weight: 700;
-  font-size: calc(var(--s) * 9px);
-  line-height: calc(var(--s) * 11px);
+  font-size: max(14px, calc(var(--s) * 9px));
+  line-height: max(18px, calc(var(--s) * 11px));
   color: var(--c-stamp-2);
 }
 
 .cs-memo-text {
   margin: 0 0 auto;
   font-family: var(--f-read);
-  font-size: calc(var(--s) * 6px);
-  line-height: calc(var(--s) * 8px);
+  font-size: max(14px, calc(var(--s) * 6px));
+  line-height: max(18px, calc(var(--s) * 8px));
   color: var(--c-steel-3);
 }
 
@@ -177,8 +178,8 @@
   background: #fff;
   border: var(--u) solid var(--c-mist);
   font-family: var(--f-read);
-  font-size: calc(var(--s) * 6px);
-  line-height: calc(var(--s) * 8px);
+  font-size: max(14px, calc(var(--s) * 6px));
+  line-height: max(18px, calc(var(--s) * 8px));
   color: var(--c-ink);
   animation: cs-in 0.25s steps(3) both;
 }
@@ -561,7 +562,7 @@
 .cs-guide-msg time {
   float: right;
   margin: 8px 0 0 10px;
-  font: 400 var(--fs-small) / 12px var(--f-read);
+  font: 400 var(--fs-small) / 18px var(--f-read);
   color: var(--c-fog);
 }
 .cs-guide-msg.is-typing {

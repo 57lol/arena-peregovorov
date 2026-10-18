@@ -88,6 +88,7 @@ function props(name: string, node: ReactNode = tree): Record<string, unknown> {
   if (isValidElement<Record<string, unknown>>(node)) {
     if (name === 'CutscenePlayer' && 'onDone' in node.props) return node.props
     if (typeof node.type === 'function' && node.type.name === name) return node.props
+    if (typeof node.type === 'object' && (node.type as { displayName?: string }).displayName === name) return node.props
     return props(name, (node.props.children ?? null) as ReactNode)
   }
   return {}

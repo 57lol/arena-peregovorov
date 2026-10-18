@@ -32,6 +32,7 @@ if (secret) {
 }
 app.route('/', sttStream.app)
 app.route('/', createApp(llm, error, speech, undefined, './dist'))
+// Политика кэша едина для прод-сервера и тестов.
 mountStatic(app)
 
 const port = Number(process.env.PORT ?? 8787)

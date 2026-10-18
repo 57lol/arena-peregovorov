@@ -1,3 +1,4 @@
+import '../coach.css'
 import { useState } from 'react'
 import type { Case } from '../../App'
 import type { Health } from '../api'

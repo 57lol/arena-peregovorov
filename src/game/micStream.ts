@@ -15,10 +15,18 @@ export async function openMic(onFrame: (pcm: Int16Array, t: number) => void, onL
   let ctx: AudioContext | undefined
   let stop: ((flush?: boolean) => void) | undefined
   let closed = false
+  let source: MediaStreamAudioSourceNode | undefined
+  const lost = () => {
+    if (closed) return
+    close()
+    onLost()
+  }
   const close = () => {
     if (closed) return
     closed = true
     stop?.(false)
+    source?.disconnect()
+    stream.getAudioTracks().forEach((t) => t.removeEventListener('ended', lost))
     void ctx?.close().catch(() => {})
     stream.getTracks().forEach((t) => t.stop())
   }
@@ -27,15 +35,11 @@ export async function openMic(onFrame: (pcm: Int16Array, t: number) => void, onL
     if (!Ctx) throw new Error('Нет Web Audio')
     ctx = new Ctx()
     void ctx.resume().catch(() => {})
-    const source = ctx.createMediaStreamSource(stream)
+    source = ctx.createMediaStreamSource(stream)
     stop = await capturePcm(ctx, source, (pcm, t) => {
       if (!closed) onFrame(new Int16Array(pcm), t)
     }, 320)
-    for (const track of stream.getAudioTracks()) track.addEventListener('ended', () => {
-      if (closed) return
-      close()
-      onLost()
-    })
+    for (const track of stream.getAudioTracks()) track.addEventListener('ended', lost)
   } catch (e) {
     close()
     throw e

@@ -45,6 +45,8 @@ export default function Preview() {
     return () => {
       off()
       w.dispose()
+      const debug = window as unknown as { world?: World }
+      if (debug.world === w) delete debug.world
     }
   }, [])
   return <div ref={ref} className="w3-root" style={{ position: 'fixed', inset: 0 }} />

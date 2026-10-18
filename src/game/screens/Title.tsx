@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import type { Case } from '../../App'
-import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import type { Progress } from '../progress'
 import type { RoomRef } from '../rooms'
@@ -20,8 +19,6 @@ interface Props {
   roomWait?: boolean
   playerName: string
   onPlayerName: (name: string) => void
-  /** с какого дела начать по большой кнопке «Играть» и почему */
-  next: { scenario: Scenario; why: string } | null
   /** «Сюжет»: неделя новенького — катсцены и карта глав */
   onPlay: () => void
   /** «Для жюри»: всё открыто — дела, свои условия, кабинет, настройки. Пока App его не передаёт — папка дел */

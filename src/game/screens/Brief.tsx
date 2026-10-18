@@ -9,7 +9,7 @@ import { chapterOf } from '../../content/story'
 import { difficultyRu, TONE_RU, g, plural, portraitFor } from '../cast'
 import { Button, Portrait, worstFirst } from '../ui'
 import { ShareButton } from './ShareButton'
-import { canRecord, loadVoiceOn, voiceFor, warmLine, type SpeechCaps } from '../speech'
+import { canRecord, informal, loadVoiceOn, voiceFor, warmFillers, warmLine, type SpeechCaps } from '../speech'
 import { useVoiceSettings } from '../voiceSettings'
 
 interface Props {
@@ -26,8 +26,11 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам', spee
   const byVoice = answer.mode === 'voice' && canRecord() && (speech ? speech.stt || !!speech.scribe : true)
   const sc = game.scenario
   useEffect(() => {
-    if (speech?.tts && loadVoiceOn()) void warmLine(sc.opening, voiceFor(sc))
-  }, [sc, speech?.tts])
+    if (speech?.tts && loadVoiceOn()) {
+      void warmLine(sc.opening, voiceFor(sc))
+      warmFillers(voiceFor(sc), informal(sc))
+    }
+  }, [sc, speech?.tts, speech?.eleven])
   const P = sc.player.profile
   const c = sc.opponent.character
   const max = maxScore(P, sc.issues)

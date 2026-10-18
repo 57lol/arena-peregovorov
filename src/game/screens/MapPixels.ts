@@ -2,6 +2,7 @@
 // Холсты рисуются в игровых точках и растягиваются CSS без сглаживания, поэтому движение
 // идёт целыми пикселями, как в остальной графике.
 
+import { startFrameLoop } from '../frameLoop'
 import { useEffect, useRef } from 'react'
 
 /** Apollo (AdamCYounis), индексы как в tools/art/apollo.py. */
@@ -57,29 +58,17 @@ export function useTicker(canvas: React.RefObject<HTMLCanvasElement | null>, fps
       cb.current(0, 0)
       return
     }
-    let raf = 0
-    let last = 0
     let t = 0
     let seen = true
-    const step = 1000 / fps
-    const loop = (now: number) => {
-      raf = requestAnimationFrame(loop)
-      if (!seen || document.hidden) {
-        last = now
-        return
-      }
-      if (now - last < step - 2) return
-      // после паузы (вкладка в фоне) не догоняем пропущенное — мир просто продолжает
-      const dt = last ? Math.min((now - last) / 1000, 0.25) : 1 / fps
-      last = now
+    const stop = startFrameLoop((dt) => {
+      if (!seen) return
       t += dt
       cb.current(t, dt)
-    }
-    raf = requestAnimationFrame(loop)
+    }, () => fps)
     const io = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([e]) => (seen = e.isIntersecting)) : null
     io?.observe(el)
     return () => {
-      cancelAnimationFrame(raf)
+      stop()
       io?.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
