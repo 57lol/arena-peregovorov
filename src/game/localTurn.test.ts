@@ -11,7 +11,7 @@ const cases = [...new Map(ALL_SCENARIOS.map((sc) => [sc.id, sc])).values()]
 
 it.each(cases)('сбой API: локальные ходы проходят для $id', async (scenario) => {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
-  const first = await playTurn({ scenario, fromLibrary: true, history: [], text: scenario.id.startsWith('istanbul') ? 'Hello. What matters to you?' : 'Здравствуйте. Что для вас важно?' })
+  const first = await playTurn({ scenario, fromLibrary: true, history: [], text: scenario.lang === 'en' ? 'Hello. What matters to you?' : 'Здравствуйте. Что для вас важно?' })
   expect(first.source).toBe('local')
   expect(first.record.stateAfter.turn).toBe(1)
   expect(first.record.stateAfter.status).toBe('open')

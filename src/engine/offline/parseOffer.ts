@@ -56,7 +56,8 @@ const SYNONYMS: [RegExp, string[]][] = [
   // дела на английском
   [/price|cost/i, ['price', 'cost', 'euro', 'dolla', 'money', 'budge', 'total']],
   [/payment|prepay|advance/i, ['payme', 'pay', 'upfro', 'advan', 'depos', 'prepa']],
-  [/deliver|lead time|shipping/i, ['deliv', 'ship', 'lead']],
+  [/deliver|lead time|shipping|shipment/i, ['deliv', 'ship', 'lead', 'dispa']],
+  [/exclusiv|distribution/i, ['exclu', 'terri', 'regio', 'distr']],
   [/warrant|guarant/i, ['warra', 'guara']],
   [/training/i, ['train', 'site', 'remot', 'engin', 'opera']],
 ]
@@ -141,6 +142,14 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
   // 1. Числа с единицами → пункт той же размерности (если таких несколько — по ближайшему ключевому слову).
   for (const q of quantities(text)) {
     if (echoed(q.at)) continue
+    const before = text.slice(Math.max(0, q.at - 35), q.at)
+    const after = text.slice(q.end, q.end + 90)
+    // A credit-funded balance is not an advance: "70% upfront and 30% by letter of credit".
+    // Only applies when the scenario's percentages actually describe upfront payment.
+    const advanceOnly = infos.filter((i) => i.dim === 'percent').every((i) => i.issue.options.every((o) => /upfront|advance|prepay/i.test(o)))
+    if (q.dim === 'percent' && advanceOnly &&
+      (/\b(?:remaining|balance|rest)(?:\s+(?:is|of|the|at))?\s*$/i.test(before) ||
+       /^\s*(?:(?:payable|paid|covered)\s+)?(?:(?:by|under|via|through)\s+)?(?:the\s+)?(?:confirmed\s+)?(?:irrevocable\s+)?(?:USD\s+)?(?:letter of credit|L\/C|LC|balance|on shipment|on delivery)\b/i.test(after))) continue
     // «5% discount», «скидка 3%» в деле, где проценты — это предоплата, — не условие оплаты
     if (q.dim === 'percent' && DISCOUNT.test(text.slice(Math.max(0, q.at - 14), q.end + 14)) && infos.every((i) => i.dim !== 'percent' || PREPAY.test(`${i.issue.title} ${i.issue.options.join(' ')}`))) continue
     // Кандидаты: пункты той же размерности. Число без единиц («1,1», «210 000», «два») подходит к пункту,
@@ -155,6 +164,16 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
         if (k) cands.push({ info, value: q.value * k })
       }
     }
+    if (q.dim === 'money' || q.dim === 'plain') {
+      const currency = (s: string) => /\$|\b(?:USD|dollars?|bucks)\b/i.test(s) ? 'USD' : /€|\b(?:EUR|euros?)\b/i.test(s) ? 'EUR' : /₽|руб/iu.test(s) ? 'RUB' : /₦|\b(?:NGN|naira)\b/i.test(s) ? 'NGN' : undefined
+      const prefix = before.match(/(?:[€$₽₦]|\b(?:USD|EUR|NGN))\s*$/i)?.[0] ?? ''
+      const raw = prefix + text.slice(q.at, q.end) + (after.match(/^\s*(?:USD|dollars?|EUR|euros?|NGN|naira|руб\p{L}*|₽|€|₦)(?!\p{L})/iu)?.[0] ?? '')
+      const saidCurrency = currency(raw)
+      if (saidCurrency) cands = cands.filter(({ info }) => info.dim === 'money' && info.issue.options.every((o) => !currency(o) || currency(o) === saidCurrency))
+    }
+    // A transit estimate must not overwrite a shipment deadline in an export case.
+    if (q.dim === 'days' && (/\b(?:transit|voyage|sailing)(?:\s+(?:of|in|takes|time|is))*\s*$/i.test(before) || /^\s*(?:(?:of|in)\s+)?(?:transit|at sea|sailing)\b/i.test(after)))
+      cands = cands.filter(({ info }) => !/shipment/i.test(info.issue.title))
     if (!cands.length) continue
     const exactly = (c: { info: IssueInfo; value: number }) =>
       c.info.values.some((v) => v && Math.abs(v.value - c.value) <= Math.abs(c.value) * 0.01)

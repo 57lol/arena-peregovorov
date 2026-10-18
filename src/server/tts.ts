@@ -139,6 +139,8 @@ export interface ElevenTune {
   prefix?: string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
+  // TODO(lagos voice casting): подтвердить модель и настройки на выбранном голосе; акцент не имитируем тегом.
+  lagos: { stability: 0.5, similarity: 0.8 },
   china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
   // постоянная подача акцента в начале каждой реплики (~/Arena-materials/final/emre-voice, 18.10: судья 5 и 4 из 5 по турецкому)
@@ -276,7 +278,12 @@ export function mainTts(env = process.env): MainTts | undefined {
  * турецкий акцент в английском), звучит на eleven_v3 с тегом акцента (ELEVEN_TUNE.emre). Подбор 18.10 из 22 библиотечных
  * голосов с турецким акцентом и 2 дизайнов (~/Arena-materials/final/emre-voice): прежний Emre Anduv на v4 Turbo — акцент едва слышен.
  */
+// TODO(lagos voice casting): выбрать и прослушать мужской голос ~45 лет из ElevenLabs Voice Library,
+// native Nigerian English. Заменить пустую строку реальным voice_id или задать TTS_CAST="lagos:<id>".
+// До подбора castFor использует обычный английский запасной голос; это НЕ выбранный нигерийский голос.
+export const LAGOS_VOICE_ID = ''
 export const CAST: Record<string, string> = {
+  lagos: LAGOS_VOICE_ID,
   china: 'qEUg56UIsvkup7EM8Ovt',
   sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'ezjpFmpyFJhaCJxPZlXg', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }

@@ -14,14 +14,14 @@ export const FILLER_VOICES = ['denis', 'sergey', 'vasily', 'sofia', 'vera', 'iri
  * Те же фразы голосами ElevenLabs — у лиц из кампании и дел (scripts/eleven-known.ts, eleven_v4):
  * /assets/voice-fillers/eleven/<лицо>/<id>.mp3. Играют, когда сервер говорит ElevenLabs.
  */
-export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych', 'emre', 'china'] as const
+export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych', 'emre', 'china', 'lagos'] as const
 
 /**
  * Лица дел на английском: их фразы-паузы — по-английски, с теми же id, что на «вы» (c1–c3, v1–v3). Звучат только
  * голосом ElevenLabs; у запасного SpeechKit (john) записей нет — на нём собеседник думает молча, а не по-русски.
  */
 export const EN_FILLERS = { c1: 'Hmm, one second.', c2: 'Okay, okay.', c3: 'Let me count.', v1: 'So... let me think.', v2: 'Look...', v3: 'One moment.' } as const
-export const ENGLISH_FACES: readonly string[] = ['emre']
+export const ENGLISH_FACES: readonly string[] = ['emre', 'lagos']
 
 /** id фраз под обращение собеседника: на «ты» — бытовые главы, на «вы» — деловые. */
 export const fillerIds = (informal: boolean): string[] => [...Object.keys(FILLERS.common), ...Object.keys(informal ? FILLERS.ty : FILLERS.vy)]
@@ -31,4 +31,10 @@ export const CHINA_FILLERS = {
   c1: 'Секунду, друг.', c2: 'Считаем, считаем.', c3: 'Сейчас в телефон посмотрю.',
   v1: 'Так, дайте посчитать.', v2: 'Смотрите, какой вопрос…', v3: 'Минутку, склад проверю.',
   t1: 'Так, дай посчитать.', t2: 'Смотри, сейчас проверим.', t3: 'Погоди, цифры запишу.',
+} as const
+
+/** Лагос: шесть пауз для будущей записи носителем нигерийского английского. */
+export const LAGOS_FILLERS = {
+  c1: 'One moment, please.', c2: 'Let me work that out.', c3: 'I am considering the whole package.',
+  v1: 'Let me think that through.', v2: 'Let us put this properly.', v3: 'I need a moment with these figures.',
 } as const

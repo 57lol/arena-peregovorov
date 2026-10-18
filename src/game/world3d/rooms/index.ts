@@ -6,7 +6,7 @@ import { EXITS, type ExitPlan } from '../exit'
 
 /** Места кампании: комната в общаге, остановка у ларька, магазин у дома, бытовка цеха, кабинет закупок «Инея»,
  * переговорная «Кама» с экраном видеосвязи (звонок поставщику из Иу); офис продаж в Стамбуле — у английского дела, не главы кампании (sceneFor). */
-export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka', 'inei', 'istanbul', 'meet'] as const
+export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka', 'inei', 'istanbul', 'meet', 'lagos'] as const
 export type StoryKind = (typeof STORY_KINDS)[number]
 export type WorldKind = RoomKind | StoryKind
 
@@ -21,7 +21,7 @@ const BUILDERS: Partial<Record<StoryKind, Builder>> = {}
 for (const m of Object.values(found)) if (m.ROOM) BUILDERS[m.ROOM.kind] = m.ROOM.build
 
 /** Запасная переговорная для места, у которого ещё нет своей комнаты. */
-const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office', shop: 'office', bytovka: 'factory', inei: 'office', istanbul: 'office', meet: 'office' }
+const FALLBACK: Record<StoryKind, RoomKind> = { dorm: 'office', street: 'office', shop: 'office', bytovka: 'factory', inei: 'office', istanbul: 'office', meet: 'office', lagos: 'office' }
 
 export const isStoryKind = (k: string): k is StoryKind => (STORY_KINDS as readonly string[]).includes(k)
 

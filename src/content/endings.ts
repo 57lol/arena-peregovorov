@@ -7,6 +7,7 @@ import type { OpponentState, Scenario } from '../engine/types'
 import { bestOption, issueWeight } from '../engine/utility'
 import { baseCaseId } from './scenarios/harder'
 import { STORY_ENDINGS } from './scenarios/story'
+import { LAGOS_ENDINGS } from './lagos-endings'
 import { TITLE } from './endingTitles'
 
 export type EndingTone = 'good' | 'mixed' | 'bad'
@@ -353,7 +354,7 @@ function fill(text: string, sc: Scenario, report?: Report): string {
 
 function textsFor(sc: Scenario, female: boolean) {
   const id = baseCaseId(sc.id)
-  return LIBRARY[id] ?? STORY_ENDINGS[id] ?? generic(female)
+  return (id === 'lagos' ? LAGOS_ENDINGS : undefined) ?? LIBRARY[id] ?? STORY_ENDINGS[id] ?? generic(female)
 }
 
 /** Все финалы дела — для карты. */

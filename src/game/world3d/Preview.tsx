@@ -17,6 +17,7 @@ const STORY_ROOM_CASE: Partial<Record<WorldKind, { caseId: string; face: string 
   shop: { caseId: 'shop', face: 'admin' },
   bytovka: { caseId: 'launch', face: 'palych' },
   inei: { caseId: 'client', face: 'buyer' },
+  lagos: { caseId: 'lagos', face: 'lagos' },
   istanbul: { caseId: 'istanbul', face: 'emre' },
   meet: { caseId: 'china', face: 'china' },
 }

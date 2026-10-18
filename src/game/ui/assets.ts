@@ -40,6 +40,7 @@ export const PORTRAITS = {
   vahter: { sheet: '/assets/portraits/vahter.png', label: 'Галина Ивановна, комендант', female: true },
   palych: { sheet: '/assets/portraits/palych.png', label: 'Палыч, бригадир', female: false },
   // дело на английском (src/content/scenarios/istanbul.ts), рисует tools/art/people.py; в пул своих дел не входит
+  lagos: { sheet: '/assets/portraits/lagos.png', label: 'Адебайо Адейеми', female: false },
   emre: { sheet: '/assets/portraits/emre.png', label: 'Эмре Кая', female: false },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
 export type PortraitId = keyof typeof PORTRAITS
@@ -57,6 +58,7 @@ export const SCENES = {
   bytovka: { bg: '/assets/scenes/bytovka.png', desk: '/assets/scenes/bytovka-desk.png', title: 'Бытовка цеха' },
   inei: { bg: '/assets/scenes/inei.png', desk: '/assets/scenes/inei-desk.png', title: 'Кабинет закупок «Инея»' },
   // английское дело «The Istanbul Line»: офис продаж Marmara Coating Systems в Ускюдаре
+  lagos: { bg: '/assets/scenes/lagos.png', desk: '/assets/scenes/lagos-desk.png', title: 'Meridian Industrial Partners · Виктория-Айленд, Лагос' },
   istanbul: { bg: '/assets/scenes/istanbul.png', desk: '/assets/scenes/istanbul-desk.png', title: 'Офис Marmara Coating Systems в Ускюдаре' },
   // видеозвонок (дело «Поставщик из Иу»): большой экран в переговорной «Кама», картинки — tools/art/call_screen.py
   meet: { bg: '/assets/scenes/meet.png', desk: '/assets/scenes/meet-desk.png', title: 'Переговорная «Кама», видеозвонок' },

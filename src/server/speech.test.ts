@@ -192,7 +192,7 @@ describe('лица и их подача', () => {
     const { PERSONAS, YANDEX_VOICES } = await import('../content/voices')
     for (const [id, p] of Object.entries(PERSONAS)) {
       const v = YANDEX_VOICES.find((x) => x.id === p.voice)
-      if (id === 'emre') {
+      if (id === 'emre' || id === 'lagos') {
         expect(v?.lang, id).toBe('en')
         continue
       }
