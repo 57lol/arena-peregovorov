@@ -24,6 +24,16 @@ it('матрица включает все экспортированные де
 describe.each(CASES)('$id: свойства движка', (sc) => {
   const space = enumerate(sc)
 
+  it('встреча из одних вопросов кончается к лимиту ходов: на последнем ходу на столе его последнее предложение', () => {
+    // Баг: листок открытия без совместимого пункта неполон, и вопрос на последнем ходу не ставил lastCall — встреча шла бесконечно
+    for (const about of [...sc.issues.map((i) => [i.id]), []]) {
+      const ask: MoveAnalysis = { behaviors: [{ id: 'ask_interest', quote: 'почему' }], asksAbout: about }
+      let s = initialState(sc)
+      for (let n = 0; n < sc.turnLimit + 1 && s.status === 'open'; n++) s = step(sc, s, ask, dict).state
+      expect(s.status, `вопросы про ${about.join(',') || 'всё'}`).not.toBe('open')
+    }
+  })
+
   it('полный декартов перебор и граница Парето совпадают с независимым оракулом', () => {
     expect(allDeals(sc)).toEqual(space)
     const actual = paretoFrontier(allDeals(sc)).map((p) => `${p.player}:${p.opponent}`).sort()

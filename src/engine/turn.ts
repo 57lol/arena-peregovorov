@@ -260,6 +260,9 @@ export function step(
 
   const isLast = turn >= sc.turnLimit
   const counterNow = (): FullOffer => makeCounter(sc, target, stance, prevCounter, s.trust, before.playerStance)
+  // последний ход, а его полного листка на столе нет (открытие молчит о совместимом пункте): отвечает на вопрос
+  // и кладёт последнее предложение — иначе встреча из одних вопросов шла бы дальше лимита без конца
+  const closing = isLast && !prevCounter
 
   if (asksInterest(analysis, dict)) {
     const { ready, told, offTopic, general } = pickInterest(sc, s, analysis)
@@ -267,7 +270,7 @@ export function step(
     if (it) {
       if (ready) s.revealed.push(ready.id)
       const how = { ...(ready ? {} : { again: true as const }), ...(general ? { general: true as const } : {}), ...(offTopic ? { offTopic } : {}) }
-      if (newOffer) {
+      if (newOffer || closing) {
         const offer = counterNow()
         const feigned = feignedConcessions(sc, offer, prevCounter)
         return end(
@@ -277,7 +280,7 @@ export function step(
       }
       return end({ kind: 'reveal', interestId: it.id, ...how }, { lastCall: isLast && !!prevCounter })
     }
-    if (!newOffer) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
+    if (!newOffer && !closing) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
   }
 
   // Игрок шутит, извиняется, спрашивает о деле или о жизни — собеседник отвечает человеку, сделка стоит на месте.
