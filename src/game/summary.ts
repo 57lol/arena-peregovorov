@@ -4,6 +4,7 @@
 import { MINUTES_PER_TURN, behaviorById } from '../engine/behaviors'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
+import { upsellPenalty } from '../engine/upsells'
 import { isComplete, maxScore, score } from '../engine/utility'
 import { firstName, g, plural } from './cast'
 import { fragment, plainWords } from './instant'
@@ -26,6 +27,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   const max = maxScore(sc.player.profile, sc.issues)
   const state = history[history.length - 1]?.stateAfter
   const deal = o.status === 'deal'
+  const slammed = o.status === 'walked_away' && state?.endedBy === 'opponent'
   const loss = deal && o.playerPoints < batna
 
   // 1. Чем кончилось. Есть дела, где без сделки хуже, чем было до встречи (остановка: автобус ушёл) — там так и пишем
@@ -34,13 +36,15 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   if (!deal && worse)
     result = `${o.status === 'walked_away' && state?.endedBy === 'opponent' ? `${n} ${g(sc, 'встал', 'встала')} из-за стола` : o.status === 'walked_away' ? 'Вы ушли' : 'Время вышло'}. Сделки нет, и стало хуже, чем было: ${worse}.${r.zopa ? ' А договориться было можно.' : ''}`
   else if (deal && loss) result = `Сделка, но себе в убыток: выгода ${o.playerPoints}, а без сделки было бы ${batna}.`
+  else if (deal && o.playerPoints === batna) result = `Сделка. Ваша выгода — ${o.playerPoints} из ${max}: ровно столько же, сколько и без неё.`
   else if (deal) result = `Сделка! Ваша выгода — ${o.playerPoints} из ${max}, на ${o.playerPoints - batna} больше, чем без неё.`
   else if (o.status === 'walked_away' && state?.endedBy === 'opponent')
     result = `${n} ${g(sc, 'встал', 'встала')} из-за стола. Сделки нет, у вас остаётся то, что было и без неё.`
   else if (o.status === 'walked_away') {
     // ушли, когда на столе было меньше, чем без сделки, — это финал «Ушли вовремя»; не спорим с ним в первой же строке
+    // (доптовары, на которые уже согласились, вычитаем, как в финале и в подробном разборе)
     const last = state?.lastOpponentOffer
-    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) : undefined
+    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) - upsellPenalty(sc, state) : undefined
     result = !r.zopa
       ? 'Вы ушли без сделки. И правильно: выгодной сделки тут не было.'
       : onTable !== undefined && onTable <= batna
@@ -62,8 +66,10 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     quote = q ? fragment(q) : undefined
   } else if (told) good = `${n} ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно: ${told} из ${sc.opponent.profile.interests.length}.`
   else if (o.relationship >= 60) good = `Расстались по-хорошему: доверие ${o.relationship} из 100.`
-  else if (deal && !loss) good = 'Довели дело до сделки, и она лучше, чем без неё.'
+  else if (deal && o.playerPoints > batna) good = 'Довели дело до сделки, и она лучше, чем без неё.'
   else if (!history.some((h) => !h.analysis.walksAway)) good = 'Разговор не начался: вы ушли до первой реплики.'
+  else if (slammed) good = `Теперь видно, где у ${his} предел: что накалило разговор, разобрано подробно ниже.`
+  else if (o.status === 'walked_away') good = 'Вы сами решили, когда встать из-за стола, — уйти тоже решение.'
   else good = 'Встреча дошла до конца — для начала уже неплохо.'
 
   // 3. Что попробовать: сначала то, что стоило больше всего
@@ -71,6 +77,9 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   const asked = history.some((h) => h.analysis.behaviors.some((b) => ['ask_interest', 'implication', 'need_payoff'].includes(b.id)))
   let next: string
   if (loss) next = `Не соглашайтесь на выгоду меньше ${batna}: столько у вас есть и без сделки.`
+  // встал из-за стола после резкостей — сначала про тон, а не про встречные предложения
+  else if (slammed && history.some((h) => h.analysis.toneViolation))
+    next = 'Держите деловой тон: грубость здесь прощают один раз, второй — и встреча окончена. Спорьте с условиями, а не с человеком.'
   else if (weak) next = behaviorById(weak.id)?.advice ?? weak.title
   else if (!asked) next = `Спросите, что для ${his} главное и почему. Вопрос ничего не стоит, а узнать можно много.`
   else if (deal && r.leftOnTable > 0)

@@ -21,7 +21,7 @@ it.each(["Let's sign if you lower the price.", 'We can sign?', "We won't take it
   expect(groundAnalysis(istanbul, text, { behaviors: [], accepts: true }).accepts).not.toBe(true)
 })
 
-it.fails('BUG: явный уход, распознанный моделью, теряется за пределами словаря правил', () => {
+it('явный уход, распознанный моделью, не теряется за пределами словаря правил', () => {
   const text = 'We are ending these negotiations.'
   expect(groundAnalysis(istanbul, text, { behaviors: [], walksAway: true }).walksAway).toBe(true)
 })

@@ -137,7 +137,7 @@ export function Play(props: Props) {
                 </Button>
                 )}
                 {!done && tut.shows('leave') && (
-                  <Button variant="ghost" icon="leave" className={`g-leave${leaving ? ' is-sure' : ''}`} onClick={walk} aria-label="Встать и уйти">
+                  <Button variant="ghost" icon="leave" className={`g-leave${leaving ? ' is-sure' : ''}`} disabled={!!pending} onClick={walk} aria-label="Встать и уйти">
                     <span className="g-leave-label">{leaving ? 'Точно уйти?' : 'Уйти'}</span>
                   </Button>
                 )}

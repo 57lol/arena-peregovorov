@@ -66,6 +66,11 @@ const fmt = (n: number) => String(Math.round(n))
 const RU = new Intl.PluralRules('ru')
 const VARIANTS = { one: 'вариант', few: 'варианта', many: 'вариантов', other: 'варианта' } as Record<string, string>
 const variants = (n: number) => VARIANTS[RU.select(n)]
+const POINTS = { one: 'очко', few: 'очка', many: 'очков', other: 'очка' } as Record<string, string>
+/** «18 очков выгоды», а не «18 выгоды». */
+const gain = (n: number) => `${fmt(n)} ${POINTS[RU.select(Math.round(n))]} выгоды`
+/** Пункт посреди фразы — со строчной, но MOQ так и остаётся MOQ. */
+const lowerFirst = (s: string) => (/^\p{Lu}{2}/u.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1))
 
 export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorDict): Report {
   const last = history[history.length - 1]
@@ -237,10 +242,13 @@ function pickMoments(sc: Scenario, history: TurnRecord[]): KeyMoment[] {
       const u = (o: FullOffer) => Object.entries(o).reduce((s, [k, v]) => s + O.points[k][v], 0)
       move = (Math.abs(u(prev) - u(now)) / span) * 30
     }
-    const weight = Math.abs(trust) + Math.abs(tension) + DECISION_WEIGHT[h.decision.kind] + move
     const top = [...h.deltas].sort((a, b) => Math.abs(b.by) - Math.abs(a.by))[0]
+    const left = h.decision.kind === 'hold' && h.decision.reason === 'player_left'
+    // уход игрока — такой же поворот, как уход собеседника, а не «спокойный ход»
+    const weight = Math.abs(trust) + Math.abs(tension) + (left ? DECISION_WEIGHT.walk_away : DECISION_WEIGHT[h.decision.kind]) + move
     const why =
-      h.decision.kind === 'reveal' && !h.decision.again ? 'Вы узнали, что на самом деле важно собеседнику'
+      left ? 'Вы встали из-за стола и ушли без сделки'
+      : h.decision.kind === 'reveal' && !h.decision.again ? 'Вы узнали, что на самом деле важно собеседнику'
       : h.decision.kind === 'walk_away' ? 'Собеседник встал из-за стола'
       : h.decision.kind === 'accept' ? 'Сделка'
       : h.decision.kind === 'warn_tone' ? 'Собеседник одёрнул вас за тон'
@@ -262,15 +270,17 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
   if (o.status === 'deal') {
     out.push(
       `Сделка есть: ваша выгода ${fmt(o.playerPoints)} из ${fmt(o.maxPlayerPoints)}, у собеседника ${fmt(o.opponentPoints)}. ` +
-        (o.playerPoints >= r.batna.player
+        (o.playerPoints > r.batna.player
           ? `Это больше, чем было бы без сделки (${fmt(r.batna.player)}).`
-          : `Это меньше, чем было бы без сделки (${fmt(r.batna.player)}), — выгоднее было уйти.`),
+          : o.playerPoints === r.batna.player
+            ? `Это ровно столько же, сколько было бы без сделки (${fmt(r.batna.player)}).`
+            : `Это меньше, чем было бы без сделки (${fmt(r.batna.player)}), — выгоднее было уйти.`),
     )
   } else if (o.status === 'walked_away' && state?.endedBy === 'opponent') {
     const hot = history
       .flatMap((h) => h.deltas.filter((d) => d.field === 'tension' && d.by > 0))
       .sort((a, b) => b.by - a.by)
-      .map((d) => d.because.replace(/ \((спираль|повтор)[^)]*\)$/u, ''))
+      .map((d) => lowerFirst(d.because.replace(/ \((спираль|повтор)[^)]*\)$/u, '')))
       .filter((b, n, all) => all.indexOf(b) === n)
       .slice(0, 2)
     out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
@@ -280,7 +290,8 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     const verdict =
       onTable === null ? ''
       : onTable < r.batna.player ? ` Собеседник предлагал вам ${fmt(onTable)} — меньше, чем без сделки, так что уйти было правильно.`
-      : ` А собеседник предлагал вам ${fmt(onTable)} — больше, чем без сделки: уход стоил вам ${fmt(onTable - r.batna.player)} выгоды.`
+      : onTable === r.batna.player ? ` Собеседник предлагал вам ${fmt(onTable)} — не больше, чем без сделки, так что вы ничего не потеряли.`
+      : ` А собеседник предлагал вам ${fmt(onTable)} — больше, чем без сделки: уход стоил вам ${gain(onTable - r.batna.player)}.`
     out.push(`Вы ушли без сделки: у вас остаётся то, что было и без неё (${fmt(r.batna.player)}).${verdict}${r.zopa ? ` При этом было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.` : ''}`)
   } else if (o.status === 'timeout') {
     out.push(`Время встречи вышло без сделки. Было ${r.zopa} ${variants(r.zopa)}, которые устроили бы обоих.`)
@@ -288,11 +299,11 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
 
   if (r.betterDeal) {
     const ch = r.betterDeal.changes
-      .map((c) => `${c.title.toLowerCase()} — ${c.to}${c.from ? ` вместо «${c.from}»` : ''}`)
+      .map((c) => `${lowerFirst(c.title)} — ${c.to}${c.from ? ` вместо «${c.from}»` : ''}`)
       .join(', ')
     out.push(
       o.status === 'deal'
-        ? `Вдвоём упустили ${fmt(r.leftOnTable)} выгоды. Можно было, например, так: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
+        ? `Вдвоём упустили ${gain(r.leftOnTable)}. Можно было, например, так: ${ch}. Вам +${fmt(r.betterDeal.player - o.playerPoints)}, собеседнику +${fmt(r.betterDeal.opponent - o.opponentPoints)}.`
         : `А могли бы договориться, например, так: ${formatOffer(sc, r.betterDeal.offer)} — вам ${fmt(r.betterDeal.player)}, собеседнику ${fmt(r.betterDeal.opponent)}.`,
     )
   } else if (o.status === 'deal' && o.playerPoints < r.batna.player) {
@@ -324,7 +335,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
 
   for (const t of r.traps)
     if (t.feigned)
-      out.push(`Собеседник подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. ${t.asked ? 'Вы проверили этот пункт вопросом.' : 'Проверяйте вопросом, чего уступка стоит на самом деле.'}`)
+      out.push(`Собеседник подал «${lowerFirst(t.title)} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. ${t.asked ? 'Вы проверили этот пункт вопросом.' : 'Проверяйте вопросом, чего уступка стоит на самом деле.'}`)
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0

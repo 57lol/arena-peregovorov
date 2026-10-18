@@ -507,7 +507,15 @@ describe('ElevenLabs под нагрузкой (аудит 17.10)', () => {
 })
 
 describe('распознавание (аудит C 17.10: SpeechKit зависает на 10–15% запросов)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
   it('зависшая попытка — повтор; оба раза мимо — 502; каждый запрос в журнале без текста', async () => {
+    // Цифры распознанной речи могут случайно совпасть с миллисекундами ISO-даты.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const timestamp = '2026-10-19T00:00:00.196Z'
+    vi.setSystemTime(new Date(timestamp))
     let n = 0
     const f = vi.fn(async () => (n++ === 0 ? new Response('{}', { status: 503 }) : new Response(JSON.stringify({ result: 'цена 196 р' }), { status: 200 })))
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -524,7 +532,12 @@ describe('распознавание (аудит C 17.10: SpeechKit зависа
     const lines = log.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('[stt]'))
     log.mockRestore()
     expect(lines).toHaveLength(2)
-    expect(lines.join()).not.toContain('196')
+    for (const line of lines) {
+      expect(line.startsWith(`${timestamp} [stt] `)).toBe(true)
+      const message = line.slice(timestamp.length)
+      expect(message).not.toContain('196')
+      expect(message).not.toContain('цена')
+    }
     expect(lines[1]).toMatch(/попытка 2/)
   })
 })

@@ -14,7 +14,7 @@ export function localTurn(t: TurnInput): TurnRecord {
     : withContext(withFormalOffer(withBareYes(t.text, withUpsellReply(t.scenario, t.text, groundedOffline(t.scenario, t.text, dict), before), t.history), t.offer), before, t.history, dict)
   if (t.accept) analysis = { ...analysis, accepts: true }
   const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
-  const { line, emotion } = templateLine(t.scenario, r.decision, r.state, before.lastOpponentOffer)
+  const { line, emotion } = templateLine(t.scenario, r.decision, r.state, before.lastOpponentOffer, before.playerStance)
   return { turn: r.state.turn, playerText: t.text, analysis, deltas: r.deltas, decision: r.decision, opponentLine: line, emotion, stateAfter: r.state }
 }
 
