@@ -9,6 +9,8 @@ import { turnFeedback } from '../../game/instant'
 import { ALL_SCENARIOS, harder } from './index'
 import { auditSides } from './sides'
 import { offer as offerCase } from './offer'
+import { china } from './china'
+import { tara } from './tara'
 import { shopCase } from './story/shop'
 
 const shop = shopCase.scenario
@@ -99,5 +101,29 @@ describe('встречное: к просьбе «хуже для обоих» �
     const next = makeCounter(offerCase, 0, stance, prev, 20, {})
     expect(next.salary).toBe(4)
     expect(next.project).toBe(2)
+  })
+})
+
+describe('живая проверка разметки 18.10: что проверка словами игрока не даёт модели перепутать', () => {
+  it('«давайте 40» после «сорок четыре юаня» — цена, а не срок доставки, и не согласие на её листок', () => {
+    const said = 'Сорок четыре юаня, друг, это уже хорошая цена.'
+    // так ответил YandexGPT: срок «40 дней» и согласие — сделка закрылась бы на её 44 юанях
+    const wrong = groundAnalysis(china, 'Давайте 40.', { behaviors: [], offer: { delivery: 0 }, accepts: true }, said)
+    expect(wrong.offer).toBeUndefined()
+    expect(wrong.accepts).toBeUndefined()
+    expect(groundAnalysis(china, 'Давайте 40.', { behaviors: [], offer: { price: 2 } }, said).offer).toEqual({ price: 2 })
+  })
+
+  it('«согласен на 2 года, если цена 188» — условие, а не согласие на всё', () => {
+    const a = groundAnalysis(tara, 'Согласен на 2 года, если цена 188.', { behaviors: [], offer: { term: 3, price: 3 }, accepts: true })
+    expect(a.offer).toEqual({ term: 3, price: 3 })
+    expect(a.accepts).toBeUndefined()
+    expect(groundedOffline(tara, 'Согласен на 2 года, если цена 188.', BEHAVIOR_DICT).accepts).toBeUndefined()
+  })
+
+  it('«карту не надо» — это «без карты», и правилами, и у модели', () => {
+    const text = 'Карту не надо, рассылкой завалите.'
+    expect(groundAnalysis(shop, text, { behaviors: [], offer: { card: 0 } }).offer).toEqual({ card: 0 })
+    expect(groundedOffline(shop, text, BEHAVIOR_DICT).offer).toEqual({ card: 0 })
   })
 })

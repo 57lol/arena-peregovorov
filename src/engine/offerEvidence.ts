@@ -64,7 +64,7 @@ export function negativeOffer(sc: Scenario, text: string): Offer {
   return negativeEvidence(sc, parts, refused)
 }
 
-export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Offer {
+export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, said?: string): Offer {
   const rounded = new Map<string, number>()
   const mentions: Mention[] = []
   const { parts, refused } = clauses(sc, text)
@@ -83,7 +83,7 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Of
     }
     // правила пункт не нашли: метку модели подтверждает голое число этого варианта («давайте десять» — 10% или
     // 10 дней, выбрала модель по разговору) или его слова («поддержка и помощь на запуске»)
-    if (bareNumberOf(sc, positive, mentions, id, option) || wordsOf(sc, positive, id, option)) out[id] = option
+    if (bareNumberOf(sc, positive, mentions, id, option, said) || wordsOf(sc, positive, id, option)) out[id] = option
   }
   // Страховка поверх разметки: последнее число пункта, которое игрок называет как своё условие, — и есть его условие.
   const own = new Map<string, number>()
@@ -115,14 +115,29 @@ function negativeEvidence(sc: Scenario, parts: string[], refused: boolean[]): Of
   return out
 }
 
-/** Голое число в словах игрока, которое правила ни к чему не отнесли, — как в варианте («10» при «10%» и «через 10 дней»). */
-function bareNumberOf(sc: Scenario, text: string, used: Mention[], id: string, option: number): boolean {
+/** Голое число подходит к варианту так, как его говорят: «10» — «10%» и «через 10 дней», «180» — «180 000 ₽». */
+function fits(o: string, n: number): boolean {
+  const v = optionQuantity(o)
+  if (!v || v.dim === 'plain' || v.dim === 'time') return false
+  return n === spokenNumber(o) || ((v.dim === 'money' || v.dim === 'yuan') && [1, 1e3, 1e6].some((k) => Math.abs(n * k - v.value) <= v.value * 0.001))
+}
+
+/**
+ * Голое число в словах игрока, которое правила ни к чему не отнесли, подтверждает метку модели, если подходит к варианту.
+ * Подходит к нескольким пунктам, а собеседник только что говорил об одном из них («Сорок четыре юаня» — «давайте 40»), —
+ * только к тому, о чём шла речь: так YandexGPT в живой проверке отнёс «40» к сроку доставки и закрыл сделку.
+ */
+function bareNumberOf(sc: Scenario, text: string, used: Mention[], id: string, option: number, said?: string): boolean {
   const o = sc.issues.find((i) => i.id === id)?.options[option]
-  const v = o ? optionQuantity(o) : undefined
-  if (!o || !v || v.dim === 'plain' || v.dim === 'time') return false
-  const said = spokenNumber(o)
-  return quantities(text).some((q) => q.dim === 'plain' && !used.some((m) => q.at < m.end && q.end > m.at) &&
-    (q.value === said || ((v.dim === 'money' || v.dim === 'yuan') && [1, 1e3, 1e6].some((k) => Math.abs(q.value * k - v.value) <= v.value * 0.001))))
+  if (!o) return false
+  const bare = quantities(text).filter((q) => q.dim === 'plain' && !used.some((m) => q.at < m.end && q.end > m.at) && fits(o, q.value))
+  if (!bare.length) return false
+  if (!said) return true
+  const about = new Set([...mentionedIssues(sc, said), ...Object.keys(parseOffer(sc, said))])
+  return bare.some((q) => {
+    const others = sc.issues.filter((i) => i.id !== id && i.options.some((x) => fits(x, q.value)))
+    return !others.length || about.has(id) || !others.some((i) => about.has(i.id))
+  })
 }
 
 /** Слова варианта без числа в словах игрока; слово, которое есть и в другом пункте, — только если назван сам пункт. */
@@ -196,7 +211,14 @@ const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по �
  * Разбор хода, подтверждённый словами игрока: условия — только названные им (explicitOffer);
  * rest — он сам сказал «остальное как у вас», и недостающие пункты движок берёт с листка собеседника.
  */
-export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis): MoveAnalysis {
+// Согласие — только словами согласия и без условия: модель не может «согласиться» за игрока.
+// «Давайте 40» — предложение, «согласен на 2 года, если цена 188» и «да, но 15%» — условие, а не согласие.
+const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|works\s+for\s+me)(?!\p{L})/iu
+const NOT_AGREE = /(?<!\p{L})(?:не|нет|not|don'?t|do not|can'?t|cannot|won'?t)\s+(?:\p{L}+\s+)?(?:соглас|принима|подходит|устраивает|годится|пойд|agree|accept)/iu
+const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однако|if|provided|as\s+long\s+as|unless|but|however)(?!\p{L})/iu
+
+/** said — последняя реплика собеседника: голое число, которое подходит к нескольким пунктам, — о том, о чём шла речь. */
+export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis, said?: string): MoveAnalysis {
   const extras = parseUpsells(sc, text)
   const { offer, ...other } = analysis
   delete other.upsells
@@ -217,6 +239,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     delete other.upsells
     return other
   }
-  const supported = explicitOffer(sc, text, offer)
+  if (other.accepts && (!AGREE_WORD.test(text) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
+  const supported = explicitOffer(sc, text, offer, said)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

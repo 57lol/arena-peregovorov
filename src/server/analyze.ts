@@ -13,7 +13,7 @@ import { cached } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-const PROMPT_VERSION = 'a15'
+const PROMPT_VERSION = 'a16'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -141,7 +141,7 @@ function realQuestion(sc: Scenario, text: string): boolean {
 
 const WHY = /(зачем|почему|отчего|для чего|с чего|из-за чего|в ч[её]м (причина|дело|смысл)|что (для (тебя|вас)|тебе|вам)[^.?!]{0,20}(важн|главн|нужн)|важн|главн|расскаж|объясн|поясн|(?<!\p{L})(?:why|how come|reason|matters?|important|priority|tell me|explain|what for|behind|worr(?:y|ies|ied)|concern)(?!\p{L}))/iu
 
-export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown): MoveAnalysis {
+export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown, said?: string): MoveAnalysis {
   const r = Raw.parse(raw)
   const out: MoveAnalysis = {
     behaviors: r.behaviors
@@ -165,7 +165,7 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   // человеческое: что нашла модель плюс то, что видно правилами (извинение, «ахах», имя)
   const talk = [...new Set([...r.talk.filter((t): t is TalkAct => (TALK_ACTS as string[]).includes(t)), ...talkActs(sc, text)])]
   if (talk.length) out.talk = talk
-  return groundAnalysis(sc, text, out)
+  return groundAnalysis(sc, text, out, said)
 }
 
 /** Служебные реплики интерфейса: «Предлагаю так: …» из блокнота и «Согласен. Принимаю…» с кнопки. */
@@ -206,6 +206,8 @@ export async function analyzeMove(
     text,
     lastOpponentOffer,
   }
+  // последняя реплика собеседника: голое число игрока — о том, о чём он только что говорил
+  const said = history.length ? history[history.length - 1].opponentLine : sc.opening
   const ask = async (m: LLM, timeoutMs: number) =>
     validate(sc, dict, text, await m.json({
       system: systemPrompt(sc, dict),
@@ -214,7 +216,7 @@ export async function analyzeMove(
       maxTokens: 700,
       timeoutMs,
       schema: schemaFor(sc, dict),
-    }))
+    }), said)
   try {
     // Ответ запасного ложится в кэш под ключом основного: тот же ход — тот же разбор, кто бы его ни размечал.
     const { value, hit } = await cached('analyze', key, async () => {
@@ -228,7 +230,7 @@ export async function analyzeMove(
         return ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500))
       }
     })
-    return { analysis: groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }), source: hit ? 'cache' : 'llm' }
+    return { analysis: groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }, said), source: hit ? 'cache' : 'llm' }
   } catch (e) {
     return { analysis: offline(), source: 'offline', error: (e as Error).message }
   }
