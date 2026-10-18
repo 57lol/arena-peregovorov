@@ -1,6 +1,6 @@
 // Живая проверка разметки на трудных репликах «кому что выгодно»: Claude Sonnet (как на проде) и YandexGPT Pro (запасной).
 // Платно: ~20 реплик × 2 модели ≈ 50–60 ₽. Без --live только печатает план.
-//   AITUNNEL_API_KEY=… YANDEX_API_KEY=… YANDEX_FOLDER_ID=… npx tsx scripts/sides-live.ts --live [--out папка]
+//   AITUNNEL_API_KEY=… YANDEX_API_KEY=… YANDEX_FOLDER_ID=… npx tsx scripts/sides-live.ts --live [--models claude,yandex] [--out папка]
 // Каждая реплика — в разговоре: последняя фраза собеседника и его листок. Итог — разметка модели после проверки
 // словами игрока (analyzeMove) и после правила «да, давайте» (withBareYes), как в ходе на сервере.
 
@@ -57,10 +57,12 @@ if (!live) {
 process.env.CACHE_DIR ??= join(outDir, 'cache')
 mkdirSync(outDir, { recursive: true })
 
+// на проде запасной разметчик — YandexGPT 5.1 Pro (локальный .env ставит Lite — здесь он не нужен)
+const only = (() => { const i = process.argv.indexOf('--models'); return i < 0 ? undefined : process.argv[i + 1].split(',') })()
 const models = [
-  { name: 'claude', llm: aitunnel(DEFAULT_ANALYZE_MODEL) },
-  { name: 'yandex', llm: yandex(undefined, undefined, undefined, process.env.YANDEX_ANALYZE_MODEL ?? 'yandexgpt-5.1') },
-]
+  { name: 'claude', make: () => aitunnel(DEFAULT_ANALYZE_MODEL) },
+  { name: 'yandex', make: () => yandex(undefined, undefined, undefined, 'yandexgpt-5.1') },
+].filter((m) => !only || only.includes(m.name)).map((m) => ({ name: m.name, llm: m.make() }))
 const show = (o: Offer | undefined) => (!o || !Object.keys(o).length ? '—' : Object.entries(o).map(([k, v]) => `${k}=${v}`).join(', '))
 const rows: unknown[] = []
 let bad = 0
@@ -83,5 +85,5 @@ for (const c of CASES) {
     console.log(`${ok ? 'ок ' : 'НЕТ'} ${m.name.padEnd(6)} ${c.sc.padEnd(8)} «${c.text}» → ${show(got)}${a.accepts ? ' +согласие' : ''}${miss.length ? ` | не хватает: ${miss.join(', ')}` : ''}${wrong.length ? ` | ПЕРЕВЁРНУТО: ${wrong.join(', ')}` : ''}${extra.length ? ` | лишнее: ${extra.join(', ')}` : ''}${r.source !== 'llm' ? ` [${r.source}${r.error ? `: ${r.error.slice(0, 60)}` : ''}]` : ''}`)
   }
 }
-writeFileSync(join(outDir, 'results.json'), JSON.stringify(rows, null, 1))
+writeFileSync(join(outDir, `results${only ? `-${only.join('-')}` : ''}.json`), JSON.stringify(rows, null, 1))
 console.log(`\nНе так: ${bad} из ${rows.length}. Подробно: ${join(outDir, 'results.json')}`)
