@@ -3,7 +3,7 @@ import { getScenario } from '../../content/scenarios'
 import { endingCatalog, type EndingCard } from '../../content/endings'
 import { AXES, BEHAVIORS, behaviorById, type Axis, type ProfileRow } from '../../engine/behaviors'
 import type { EndingId } from '../../engine/endings'
-import { summarize, type Attempt, type Board as BoardData, type PlayerRow, type ShareState } from '../../engine/team'
+import { attemptStars, summarize, type Attempt, type Board as BoardData, type PlayerRow, type ShareState } from '../../engine/team'
 import type { LiveRow } from '../../engine/live'
 import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
@@ -414,7 +414,7 @@ function Roll({ players, pick, catalog, card }: { players: PlayerRow[]; pick: 'b
                   {e?.title ?? a.ending}
                 </td>
                 <td data-label="Звёзды">
-                  <Stars stars={{ deal: a.stars > 0, value: a.stars > 1, trust: a.stars > 2 }} />
+                  <Stars stars={attemptStars(a)} />
                 </td>
                 <td className="is-num" data-label="Время">
                   {time(a.seconds)}
