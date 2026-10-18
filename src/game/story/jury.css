@@ -427,6 +427,8 @@
     align-items: center;
     justify-self: start;
     min-height: 54px;
+    /* место под «Жёстче» справа: длинная сфера («Закупки · English») переносится, а не уходит под кнопку */
+    margin-right: 112px;
   }
   .jr-hard {
     position: absolute;

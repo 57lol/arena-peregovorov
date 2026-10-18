@@ -2,7 +2,7 @@
 // Видеозвонок с Ли Вэем («Поставщик из Иу»): вход, экран ноутбука, стол, ответ голосом (губы по звуку,
 // голос через обработку «связи»), уход собеседника. 1440×900 и 390×844, снимки — ~/Arena-materials/shots/call/.
 // Голос подменяется записью вступления Ли Вэя: офлайн-сервер голоса не даёт, а губам и обработке нужен звук.
-// Запуск: npm run dev:offline, потом npx tsx scripts/call-shots.ts [--url http://localhost:5173] [--only wide,phone]
+// Запуск: npm run dev:offline, потом npx tsx scripts/call-shots.ts [--url http://localhost:5173] [--only wide,phone,classic,voice-wide,voice-phone]
 // Браузер без звука (--mute-audio): прогон не должен шуметь в колонках.
 
 import { mkdirSync, readFileSync } from 'node:fs'
@@ -28,15 +28,20 @@ const fail = (m: string) => {
   console.log('  ПРОБЛЕМА:', m)
 }
 
-async function run(phone: boolean, classic = false) {
-  const tag = (phone ? '390' : '1440') + (classic ? '-2d' : '')
+async function run(phone: boolean, classic = false, voice = false) {
+  const tag = (phone ? '390' : '1440') + (classic ? '-2d' : '') + (voice ? '-голос' : '')
   console.log(`\nchina-${tag}`)
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] })
+  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] })
   const ctx = await b.newContext({
     viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     deviceScaleFactor: phone ? 2 : 1,
     hasTouch: phone,
   })
+  // голосовой режим (как у живого игрока): под Playwright он выключен, поэтому прячем webdriver; микрофон — фейковый
+  if (voice) {
+    await ctx.grantPermissions(['microphone'], { origin: URL })
+    await ctx.addInitScript({ content: "Object.defineProperty(navigator, 'webdriver', { get: () => false })" })
+  }
   const page = await ctx.newPage()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(String(e)))
@@ -78,6 +83,23 @@ async function run(phone: boolean, classic = false) {
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
     await page.waitForTimeout(3000)
     await shot('01-вход')
+    if (voice) {
+      // звонок и мобильная панель вместе: панель голоса внизу, экран звонка не перекрыт
+      await page.waitForSelector('.w3-bar[data-voice]', { timeout: 30_000 }).catch(() => fail(`${tag}: нет голосовой панели .w3-bar[data-voice]`))
+      await page.waitForTimeout(6000)
+      await shot('02-слушает')
+      const lay = await page.evaluate(() => {
+        const bar = document.querySelector('.w3-bar')?.getBoundingClientRect()
+        const sw = document.documentElement.scrollWidth - innerWidth
+        return { barTop: bar?.top, barBottom: bar?.bottom, h: innerHeight, sw, talk: document.querySelector('.w3-talk')?.textContent }
+      })
+      console.log('  панель:', JSON.stringify(lay))
+      if (lay.sw > 0) fail(`${tag}: горизонтальная прокрутка ${lay.sw}px`)
+      if (!lay.barBottom || lay.barBottom > lay.h + 1) fail(`${tag}: панель вылезает за экран`)
+      if (errors.length) fail(`${tag}: ошибки страницы: ${errors.slice(0, 3).join(' | ')}`)
+      await b.close()
+      return
+    }
     // губы: за 3 секунды звука рот должен и открываться, и закрываться
     const lips = await page.evaluate(async () => {
       const seen = new Set<string>()
@@ -152,5 +174,7 @@ async function run(phone: boolean, classic = false) {
 if (ONLY.includes('wide')) await run(false)
 if (ONLY.includes('phone')) await run(true)
 if (ONLY.includes('classic')) await run(false, true)
+if (ONLY.includes('voice-wide')) await run(false, false, true)
+if (ONLY.includes('voice-phone')) await run(true, false, true)
 console.log(problems.length ? `\nПроблем: ${problems.length}` : '\nБез проблем')
 process.exit(problems.length ? 1 : 0)
