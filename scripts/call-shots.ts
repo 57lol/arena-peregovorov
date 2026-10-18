@@ -50,9 +50,10 @@ async function run(phone: boolean, classic = false, voice = false) {
   await page.route('**/api/health', async (r) => {
     const res = await r.fetch()
     const h = await res.json()
-    await r.fulfill({ json: { ...h, speech: { ...h.speech, tts: true } } })
+    await r.fulfill({ json: { ...h, speech: { ...h.speech, tts: true, ...(voice ? { stt: true } : {}) } } })
   })
   await page.route('**/api/tts**', (r) => r.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 }))
+  if (voice) await page.route('**/api/stt**', (r) => r.fulfill({ json: { text: '' } }))
   const shot = async (name: string) => {
     await page.screenshot({ path: join(OUT, `${tag}-${name}.png`) })
     console.log('  снимок', name)
