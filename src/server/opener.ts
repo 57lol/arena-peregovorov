@@ -39,7 +39,7 @@ export function openerPrompt(sc: Scenario, history: TurnRecord[], playerText: st
   if (isEn(sc)) {
     return {
       system: `You are ${c.name}, ${c.role}. Character: ${TONE_EN[c.tone] ?? TONE_EN.neutral}.${c.speech ? ` How you speak: ${c.speech}` : ''}${examples.length ? `\nYou sound like: ${examples.map((e) => `"${e}"`).join(' ')}` : ''}
-A negotiation is going on: "${sc.title}". The other side has just finished speaking. Say out loud only the very first words of your answer: 2–5 words, a live reaction to what they said — surprise, a short laugh, thinking aloud, their name, or their word with a question, whatever fits the moment and your character. No opinion and no position yet — only the reaction. You will continue the answer yourself right after, separately.
+A negotiation is going on: "${sc.title}". The other side has just finished speaking. Say out loud only the very first words of your answer: 2–5 words, a live reaction to what they said — surprise, a short laugh, thinking aloud, their name, or their word with a question, whatever fits the moment and your character. No opinion, no position and no answer to their question yet — only the reaction. You will continue the answer yourself right after, separately.
 Never: numbers, prices, dates; agreeing or refusing ("yes", "no", "deal", "okay", "fine"); naming terms; a question about the deal; "absolutely", "of course", "great question", "I understand". No quotes, brackets or emojis.
 Answer JSON {"say": "words"}; the words end with ".", "!", "?" or "…".`,
       user: `You said before: "${said}"\nThey: "${playerText}"${rude ? '\nThey were rude.' : ''}\n${moodOf(state, true)}${starts.length ? `\nYour earlier lines began: ${starts.map((x) => `"${x}…"`).join(', ')} — start differently.` : ''}`,
@@ -47,7 +47,7 @@ Answer JSON {"say": "words"}; the words end with ".", "!", "?" or "…".`,
   }
   return {
     system: `Ты — ${c.name}, ${c.role}. Характер: ${TONE[c.tone] ?? TONE.neutral}.${c.speech ? ` Как говоришь: ${c.speech}` : ''}${examples.length ? `\nТак ты звучишь: ${examples.map((e) => `«${e}»`).join(' ')}` : ''}
-Идут переговоры «${sc.title}». Собеседник только что договорил. Скажи вслух только первые слова своего ответа: 2–5 слов живого отклика на то, что он сказал, — удивление, усмешка, раздумье вслух, обращение по имени или его слово с вопросом: что подходит к моменту и к характеру. Без оценки и без своей позиции — только отклик. Дальше ты договоришь сам, отдельно.
+Идут переговоры «${sc.title}». Собеседник только что договорил. Скажи вслух только первые слова своего ответа: 2–5 слов живого отклика на то, что он сказал, — удивление, усмешка, раздумье вслух, обращение по имени или его слово с вопросом: что подходит к моменту и к характеру. Без оценки, без своей позиции и без ответа на его вопрос — только отклик. Дальше ты договоришь сам, отдельно.
 Нельзя: цифры, суммы, сроки; соглашаться или отказываться («да», «нет», «ладно», «идёт», «договорились»); называть условия; вопрос по делу; «конечно», «отличный вопрос», «понимаю». Без кавычек, скобок и смайликов.
 Ответ — JSON {"say": "слова"}; слова кончаются на «.», «!», «?» или «…».`,
     user: `Ты до этого сказал: «${said}»\nОн: «${playerText}»${rude ? '\nОн нагрубил.' : ''}\n${moodOf(state, false)}${starts.length ? `\nТвои прошлые реплики начинались так: ${starts.map((x) => `«${x}…»`).join(', ')} — начни по-другому.` : ''}`,
@@ -61,7 +61,7 @@ const SCHEMA = {
 
 // обязательства: да/нет по сделке, «ладно», «идёт», «давай», «конечно» — начало звучит до решения движка.
 // «…, да?» — переспрос, а не согласие.
-const COMMIT = /(?<![\p{L}-])(да(?!\s*[?!]*\?)|нет|неа|ладно|хорошо|идёт|идет|давай|давайте|договорились|по рукам|согласен|согласна|согласны|конечно|ок|окей|годится|принято|ни за что|не пойдёт|не пойдет|не выйдет|не годится|не получится|не могу|не можем|нельзя|невозможно|исключено|отказ\p{L}*|беру|берём|can['’]?t|cannot|won['’]?t|impossible|yes|yeah|yep|no|nope|deal|okay|ok|fine|sure|agreed|of course|absolutely|certainly|never|no way)(?![\p{L}-])/iu
+const COMMIT = /(?<![\p{L}-])(да(?!\s*[?!]*\?)|нет|неа|ладно|хорошо|идёт|идет|давай|давайте|договорились|по рукам|согласен|согласна|согласны|конечно|ок|окей|норм|нормально|го|лады|годится|принято|ни за что|не пойдёт|не пойдет|не выйдет|не годится|не получится|не могу|не можем|нельзя|невозможно|исключено|отказ\p{L}*|беру|берём|can['’]?t|cannot|won['’]?t|impossible|yes|yeah|yep|no|nope|deal|okay|ok|fine|sure|agreed|of course|absolutely|certainly|never|no way)(?![\p{L}-])/iu
 const ASSISTANT = /(отличный вопрос|хороший вопрос|понимаю|great question|good question|i understand|i hear you|i appreciate)/iu
 
 /**
@@ -81,7 +81,7 @@ export function checkOpener(raw: string, playerText = ''): string | undefined {
   return t
 }
 
-const OPENER_VERSION = 'o5'
+const OPENER_VERSION = 'o7'
 
 /**
  * Отклик быстрой моделью (до двух попыток в отведённое время); не вышло или не прошёл проверку — undefined. Удачный

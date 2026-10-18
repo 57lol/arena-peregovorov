@@ -34,6 +34,21 @@ const lines = async (r: Response) => (await r.text()).trim().split('\n').map((l)
 const post = (app: ReturnType<typeof createApp>, path: string, playerText: string, extra: object = {}) =>
   app.request(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '4.4.4.4' }, body: JSON.stringify({ scenarioId: 'tara', history: [], playerText, tts: { voice: 'ermil', who: 'buyer' }, ...extra }) })
 
+describe('быстрый разбор не держит ход', () => {
+  afterEach(() => vi.unstubAllEnvs())
+  it('Pro завис — ход идёт по Sonnet через ANALYZE_QUICK_TIMEOUT_MS, а не ждёт ответа Pro', async () => {
+    vi.stubEnv('ANALYZE_QUICK_TIMEOUT_MS', '100')
+    const pro: LLM = { name: 'yandex', model: 'pro', json: async () => (await tick(1500), empty) }
+    const sonnet: LLM = { name: 'aitunnel', model: 'sonnet', json: async () => (await tick(30), empty), backup: pro }
+    const s = speaker(reply(`Двести двенадцать ${uniq()} — цена честная. Жду ваше.`))
+    const app = createApp({ ...pro, analyzer: sonnet, voice: s.m })
+    const t0 = Date.now()
+    const ev = await lines(await post(app, '/api/turn', `Добрый день ${uniq()}`, { stream: true }))
+    expect(ev.at(-1)!.sources.ms.analyze).toBeLessThan(600)
+    expect(Date.now() - t0).toBeLessThan(1400)
+  })
+})
+
 describe('заход: первые слова ответа звучат до разбора', () => {
   afterEach(() => vi.unstubAllEnvs())
 

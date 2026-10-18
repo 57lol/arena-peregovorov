@@ -253,9 +253,11 @@ export async function startAnalysis(
       return done(await ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500)))
     }
   })().catch((e: Error): AnalyzeResult => ({ analysis: offline(), source: 'offline', error: e.message }))
+  // ход ждёт быстрый разбор недолго: Pro отвечает за ~0,8 с (p90 1,1), а зависший держал ход на 4 с (живой прогон 18.10)
+  const late = new Promise<undefined>((r) => setTimeout(r, WAIT.analyzeQuick(), undefined).unref?.())
   return {
     main,
-    ...(fast ? { quick: fast.then(done, () => undefined) } : {}),
+    ...(fast ? { quick: Promise.race([fast.then(done, () => undefined), late]) } : {}),
     keep: async (r) => (r.value ? put('analyze', key, r.value) : undefined),
   }
 }
