@@ -5,6 +5,7 @@ import { PLACE as OFFICES } from './room3d.gen'
 import { PLACE as BYTOVKA } from './rooms/bytovka.gen'
 import { PLACE as DORM } from './rooms/dorm.gen'
 import { PLACE as INEI } from './rooms/inei.gen'
+import { PLACE as ISTANBUL } from './rooms/istanbul.gen'
 import { PLACE as SHOP } from './rooms/shop.gen'
 import { PLACE as STREET } from './rooms/street.gen'
 
@@ -43,6 +44,11 @@ const OBSTACLES: Record<keyof typeof EXITS, Obstacle[]> = {
     { r: [-HW, INEI.vitrina[1], -3, INEI.vitrina[0] + 0.6], what: 'витрина' },
     { c: [INEI.ficus[0], INEI.ficus[1], 0.28], what: 'фикус' },
     { c: [INEI.coat[0], INEI.coat[1], 0.22], what: 'вешалка' },
+  ],
+  istanbul: [
+    table, ...chairs,
+    { r: [-HW, -HW + ISTANBUL.stand[3], ISTANBUL.stand[0], ISTANBUL.stand[1]], what: 'стойка с образцами' },
+    { c: [ISTANBUL.plant[0], ISTANBUL.plant[1], 0.3], what: 'олива' },
   ],
   shop: [
     table, ...people,
@@ -96,7 +102,7 @@ describe('уход собеседника: путь по комнате', () => 
   }
 
   const doors: [keyof typeof EXITS, readonly number[]][] = [
-    ['factory', OFFICES.factory.door], ['office', OFFICES.office.door], ['dorm', DORM.door], ['bytovka', BYTOVKA.door], ['inei', INEI.door],
+    ['factory', OFFICES.factory.door], ['office', OFFICES.office.door], ['dorm', DORM.door], ['bytovka', BYTOVKA.door], ['inei', INEI.door], ['istanbul', ISTANBUL.door],
   ]
   for (const [kind, [z0, z1]] of doors) {
     it(`${kind}: уходит в дверь — проём открыт, у стены он уже в темноте, потом дверь закрывается`, () => {

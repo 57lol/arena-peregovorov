@@ -26,7 +26,7 @@ const RUDE = 'Вы что, идиот?'
 
 type Sample = { at: number; walking: boolean; exited: boolean; leaving: boolean; x: number; z: number; door: number; yaw: number }
 
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'] })
 let failed = false
 try {
   for (const id of CASES) {
@@ -35,8 +35,6 @@ try {
     const dir = join(OUT, id)
     mkdirSync(dir, { recursive: true })
     const ctx = await browser.newContext({ viewport: VIEWPORT, ...(VIDEO ? { recordVideo: { dir, size: { width: 960, height: 600 } } } : {}) })
-    // программный рендер с записью видео даёт мало кадров — проверку «не тянет 3D» выключаем (как в play3d-e2e)
-    await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
     await ctx.addInitScript(`
       localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
       window.__exit = []
@@ -69,6 +67,9 @@ try {
     const field = page.locator('#px-speech')
     await field.waitFor({ timeout: 60_000 })
     await page.waitForFunction(() => !!(window as unknown as { __world?: unknown }).__world, undefined, { timeout: 30_000 })
+    // программный рендер с записью видео даёт мало кадров — проверку «не тянет 3D» выключаем. Раньше для этого
+    // подменяли document.hidden, но теперь в скрытой вкладке кадры не рисуются вовсе (frameLoop) — подменяем сам fps.
+    await page.evaluate("Object.defineProperty(window.__world, 'fps', { get() { return 60 }, set() {} })")
     for (let k = 0; k < 3; k++) {
       const left = await page.evaluate(() => (window as unknown as { __world: { company: { lead: { leaving: boolean } } } }).__world.company.lead.leaving)
       if (left) break

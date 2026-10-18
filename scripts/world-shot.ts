@@ -4,7 +4,7 @@ import { chromium } from 'playwright'
 
 const [kind = 'factory', yaw = '0', pitch = '-6', size = '1440x900', out = `/tmp/world-${kind}.png`] = process.argv.slice(2)
 const [w, h] = size.split('x').map(Number)
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'] })
 const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
 const errors: string[] = []
 page.on('pageerror', (e) => errors.push(String(e)))
