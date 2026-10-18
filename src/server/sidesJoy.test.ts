@@ -88,6 +88,19 @@ describe('рамка: кто кому уступает — по очкам, на
     expect(checkPiece(sc, f, 'Eight weeks… okay, tamam. Eight weeks I can do, but it costs me.', ctx).hard).toEqual([])
   })
 
+  it('вежливый отказ, «беру на себя», «рад бы, но», «спасибо за честность» — не радость своей уступке', () => {
+    const ist = CASES.find((s) => s.id === 'istanbul')!
+    const f = counterFrame(ist, ist.issues.find((x) => x.id === 'delivery')!, 2, 4, { delivery: 4 })
+    for (const ok of ["Eight weeks — I'll take that on, but the price stays.", 'Eight weeks, thanks, but no.', 'Eight weeks? Thank you for the honesty.', 'I take it you want eight weeks.', 'Eight weeks — not great, but okay.'])
+      expect(wrongJoy(ist, f, ok), ok).toBe(false)
+    for (const bad of ['Eight weeks, thank you.', 'Eight weeks — great.', 'Eight weeks, I take it.']) expect(wrongJoy(ist, f, bad), bad).toBe(true)
+    const dorm = CASES.find((s) => s.id === 'dorm')!
+    const g = counterFrame(dorm, dorm.issues.find((x) => x.id === 'quiet')!, 1, 3, { quiet: 3 })
+    for (const ok of ['Тихо с 23:00 — беру на себя, ладно.', 'Рад бы дать тихо с 23:00, но не могу.', 'Тихо с 23:00? Спасибо, но нет.', 'Тихо с 23:00 — не рад, но ладно.'])
+      expect(wrongJoy(dorm, g, ok), ok).toBe(false)
+    for (const bad of ['Тихо с 23:00 — беру.', 'Тихо с 23:00 — отлично!', 'Тихо с 23:00, спасибо.']) expect(wrongJoy(dorm, g, bad), bad).toBe(true)
+  })
+
   it('Дарина 19.10: «Вот это уже цифра, спасибо» на 150 тысяч — благодарит ни за что', () => {
     const sc = CASES.find((s) => s.id === 'offer')!
     const prev = { ...sheet(sc), salary: 3 }

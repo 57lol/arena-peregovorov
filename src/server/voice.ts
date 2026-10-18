@@ -707,8 +707,9 @@ export function checkHeader(sc: Scenario, frame: Frame, out: Header): string[] {
 }
 
 // Радость, благодарность и «беру» — про то, что ему выгодно. «Годится», «ладно», «принято» — деловое согласие, не радость.
-const JOY = /(?<!\p{L})(отличн\p{L}*|прекрасн\p{L}*|замечательн\p{L}*|супер|класс|классно|кайф|красот\p{L}*|красав\p{L}*|молод(?:ец|цы)|спасибо|благодар\p{L}*|рад|рада|приятно|нравится|по душе|беру|берём|берем|принимаю|вот это (?:разговор|по-нашему|дело)|другое дело|то, что надо|уважаю|glad|thanks?|thank you|great|nice|perfect|excellent|wonderful|lovely|love|happy|i(?:'ll| will)? take (?:it|that|this)|music to my ears|çok güzel)(?!\p{L})/iu
-const THANKS = /(?<!\p{L})(спасибо|благодар\p{L}*|thanks?|thank you)(?!\p{L})/iu
+const JOY = /(?<!\p{L})(отличн\p{L}*|прекрасн\p{L}*|замечательн\p{L}*|супер|класс|классно|кайф|красот\p{L}*|красав\p{L}*|молод(?:ец|цы)|спасибо|благодар\p{L}*|рад|рада|приятно|нравится|по душе|беру|берём|берем|принимаю|вот это (?:разговор|по-нашему|дело)|другое дело|то, что надо|уважаю|glad|thanks?|thank you|great|nice|perfect|excellent|wonderful|lovely|love|happy|i(?:'ll| will)? take (?:it|that|this)|music to my ears|çok güzel)(?!\p{L})(?!\s+(?:бы|на себя|upon|on|you|that you)(?!\p{L}))(?!,?\s+(?:но|but)(?!\p{L}))/iu
+// «спасибо, но нет» — вежливый отказ; «спасибо за честность», «спасибо, что пришли» — не за условия
+const THANKS = /(?<!\p{L})(спасибо|благодар\p{L}*|thanks?)(?!\p{L})(?!,?\s+(?:you,?\s+)?(?:но|but|что|that|за\s+(?:извинени|честност|прямот|откровенн|понимани|терпени|встреч|вопрос|чай)|for\s+(?:the\s+)?(?:apolog|honest|being|coming|your\s+(?:honesty|time|patience)|tea|question)))/iu
 
 /**
  * Он радуется тому, что ему невыгодно: своей уступке или требованию игрока в пользу игрока («восемь недель — беру»,
@@ -716,7 +717,10 @@ const THANKS = /(?<!\p{L})(спасибо|благодар\p{L}*|thanks?|thank y
  * к нему. Фраза, где рядом и невыгодное, и выгодное ему, — не в счёт: радость может быть про выгодное.
  */
 const glad = (line: string) =>
-  [...line.matchAll(new RegExp(JOY.source, 'giu'))].some((m) => !/(?<!\p{L})(?:не|ни|not|don'?t|never|no)\s+$|n't\s+$/iu.test(line.slice(Math.max(0, m.index - 8), m.index)))
+  [...line.matchAll(new RegExp(JOY.source, 'giu'))].some((m) =>
+    !/(?<!\p{L})(?:не|ни|not|don'?t|never|no)\s+$|n't\s+$/iu.test(line.slice(Math.max(0, m.index - 8), m.index)) &&
+    // «спасибо за честность», «спасибо, но нет» — не радость условию
+    !(/^(?:спасибо|благодар|thank)/iu.test(m[0]) && !THANKS.test(line.slice(m.index))))
 
 export function wrongJoy(sc: Scenario, frame: Frame, line: string): boolean {
   if (!glad(line)) return false
