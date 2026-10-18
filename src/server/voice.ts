@@ -414,9 +414,11 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const pl = sc.player.profile.points
       // он просит себе хуже, чем у тебя на листке, — это не «не принимаешь», а «моё ему же лучше»
       const selfHarm = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && pl[i.id][stance[i.id]!] < pl[i.id][d.offer[i.id]!])
+      // сначала то, что он назвал сейчас: иначе модель отвечает на прошлые просьбы, а «восемь недель» пропускает
+      const now = (i: Issue) => +(stance[i.id] !== stanceBefore[i.id])
       const no = sc.issues
         .filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && !changed.includes(i.id) && !selfHarm.includes(i))
-        .sort((a, b) => issueWeight(opp, b.id) - issueWeight(opp, a.id))
+        .sort((a, b) => now(b) - now(a) || issueWeight(opp, b.id) - issueWeight(opp, a.id))
         .slice(0, 2)
       const refuse = no.length ? ` Его ${no.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} ты не принимаешь — скажи это коротко, своими словами; своё по этому пункту можешь назвать.` : ''
       const worse = selfHarm.length ? ` Он называет ${selfHarm.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} — это хуже для него самого, чем у тебя («${selfHarm.map((i) => i.options[d.offer[i.id]!]).join('», «')}»). Оставляешь своё, оно ему же лучше; не спорь с этим как с его требованием.` : ''

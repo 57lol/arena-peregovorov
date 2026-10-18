@@ -162,7 +162,7 @@ outer: for (const id of want) {
         n: r.state.turn, strategy: m.label, text: m.text, analysis: a, decision: d,
         prev: before.lastOpponentOffer ?? {}, stanceBefore: before.playerStance ?? {}, stance: r.state.playerStance ?? {},
         position: d.kind === 'accept' ? r.state.deal ?? r.state.tableOffer : ('offer' in d && d.offer) || before.lastOpponentOffer || {},
-        status: r.state.status, opener, line, source: v.source, problems: v.problems, ms: { ...(v.ms ?? {}), wall: Date.now() - t0 },
+        status: r.state.status, opener, line, source: v.source, model: 'model' in v ? v.model : undefined, error: 'error' in v ? v.error : undefined, problems: v.problems, ms: { ...(v.ms ?? {}), wall: Date.now() - t0 },
       })
       history.push({ turn: r.state.turn, playerText: m.text, analysis: a, deltas: r.deltas, decision: d, opponentLine: line, emotion: v.emotion, stateAfter: r.state })
       state = r.state

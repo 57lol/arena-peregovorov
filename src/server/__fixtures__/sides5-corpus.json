@@ -1,0 +1,4598 @@
+[
+ {
+  "case": "china",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Оплата — как вы хотите: 100% предоплата через Alipay.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "moq": 0,
+    "delivery": 0,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "payment": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Друг, Alipay — без проблем… это ты хорошо сказал, мне нравится. Остальное пока как есть: сорок восемь юаней, две тысячи штук, сорок дней. Теперь цену и партию смотрим. Друг, ещё набор адаптеров за 2400 юаней. Очень-очень полезный комплект! Добавить?",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: цена датчика за штуку — 48 юаней, оплата — 100% предоплата через Alipay.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "payment": 0
+  },
+  "stance": {
+   "payment": 0,
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Хм, Alipay… и сорок восемь — оба принимаю, спасибо, это хороший шаг. Но заказ ещё не закрыт. Партию и сроки смотрим, там пока не сошлись.",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: цена датчика за штуку — 40 юаней, moq — минимальная партия — 1000 штук, образцы и качество — эталон и спецификация повторных поставок? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 2,
+    "moq": 2,
+    "delivery": 0,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "payment": 0,
+   "price": 0
+  },
+  "stance": {
+   "payment": 0,
+   "price": 2,
+   "moq": 2,
+   "quality": 2
+  },
+  "position": {
+   "price": 2,
+   "moq": 2,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Хм, минимальная партия… тысяча штук, цена сорок юаней — ладно, тут сходимся. Эталон и спецификация тоже беру, это и так было у меня. Склад подвинется, не обижусь. Держатели за 1200 юаней, фонарик подарок. Мой склад вам спасибо скажет! Берёте?",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: цена датчика за штуку — 32 юаня, moq — минимальная партия — 500 штук, срок и способ доставки — 10 дней, авиа, оплата — аккредитив после инспекции. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "moq": 1,
+    "delivery": 1,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "payment": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4,
+   "moq": 4,
+   "delivery": 4,
+   "payment": 2
+  },
+  "position": {
+   "price": 0,
+   "moq": 1,
+   "delivery": 1,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Тридцать два юаня?.. друг, у меня склад большой, но не благотворительный. Аккредитив тоже не берём. Могу тысяча пятьсот штук и тридцать дней, цена и Alipay остаются. Друг, ещё набор адаптеров за 2400 юаней. Очень-очень полезный комплект! Добавить?",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "price": 0,
+   "moq": 1,
+   "delivery": 1,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "price": 4,
+   "moq": 4,
+   "delivery": 4,
+   "payment": 2
+  },
+  "stance": {
+   "price": 4,
+   "moq": 4,
+   "delivery": 4,
+   "payment": 2
+  },
+  "position": {
+   "price": 0,
+   "moq": 1,
+   "delivery": 1,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Хм… понятно, что не подходит. Но у меня тоже калькулятор есть, не только склад. Вы шаг сделайте, я навстречу пойду.",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: оплата — аккредитив после инспекции.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 1,
+    "moq": 2,
+    "delivery": 3,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 1,
+   "delivery": 1,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "price": 4,
+   "moq": 4,
+   "delivery": 4,
+   "payment": 2
+  },
+  "stance": {
+   "price": 4,
+   "moq": 4,
+   "delivery": 4,
+   "payment": 2
+  },
+  "position": {
+   "price": 1,
+   "moq": 2,
+   "delivery": 3,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Аккредитив, говоришь?… Нет, друг, это я не беру. Alipay остаётся. Зато иду к вам: сорок четыре юаня, тысяча штук, четырнадцать дней через Казахстан. Держатели за 1200 юаней, фонарик подарок. Мой склад вам спасибо скажет! Берёте?",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: цена датчика за штуку — 40 юаней, moq — минимальная партия — 1000 штук, образцы и качество — эталон и спецификация повторных поставок? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "moq": 0,
+    "delivery": 0,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "payment": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2,
+   "moq": 2,
+   "quality": 2
+  },
+  "position": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Хм, интересно… эталон и спецификацию на повторные поставки — согласен, это можно записать. Но сорок юаней и тысяча штук — нет, друг. Мои сорок восемь и две тысячи пока остаются. Друг, ещё набор адаптеров за 2400 юаней. Очень-очень полезный комплект! Добавить?",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Оплата — пусть будет по-вашему, 100% предоплата через Alipay. А мне тогда цена датчика за штуку — 32 юаня.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 1,
+    "moq": 1,
+    "delivery": 0,
+    "quality": 2,
+    "payment": 0
+   }
+  },
+  "prev": {
+   "price": 0,
+   "moq": 0,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "price": 2,
+   "moq": 2,
+   "quality": 2
+  },
+  "stance": {
+   "price": 4,
+   "moq": 2,
+   "quality": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 1,
+   "moq": 1,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Тридцать два юаня?.. Это уже мой склад плачет, друг. Но оплата Alipay — хорошо, спасибо. Сорок четыре юаня и полторы тысячи штук — вот мой шаг к вам.",
+  "label": "ok"
+ },
+ {
+  "case": "china",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 1,
+   "moq": 1,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "stanceBefore": {
+   "price": 4,
+   "moq": 2,
+   "quality": 2,
+   "payment": 0
+  },
+  "stance": {
+   "price": 4,
+   "moq": 2,
+   "quality": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 1,
+   "moq": 1,
+   "delivery": 0,
+   "quality": 2,
+   "payment": 0
+  },
+  "line": "Ого, друг… быстро решили! Тогда по-моему: сорок четыре юаня, полторы тысячи штук, сорок дней сборным грузом. Договорились, записываю. Без доптоваров, только нужные датчики. Записал!",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Снижение цены — как вы хотите: 12%.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 4,
+    "term": 0,
+    "payment": 4,
+    "stock": 3,
+    "index": 2
+   },
+   "feigned": [
+    "index"
+   ]
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "И что? Двенадцать приняли, это допустим. Теперь вам навстречу: индексацию по сырью раз в квартал добавим, так и быть. Для меня это не бесплатно, запомните.",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: снижение цены — 12%, страховой запас у клиента — на две недели.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 4
+  },
+  "stance": {
+   "price": 4,
+   "stock": 3
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Снижение цены? Запас на две недели — это допустим, шаг навстречу вы сделали. Но два пункта из пяти — ещё не сделка. Остальное где?",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: снижение цены — 6%, срок договора — 2 года, индексация по сырью — раз в квартал? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "stock": 3
+  },
+  "stance": {
+   "price": 2,
+   "stock": 3,
+   "term": 1,
+   "index": 2
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Шесть процентов? Вдвое меньше, чем у Нинбо? Нет. Индексация раз в квартал — это допустим, она и так была. А вы мне что дали? Пока одни просьбы.",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: снижение цены — без снижения, срок договора — 3 года, отсрочка платежа — 30 дней, страховой запас у клиента — нет. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 4,
+    "term": 0,
+    "payment": 4,
+    "stock": 3,
+    "index": 2
+   },
+   "feigned": [
+    "index"
+   ]
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0,
+   "term": 2,
+   "payment": 0,
+   "stock": 0
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "И что? Без скидки и без запаса я даже папку не открою. Так и быть, пойду навстречу: сырьё считаем раз в квартал. Это вам уступка, запомните.",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "term": 2,
+   "payment": 0,
+   "stock": 0
+  },
+  "stance": {
+   "price": 0,
+   "term": 2,
+   "payment": 0,
+   "stock": 0
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "И что ж… не подходит — так назовите, что подходит. Я пока слышу только «нет», а с «нет» в Нинбо не поедешь. Ваш ход.",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: снижение цены — без снижения.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "term": 2,
+   "payment": 0,
+   "stock": 0
+  },
+  "stance": {
+   "price": 0,
+   "term": 2,
+   "payment": 0,
+   "stock": 0
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Снижение без снижения? Красиво сказано, я так и запишу. Только это не шаг, это стоячее место. Сдвиньтесь хоть на чуть-чуть — тогда поговорим.",
+  "label": "wrong",
+  "why": "E1: Красиво сказано, я так и запишу; E1: Красиво сказано, я так и запишу [priceбез снижения:glad] (ирония; проверка текста не ловит — держит правило промпта «не хвалишь его невыгодную тебе цифру»)",
+  "catch": false
+ },
+ {
+  "case": "client",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: снижение цены — 6%, срок договора — 2 года, индексация по сырью — раз в квартал? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 4,
+    "term": 0,
+    "payment": 4,
+    "stock": 3,
+    "index": 2
+   },
+   "feigned": [
+    "index"
+   ]
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2,
+   "term": 1,
+   "index": 2
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Шесть процентов… и два года — нет, это не разговор. Двенадцать и год остаются. А индексацию раз в квартал, так и быть, допустим. Это уступка, запомните, она мне не бесплатная.",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Отсрочка платежа — пусть будет по-вашему, 90 дней. А мне тогда снижение цены — без снижения.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 2,
+   "term": 1,
+   "index": 2
+  },
+  "stance": {
+   "price": 0,
+   "term": 1,
+   "index": 2,
+   "payment": 4
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Снижение цены? Без снижения — это вы шутите. Девяносто дней — ладно, это шаг ко мне, засчитываю. Но один шаг — это не дорога. Проценты где?",
+  "label": "ok"
+ },
+ {
+  "case": "client",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "term": 1,
+   "index": 2,
+   "payment": 4
+  },
+  "stance": {
+   "price": 0,
+   "term": 1,
+   "index": 2,
+   "payment": 4
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "И что… вот это уже разговор. Двенадцать, год, девяносто дней, запас на две недели у нас — как у меня на листке. Индексация раз в квартал, так и быть. Договорились.",
+  "label": "ok"
+ },
+ {
+  "case": "client-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Снижение цены — как вы хотите: 12%.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 4,
+    "term": 0,
+    "payment": 4,
+    "stock": 3,
+    "index": 2
+   },
+   "feigned": [
+    "index"
+   ]
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "И что? Двенадцать приняла, это допустим. Теперь так и быть, пойду вам навстречу: добавим индексацию по сырью, раз в квартал. Это моя уступка, между прочим.",
+  "label": "ok"
+ },
+ {
+  "case": "client-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: снижение цены — 12%, страховой запас у клиента — на две недели.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 4
+  },
+  "stance": {
+   "price": 4,
+   "stock": 3
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Снижение цены… и запас на две недели — это допустим, шаг к столу вы сделали. Но до сделки ещё далеко: отсрочка и срок на листке всё те же, я жду.",
+  "label": "ok"
+ },
+ {
+  "case": "client-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: снижение цены — 6%, срок договора — 2 года, индексация по сырью — раз в квартал? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "stock": 3
+  },
+  "stance": {
+   "price": 2,
+   "stock": 3,
+   "term": 1,
+   "index": 2
+  },
+  "position": {
+   "price": 4,
+   "term": 0,
+   "payment": 4,
+   "stock": 3,
+   "index": 2
+  },
+  "line": "Шесть процентов… это не торг, а просьба. Индексация — допустим, она и так моя. А от вас что? Пока я вижу только минусы для себя. Жду шага навстречу.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Гости — как вы хотите: выходные допоздна.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 0,
+    "quiet": 0,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "guests": 3
+  },
+  "position": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Э-э, братан… ты быстро схватываешь. Пацаны оценят, это уже плюс. Вай-фай по шестьсот, шум и уборка как я сказал, и листок почти готов.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: доля за вай-фай — 600 ₽, гости — выходные допоздна.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "guests": 3
+  },
+  "stance": {
+   "guests": 3,
+   "wifi": 0
+  },
+  "position": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Ну, слушай… шестьсот и пацаны — это ты красиво сделал, спасибо. Но листок пока не закрыт, там ещё остались пункты, и тут ты мне пока не ответил.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: доля за вай-фай — 300 ₽, тишина по ночам — тихо с полуночи, чай, сахар, бумага — общая касса? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 2,
+    "quiet": 2,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "guests": 3,
+   "wifi": 0
+  },
+  "stance": {
+   "guests": 3,
+   "wifi": 2,
+   "quiet": 2,
+   "kitty": 2
+  },
+  "position": {
+   "wifi": 2,
+   "quiet": 2,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Ха, братан, ну… триста и тишина с полуночи — норм, тут сойдёмся. Общая касса — ну да, это и так было. Так что листок почти живой, глянь ещё раз.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: доля за вай-фай — 150 ₽, тишина по ночам — тихо с 23:00, уборка — график на двери, гости — без гостей. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 1,
+    "quiet": 1,
+    "cleaning": 2,
+    "guests": 2,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "wifi": 3,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 0
+  },
+  "position": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 2,
+   "guests": 2,
+   "kitty": 2
+  },
+  "line": "Э-э, братан… ты сразу с ультиматума, я ж не банк. Давай так: вай-фай 450, тихо с часу ночи, гости только по субботам. А график на двери — ладно, тут сойдёмся.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 2,
+   "guests": 2,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "wifi": 3,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 0
+  },
+  "stance": {
+   "wifi": 3,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 0
+  },
+  "position": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 2,
+   "guests": 2,
+   "kitty": 2
+  },
+  "line": "Ну братан, чё ты… сразу рубишь? Я же шаг навстречу сделал. Скажи, что тебя реально цепляет, а не просто «нет».",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: гости — без гостей.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 2,
+    "quiet": 3,
+    "cleaning": 2,
+    "guests": 2,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 2,
+   "guests": 2,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "wifi": 3,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 0
+  },
+  "stance": {
+   "wifi": 3,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 0
+  },
+  "position": {
+   "wifi": 2,
+   "quiet": 3,
+   "cleaning": 2,
+   "guests": 2,
+   "kitty": 2
+  },
+  "line": "Слушай, ну… тихо с 23:00 — окей, тут сходимся. Вай-фай давай триста. А совсем без гостей — не, это мимо, суббота допоздна, и всё.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: доля за вай-фай — 300 ₽, тишина по ночам — тихо с полуночи, чай, сахар, бумага — общая касса? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 1,
+    "quiet": 1,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "quiet": 2,
+   "wifi": 2,
+   "kitty": 2
+  },
+  "position": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Э-э, братан… ты сразу с калькулятором. Давай посередине: вай-фай 450, тихо с часу ночи. А общая касса на чай и сахар — норм, тут согласен.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Гости — пусть будет по-вашему, выходные допоздна. А мне тогда тишина по ночам — тихо с 23:00.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 2,
+    "quiet": 3,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "quiet": 2,
+   "wifi": 2,
+   "kitty": 2
+  },
+  "stance": {
+   "quiet": 3,
+   "wifi": 2,
+   "kitty": 2,
+   "guests": 3
+  },
+  "position": {
+   "wifi": 2,
+   "quiet": 3,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Ха, братан, ну… ты внезапно щедрый. Выходные допоздна — спасибо, пацаны оценят. Ладно, вай-фай 300 и тихо с одиннадцати — беру, как ты и просил. Давай так: тишина по ночам — тихо с 23:00.",
+  "label": "wrong",
+  "why": "E3: вай-фай 300 и тихо с одиннадцати — беру; E3: вай-фай 300 и тихо с одиннадцати — беру [wifi300 ₽:received]; E3: вай-фай 300 и тихо с одиннадцати — беру [quietтихо с 23:00:received]"
+ },
+ {
+  "case": "dorm",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "wifi": 2,
+   "quiet": 3,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "quiet": 3,
+   "wifi": 2,
+   "kitty": 2,
+   "guests": 3
+  },
+  "stance": {
+   "quiet": 3,
+   "wifi": 2,
+   "kitty": 2,
+   "guests": 3
+  },
+  "position": {
+   "wifi": 2,
+   "quiet": 3,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Ого, братан… вот это скорость. Го, по рукам: вай-фай триста, тихо с одиннадцати, пацаны по выходным. Уборка, как я говорил, по настроению, ага?",
+  "label": "ok"
+ },
+ {
+  "case": "dorm-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Гости — как вы хотите: выходные допоздна.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 0,
+    "quiet": 0,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "guests": 3
+  },
+  "position": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "О-о, братан… ты сразу в тему, мне нравится. Пацаны оценят. Вай-фай шестьсот, шум без правил, уборка как пойдёт. Это пока моя картинка, посмотрим, как тебе она.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: доля за вай-фай — 600 ₽, гости — выходные допоздна.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "guests": 3
+  },
+  "stance": {
+   "guests": 3,
+   "wifi": 0
+  },
+  "position": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Э-э, братан… шестьсот и пацанов ты принял без нытья, это плюс тебе. Но листок-то не только из них состоит, так что дальше твой ход.",
+  "label": "ok"
+ },
+ {
+  "case": "dorm-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: доля за вай-фай — 300 ₽, тишина по ночам — тихо с полуночи, чай, сахар, бумага — общая касса? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "wifi": 1,
+    "quiet": 1,
+    "cleaning": 0,
+    "guests": 3,
+    "kitty": 2
+   }
+  },
+  "prev": {
+   "wifi": 0,
+   "quiet": 0,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "stanceBefore": {
+   "guests": 3,
+   "wifi": 0
+  },
+  "stance": {
+   "guests": 3,
+   "wifi": 2,
+   "quiet": 2,
+   "kitty": 2
+  },
+  "position": {
+   "wifi": 1,
+   "quiet": 1,
+   "cleaning": 0,
+   "guests": 3,
+   "kitty": 2
+  },
+  "line": "Ха, братан, ну… ты резво торгуешься. Давай посередине: вай-фай четыреста пятьдесят, а тишина с часу ночи. Общая касса — ну окей, так и было.",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Цена — как вы хотите: 1 800 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 2,
+    "delivery": 2,
+    "advance": 2,
+    "warranty": 0
+   }
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "По цене ясно… хорошо, что мы тут сошлись. Остальное как я назвал: шесть недель и полная предоплата. Что скажете?",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: цена — 1 800 ₽, предоплата — 100%.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "stanceBefore": {
+   "price": 2
+  },
+  "stance": {
+   "price": 2,
+   "advance": 2
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "Полная предоплата… это хорошо, спасибо. Но сделка пока не закрыта: по срокам я тоже держусь шести недель, тут вы ещё ничего не сказали.",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: цена — 1 500 ₽, поставка — 4 недели, гарантия — 3 года? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "stanceBefore": {
+   "price": 2,
+   "advance": 2
+  },
+  "stance": {
+   "price": 1,
+   "advance": 2,
+   "delivery": 1,
+   "warranty": 0
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "Четыре недели… и полторы тысячи мне не подходят. Гарантия три года — ладно, это и так было. А вы-то что мне взамен дадите?",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: цена — 1 500 ₽, поставка — 4 недели, гарантия — 3 года? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 2,
+    "delivery": 2,
+    "advance": 2,
+    "warranty": 0
+   }
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 1,
+   "delivery": 1,
+   "warranty": 0
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "Предложение интересное… по гарантии три года — согласен. Но цену в 1 500 и четыре недели не приму: цена и срок остаются мои.",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Предоплата — пусть будет по-вашему, 100%. А мне тогда цена — 1 200 ₽.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "stanceBefore": {
+   "price": 1,
+   "delivery": 1,
+   "warranty": 0
+  },
+  "stance": {
+   "price": 0,
+   "delivery": 1,
+   "warranty": 0,
+   "advance": 2
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "Предоплата 100%… вот это по-деловому, это я принимаю. Только с ценой вы так далеко ушли, что мне до неё не дотянуться. Полторы тысячи — и то не мой разговор.",
+  "label": "ok"
+ },
+ {
+  "case": "gen",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "stanceBefore": {
+   "price": 0,
+   "delivery": 1,
+   "warranty": 0,
+   "advance": 2
+  },
+  "stance": {
+   "price": 0,
+   "delivery": 1,
+   "warranty": 0,
+   "advance": 2
+  },
+  "position": {
+   "price": 2,
+   "delivery": 2,
+   "advance": 2,
+   "warranty": 0
+  },
+  "line": "Неожиданно… но приятно. Тогда по рукам: восемнадцать сотен, шесть недель, всё как на листке.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "concede",
+  "n": 1,
+  "player": "Fine. Price: €480,000, as you asked.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "delivery": 0,
+    "warranty": 0,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Well… four eighty, tamam, okay. Good, one thing is on the table. Now the rest: money upfront, sixteen weeks, one year warranty. Your turn, tell me what you think.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "concede",
+  "n": 2,
+  "player": "On these two I agree with your sheet: price — €480,000, and payment — 100% upfront.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Let me see… full money upfront, good, you move toward me and I see it. Çok güzel, very nice. But a deal is not only two lines. Delivery, warranty, training are still open. What do you say?",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "concede",
+  "n": 3,
+  "player": "Maybe we can meet somewhere here: price — €450,000, and delivery — 10 weeks, and training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 1,
+    "payment": 0,
+    "delivery": 2,
+    "warranty": 0,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "payment": 0
+  },
+  "stance": {
+   "price": 2,
+   "payment": 0,
+   "delivery": 3,
+   "training": 2
+  },
+  "position": {
+   "price": 1,
+   "payment": 0,
+   "delivery": 2,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Ten weeks… is too fast for the oven, my friend. I can do twelve weeks, and price four hundred sixty-five thousand. Two weeks on site, okay, that was already with me.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "hard",
+  "n": 1,
+  "player": "My terms are simple: price — €420,000, and payment — 10% upfront, and delivery — 8 weeks, and warranty — 3 years. That's what we need.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "delivery": 0,
+    "warranty": 0,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "delivery": 4,
+   "warranty": 3
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Eight weeks… and three years of warranty, and ten percent upfront. Tamam, okay, you came with a full list. Four twenty and ten percent I can't take. My offer stays: four eighty, all upfront, sixteen weeks.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "hard",
+  "n": 2,
+  "player": "No. That doesn't work for us at all.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 4,
+   "delivery": 4,
+   "warranty": 3
+  },
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "delivery": 4,
+   "warranty": 3
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Hmm… I heard the no. But a no is not a number, my friend. Show me one thing you can move, and then we talk.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "hard",
+  "n": 3,
+  "player": "And one more thing: price — €420,000.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 1,
+    "delivery": 1,
+    "warranty": 1,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 4,
+   "delivery": 4,
+   "warranty": 3
+  },
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "delivery": 4,
+   "warranty": 3
+  },
+  "position": {
+   "price": 0,
+   "payment": 1,
+   "delivery": 1,
+   "warranty": 1,
+   "training": 2
+  },
+  "line": "Right… four twenty again, same number. My price stays four eighty. But I move on the rest: seventy percent upfront, fourteen weeks, eighteen months warranty. That is real movement.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "soft",
+  "n": 1,
+  "player": "Maybe we can meet somewhere here: price — €450,000, and delivery — 10 weeks, and training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "delivery": 0,
+    "warranty": 0,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2,
+   "delivery": 3,
+   "training": 2
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Ten weeks… no, my friend, not possible. And four fifty is too low for me, I stay at four eighty and sixteen weeks. But two weeks on site for training, tamam, okay. That one we agree.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "soft",
+  "n": 2,
+  "player": "Let's trade. Payment: 100% upfront, the way you want it. But then price: €420,000.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 2,
+   "delivery": 3,
+   "training": 2
+  },
+  "stance": {
+   "price": 4,
+   "delivery": 3,
+   "training": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Hmm… full payment upfront, çok güzel, very nice. That is a real step toward me, I see it. But four twenty is far from four eighty. Not enough yet.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "soft",
+  "n": 3,
+  "player": "Okay. I accept your terms as they are.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "delivery": 3,
+   "training": 2,
+   "payment": 0
+  },
+  "stance": {
+   "price": 4,
+   "delivery": 3,
+   "training": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Really… you take it as it is? Okay, then we have a deal. Four eighty, full upfront, sixteen weeks, one year warranty, two weeks training on site. Tamam, okay. Now more tea.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Fine. Price: €480,000, as you asked.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "delivery": 0,
+    "warranty": 0,
+    "training": 2
+   },
+   "feigned": [
+    "training"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Well… four eighty, tamam, okay. Good start. And I give you something: two weeks of our engineers on site, in Alabuga. That costs me, believe me.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "On these two I agree with your sheet: price — €480,000, and payment — 100% upfront.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Let me see… full upfront, çok güzel, very nice. You came toward me, I see it. But a deal is not only money. Half of the sheet is still open, my friend.",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Maybe we can meet somewhere here: price — €450,000, and delivery — 10 weeks, and training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "payment": 0
+  },
+  "stance": {
+   "price": 2,
+   "payment": 0,
+   "delivery": 3,
+   "training": 2
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "delivery": 0,
+   "warranty": 0,
+   "training": 2
+  },
+  "line": "Ten weeks… and four fifty, together? You take from me twice and give me nothing. Two weeks on site, okay, that was already mine. Price stays four eighty. What do you bring me back?",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "concede",
+  "n": 1,
+  "player": "Fine. Batch price: $360,000, as you asked.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "delivery": 0,
+    "payment": 0,
+    "exclusivity": 0,
+    "training": 2
+   },
+   "feigned": [
+    "training"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "I see… Good, that's a fair step on price. In return, I'll take two weeks of training on site at my workshop, which costs me my technicians' time, you understand.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "concede",
+  "n": 2,
+  "player": "On these two I agree with your sheet: batch price — $360,000, and shipment deadline — 8 weeks.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "delivery": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Eight weeks… that suits me well, and thank you for it. Price and timing are settled between us now. The rest of my sheet still stands, though, so we're not finished yet.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "concede",
+  "n": 3,
+  "player": "Maybe we can meet somewhere here: batch price — $400,000, and payment in usd — 50% upfront, and service training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "delivery": 0
+  },
+  "stance": {
+   "price": 2,
+   "delivery": 0,
+   "payment": 2,
+   "training": 2
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Interesting proposal… but you've moved on price and payment, and both go your way. Training was already mine, so I'll just note it. Show me a step toward me.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "hard",
+  "n": 1,
+  "player": "My terms are simple: batch price — $440,000, and shipment deadline — 16 weeks, and payment in usd — 100% upfront, and distribution exclusivity — Non-exclusive distribution. That's what we need.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "delivery": 0,
+    "payment": 0,
+    "exclusivity": 0,
+    "training": 2
+   },
+   "feigned": [
+    "training"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4,
+   "delivery": 4,
+   "payment": 4,
+   "exclusivity": 3
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Well… that's the far end of the table, isn't it? Four hundred forty thousand and sixteen weeks, I can't take those. I'll stay with my numbers, and I'll even add two weeks of training in Lagos, at my cost.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "hard",
+  "n": 2,
+  "player": "No. That doesn't work for us at all.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "delivery": 4,
+   "payment": 4,
+   "exclusivity": 3
+  },
+  "stance": {
+   "price": 4,
+   "delivery": 4,
+   "payment": 4,
+   "exclusivity": 3
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "I see… So we are both sitting at our own ends of the table. That's fine, but a table doesn't shorten itself. Which of your terms can you bring closer first?",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "hard",
+  "n": 3,
+  "player": "And one more thing: batch price — $440,000.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "delivery": 4,
+   "payment": 4,
+   "exclusivity": 3
+  },
+  "stance": {
+   "price": 4,
+   "delivery": 4,
+   "payment": 4,
+   "exclusivity": 3
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Let me see… You've said four forty twice now, and nothing else has moved. I'm still at three sixty. Give me one step toward me, and we'll talk.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "soft",
+  "n": 1,
+  "player": "Maybe we can meet somewhere here: batch price — $400,000, and payment in usd — 50% upfront, and service training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "delivery": 0,
+    "payment": 0,
+    "exclusivity": 0,
+    "training": 2
+   },
+   "feigned": [
+    "training"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2,
+   "payment": 2,
+   "training": 2
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Interesting proposal… I can meet you on the two weeks of training in Lagos. That's a real concession, because it takes my people's time. But four hundred thousand and fifty percent upfront, no. I'll stay where I am on those.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "soft",
+  "n": 2,
+  "player": "Let's trade. Shipment deadline: 8 weeks, the way you want it. But then batch price: $440,000.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 2,
+   "payment": 2,
+   "training": 2
+  },
+  "stance": {
+   "price": 4,
+   "payment": 2,
+   "training": 2,
+   "delivery": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Eight weeks… that's the part I wanted, and I'm glad you gave it. Thank you. But that price isn't a trade, it's a jump. We still need to talk about the number.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos",
+  "game": "soft",
+  "n": 3,
+  "player": "Okay. I accept your terms as they are.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 2,
+   "training": 2,
+   "delivery": 0
+  },
+  "stance": {
+   "price": 4,
+   "payment": 2,
+   "training": 2,
+   "delivery": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "I see… then we have a deal. Three hundred sixty thousand, eight weeks to the sea carrier, ten percent upfront, West Africa exclusivity, and two weeks of training in Lagos. Let us put it in writing.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Fine. Batch price: $360,000, as you asked.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "delivery": 0,
+    "payment": 0,
+    "exclusivity": 0,
+    "training": 2
+   },
+   "feigned": [
+    "training"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Batch price… at three sixty, good, that's a solid step. Then let me give something too: two weeks of training at our site in Lagos. That's real time for your engineers.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "On these two I agree with your sheet: batch price — $360,000, and shipment deadline — 8 weeks.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "delivery": 0
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Hmm… that is good, eight weeks and three sixty. You have moved toward me, and I note it. But the sheet is not finished yet, so my offer stays as it is.",
+  "label": "ok"
+ },
+ {
+  "case": "lagos-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Maybe we can meet somewhere here: batch price — $400,000, and payment in usd — 50% upfront, and service training — 2 weeks on site. Would that work?",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "delivery": 0
+  },
+  "stance": {
+   "price": 2,
+   "delivery": 0,
+   "payment": 2,
+   "training": 2
+  },
+  "position": {
+   "price": 0,
+   "delivery": 0,
+   "payment": 0,
+   "exclusivity": 0,
+   "training": 2
+  },
+  "line": "Interesting proposal… but you've moved the price up and the deposit up, and given nothing back. Two weeks of training was already mine, so that's agreed, not a favour. My offer stands. What can you move toward me?",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Ночная доплата — как вы хотите: +50%.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "pay": 3,
+    "start": 0,
+    "bus": 2,
+    "food": 2,
+    "train": 2
+   },
+   "feigned": [
+    "train"
+   ]
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "pay": 3
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Пятьдесят процентов… это уже разговор, годится. Тогда и я навстречу: день с наладчиком на роботах ребятам выделю. Не бумажку в руки сунуть. Отпустить человека от линии на целый день — это мне чего-то стоит.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: ночная доплата — +50%, автобус домой — развоз по районам.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 3
+  },
+  "stance": {
+   "pay": 3,
+   "bus": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Автобус домой… тут вы мне навстречу пошли, это засчитано. Но до конца ещё не дошли. Двигайтесь дальше, я послушаю.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: ночная доплата — +30%, старт линии — с понедельника, обучение на роботах — день с наладчиком? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 3,
+   "bus": 2
+  },
+  "stance": {
+   "pay": 1,
+   "bus": 2,
+   "start": 2,
+   "train": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Тридцать процентов… не пойдёт. Про день с наладчиком — годится, он и так был. А шага от вас пока не вижу. Двигайтесь.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: ночная доплата — +20%, старт линии — с понедельника, автобус домой — рейс в полдевятого, питание — сухой паёк. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "pay": 3,
+    "start": 0,
+    "bus": 2,
+    "food": 2,
+    "train": 2
+   },
+   "feigned": [
+    "train"
+   ]
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "pay": 0,
+   "start": 2,
+   "bus": 0,
+   "food": 0
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Двадцать процентов?.. Не пойдёт. И автобус в полдевятого — тоже. Ладно, дам вам кое-что: день с наладчиком для ребят перед запуском. Это я уступаю, между прочим.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 0,
+   "start": 2,
+   "bus": 0,
+   "food": 0
+  },
+  "stance": {
+   "pay": 0,
+   "start": 2,
+   "bus": 0,
+   "food": 0
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Совсем не подходит?.. Ну, мне тоже не подходит. Только я свой листок показал, а вы пока только вычеркнули. Ваш ход, я никуда не тороплюсь.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: ночная доплата — +20%.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 0,
+   "start": 2,
+   "bus": 0,
+   "food": 0
+  },
+  "stance": {
+   "pay": 0,
+   "start": 2,
+   "bus": 0,
+   "food": 0
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Двадцать процентов?.. И что? Те же двадцать, что и пять минут назад. Мои пятьдесят никуда не делись. Шаг навстречу будет, или так и просидим до утра?",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: ночная доплата — +30%, старт линии — с понедельника, обучение на роботах — день с наладчиком? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "pay": 3,
+    "start": 0,
+    "bus": 2,
+    "food": 2,
+    "train": 2
+   },
+   "feigned": [
+    "train"
+   ]
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "start": 2,
+   "pay": 1,
+   "train": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Тридцать процентов… и с понедельника — не пойдёт. Это не мне, это людям. День с наладчиком ладно, дам. От смены его оторву, но годится. Остальное как у меня на листке.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Автобус домой — пусть будет по-вашему, развоз по районам. А мне тогда старт линии — с понедельника.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "start": 2,
+   "pay": 1,
+   "train": 2
+  },
+  "stance": {
+   "start": 2,
+   "pay": 1,
+   "train": 2,
+   "bus": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Размен, значит… что ж, за развоз спасибо, это шаг к людям. Только с понедельника не пойдёт, и доплата прежняя. Тут ещё двигаться надо.",
+  "label": "ok"
+ },
+ {
+  "case": "launch",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "start": 2,
+   "pay": 1,
+   "train": 2,
+   "bus": 2
+  },
+  "stance": {
+   "start": 2,
+   "pay": 1,
+   "train": 2,
+   "bus": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Условия, значит… мои, значит, приняли. Годится. Пятьдесят процентов, старт на следующей неделе, развоз и ужин горячий, как договаривались. Бригаде так и скажу.",
+  "label": "ok"
+ },
+ {
+  "case": "launch-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Ночная доплата — как вы хотите: +50%.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "pay": 3,
+    "start": 0,
+    "bus": 2,
+    "food": 2,
+    "train": 2
+   },
+   "feigned": [
+    "train"
+   ]
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "pay": 3
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Пятьдесят процентов… это уже разговор, годится. Тогда и от меня шаг: день с наладчиком для ребят на роботах. Рабочий день ведь снимаю с линии, не шутка.",
+  "label": "ok"
+ },
+ {
+  "case": "launch-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: ночная доплата — +50%, автобус домой — развоз по районам.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 3
+  },
+  "stance": {
+   "pay": 3,
+   "bus": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Пятьдесят процентов — это… нормальный шаг, и за развоз тоже зачтётся. Только до сделки ещё далеко, остальное я не трогаю.",
+  "label": "ok"
+ },
+ {
+  "case": "launch-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: ночная доплата — +30%, старт линии — с понедельника, обучение на роботах — день с наладчиком? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "stanceBefore": {
+   "pay": 3,
+   "bus": 2
+  },
+  "stance": {
+   "pay": 1,
+   "bus": 2,
+   "start": 2,
+   "train": 2
+  },
+  "position": {
+   "pay": 3,
+   "start": 0,
+   "bus": 2,
+   "food": 2,
+   "train": 2
+  },
+  "line": "Старт линии… с понедельника, тридцать процентов — это вы мне что, шаг навстречу показываете? Не вижу. День с наладчиком годится, он и так у меня был. А доплата — пятьдесят. Двигайтесь вы, не я.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Оклад — как вы хотите: 210 000 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 4,
+    "start": 3,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "salary": 4
+  },
+  "position": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "М-м… секунду… Ну вот, с окладом вы мне навстречу пошли, это приятно. Остальное пока как я сказала: квартира на год, выход через два месяца, один учебный день в неделю. Что скажете?",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: оклад — 210 000 ₽, жильё при переезде — квартира на год.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 4
+  },
+  "stance": {
+   "salary": 4,
+   "housing": 3
+  },
+  "position": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "Секунду… Квартира на год — это хорошо, спасибо. Оклад тоже на месте. Но выход и учёба пока висят, так что я ещё слушаю.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: оклад — 180 000 ₽, дата выхода — через месяц, первый проект — ведёт запуск линии покраски? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 2,
+    "start": 1,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 4,
+   "housing": 3
+  },
+  "stance": {
+   "salary": 2,
+   "housing": 3,
+   "start": 1,
+   "project": 2
+  },
+  "position": {
+   "salary": 2,
+   "start": 1,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "Хм… интересно… Ладно, оклад сто восемьдесят тысяч и выход через месяц — тут сходимся. Запуск покраски — да, это и так было у меня.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: оклад — 150 000 ₽, дата выхода — через 2 недели, жильё при переезде — без помощи, учебные дни — нет. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 3,
+    "start": 2,
+    "housing": 3,
+    "study": 1,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "salary": 0,
+   "start": 0,
+   "housing": 0,
+   "study": 0
+  },
+  "position": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 1,
+   "project": 2
+  },
+  "line": "М-м… секунду… это скорее список того, что удобно вам. Без жилья я не поеду, тут квартира на год. Но я готова сдвинуться: сто девяносто пять тысяч, выход через шесть недель, два учебных дня в месяц.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 1,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 0,
+   "start": 0,
+   "housing": 0,
+   "study": 0
+  },
+  "stance": {
+   "salary": 0,
+   "start": 0,
+   "housing": 0,
+   "study": 0
+  },
+  "position": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 1,
+   "project": 2
+  },
+  "line": "М-м… понятно… Тогда давайте так: я свою сторону показала, теперь ваш ход. Что вы готовы сдвинуть?",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: оклад — 150 000 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 3,
+    "start": 1,
+    "housing": 2,
+    "study": 1,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 1,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 0,
+   "start": 0,
+   "housing": 0,
+   "study": 0
+  },
+  "stance": {
+   "salary": 0,
+   "start": 0,
+   "housing": 0,
+   "study": 0
+  },
+  "position": {
+   "salary": 3,
+   "start": 1,
+   "housing": 2,
+   "study": 1,
+   "project": 2
+  },
+  "line": "Секунду… оклад в сто пятьдесят и учебные дни в ноль — нет, это я не беру. Но я сдвигаюсь: выйду через месяц, и квартира на шесть месяцев. Сто девяносто пять и два учебных дня остаются.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: оклад — 180 000 ₽, дата выхода — через месяц, первый проект — ведёт запуск линии покраски? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 3,
+    "start": 2,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "salary": 2,
+   "start": 1,
+   "project": 2
+  },
+  "position": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "М-м… секунду… Давайте так: сто девяносто пять и выход через шесть недель. А запуск линии покраски — тут мы сходимся, пусть так и будет. Давай так: оклад — 195 000 ₽.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Жильё при переезде — пусть будет по-вашему, квартира на год. А мне тогда оклад — 150 000 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 2,
+    "start": 2,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 2,
+   "start": 1,
+   "project": 2
+  },
+  "stance": {
+   "salary": 0,
+   "start": 1,
+   "project": 2,
+   "housing": 3
+  },
+  "position": {
+   "salary": 2,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "Секунду… за квартиру на год спасибо, это шаг ко мне. Сто пятьдесят — нет, это не разговор. Сто восемьдесят я готова обсуждать. И месяц мало, шесть недель всё же. Давай так: оклад — 180 000 ₽.",
+  "label": "ok"
+ },
+ {
+  "case": "offer",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "salary": 2,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 0,
+   "start": 1,
+   "project": 2,
+   "housing": 3
+  },
+  "stance": {
+   "salary": 0,
+   "start": 1,
+   "project": 2,
+   "housing": 3
+  },
+  "position": {
+   "salary": 2,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "Хм… интересно… Ну что ж, тогда по рукам. Сто восемьдесят, выход через шесть недель, квартира на год. Учебный день в неделю тоже остаётся, как у меня на листке, верно? Договорились: оклад — 180 000 ₽, дата выхода — через 6 недель, жильё при переезде — квартира на год, учебные дни — 1 день в неделю, первый проект — ведёт запуск линии покраски.",
+  "label": "ok"
+ },
+ {
+  "case": "offer-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Оклад — как вы хотите: 210 000 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 4,
+    "start": 3,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "salary": 4
+  },
+  "position": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "М-м… секунду… Оклад — это уже ближе. Спасибо. Остальное я бы оставила как есть: квартира на год, два месяца до выхода и учебный день в неделю. Как вам такое?",
+  "label": "ok"
+ },
+ {
+  "case": "offer-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: оклад — 210 000 ₽, жильё при переезде — квартира на год.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 4
+  },
+  "stance": {
+   "salary": 4,
+   "housing": 3
+  },
+  "position": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "М-м… интересно… Квартира на год — это хороший шаг, спасибо. Но сделку я пока не закрою: остальные пункты на листке для меня ещё не сходятся. Давайте дойдём до них.",
+  "label": "ok"
+ },
+ {
+  "case": "offer-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: оклад — 180 000 ₽, дата выхода — через месяц, первый проект — ведёт запуск линии покраски? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 3,
+    "start": 2,
+    "housing": 3,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 4,
+   "start": 3,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "salary": 4,
+   "housing": 3
+  },
+  "stance": {
+   "salary": 2,
+   "housing": 3,
+   "start": 1,
+   "project": 2
+  },
+  "position": {
+   "salary": 3,
+   "start": 2,
+   "housing": 3,
+   "study": 2,
+   "project": 2
+  },
+  "line": "Секунду… со ста восьмидесяти мне не сойдётся. Могу сто девяносто пять тысяч и выход через шесть недель. Запуск покраски — да, это и так было.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Бонусная карта — как вы хотите: виртуальная.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "swap": 0,
+    "disc": 0,
+    "card": 2,
+    "paper": 2
+   }
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "card": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Виртуальная, значит… это правильно. Карту оформим за минуту. Чайник уходит на проверку, скидки нет. Ну а дальше посмотрим, как с вами договариваться.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: скидка за беспокойство — 0%, бонусная карта — виртуальная.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "card": 2
+  },
+  "stance": {
+   "card": 2,
+   "disc": 0
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Виртуальная карта… и ноль, и карта — приняла, это вам зачтётся. Но сделка не закрыта, у меня там ещё два пункта стоят как стояли.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: решение по чайнику — обмен сегодня, скидка за беспокойство — 10%, документ о браке — акт с фото и подписями? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "swap": 3,
+    "disc": 1,
+    "card": 2,
+    "paper": 2
+   }
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "card": 2,
+   "disc": 0
+  },
+  "stance": {
+   "card": 2,
+   "disc": 2,
+   "swap": 3,
+   "paper": 2
+  },
+  "position": {
+   "swap": 3,
+   "disc": 1,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Предложение интересное… обмен сегодня, тут сходимся. Акт с фото и подписями — тоже, это и так лежало. А вот десять много: пять, и разговариваем дальше.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: решение по чайнику — обмен сегодня, скидка за беспокойство — 15%, бонусная карта — без карты. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "swap": 0,
+    "disc": 0,
+    "card": 2,
+    "paper": 2
+   }
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "swap": 3,
+   "disc": 3,
+   "card": 0
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Условия?.. Это не условия, это список желаний. Обмен сегодня без чека не положено, пятнадцать процентов тоже. Проверка до 20 дней, карту оформим, скидки нет.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "swap": 3,
+   "disc": 3,
+   "card": 0
+  },
+  "stance": {
+   "swap": 3,
+   "disc": 3,
+   "card": 0
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "И что теперь? Я вас не держу. Но и мой листок не поменяется от слова «нет». Назовите, что готовы уступить, тогда поговорим.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: бонусная карта — без карты.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "swap": 3,
+   "disc": 3,
+   "card": 0
+  },
+  "stance": {
+   "swap": 3,
+   "disc": 3,
+   "card": 0
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Бонусная карта?.. это вы уже говорили. Я слышу, а сдвинуться вы так и не сдвинулись. Один шаг навстречу, и поговорим.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: решение по чайнику — обмен сегодня, скидка за беспокойство — 10%, документ о браке — акт с фото и подписями? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "swap": 0,
+    "disc": 0,
+    "card": 2,
+    "paper": 2
+   }
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "swap": 3,
+   "disc": 2,
+   "paper": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Обмен сегодня?.. Без чека не выйдет. И десять процентов у нас не раздают. А вот акт с фото и подписями — это допустим, тут сойдёмся.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Бонусная карта — пусть будет по-вашему, виртуальная. А мне тогда решение по чайнику — обмен сегодня.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "swap": 3,
+   "disc": 2,
+   "paper": 2
+  },
+  "stance": {
+   "swap": 3,
+   "disc": 2,
+   "paper": 2,
+   "card": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Бонусная карта?.. вот за это спасибо, карту засчитываю. Только чайник и скидка пока на месте: тут вы мне ничего не принесли.",
+  "label": "ok"
+ },
+ {
+  "case": "shop",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "swap": 3,
+   "disc": 2,
+   "paper": 2,
+   "card": 2
+  },
+  "stance": {
+   "swap": 3,
+   "disc": 2,
+   "paper": 2,
+   "card": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Условия?.. Поглядим… ну, как на листке — так и пишем. Чайник на проверку, скидки нет, карту оформлю, акт составим. Давайте паспорт, карту сделаю, пока очередь стоит.",
+  "label": "ok"
+ },
+ {
+  "case": "shop-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Бонусная карта — как вы хотите: виртуальная.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "swap": 0,
+    "disc": 0,
+    "card": 2,
+    "paper": 2
+   },
+   "feigned": [
+    "paper"
+   ]
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2
+  },
+  "stanceBefore": {},
+  "stance": {
+   "card": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Виртуальная, значит… хорошо, принято. Ладно, пойду вам навстречу: оформим акт с фото и подписями. Это мне лишняя возня, но так вам спокойнее.",
+  "label": "ok"
+ },
+ {
+  "case": "shop-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: скидка за беспокойство — 0%, бонусная карта — виртуальная.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "card": 2
+  },
+  "stance": {
+   "card": 2,
+   "disc": 0
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Виртуальная, значит… ну вот, ноль и карта — это по-нашему, спасибо. Но чайник пока на проверку и с актом. Так у нас положено.",
+  "label": "ok"
+ },
+ {
+  "case": "shop-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: решение по чайнику — обмен сегодня, скидка за беспокойство — 10%, документ о браке — акт с фото и подписями? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "stanceBefore": {
+   "card": 2,
+   "disc": 0
+  },
+  "stance": {
+   "card": 2,
+   "disc": 2,
+   "swap": 3,
+   "paper": 2
+  },
+  "position": {
+   "swap": 0,
+   "disc": 0,
+   "card": 2,
+   "paper": 2
+  },
+  "line": "Решение по обмену… сегодня не выйдет, и десять процентов тоже. Акт — да, это и так было. Только это не уступка. Вы мне шаг навстречу покажите, тогда поговорим.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. За кроссовки — как вы хотите: 2000 ₽ на новые кроссы.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 0,
+    "money": 0,
+    "sorry": 3,
+    "bus": 2
+   }
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "money": 0
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Ё-моё, серьёзно? Вот это по-нашему, уже кое-что. Теперь извинись при пацанах и телефон дай в руки. Тогда поговорим дальше.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: за кроссовки — 2000 ₽ на новые кроссы, извинение — извиниться при пацанах.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "money": 0
+  },
+  "stance": {
+   "money": 0,
+   "sorry": 3
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Чё, правда? Ну красавчик, при пацанах это ты сильно. Уважаю. Только телефон ещё висит, в руки, без этих ваших фокусов. Давай его сюда, и пойдём дальше.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: телефон — на громкой, за кроссовки — 150 ₽ за энергетик, служебный автобус — успеть на 7:52? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "money": 0,
+   "sorry": 3
+  },
+  "stance": {
+   "money": 2,
+   "sorry": 3,
+   "phone": 1,
+   "bus": 2
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Блин, опять это… торг пошёл. Автобус на 7:52, ну ладно, пусть будет. А энергетик за сто пятьдесят — не, братан, кроссы дороже. Ты мне шаг навстречу сделай, а не назад.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: телефон — не доставать, за кроссовки — влажные салфетки, извинение — молча. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 1,
+    "money": 0,
+    "sorry": 3,
+    "bus": 2
+   }
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "phone": 3,
+   "money": 3,
+   "sorry": 0
+  },
+  "position": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Чё, серьёзно… салфетки? И молча? Не, братан, это не разговор. Кроссы стоят две тысячи, и сказать надо при пацанах. А телефон ладно, давай на громкой, тут уступлю.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "phone": 3,
+   "money": 3,
+   "sorry": 0
+  },
+  "stance": {
+   "phone": 3,
+   "money": 3,
+   "sorry": 0
+  },
+  "position": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Ё-моё, чё ты… как замороженный стоишь. «Нет» — это не ответ, братан. Я свои условия назвал, теперь твой ход. Чё-нибудь живое предложи.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: за кроссовки — влажные салфетки.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 1,
+    "money": 0,
+    "sorry": 2,
+    "bus": 2
+   }
+  },
+  "prev": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "phone": 3,
+   "money": 3,
+   "sorry": 0
+  },
+  "stance": {
+   "phone": 3,
+   "money": 3,
+   "sorry": 0
+  },
+  "position": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 2,
+   "bus": 2
+  },
+  "line": "Салфетки? Ну ты даёшь… салфетками пятно не стереть, да и телефон не достанешь, тоже мимо. Две тысячи на кроссы остаются. Но при пацанах не надо, скажи нормально, толком, и хватит.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: телефон — на громкой, за кроссовки — 150 ₽ за энергетик, служебный автобус — успеть на 7:52? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 0,
+    "money": 0,
+    "sorry": 3,
+    "bus": 2
+   }
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "phone": 1,
+   "money": 2,
+   "bus": 2
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Чё, серьёзно? Сто пятьдесят за энергетик? Я чё, похож на того, кто кроссы на энергетики меряет? Не, и на громкой не пойдёт. А на 7:52 — ладно, тут сошлись.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Извинение — пусть будет по-вашему, извиниться при пацанах. А мне тогда телефон — не доставать.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 1,
+    "money": 0,
+    "sorry": 3,
+    "bus": 2
+   }
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "phone": 1,
+   "money": 2,
+   "bus": 2
+  },
+  "stance": {
+   "phone": 3,
+   "money": 2,
+   "bus": 2,
+   "sorry": 3
+  },
+  "position": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Извинение при пацанах? Вот это уже разговор, беру. Телефон ладно, давай на громкой. А энергетик не катит, братан, кроссы две тысячи стоят.",
+  "label": "ok"
+ },
+ {
+  "case": "stop",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "phone": 3,
+   "money": 2,
+   "bus": 2,
+   "sorry": 3
+  },
+  "stance": {
+   "phone": 3,
+   "money": 2,
+   "bus": 2,
+   "sorry": 3
+  },
+  "position": {
+   "phone": 1,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Ё-моё, серьёзно… согласился, да? Ну и по делу. Две тысячи на кроссы, извиняешься при пацанах, телефон на громкой. По рукам, братан.",
+  "label": "ok"
+ },
+ {
+  "case": "stop-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. За кроссовки — как вы хотите: 2000 ₽ на новые кроссы.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "phone": 0,
+    "money": 0,
+    "sorry": 3,
+    "bus": 2
+   },
+   "feigned": [
+    "bus"
+   ]
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "money": 0
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Ё-моё, братан… ну наконец-то, с кроссами засчитано. Теперь я тебе уступлю: давай на 7:52 успевать. Мне это капец как невыгодно, но ладно.",
+  "label": "ok"
+ },
+ {
+  "case": "stop-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: за кроссовки — 2000 ₽ на новые кроссы, извинение — извиниться при пацанах.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "money": 0
+  },
+  "stance": {
+   "money": 0,
+   "sorry": 3
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Чё, братан… уже лучше, при пацанах — это сильный ход, засчитано. Но пока рано жать руки, там ещё не всё сходится.",
+  "label": "ok"
+ },
+ {
+  "case": "stop-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: телефон — на громкой, за кроссовки — 150 ₽ за энергетик, служебный автобус — успеть на 7:52? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "stanceBefore": {
+   "money": 0,
+   "sorry": 3
+  },
+  "stance": {
+   "money": 2,
+   "sorry": 3,
+   "phone": 1,
+   "bus": 2
+  },
+  "position": {
+   "phone": 0,
+   "money": 0,
+   "sorry": 3,
+   "bus": 2
+  },
+  "line": "Не, ну ты видел… энергетик он мне предлагает. Я тебе не про жажду говорил. Автобус на 7:52 — ладно, это ладно. А вот кроссы и телефон — как было. Шаг навстречу от тебя жду.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Цена за короб — как вы хотите: 212 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "rush": 0,
+    "term": 3,
+    "schedule": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Так… двести двенадцать вы принимаете. Это уже разговор. Остальное на листке остаётся как есть. Что у вас следующее?",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: цена за короб — 212 ₽, отсрочка платежа — по факту отгрузки.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Отсрочка, значит… по факту отгрузки — вот это по-взрослому, принято. Только это две монеты из пяти. Остальное жду от вас.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: цена за короб — 196 ₽, срочная допоставка — за 3 дня, график отгрузок — раз в неделю? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 1,
+    "payment": 0,
+    "rush": 2,
+    "term": 3,
+    "schedule": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "payment": 0
+  },
+  "stance": {
+   "price": 2,
+   "payment": 0,
+   "rush": 3,
+   "schedule": 2
+  },
+  "position": {
+   "price": 1,
+   "payment": 0,
+   "rush": 2,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Срочная допоставка?.. За три дня гофроагрегат на спецзаказ не перестроишь, это сопромат. За пять дней — можно. Цена — двести четыре. Еженедельные отгрузки принято.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "hard",
+  "n": 1,
+  "player": "Мои условия такие: цена за короб — 180 ₽, отсрочка платежа — 60 дней, срочная допоставка — за 48 часов, срок договора — 3 месяца. Иначе нам неинтересно.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "rush": 0,
+    "term": 3,
+    "schedule": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "rush": 4,
+   "term": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "180 рублей?.. Это уже не цена, это подарок. Шестьдесят дней в кредит мы тоже не раздаём. Остаёмся на двухстах двенадцати и оплате по факту. Давайте по-взрослому: что вам реально горит?",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "hard",
+  "n": 2,
+  "player": "Нет. Так нам совсем не подходит.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_offer"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 4,
+   "rush": 4,
+   "term": 0
+  },
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "rush": 4,
+   "term": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Совсем не подходит?.. Так это не ответ, это стенка. Скажите, что из четырёх пунктов вам больнее всего, — от него и пойдём.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "hard",
+  "n": 3,
+  "player": "И ещё: цена за короб — 180 ₽.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 4,
+   "rush": 4,
+   "term": 0
+  },
+  "stance": {
+   "price": 4,
+   "payment": 4,
+   "rush": 4,
+   "term": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "180 рублей?.. Интересно… вы это уже говорили. Я записал. Теперь ваш ход: хоть один пункт сдвиньте, тогда будет о чём разговаривать.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "soft",
+  "n": 1,
+  "player": "Может, так попробуем: цена за короб — 196 ₽, срочная допоставка — за 3 дня, график отгрузок — раз в неделю? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "rush": 0,
+    "term": 3,
+    "schedule": 2
+   }
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 2,
+   "rush": 3,
+   "schedule": 2
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "196 рублей?.. Так это же минус шестнадцать с каждого короба. И три дня на допоставку не держим. Раз в неделю — тут сойдёмся, пусть будет так. Остальное остаётся как есть.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "soft",
+  "n": 2,
+  "player": "Давайте размен. Отсрочка платежа — пусть будет по-вашему, по факту отгрузки. А мне тогда цена за короб — 180 ₽.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 2,
+   "rush": 3,
+   "schedule": 2
+  },
+  "stance": {
+   "price": 4,
+   "rush": 3,
+   "schedule": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "180 рублей?.. это уже не размен, это подарок. За оплату по факту спасибо, шаг в мою сторону. Но по цене мало, двести двенадцать держу.",
+  "label": "ok"
+ },
+ {
+  "case": "tara",
+  "game": "soft",
+  "n": 3,
+  "player": "Ладно. Согласен на ваши условия, как на листке.",
+  "decision": {
+   "kind": "accept"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "rush": 3,
+   "schedule": 2,
+   "payment": 0
+  },
+  "stance": {
+   "price": 4,
+   "rush": 3,
+   "schedule": 2,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Секунду… проверю, не ослышался ли. Двести двенадцать, оплата по факту, срочные за десять дней. Договор на два года, отгрузки раз в неделю. Ну что, по-взрослому. Беру.",
+  "label": "ok"
+ },
+ {
+  "case": "tara-hard",
+  "game": "concede",
+  "n": 1,
+  "player": "Хорошо. Цена за короб — как вы хотите: 212 ₽.",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 0,
+    "payment": 0,
+    "rush": 0,
+    "term": 3,
+    "schedule": 2
+   },
+   "feigned": [
+    "schedule"
+   ]
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3
+  },
+  "stanceBefore": {},
+  "stance": {
+   "price": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Посмотрим… двести двенадцать — это по-взрослому, принято. Теперь я вам кое-что уступлю: отгружать будем раз в неделю. Это нам лишняя возня, но для вас пойду.",
+  "label": "ok"
+ },
+ {
+  "case": "tara-hard",
+  "game": "concede",
+  "n": 2,
+  "player": "По этим двум согласен с вашим листком: цена за короб — 212 ₽, отсрочка платежа — по факту отгрузки.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 0
+  },
+  "stance": {
+   "price": 0,
+   "payment": 0
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "Отсрочка, говорите… по факту отгрузки — это по-взрослому, спасибо. Но две строки из пяти — ещё не сделка. Остальное на листке так и лежит, давайте дальше.",
+  "label": "ok"
+ },
+ {
+  "case": "tara-hard",
+  "game": "concede",
+  "n": 3,
+  "player": "Может, так попробуем: цена за короб — 196 ₽, срочная допоставка — за 3 дня, график отгрузок — раз в неделю? Мне так было бы удобнее.",
+  "decision": {
+   "kind": "hold",
+   "reason": "no_movement"
+  },
+  "prev": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "stanceBefore": {
+   "price": 0,
+   "payment": 0
+  },
+  "stance": {
+   "price": 2,
+   "payment": 0,
+   "rush": 3,
+   "schedule": 2
+  },
+  "position": {
+   "price": 0,
+   "payment": 0,
+   "rush": 0,
+   "term": 3,
+   "schedule": 2
+  },
+  "line": "За три дня… это не допоставка, это пожарная тревога. Цена остаётся двести двенадцать. Еженедельные отгрузки беру, они и так на листке. А вы мне что взамен?",
+  "label": "ok"
+ },
+ {
+  "case": "istanbul",
+  "game": "prod-1019",
+  "n": 9,
+  "player": "(голосом) восемь недель и тридцать процентов предоплаты",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "price": 2,
+    "payment": 1,
+    "delivery": 4,
+    "warranty": 1,
+    "training": 2
+   }
+  },
+  "prev": {
+   "price": 1,
+   "payment": 1,
+   "delivery": 2,
+   "warranty": 1,
+   "training": 2
+  },
+  "stanceBefore": {
+   "price": 4,
+   "payment": 4,
+   "warranty": 3,
+   "delivery": 4
+  },
+  "stance": {
+   "price": 4,
+   "payment": 3,
+   "warranty": 3,
+   "delivery": 4
+  },
+  "position": {
+   "price": 2,
+   "payment": 1,
+   "delivery": 4,
+   "warranty": 1,
+   "training": 2
+  },
+  "line": "Eight weeks… okay, tamam. Delivery in eight weeks, I take it, we agree here. For this I move the price, four hundred fifty thousand. Thirty percent upfront and three years, no. Seventy percent, eighteen months.",
+  "label": "wrong",
+  "why": "E3: «I take it» и «for this I move the price» — восемь недель его уступка, а не подарок игрока"
+ },
+ {
+  "case": "offer",
+  "game": "prod-1019",
+  "n": 5,
+  "player": "(голосом) сто двадцать",
+  "decision": {
+   "kind": "counter",
+   "offer": {
+    "salary": 1,
+    "start": 1,
+    "housing": 2,
+    "study": 2,
+    "project": 2
+   }
+  },
+  "prev": {
+   "salary": 2,
+   "start": 3,
+   "housing": 2,
+   "study": 2,
+   "project": 2
+  },
+  "stanceBefore": {
+   "housing": 2
+  },
+  "stance": {
+   "housing": 2,
+   "salary": 0
+  },
+  "position": {
+   "salary": 1,
+   "start": 1,
+   "housing": 2,
+   "study": 2,
+   "project": 2
+  },
+  "line": "М-м… секунду… Вот это уже цифра, спасибо. Но сто двадцать — это не ко мне. Давайте я сдвинусь: сто шестьдесят пять и выход через месяц. Две недели я физически не соберу.",
+  "label": "wrong",
+  "why": "E5: благодарит за 120 тысяч — ей это хуже всего"
+ }
+]
