@@ -234,6 +234,10 @@ export default function App() {
     } finally { setAdmitting(false) }
   }
   useEffect(() => {
+    // первая запись истории — экран, с которого вошли (?jury — хаб): «Назад» из дела возвращает на него, а не на титул
+    if (!window.history.state?.screen) window.history.replaceState({ screen: firstScreen() }, '')
+  }, [])
+  useEffect(() => {
     const back = async (e: PopStateEvent) => {
       const nav = ++navigation.current
       const s = (e.state?.screen as Screen | undefined) ?? 'title'
@@ -246,7 +250,13 @@ export default function App() {
         setStartedAt(Date.now())
         setPlayKey((k) => k + 1)
       }
-      setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
+      // катсцена уже сыграна: «Назад» на неё не проигрывает её снова и не открывает главу второй раз — на титул.
+      // Разбор недоигранной встречи («Назад» после «Сыграть ещё раз» или «Переиграть с хода») пуст и записал бы
+      // её в прогресс — возвращаем туда, откуда открыли дело
+      const last = history[history.length - 1]
+      if (s === 'cutscene') setScreen('title')
+      else if (s === 'report' && (!last || last.stateAfter.status === 'open')) setScreen(home(from))
+      else setScreen(s === 'play' && !currentRef.current ? 'setup' : s)
     }
     window.addEventListener('popstate', back)
     return () => window.removeEventListener('popstate', back)
