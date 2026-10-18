@@ -39,7 +39,9 @@ ssh "$HOST" 'mkdir -p ~/arena-app ~/arena-data ~/www/tmp && test -x ~/node/bin/n
 ssh "$HOST" 'grep -q "^GATE_SECRET=." ~/arena-app/.env' || { echo "в ~/arena-app/.env нет GATE_SECRET — см. README, раздел «Прод»"; exit 1; }
 rsync -az --delete --exclude .env "$OUT/" "$HOST:arena-app/"
 rsync -az "$TMP/deploy/regru/app.js" "$HOST:www/app.js"
-ssh "$HOST" 'chmod 600 ~/arena-app/.env && touch ~/www/tmp/restart.txt'
+# старый процесс гасим сразу: если старый и новый живут вместе, хостинг упирается в лимит потоков
+# (pthread_create: Resource temporarily unavailable), и Passenger застревает на странице ошибки
+ssh "$HOST" 'chmod 600 ~/arena-app/.env && { pkill -u "$(whoami)" -f "Passenger NodeApp" || true; } && touch ~/www/tmp/restart.txt'
 
 echo "== проверка (Passenger замечает restart.txt не сразу)"
 sleep 12
