@@ -93,8 +93,40 @@ export function effectText(fb: Pick<TurnFeedback, 'trust' | 'tension'>): string 
   return parts.length ? parts.join(', ') : 'ничего не сдвинулось'
 }
 
-/** Карточка «на полях» для одного хода. */
-export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
+/**
+ * Кому выгодно то, что игрок назвал, против её листка до хода: себе хуже, чем она сама давала, — промах (часто так
+ * видна и ошибка разметки: «давайте 10» записали не туда); «отдаю» то, что у неё и так было, — не уступка.
+ */
+function sideNotes(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): MarginNote[] {
+  const asked = rec.analysis.offer ?? {}
+  const sheet = (prev ? prev.stateAfter : initialState(sc)).lastOpponentOffer ?? {}
+  const before = prev?.stateAfter.playerStance ?? {}
+  const P = sc.player.profile.points
+  const out: MarginNote[] = []
+  const worse = sc.issues.filter((i) => typeof asked[i.id] === 'number' && typeof sheet[i.id] === 'number' && P[i.id][asked[i.id]!] < P[i.id][sheet[i.id]!])
+  if (worse.length) {
+    const lost = worse.reduce((n, i) => n + P[i.id][sheet[i.id]!] - P[i.id][asked[i.id]!], 0)
+    out.push({
+      key: 'side-worse',
+      ink: 'bad',
+      title: 'Себе хуже, чем у собеседника',
+      why: `${worse.map((i) => `«${i.options[asked[i.id]!]}» вместо «${i.options[sheet[i.id]!]}»`).join(', ')}: у ${g(sc, 'него', 'неё')} на листке было лучше для вас, минус ${lost} к выгоде. Если вы этого не говорили — поправьте.`,
+    })
+  }
+  const others = sc.issues.some((i) => typeof asked[i.id] === 'number' && asked[i.id] !== sheet[i.id])
+  const free = sc.issues.filter((i) => typeof asked[i.id] === 'number' && asked[i.id] === sheet[i.id] && before[i.id] !== asked[i.id])
+  if (free.length && others)
+    out.push({
+      key: 'side-free',
+      ink: 'plain',
+      title: 'Это у собеседника уже было',
+      why: `${free.map((i) => `«${i.options[asked[i.id]!]}»`).join(', ')} и так стояло в ${g(sc, 'его', 'её')} предложении: это не ваша уступка, за неё ничего не просят.`,
+    })
+  return out
+}
+
+/** Карточка «на полях» для одного хода. prev — прошлый ход: с ним видно, что было у собеседника на листке. */
+export function turnFeedback(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): TurnFeedback {
   const notes: MarginNote[] = []
   const seen = new Set<string>()
   for (const hit of rec.analysis.behaviors) {
@@ -114,6 +146,7 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord): TurnFeedback {
     seen.add(d.because)
     notes.push({ key: d.because, ink: o.ink, title: o.title, why: o.why(sc) })
   }
+  for (const n of sideNotes(sc, rec, prev)) notes.push(n)
   // сколько даёт вам то, что вы положили на стол (или подписали)
   const P = sc.player.profile
   const st = rec.stateAfter
@@ -360,7 +393,7 @@ export function nextTip(sc: Scenario, history: TurnRecord[]): Tip | null {
   for (let k = 0; k <= history.length; k++) {
     const h = history.slice(0, k)
     const prev = shown[k - 1]?.id
-    const empty = k > 0 && turnFeedback(sc, h[k - 1]).empty
+    const empty = k > 0 && turnFeedback(sc, h[k - 1], h[k - 2]).empty
     const pick =
       candidates(sc, h).find(
         (t) =>
