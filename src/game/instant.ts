@@ -32,7 +32,7 @@ export interface TurnFeedback {
 
 type TipId =
   | 'start' | 'last' | 'below' | 'tone' | 'tension' | 'reveal' | 'hold' | 'clock'
-  | 'ask' | 'offer' | 'trade' | 'summary' | 'priority' | 'check'
+  | 'ask' | 'offer' | 'trade' | 'criteria' | 'consequence' | 'summary' | 'priority' | 'check'
 
 export interface Tip {
   id: TipId
@@ -188,6 +188,8 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
 }
 
 const used = (h: TurnRecord, id: string) => h.analysis.behaviors.some((b) => b.id === id)
+// вопросы SPIN о последствиях и выгоде — тоже вопросы о том, что важно собеседнику
+const asked = (h: TurnRecord) => used(h, 'ask_interest') || used(h, 'implication') || used(h, 'need_payoff')
 const offered = (h: TurnRecord) => !!h.analysis.offer && Object.keys(h.analysis.offer).length > 0
 
 /** Все советы, которые подходят к положению партии, от самого срочного. */
@@ -265,7 +267,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       text: `До конца встречи ${left} ${plural(left, 'ход', 'хода', 'ходов')}. Хотите сделку — предложите условия по всем пунктам или соглашайтесь на то, что на листке.`,
     })
 
-  if (!history.some((h) => used(h, 'ask_interest'))) {
+  if (!history.some(asked)) {
     const ask = askAbout(sc, history, state)
     if (ask)
       out.push({
@@ -288,6 +290,22 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'trade',
       text: `Вы уже знаете, что ${him} важно, — это в блокноте. Предложите обмен: уступите там, где ${him} важнее, а взамен попросите своё.`,
       example: ex('Если вы берёте на себя ', 'If you can '),
+    })
+
+  // торг «цифра против цифры»: оба уже называли условия, а мерки, на которую согласились бы оба, нет (Fisher & Ury)
+  if (history.filter(offered).length >= 2 && last.decision.kind === 'counter' && !history.some((h) => used(h, 'criteria')))
+    out.push({
+      id: 'criteria',
+      text: `Торг идёт цифра против цифры. Предложите мерку, которую примут оба: рыночную цену, индекс, прошлый договор — или спросите, из чего складывается ${g(sc, 'его', 'её')} цифра.`,
+      example: ex('Давайте опираться на рынок: ', "Let's base this on the market rate: "),
+    })
+
+  // интерес назван, но во что обходится проблема, не спрашивали (вопрос о последствиях, SPIN)
+  if (firstReveal >= 0 && last.decision.kind !== 'reveal' && !history.some((h) => used(h, 'implication') || used(h, 'need_payoff')))
+    out.push({
+      id: 'consequence',
+      text: `${n} уже ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно. Спросите, во что ${him} обходится, если этого не будет: тогда ваше предложение сравнивают не с ценой, а со стоимостью проблемы.`,
+      example: ex('А во что вам обходится, если ', 'And what does it cost you if '),
     })
 
   if (history.length >= 5 && !history.slice(-4).some((h) => used(h, 'summarize')))

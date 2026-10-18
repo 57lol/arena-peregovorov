@@ -127,7 +127,7 @@ function markerHits(text: string, dict: BehaviorDict): BehaviorHit[] {
 }
 
 // Индикаторы, которые ставятся не по словам, а по ходу игры (см. behaviors.ts: anchor, instant_counter).
-const ENGAGES = new Set(['ask_interest', 'check', 'label', 'summarize', 'priority'])
+const ENGAGES = new Set(['ask_interest', 'check', 'label', 'summarize', 'priority', 'implication', 'need_payoff'])
 
 /**
  * Добавить индикаторы по контексту хода — одинаково и для LLM, и для офлайна:

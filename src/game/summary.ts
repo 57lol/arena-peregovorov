@@ -68,7 +68,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
 
   // 3. Что попробовать: сначала то, что стоило больше всего
   const weak = r.benchmark.filter((x) => x.polarity === 'weak' && x.count > 0).sort((a, b) => b.count - a.count)[0]
-  const asked = history.some((h) => h.analysis.behaviors.some((b) => b.id === 'ask_interest'))
+  const asked = history.some((h) => h.analysis.behaviors.some((b) => ['ask_interest', 'implication', 'need_payoff'].includes(b.id)))
   let next: string
   if (loss) next = `Не соглашайтесь на выгоду меньше ${batna}: столько у вас есть и без сделки.`
   else if (weak) next = behaviorById(weak.id)?.advice ?? weak.title
