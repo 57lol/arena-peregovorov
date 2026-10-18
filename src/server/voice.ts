@@ -268,20 +268,26 @@ function mood(sc: Scenario, s: OpponentState): string {
   return `${t}, ${x}${late}`
 }
 
-/** Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте. */
+/**
+ * Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте — по очкам собеседника, а не по порядку вариантов:
+ * в «Чайнике» с «обмена» на «деньги сегодня» — это не шаг к Ларисе Петровне, а хуже и ей.
+ */
 function steppedToward(sc: Scenario, before: Offer, after: Offer): boolean {
+  const op = sc.opponent.profile.points
   return sc.issues.some((i) => {
     const a = before[i.id], b = after[i.id]
-    const best = bestOption(sc.opponent.profile, i.id)
-    return typeof a === 'number' && typeof b === 'number' && Math.abs(b - best) < Math.abs(a - best)
+    return typeof a === 'number' && typeof b === 'number' && op[i.id][b] > op[i.id][a]
   })
 }
 
-/** Пункты, где новое встречное дальше от позиции игрока, чем прошлое: это размен, его надо назвать. */
+/** Пункты, где новое встречное даёт игроку меньше от того, что он просил, чем прошлое: это размен, его надо назвать. */
 function backSteps(sc: Scenario, next: Offer, prev: Offer, stance: Offer) {
+  const pl = sc.player.profile.points
   return sc.issues.filter((i) => {
     const s = stance[i.id], a = prev[i.id], b = next[i.id]
-    return typeof s === 'number' && typeof a === 'number' && typeof b === 'number' && Math.abs(b - s) > Math.abs(a - s)
+    if (typeof s !== 'number' || typeof a !== 'number' || typeof b !== 'number') return false
+    const short = (x: number) => Math.max(0, pl[i.id][s] - pl[i.id][x])
+    return short(b) > short(a)
   })
 }
 

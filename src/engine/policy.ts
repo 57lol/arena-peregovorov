@@ -77,7 +77,8 @@ function distance(sc: Scenario, offer: FullOffer, stance: Offer): number {
     if (typeof s !== 'number') continue
     const pl = sc.player.profile.points[i.id]
     if (pl[offer[i.id]] >= pl[s]) continue
-    d += Math.abs(offer[i.id] - s) / Math.max(1, i.options.length - 1)
+    // в долях его же шкалы: порядок вариантов в листке ничего не значит
+    d += (pl[s] - pl[offer[i.id]]) / Math.max(1, Math.max(...pl) - Math.min(...pl))
   }
   return d
 }
@@ -100,9 +101,11 @@ function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
     const s = stance[i.id]
     const best = opp.points[i.id].indexOf(Math.max(...opp.points[i.id]))
     const pl = sc.player.profile.points[i.id]
-    // уступка — только шаг к тому, что игроку лучше её варианта; к просьбе «хуже для обоих» не тянутся
-    if (typeof s !== 'number' || s === best || pl[s] <= pl[best]) continue
-    fr.push(Math.min(1, Math.abs(offer[i.id] - best) / Math.abs(s - best)))
+    const op = opp.points[i.id]
+    // уступка — только шаг к тому, что игроку лучше её варианта; к просьбе «хуже для обоих» не тянутся.
+    // Сколько она уступила — по её очкам, а не по порядку вариантов
+    if (typeof s !== 'number' || s === best || pl[s] <= pl[best] || op[s] >= op[best]) continue
+    fr.push(Math.min(1, Math.max(0, (op[best] - op[offer[i.id]]) / (op[best] - op[s]))))
   }
   if (fr.length < 2) return 0
   const mean = fr.reduce((a, b) => a + b, 0) / fr.length
