@@ -1,6 +1,7 @@
 // Голос в браузере: озвучка собеседника и запись реплики игрока.
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
+import { callVoice, callVoiceActive, resumeCallVoice } from './callVoice'
 import { mediaEvent } from './mediaEvent'
 import { ResourceCache } from './resourceCache'
 
@@ -183,9 +184,16 @@ const SILENT = `data:audio/wav;base64,UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAA
 export function unlockAudio() {
   if (typeof Audio === 'undefined') return
   const a = player()
+  resumeCallVoice()
   stopAudio()
   a.src = SILENT
   a.play().catch(() => {})
+}
+
+/** Видеозвонок: голос собеседника «через связь» (callVoice.ts) — на время встречи. */
+export function setCallVoice(on: boolean) {
+  if (typeof Audio === 'undefined') return
+  callVoice(player(), on)
 }
 
 export function stopAudio() {
@@ -987,3 +995,4 @@ export async function recognize(pcm: ArrayBuffer, signal?: AbortSignal): Promise
 
 // проверка губ из прогонов на dev-сервере (scripts/): window.__lipState()
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __lipState: typeof lipState }).__lipState = lipState
+if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __callVoice: typeof callVoiceActive }).__callVoice = callVoiceActive

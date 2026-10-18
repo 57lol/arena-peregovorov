@@ -10,11 +10,11 @@ import { bestOption, formatOffer, isComplete, maxScore, sameOffer, score, type F
 import { ApiError, playTurn, type TurnLine } from './api'
 import { chooseReaction } from './reactions'
 import type { PortraitEmotion } from './ui/assets'
-import { firstName, portraitFor } from './cast'
+import { firstName, isVideoCall, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, saveVoiceOn, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -186,6 +186,13 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const heard = !pending && !done && delivered && !lineWaiting && !audioPlaying && !speechPlaying() && (voicedLine || !talking)
 
   // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
+  // видеозвонок: голос собеседника звучит «через связь» (полоса телефона, компрессия, лёгкие помехи)
+  const call = isVideoCall(sc)
+  useEffect(() => {
+    setCallVoice(call)
+    return () => setCallVoice(false)
+  }, [call])
+
   useEffect(() => {
     setSttLang(sc)
     if (canVoice && voiceOn) warmFillers(voiceFor(sc), informal(sc))
