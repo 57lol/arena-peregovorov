@@ -135,7 +135,8 @@ export default function App() {
   useEffect(() => {
     currentRef.current = current
   }, [current])
-  useRoomPulse(room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
+  // готовая встреча жюри — не партия игрока: на доску тренировки её не шлём
+  useRoomPulse(demo ? null : room, current?.scenario, screen, history, player, attemptId, sent === attemptId)
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
 
@@ -598,7 +599,8 @@ export default function App() {
           : undefined
       }
       receipt={
-        room && room.caseId === current.scenario.id && history.length ? (
+        // готовая встреча жюри — не партия игрока: в тренировку её не отправляем
+        room && !demo && room.caseId === current.scenario.id && history.length ? (
           <RoomReceipt
             key={attemptId}
             room={room}
