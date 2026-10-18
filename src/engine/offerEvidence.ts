@@ -28,7 +28,7 @@ const stem5 = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 // «210, к сожалению, никто сейчас не предоставляет», «это много», «мы не потянем», «nobody pays 480»: число собеседника
 // игрок отвергает, а не предлагает. Иначе «двести десять вы всё-таки назвали, это уже шаг» — радость тому, от чего
 // игрок отказался (партия капитана в «Оффере», 19.10).
-const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:это|так)\s+(?:много|дорого|жирно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:realistic|possible|feasible)|unrealistic|impossible)(?!\p{L})/iu
+const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|тян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|возьм\p{L}*|бер[её]м|купим|покупа\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:(?:это|так|уж)\s+|[—–-]\s*)(?:много|многовато|мало|маловато|дорого|дороговато|долго|долговато|недостаточно|жирно|перебор)|(?<!не\s)(?:дороговато|многовато|долговато|маловато|недостаточно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|да\s+(?:вы|ты)\s+что|с\s+ума\s+сош\p{L}*|издева\p{L}*|шутите|шутишь|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)(?:way\s+)?too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:enough|realistic|possible|feasible)|(?:can'?t|cannot|won'?t|will not)\s+(?:wait|afford|accept|take|do|pay|go\s+(?:with|for))|forget\s+(?:about\s+)?|unrealistic|impossible|crazy|insane|ridiculous|a joke|(?:are\s+you\s+)?(?:joking|kidding))(?!\p{L})/iu
 
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
 const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
@@ -78,7 +78,10 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
   for (const [k, part] of parts.entries()) {
     if (!IMPOSSIBLE.test(part) || Object.keys(parseOffer(sc, part)).length) continue
     for (let j = k - 1; j >= 0; j--) {
-      if (/[.!?;\n]/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j])) break
+      // «212? Да вы что.» — короткий переспрос перед возмущением тоже отвергнут
+      const short = (x: string | undefined) => !!x && (x.match(/[\p{L}\d]+/gu) ?? []).length <= 3
+      if (/[.!;\n]/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j])) break
+      if (/\?/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j]) && !short(parts[j - 1])) break
       if (!/[\p{L}\d]/u.test(parts[j])) continue
       if (OWN_RU.test(parts[j]) || EN_OWN.test(parts[j])) break
       refused[j] = true
