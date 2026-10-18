@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
@@ -534,7 +534,12 @@ export default function App() {
     const meeting = {
       game: current,
       history,
-      setHistory,
+      setHistory: (next: SetStateAction<TurnRecord[]>) => {
+        // разбор этой партии уже записан («Назад» из разбора, потом «Отменить последний ход»): дальше — новая попытка,
+        // иначе прогресс узнает её по прежней и не запишет. В тренировке новую попытку открывает «Назад» (admit)
+        if (recorded && recorded === runKey(current, history) && room?.caseId !== current.scenario.id) setAttemptId(newAttemptId())
+        setHistory(next)
+      },
       redo,
       // сервер так и не ответил — голоса нет; пока отвечает (undefined) — считаем, что есть
       speech: server === null ? { tts: false, stt: false } : server?.speech,
