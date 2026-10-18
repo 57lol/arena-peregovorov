@@ -16,6 +16,9 @@ const base = arg < 0 ? 'http://localhost:5173' : process.argv[arg + 1]
 const audio = readFileSync(new URL('../public/assets/voice-fillers/denis/c1.mp3', import.meta.url))
 const scenario = getScenario('dorm')!
 const text = 'давай 1000'
+// слабый мак под нагрузкой: headless добавляет ~100–150 мс к паузе — запас задаётся явно (--slack 200)
+const sl = process.argv.indexOf('--slack')
+const SLACK = sl < 0 ? 0 : Number(process.argv[sl + 1])
 const out = '.cache/reaction-e2e'
 mkdirSync(out, { recursive: true })
 
@@ -103,7 +106,7 @@ try {
       assert(pause, 'Не прозвучала пауза')
       console.log(`${view} ${mode}: пауза через ${Math.round(pause.at - log.at)} мс`)
       assert(pause.at - log.at >= (mode === 'speechkit' ? 550 : 250))
-      assert(pause.at - log.at < (mode === 'speechkit' ? 950 : 550))
+      assert(pause.at - log.at < (mode === 'speechkit' ? 950 : 550) + SLACK, `пауза поздно: ${Math.round(pause.at - log.at)} мс`)
       assert(pause.src.includes(mode === 'reaction' ? '/voice-reactions/' : mode === 'missing' ? '/voice-fillers/eleven/' : '/voice-fillers/vasily/'))
       const end = log.events.find((e) => e.kind === 'end' && e.src === pause.src)
       assert(end && answer.at >= end.at, `Ответ наложился на реакцию: ${JSON.stringify(log.events.map((e) => [Math.round(e.at - log.at), e.kind, e.src.slice(-40)]))}`)
