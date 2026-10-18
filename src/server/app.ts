@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseUpsells, withUpsellReply } from '../engine/upsells'
 import { Hono, type Context } from 'hono'
@@ -31,13 +31,14 @@ import { spareOpener, writeOpener } from './opener'
 import { stripTags } from './tags'
 import { votesApp } from './votes'
 import { roomsApi } from './rooms'
+import { createJson } from './storage'
 
 const SAVED = join(CACHE_DIR, 'scenarios')
 const ROOMS = join(CACHE_DIR, 'rooms')
 
 // Всё, что приходит от браузера, — с потолками: дело и история уходят в промпт модели, а это деньги.
 const str = (max: number) => z.string().max(max)
-const Id = z.string().regex(/^[\w-]{1,40}$/)
+const Id = z.string().regex(/^[\w-]{1,40}$/).refine((s) => !Object.hasOwn(Object.prototype, s) && s !== 'prototype')
 const Interest = z.object({ id: Id, text: str(1000), issue: Id.optional(), trustToReveal: z.number().min(0).max(100) })
 const Profile = z.object({
   points: z.record(Id, z.array(z.number().min(-1000).max(1000)).max(6)),
@@ -61,7 +62,7 @@ const ScenarioInput = z.object({
     aliases: z.array(z.array(str(100)).max(8)).max(6).optional(),
     kind: z.enum(['distributive', 'integrative', 'compatible']),
     preferences: z.object({ player: z.number().int(), opponent: z.number().int() }).optional(),
-  })).min(3).max(6),
+  })).min(3).max(6).refine((issues) => new Set(issues.map((i) => i.id)).size === issues.length),
   player: z.object({ role: str(300), brief: str(3000), profile: Profile }),
   opponent: z.object({
     character: z.object({
@@ -225,7 +226,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     e instanceof HTTPException ? (e.res ?? c.json({ error: e.message }, e.status))
     : e instanceof z.ZodError ? c.json({ error: zodText(e) }, 400)
     : e instanceof SyntaxError ? c.json({ error: 'Запрос не разобрался: тело — не JSON' }, 400)
-    : c.json({ error: e.message }, 500))
+    : c.json({ error: 'Ошибка сервера. Попробуйте ещё раз.' }, 500))
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   // заход: первым звучит сам ответ, а не запись-реакция; дела без захода (OPENER_SKIP) — с реакцией, как раньше
@@ -304,9 +305,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     if (same(findScenario(sc.id))) return c.json({ id: sc.id })
     const saved = await resolveScenario({ scenarioId: sc.id }).catch(() => null)
     if (same(saved)) return c.json({ id: sc.id })
+    if (!count.take('share', quotaOf(c), limitOf('SHARE_SESSION_DAY_LIMIT', 100), DAY))
+      return c.json({ error: 'Слишком много новых дел. Попробуйте завтра.' }, 429)
     const id = `gen-${hashOf(sc).slice(0, 12)}`
-    await mkdir(SAVED, { recursive: true })
-    await writeFile(join(SAVED, `${id}.json`), JSON.stringify({ ...sc, id }, null, 1))
+    if (!await createJson(join(SAVED, `${id}.json`), { ...sc, id }, limitOf('SCENARIO_MAX_FILES', 5000)))
+      return c.json({ error: 'Нет места для нового дела. Уже сохранённые дела доступны.' }, 507)
     return c.json({ id })
   })
 
@@ -606,7 +609,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         // звук реплики по ссылке; кто говорит — если уже известно (фразы-паузы браузер берёт тем же голосом)
         ...(sound ? { audio: sound.url, ...(sound.voice ? { audioVoice: sound.voice } : {}) } : {}),
         ...(done ? { report: buildReport(sc, [...history, record], dict) } : {}),
-        sources: { ms, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error, v.error, asked.note].filter(Boolean) } : {}) },
+        sources: { ms, analysis: a.source, voice: v.source, ...(v.model ? { voiceModel: v.model } : {}), ...(lab ? { lab } : {}), ...(a.error || v.error || asked.note ? { errors: [a.error ? 'Разбор модели недоступен, использованы правила.' : undefined, v.error ? 'Ответ модели недоступен, использован запасной вариант.' : undefined, asked.note].filter(Boolean) } : {}) },
       }
     }
 
@@ -623,7 +626,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         }
         turn().then(
           (j) => emit!({ t: 'done', ...j }),
-          (e: Error) => emit!({ t: 'error', error: e.message }),
+          () => emit!({ t: 'error', error: 'Ошибка сервера. Попробуйте ещё раз.' }),
         ).finally(() => {
           try {
             ctl.close()
@@ -644,19 +647,19 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
   // Своё дело: до трёх запросов к Pro по 3000 токенов — свой суточный лимит на сессию
   app.post('/api/scenario/generate', bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
-    const req = GenerateRequest.parse(await c.req.json().catch(() => ({})))
+    const req = GenerateRequest.parse(await c.req.json())
     const mayAsk = count.take('gen', quotaOf(c), limitOf('GENERATE_SESSION_DAY_LIMIT', 20), DAY)
     const r = await generateScenario(mayAsk ? llm : makeLLM('offline').llm, req, scenarios)
     if (r.source === 'llm') {
-      await mkdir(SAVED, { recursive: true })
-      await writeFile(join(SAVED, `${r.scenario.id}.json`), JSON.stringify(r.scenario, null, 1))
+      if (!await createJson(join(SAVED, `${r.scenario.id}.json`), r.scenario, limitOf('SCENARIO_MAX_FILES', 5000), 200 * 1024))
+        return c.json({ error: 'Нет места для нового дела. Уже сохранённые дела доступны.' }, 507)
       speech.issue(r.scenario.opening)
     }
     return c.json(r)
   })
 
   // тренировки для команды: комната на дело, доска результатов по секрету руководителя
-  app.route('/', roomsApi({ dir: roomsDir, resolve: (id) => resolveScenario({ scenarioId: id }), normalize: normalizeHistory }))
+  app.route('/', roomsApi({ dir: roomsDir, resolve: (id) => resolveScenario({ scenarioId: id }), normalize: (sc, raw) => normalizeHistory(sc, z.array(HistoryItem).min(1).max(40).parse(raw)) }))
 
   app.route('/', speech.app)
 

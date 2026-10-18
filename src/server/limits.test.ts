@@ -1,9 +1,36 @@
 import { Hono } from 'hono'
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { quotaOf } from './client'
 import { gate, makePass } from './gate'
-import { clientLimiter, DAY } from './limits'
+import { clientLimiter, DAY, limiter, limitOf, MINUTE } from './limits'
 import { personalJudge } from './pass'
+
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
+
+it('заполнение счётчика другими адресами не сбрасывает действующий запрет', () => {
+  const count = limiter()
+  expect(count.take('blocked', 1, DAY)).toBe(true)
+  for (let i = 0; i < 50_002; i++) count.take(`ip:${i}`, 1, DAY)
+  expect(count.take('blocked', 1, DAY)).toBe(false)
+})
+
+it('разные окна не смешиваются; старые записи освобождают место', () => {
+  vi.useFakeTimers().setSystemTime(1000)
+  const count = limiter()
+  expect(count.take('client', 1, MINUTE)).toBe(true)
+  expect(count.take('client', 1, DAY)).toBe(true)
+  vi.setSystemTime(DAY + 1000)
+  expect(count.take('client', 1, DAY)).toBe(true)
+})
+
+it('ошибка в переменной лимита не снимает защиту', () => {
+  for (const value of ['oops', 'Infinity', '-1', '1.5', ' ']) {
+    vi.stubEnv('TEST_LIMIT', value)
+    expect(limitOf('TEST_LIMIT', 20)).toBe(20)
+  }
+  vi.stubEnv('TEST_LIMIT', '0')
+  expect(limitOf('TEST_LIMIT', 20)).toBe(0)
+})
 
 it('личные и общие пропуска за одним IP имеют отдельные квоты, личный перевход её не сбрасывает', async () => {
   const count = clientLimiter()

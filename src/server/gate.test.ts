@@ -12,6 +12,33 @@ app.post('/api/turn', (c) => c.json({ ok: true }))
 app.get('*', (c) => c.text('game'))
 
 const cookieOf = (r: Response) => (r.headers.get('set-cookie') ?? '').split(';')[0]
+
+it('успешный вход не перенаправляет на другой сайт через управляющие символы или двойной слеш', async () => {
+  const a = new Hono().use('*', gate({ secret, juryKey: 'jury', login: 'user', passwordHash: hashPassword('pw') }))
+  for (const next of ['/\t/evil.test', '/\n/evil.test', '//evil.test', '/\\evil.test']) {
+    const r = await a.request('/auth/login', { method: 'POST', body: new URLSearchParams({ login: 'user', password: 'pw', next }) })
+    expect(r.status).toBe(303)
+    expect(r.headers.get('location')).toBe('/')
+  }
+  const r = await a.request('http://localhost//evil.test/?key=jury')
+  expect(r.status).toBe(303)
+  expect(r.headers.get('location')).toBe('/')
+})
+
+it('тело входа ограничено до разбора формы и вычисления пароля', async () => {
+  const a = new Hono().use('*', gate({ secret, login: 'user', passwordHash: hashPassword('pw') }))
+  const r = await a.request('/auth/login', { method: 'POST', body: new URLSearchParams({ login: 'user', password: 'x'.repeat(20_000) }) })
+  expect(r.status).toBe(413)
+})
+
+it('поток чужих IP не снимает блокировку перебора ключа', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const a = new Hono().use('*', gate({ secret, juryKey: 'jury' }))
+  const enter = (ip: string, key: string) => a.request(`/?key=${key}`, {}, { incoming: { socket: { remoteAddress: ip } } })
+  for (let i = 0; i < 8; i++) await enter('192.0.2.1', 'wrong')
+  for (let i = 0; i < 10_001; i++) await enter(`10.${i >> 16}.${(i >> 8) & 255}.${i & 255}`, 'wrong')
+  expect((await enter('192.0.2.1', 'jury')).status).toBe(429)
+})
 const form = (body: Record<string, string>, ip = '1.1.1.1') =>
   app.request('/auth/login', {
     method: 'POST',

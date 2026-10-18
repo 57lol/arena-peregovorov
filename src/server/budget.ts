@@ -4,11 +4,13 @@
 // До 80% лимита — основная модель (Pro), до 100% — запасная (Lite), дальше — офлайн-разметка, шаблоны и без голоса.
 // Суточные LLM_DAILY_RUB, TTS_DAILY_CHARS, STT_DAILY_SEC по умолчанию сняты (без лимита).
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CACHE_DIR } from './cache'
 import { usageContext } from './usage'
 import type { Judge } from './pass'
+import { writeJson } from './storage'
+import { z } from 'zod'
 
 export type Mode = 'pro' | 'lite' | 'offline'
 
@@ -53,7 +55,21 @@ export interface Total {
   sttSec: number
 }
 
-const num = (v: string | undefined, def: number) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : def)
+const Amount = z.number().min(0)
+const counters = { rub: Amount, ttsChars: Amount.default(0), sttSec: Amount.default(0) }
+const prices = { llmRub: Amount.default(0), ttsRub: Amount.default(0), sttRub: Amount.default(0) }
+const Judges = z.record(z.string(), z.object({
+  id: z.string(), name: z.string(), kind: z.enum(['personal', 'shared']), lastAt: z.string(),
+  ...counters, ...prices, turns: Amount, starts: Amount, finishes: Amount, llmCalls: Amount,
+})).default({})
+const TotalFile = z.object({ since: z.string(), judges: Judges, ...counters, ...prices })
+const DayFile = z.object({ date: z.string(), judges: Judges, ...counters,
+  llm: z.record(z.string(), z.object({ in: Amount, out: Amount, calls: Amount, rub: Amount })).default({}),
+})
+
+const num = (v: string | undefined, def: number) => (v?.trim() && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : def)
+const validAmounts = (...values: number[]) => values.every((v) => Number.isFinite(v) && v >= 0)
+const checkAmounts = (...values: number[]) => { if (!validAmounts(...values)) throw new Error('Некорректное списание бюджета') }
 const isLite = (model: string) => /lite/i.test(model)
 
 function limits(env = process.env) {
@@ -98,8 +114,9 @@ type UsageDelta = Partial<Pick<JudgeUsage, 'turns' | 'starts' | 'finishes' | 'll
 function track(d: Day, t: Total, who: Judge | undefined, delta: UsageDelta) {
   if (!who) return
   for (const target of [d, t]) {
-    const row = target.judges[who.id] ??= { ...who, turns: 0, starts: 0, finishes: 0, llmCalls: 0,
-      llmRub: 0, ttsRub: 0, sttRub: 0, rub: 0, ttsChars: 0, sttSec: 0, lastAt: '' }
+    if (!Object.hasOwn(target.judges, who.id)) Object.defineProperty(target.judges, who.id, { enumerable: true, writable: true, configurable: true,
+      value: { ...who, turns: 0, starts: 0, finishes: 0, llmCalls: 0, llmRub: 0, ttsRub: 0, sttRub: 0, rub: 0, ttsChars: 0, sttSec: 0, lastAt: '' } })
+    const row = target.judges[who.id]
     row.name = who.name
     row.lastAt = new Date().toISOString()
     for (const key of Object.keys(delta) as (keyof UsageDelta)[]) row[key] = r4(row[key] + delta[key]!)
@@ -113,6 +130,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
   let total: Total | undefined
   let writing = Promise.resolve()
   let reserving = Promise.resolve()
+  let unreadable = false
   const totalFile = join(dir, 'total.json')
 
   /** Общий счёт: один раз с диска, дальше из памяти. Нет файла — начинаем с нуля и сразу пишем. */
@@ -121,8 +139,12 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     let t: Total
     let fresh = false
     try {
-      t = { ...emptyTotal(), ...JSON.parse(await readFile(totalFile, 'utf8')) }
-    } catch {
+      t = TotalFile.parse(JSON.parse(await readFile(totalFile, 'utf8')))
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+        unreadable = true
+        throw new Error('Не удалось прочитать бюджет')
+      }
       t = emptyTotal()
       fresh = true
     }
@@ -142,8 +164,13 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     if (loadingDay) { await loadingDay; return load() }
     loadingDay = (async () => {
       try {
-        day = { ...empty(date), ...JSON.parse(await readFile(join(dir, `${date}.json`), 'utf8')), date }
-      } catch {
+        day = { ...DayFile.parse(JSON.parse(await readFile(join(dir, `${date}.json`), 'utf8'))), date }
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+          day = empty('')
+          unreadable = true
+          throw new Error('Не удалось прочитать бюджет')
+        }
         day = empty(date)
       }
       return day
@@ -152,15 +179,16 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     return day
   }
 
-  function save() {
-    const files: [string, string][] = []
-    if (day.date) files.push([join(dir, `${day.date}.json`), JSON.stringify(day, null, 1)])
-    if (total) files.push([totalFile, JSON.stringify(total, null, 1)])
+  function save(previousDay?: Day) {
+    const files: [string, Day | Total][] = []
+    if (previousDay && previousDay !== day) files.push([join(dir, `${previousDay.date}.json`), structuredClone(previousDay)])
+    if (day.date) files.push([join(dir, `${day.date}.json`), structuredClone(day)])
+    if (total) files.push([totalFile, structuredClone(total)])
     writing = writing
-      .then(() => mkdir(dir, { recursive: true }))
-      .then(() => Promise.all(files.map(([f, s]) => writeFile(f, s))))
+      .then(() => Promise.all(files.map(([f, s]) => writeJson(f, s))))
       .then(() => {})
       .catch((e) => {
+        unreadable = true
         console.warn(`[бюджет] не записал ${dir}: ${(e as Error).message}`)
       })
     return writing
@@ -172,6 +200,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
 
   /** Режим по уже известному счёту — без диска, для /api/health и ключа кэша. */
   function modeNow(): Mode {
+    if (unreadable) return 'offline'
     const l = limits(env)
     const t = total?.rub ?? 0
     const d = day.date === today() ? day.rub : 0
@@ -186,25 +215,33 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     return job
   }
 
+  async function mode(): Promise<Mode> {
+    try { await both() } catch { return 'offline' }
+    return modeNow()
+  }
+
   return {
     dir,
     modeNow,
-    async mode(): Promise<Mode> {
-      await both()
-      return modeNow()
-    },
+    mode,
     async addPlay(start: boolean, finish: boolean) {
       const who = usageContext.getStore()
       if (!who) return
-      const [d, t] = await both()
+      // Статистика не должна останавливать бесплатную встречу при повреждении счёта.
+      const state = await both().catch(() => undefined)
+      if (!state || unreadable) return
+      const [d, t] = state
       track(d, t, who, { turns: 1, starts: Number(start), finishes: Number(finish) })
       await save()
     },
     /** rub — готовая цена (AITunnel пишет её в ответе), иначе по тарифу YandexGPT */
     async addLlm(model: string, tokensIn: number, tokensOut: number, price?: number) {
-      const [d, t] = await both()
       const rub = price ?? priceOf(model, tokensIn, tokensOut, env)
-      const m = (d.llm[model] ??= { in: 0, out: 0, calls: 0, rub: 0 })
+      checkAmounts(tokensIn, tokensOut, rub)
+      const [d, t] = await both()
+      if (!Object.hasOwn(d.llm, model)) Object.defineProperty(d.llm, model, { enumerable: true, writable: true, configurable: true,
+        value: { in: 0, out: 0, calls: 0, rub: 0 } })
+      const m = d.llm[model]
       m.in += tokensIn
       m.out += tokensOut
       m.calls += 1
@@ -217,6 +254,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     },
     /** Озвучка: общий бюджет не кончился и (если задан) хватает суточного лимита символов. */
     async ttsAllowed(chars: number) {
+      if (await mode() === 'offline') return false
       const [d] = await both()
       return modeNow() !== 'offline' && d.ttsChars + chars <= limits(env).ttsChars
     },
@@ -224,6 +262,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     reserveTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {
       const who = usageContext.getStore()
       return serial(async () => {
+        if (await mode() === 'offline') return undefined
         const [d, t] = await both()
         const l = limits(env)
         if (chars < 0 || rub < 0 || !Number.isFinite(chars + rub) || d.ttsChars + chars > l.ttsChars || t.rub + rub > l.total || d.rub + rub > l.rub) return undefined
@@ -245,13 +284,13 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
           t.ttsRub = r4(t.ttsRub - rub)
           track(d, t, who, { ttsChars: -chars, ttsRub: -rub, rub: -rub })
           // Резерв мог пережить полночь.
-          if (d !== day) await writeFile(join(dir, `${d.date}.json`), JSON.stringify(d)).catch(() => {})
-          await save()
+          await save(d)
         }) }
       })
     },
     /** rub — готовая цена (внешний TTS), иначе считаем по тарифу SpeechKit */
     async addTts(chars: number, live = false, rub = ttsPrice(chars, live, env)) {
+      checkAmounts(chars, rub)
       const [d, t] = await both()
       d.ttsChars += chars
       t.ttsChars += chars
@@ -265,6 +304,7 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
     reserveStt(sec: number, rub = sttPrice(sec, env)): Promise<boolean> {
       const who = usageContext.getStore()
       const job = reserving.then(async () => {
+        if (await mode() === 'offline') return false
         const [d, t] = await both()
         const l = limits(env)
         if (sec < 0 || rub < 0 || !Number.isFinite(sec + rub) || d.sttSec + sec > l.sttSec || t.rub + rub > l.total || d.rub + rub > l.rub) return false
@@ -281,10 +321,12 @@ export function makeBudget(dir = join(CACHE_DIR, 'usage'), env = process.env) {
       return job
     },
     async sttAllowed() {
+      if (await mode() === 'offline') return false
       const [d] = await both()
       return modeNow() !== 'offline' && d.sttSec < limits(env).sttSec
     },
     async addStt(sec: number, rub = sttPrice(sec, env)) {
+      checkAmounts(sec, rub)
       const [d, t] = await both()
       d.sttSec = Math.round((d.sttSec + sec) * 10) / 10
       t.sttSec = Math.round((t.sttSec + sec) * 10) / 10
@@ -325,7 +367,7 @@ export const budget = () => (shared ??= makeBudget())
 
 /** Раз в час пишем расход в лог сервера. */
 export function logBudgetHourly(b = budget()) {
-  const tick = () => b.summary().then((s) => console.log(`${new Date().toISOString()} ${s}`))
+  const tick = () => b.summary().then((s) => console.log(`${new Date().toISOString()} ${s}`)).catch(() => console.warn('[бюджет] счёт недоступен, платные запросы закрыты'))
   void tick()
   setInterval(tick, 3600_000).unref()
 }

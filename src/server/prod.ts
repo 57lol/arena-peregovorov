@@ -28,10 +28,10 @@ const sttStream = makeSttStream()
 const app = new Hono()
 // ворота: без GATE_SECRET сайт открыт (локально), на проде секрет обязателен
 const secret = process.env.GATE_SECRET
-if (secret) {
+if (secret?.trim()) {
   app.use('*', gate({ secret, voteKey: process.env.VOTE_KEY, juryKey: process.env.JURY_KEY, juryKeys: process.env.JURY_KEYS, login: process.env.SITE_LOGIN, passwordHash: process.env.SITE_PASSWORD_HASH }))
 } else if (process.env.NODE_ENV === 'production' || process.env.PASSENGER_APP_ENV) {
-  console.warn('GATE_SECRET не задан — сайт открыт всем')
+  throw new Error('GATE_SECRET не задан — запуск прода запрещён')
 }
 app.route('/', sttStream.app)
 app.route('/', createApp(llm, error, speech, undefined, './dist'))
