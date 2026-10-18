@@ -70,9 +70,9 @@ it('сравнение относится к выбранной попытке, 
   const first = renderToStaticMarkup(<AttemptGrowth runs={runs} current={runs[0]} />)
   expect(first).not.toContain('К прошлой попытке')
   const middle = renderToStaticMarkup(<AttemptGrowth runs={runs} current={runs[1]} />)
-  expect(middle).toContain('К прошлой попытке: +1 звёзд.')
+  expect(middle).toContain('К прошлой попытке: +1 звезда.')
   const last = renderToStaticMarkup(<AttemptGrowth runs={runs} current={runs[2]} />)
-  expect(last).toContain('К прошлой попытке: +2 звёзд.')
+  expect(last).toContain('К прошлой попытке: +2 звезды.')
 })
 
 it('двадцать ходов: два Tab-входа в графики, цели 44px не пересекаются', () => {

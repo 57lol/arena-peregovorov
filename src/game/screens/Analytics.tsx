@@ -6,6 +6,7 @@ import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { formatOffer } from '../../engine/utility'
 import { attemptSeries } from '../attempts'
+import { plural } from '../cast'
 import { chartPath, trendWidth } from '../chart'
 import { plainWords, turnFeedback } from '../instant'
 import type { RunLog } from '../progress'
@@ -214,7 +215,7 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
           </summary>
           <div className="g-profile-evidence">
             <p>{plainWords(def.definition)}</p>
-            {row.comparison && <p>{row.comparison.title}: {row.comparison.count} из {history.length} ходов. Полоса и эталон относятся к этой общей частоте; счётчик приёма показан отдельно.</p>}
+            {row.comparison && <p>{row.comparison.title}: {row.comparison.count} из {history.length} {plural(history.length, 'хода', 'ходов', 'ходов')}. Полоса и эталон относятся к этой общей частоте; счётчик приёма показан отдельно.</p>}
             {bar.skilled !== null && <p>{row.polarity === 'weak' ? 'Реже — лучше.' : 'Чаще — полезнее, если приём уместен.'} {bar.benchmark?.note}</p>}
             {bar.benchmark?.unit === 'reasons' && <p>У сильных — {bar.benchmark.skilled} довода на аргумент, у средних — {bar.benchmark.average}. Здесь считаем ходы с избытком доводов; среднего числа доводов в истории нет.</p>}
             {!bar.benchmark && <p>У этого приёма нет численного эталона Rackham & Carlisle.</p>}
@@ -248,7 +249,7 @@ export function AttemptGrowth({ runs, current, demo = false }: { runs: RunLog[];
         </select>
       </label>
       <p aria-live="polite">Попытка {point.attempt}{point.current ? ' (сейчас)' : ''}: {point.stars} из 3 звёзд. {point.player === null ? 'Очки в старой записи не сохранены.' : `Ваша выгода: ${point.player}.`} {point.trust !== null && `Доверие: ${point.trust}.`}</p>
-      {diff !== null && <p><b>К прошлой попытке: {signed(diff!)} звёзд.</b> {diff! > 0 ? 'Есть рост.' : diff === 0 ? 'Звёзд столько же — сравните приёмы и условия.' : 'Результат ниже. Выберите один совет и проверьте его в следующей встрече.'}</p>}
+      {diff !== null && <p><b>К прошлой попытке: {signed(diff!)} {plural(diff!, 'звезда', 'звезды', 'звёзд')}.</b> {diff! > 0 ? 'Есть рост.' : diff === 0 ? 'Звёзд столько же — сравните приёмы и условия.' : 'Результат ниже. Выберите один совет и проверьте его в следующей встрече.'}</p>}
     </> : <p>Это первая доступная попытка. Сейчас — <b>{points[0].stars} из 3 звёзд</b>. После следующей встречи здесь появится сравнение.</p>}
   </section>
 }

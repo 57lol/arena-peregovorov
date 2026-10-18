@@ -264,10 +264,12 @@ export function step(
   if (asksInterest(analysis, dict)) {
     const { ready, told, offTopic, general } = pickInterest(sc, s, analysis)
     const it = ready ?? told
+    // последний ход, а своего листка он ещё не клал: кладёт последнее предложение, иначе встреча не кончится никогда
+    const mustOffer = isLast && !prevCounter
     if (it) {
       if (ready) s.revealed.push(ready.id)
       const how = { ...(ready ? {} : { again: true as const }), ...(general ? { general: true as const } : {}), ...(offTopic ? { offTopic } : {}) }
-      if (newOffer) {
+      if (newOffer || mustOffer) {
         const offer = counterNow()
         const feigned = feignedConcessions(sc, offer, prevCounter)
         return end(
@@ -277,7 +279,7 @@ export function step(
       }
       return end({ kind: 'reveal', interestId: it.id, ...how }, { lastCall: isLast && !!prevCounter })
     }
-    if (!newOffer) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
+    if (!newOffer && !mustOffer) return end({ kind: 'hold', reason: 'not_ready_to_reveal' }, { lastCall: isLast && !!prevCounter })
   }
 
   // Игрок шутит, извиняется, спрашивает о деле или о жизни — собеседник отвечает человеку, сделка стоит на месте.
