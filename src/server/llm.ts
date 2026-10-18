@@ -1,4 +1,5 @@
-// Модели: YandexGPT (разметка, запасная реплика, сборка своего дела) и AITunnel (реплика собеседника, Claude Sonnet 5.5).
+// Модели: Claude Sonnet 5.5 через AITunnel (разметка и реплика собеседника) и YandexGPT (запасная разметка и реплика,
+// сборка своего дела; базовая комплектация KIT=base — только Яндекс, см. kit.ts).
 // Обе под общим бюджетом LLM_TOTAL_RUB: до вызова — проверка, после — цена в счёт. Возвращают распарсенный JSON;
 // любая ошибка — исключение, а вызывающий код откатывается на запасную модель, офлайн-разметчик или заготовку.
 
@@ -23,8 +24,10 @@ export interface LLM {
   json(req: JsonRequest): Promise<unknown>
   /** Тот же ответ кусками по мере генерации (склейка кусков — JSON целиком): реплику можно озвучивать, не дожидаясь конца. */
   stream?(req: JsonRequest, signal?: AbortSignal): AsyncGenerator<string>
-  /** разбор реплики игрока — своей моделью (YANDEX_ANALYZE_MODEL или ANALYZE_LLM) */
+  /** разбор реплики игрока — своей моделью (ANALYZE_LLM, по умолчанию Claude Sonnet 5.5, если есть ключ AITunnel) */
   analyzer?: LLM
+  /** запасной разметчик: основной не ответил вовремя или ответил не по схеме (YandexGPT) */
+  backup?: LLM
   /** разбор реплики в деле на английском (ANALYZE_LLM_EN); нет — тот же analyzer */
   analyzerEn?: LLM
   /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
@@ -251,6 +254,11 @@ export function aitunnelRoute(model: string, env = process.env): Record<string, 
 
 /** Модель реплики по умолчанию: живее всех держит рамку, ~2 с на ответ (~/Arena-materials/final/models/PROVIDERS_REPORT.md). */
 export const DEFAULT_VOICE_MODEL = 'claude-sonnet-5.5'
+/**
+ * Разметчик по умолчанию — тоже Sonnet 5.5: замер 18.10 на корпусе с эталоном — 92% реплик без ошибок против 67% у
+ * YandexGPT Pro и 25% у Haiku 5.5 на одних и тех же трудных репликах (~/Arena-materials/final/ANALYZE_CLAUDE.md).
+ */
+export const DEFAULT_ANALYZE_MODEL = DEFAULT_VOICE_MODEL
 
 /**
  * AITunnel: один ключ — сотни моделей (Claude, GPT, Gemini), OpenAI-совместимый API, оплата рублями.
@@ -393,9 +401,10 @@ const offline: LLM = {
 }
 
 /**
- * Основная модель (LLM_PROVIDER) и отдельные модели разметки и реплики (ANALYZE_LLM, VOICE_LLM — «провайдер:модель»).
- * Реплику по умолчанию пишет Claude Sonnet 5.5 через AITunnel, если есть ключ; VOICE_LLM=main — основной моделью.
- * Ошибка модели реплики не ломает игру: voice() откатывается на основную модель, потом на заготовку.
+ * Основная модель (LLM_PROVIDER) и отдельные модели разметки и реплики (ANALYZE_LLM, ANALYZE_LLM_EN, VOICE_LLM —
+ * «провайдер:модель»). Есть ключ AITunnel — размечает и пишет реплику Claude Sonnet 5.5, Яндекс — запасной: разметку
+ * подхватывает YandexGPT (YANDEX_ANALYZE_MODEL или основная), потом правила; реплику — основная модель, потом заготовка.
+ * main — всё основной моделью; ANALYZE_LLM=main размечает Яндексом и английские дела (если ANALYZE_LLM_EN не задан).
  */
 export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = process.env): { llm: LLM; error?: string } {
   let llm: LLM
@@ -409,18 +418,21 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
     return { llm: offline, error: (e as Error).message }
   }
   if (llm.name === 'offline') return { llm }
+  const claude = env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_ANALYZE_MODEL}` : undefined
+  const base = llm.analyzer ?? llm // разметчик основной модели — он же запасной у Claude
   const attach = (field: 'analyzer' | 'analyzerEn' | 'voice', spec: string | undefined) => {
     if (!spec || spec === 'main') return
     try {
-      llm[field] = llmFromSpec(spec, env)
+      const m = llmFromSpec(spec, env)
+      if (field !== 'voice' && m.model !== base.model) m.backup = base
+      llm[field] = m
     } catch (e) {
       errors.push(`${field}: ${(e as Error).message}`)
     }
   }
-  attach('analyzer', env.ANALYZE_LLM)
-  // дела на английском размечает Claude Sonnet 5.5 (замер 18.10: 14 трудных реплик — Pro 94% и 2 сломанных JSON,
-  // Sonnet 97–100% без сбоев); ANALYZE_LLM_EN=main — тем же, что русские дела
-  attach('analyzerEn', env.ANALYZE_LLM_EN ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
+  attach('analyzer', env.ANALYZE_LLM ?? claude)
+  // английские дела — тот же разметчик, если не задан свой (замер 18.10: Sonnet 97–100%, Pro 94% и 2 сломанных JSON)
+  attach('analyzerEn', env.ANALYZE_LLM_EN ?? env.ANALYZE_LLM ?? claude)
   attach('voice', env.VOICE_LLM ?? (env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
   return { llm, ...(errors.length ? { error: errors.join('; ') } : {}) }
 }

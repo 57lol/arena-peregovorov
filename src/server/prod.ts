@@ -11,6 +11,8 @@ try {
 }
 
 // после .env: кэш читает CACHE_DIR при импорте
+const { applyKit } = await import('./kit')
+applyKit() // KIT=base — только Яндекс
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
 const { makeSpeech } = await import('./speech')
