@@ -560,13 +560,19 @@ let live: { src: string; text?: string; stopped: boolean } | null = null
 const LIVE_CHARS_PER_SEC = 12.5
 export const liveCps = (text: string) => cpsFor(text, text.length / LIVE_CHARS_PER_SEC)
 
-/** Поток в <audio> через MediaSource: Chrome с обычной ссылкой копит ~1 с звука, прежде чем заиграть, а так — с первых кадров. */
-const streamable = () => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')
+/**
+ * Поток в <audio> через MediaSource: Chrome с обычной ссылкой копит ~1 с звука, прежде чем заиграть, а так — с первых кадров.
+ * На iPhone обычного MediaSource нет, есть ManagedMediaSource (iOS 17.1+); без него Safari по ссылке сначала просит
+ * Range bytes=0-1, а сервер отвечает на него только когда звук синтезирован целиком — реплика ждала весь синтез.
+ */
+const MSE = (): typeof MediaSource | undefined =>
+  typeof MediaSource !== 'undefined' ? MediaSource : typeof window === 'undefined' ? undefined : (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
+const streamable = () => !!MSE()?.isTypeSupported('audio/mpeg')
 let liveStop: AbortController | null = null
 
 /** Скачивать звук по кускам в MediaSource; part — всё пришедшее после каждого куска (губы), в конце — весь звук. */
 function feed(src: string, stop: AbortSignal, part: (bytes: Uint8Array) => void): { url: string; all: Promise<ArrayBuffer>; ms: MediaSource } {
-  const ms = new MediaSource()
+  const ms = new (MSE()!)()
   const all = (async () => {
     await mediaEvent(ms, 'sourceopen', stop)
     let sb: SourceBuffer | undefined
@@ -659,6 +665,8 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
   if (streamable()) {
     liveStop = new AbortController()
     let grow: (bytes: Uint8Array) => void = () => {}
+    // ManagedMediaSource (iPhone) открывается, только если у плеера выключен AirPlay
+    if (typeof MediaSource === 'undefined') a.disableRemotePlayback = true
     const got = feed(src, liveStop.signal, (bytes) => grow(bytes))
     url = got.url
     a.src = got.url

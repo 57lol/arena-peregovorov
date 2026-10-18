@@ -27,7 +27,7 @@ import { naturalMode, rememberSpoken } from './direct'
 import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
 import { completeLine, frameKey, voice, voicePrompt, withOpener, type VoiceResult } from './voice'
-import { writeOpener } from './opener'
+import { spareOpener, writeOpener } from './opener'
 import { stripTags } from './tags'
 import { votesApp } from './votes'
 import { roomsApi } from './rooms'
@@ -365,7 +365,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const skip = (process.env.OPENER_SKIP ?? '').split(',').map((x) => x.trim()).includes(sc.id)
     const opens = !skip && !lab && !!body.tts && !body.walkAway && speaker.name === 'aitunnel' && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
     const openerP: Promise<string | undefined> = opens
-      ? writeOpener(opens, sc, history, body.playerText, before, isRude(body.playerText), WAIT.opener())
+      ? writeOpener(opens, sc, history, body.playerText, before, isRude(body.playerText), WAIT.opener()).then((o) => o ?? spareOpener(sc, history))
       : Promise.resolve(undefined)
     void openerP.then((o) => {
       if (!o || stopped) return
@@ -538,7 +538,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
     const turn = async () => {
       void job.analyzed.then(() => sound?.connect())
-      // заготовка успела всю реплику — звук одним куском, без склейки начала и остатка
+      // заготовка успела всю реплику: после захода — остаток одним куском
       const whole = job.over()
       let lineSent = false
       const early = (async () => {
@@ -546,7 +546,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         const op = await job.opener
         if (op) {
           lineSent = true
-          if (!whole) sound?.first(op)
+          // и когда заготовка успела всю реплику: звук захода уже синтезирован в паузе и звучит сразу, а остаток
+          // синтезируется параллельно (целиком с нуля на v3 — 0,9 с тишины)
+          sound?.first(op)
           emit?.({ t: 'line', text: stripTags(unstress(op)), sources: { voice: 'opener' }, ...(sound ? { audio: sound.url } : {}) })
         }
         const f = await job.first
@@ -584,6 +586,15 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const lead = t0 - job.t0
       const ms: Record<string, number | string> = Object.fromEntries(Object.entries(job.ms).map(([k, x]) => [k, typeof x === 'number' ? x - lead : x]))
       if (lead > 0) ms.prepared = lead
+      // строка задержек хода: по журналу видно, сколько ждали живые игроки (мс от прихода хода на сервер)
+      const answered = Date.now() - t0
+      const logTurn = (end?: number) => {
+        const n = (k: string) => (typeof ms[k] === 'number' ? ms[k] : '-')
+        const audio = sound?.firstAt ? sound.firstAt - t0 : '-'
+        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${lead > 0 ? lead : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} разбор=${a.source} модель=${v.model ?? v.source}`)
+      }
+      if (sound) void sound.ended.then(logTurn, () => logTurn())
+      else logTurn()
       return {
         analysis,
         deltas: r.deltas,

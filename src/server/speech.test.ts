@@ -626,6 +626,44 @@ describe('любой отказ ElevenLabs подхватывает SpeechKit', 
     expect(new Uint8Array(await warmed.arrayBuffer())).toEqual(bytes)
   })
 
+  it('куски после начала идут в поток по мере синтеза, остаток синтезируется сразу после конца реплики', async () => {
+    configure()
+    let releaseMid!: () => void
+    const midGate = new Promise<void>((r) => (releaseMid = r))
+    const asked: string[] = []
+    const f = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('')
+      const text = String(JSON.parse(String(init?.body)).text)
+      asked.push(text)
+      if (text.includes('Middle')) return new Response(new ReadableStream<Uint8Array>({ async start(c) { c.enqueue(frames); await midGate; c.enqueue(frames); c.close() } }))
+      return new Response(frames)
+    })
+    const speech = makeSpeech({ key: 'k', fetch: f as typeof fetch, stressAsk: null })
+    const app = createApp(offline, undefined, speech)
+    const n = Math.round(Math.random() * 1e6)
+    const start = `Start ${n}.`, mid = `Middle ${n}.`, tail = `Tail ${n}.`
+    app.get('/test-pieces', (c) => {
+      const sound = speech.live({ voice: 'sergey', who: 'gopnik' }, c)!
+      sound.first(start)
+      sound.more(mid)
+      sound.finish(`${start} ${mid} ${tail}`)
+      return c.json({ url: sound.url })
+    })
+    const { url } = await (await app.request('/test-pieces')).json() as { url: string }
+    const reader = (await app.request(url)).body!.getReader()
+    let got = 0
+    // начало и первые байты середины — в потоке, пока середина ещё синтезируется; остаток уже в синтезе
+    while (got < 2 * frames.length) got += (await reader.read()).value!.length
+    await vi.waitFor(() => expect(asked.some((t) => t.includes('Tail'))).toBe(true))
+    releaseMid()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      got += value.length
+    }
+    expect(got).toBe(4 * frames.length)
+  })
+
   it('обрыв первого куска после байт → SpeechKit произносит весь текст, поздние байты не вклеиваются', async () => {
     configure()
     const sk: string[] = []

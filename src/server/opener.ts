@@ -105,3 +105,17 @@ export async function writeOpener(m: LLM, sc: Scenario, history: TurnRecord[], p
   }
   return undefined
 }
+
+/**
+ * Запасной заход, когда быстрая модель не успела или её отклик не прошёл проверку: короткое «думаю» без обязательств.
+ * Без него ход ждал первых слов Sonnet (2,5–3,5 с тишины, живой прогон china 18.10). Звук таких заходов быстро оседает
+ * в кэше голоса лица. Не повторяем начало прошлой реплики собеседника.
+ */
+const SPARE = { ru: ['Так…', 'Хм…', 'Секунду…', 'Так-так…'], en: ['Well…', 'Hmm…', 'Let me see…', 'Right…'] }
+export function spareOpener(sc: Scenario, history: TurnRecord[]): string {
+  const all = SPARE[isEn(sc) ? 'en' : 'ru']
+  const last = (history.at(-1)?.opponentLine ?? '').toLowerCase()
+  const fresh = all.filter((x) => !last.startsWith(x.replace('…', '').toLowerCase()))
+  return fresh[history.length % fresh.length]
+}
+

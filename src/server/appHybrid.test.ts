@@ -42,7 +42,7 @@ function harness(blockFirst = false, delayFirst = false) {
       }
     },
   }
-  const sound = { url: '/api/tts/live/тест', voice: undefined, connect: vi.fn(), first: vi.fn(), more: vi.fn(), finish: vi.fn() }
+  const sound = { url: '/api/tts/live/тест', voice: undefined, firstAt: undefined, ended: Promise.resolve(0), connect: vi.fn(), first: vi.fn(), more: vi.fn(), finish: vi.fn() }
   const speech = makeSpeech({ key: '', fetch: network, stressAsk: null })
   speech.live = () => sound
   const app = createApp({ ...backup, analyzer: primary, voice: speaker }, undefined, speech)

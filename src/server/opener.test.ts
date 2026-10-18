@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-opener-'))
-const { checkOpener, openerPrompt, writeOpener } = await import('./opener')
+const { checkOpener, openerPrompt, spareOpener, writeOpener } = await import('./opener')
 const { findScenario } = await import('./library')
 const { initialState } = await import('../engine/turn')
 type LLM = import('./llm').LLM
@@ -44,5 +44,19 @@ describe('заход — первые слова ответа без обяза�
   it('модель молчит дольше срока — без захода, и это не кэшируется', async () => {
     const m: LLM = { name: 'yandex', model: 'pro', json: vi.fn(() => new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 50))) }
     expect(await writeOpener(m, tara, [], `Тишина ${Date.now()}`, initialState(tara), false, 120)).toBeUndefined()
+  })
+})
+
+describe('запасной заход', () => {
+  it('на языке дела, проходит проверку захода и не повторяет начало прошлой реплики', () => {
+    const lagos = findScenario('lagos')!
+    expect(spareOpener(tara, [])).toBe('Так…')
+    expect(spareOpener(lagos, [])).toBe('Well…')
+    for (const sc of [tara, lagos]) for (let n = 0; n < 6; n++) {
+      const history = Array.from({ length: n }, () => ({ opponentLine: 'Так… ну что ж.' })) as never
+      const s = spareOpener(sc, history)
+      expect(checkOpener(s)).toBe(s)
+      expect(s.startsWith('Так…') && n > 0).toBe(false)
+    }
   })
 })

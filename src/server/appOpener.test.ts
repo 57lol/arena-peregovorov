@@ -54,13 +54,17 @@ describe('заход: первые слова ответа звучат до р�
   afterEach(() => vi.unstubAllEnvs())
 
   it('поток: заход, потом заход с началом реплики (с разбором), потом ход; реплика продолжает заход', async () => {
-    const sound = { url: '/api/tts/live/тест', voice: undefined, connect: vi.fn(), first: vi.fn(), more: vi.fn(), finish: vi.fn() }
+    const sound = { url: '/api/tts/live/тест', voice: undefined, firstAt: undefined, ended: Promise.resolve(0), connect: vi.fn(), first: vi.fn(), more: vi.fn(), finish: vi.fn() }
     const speech = makeSpeech({ key: '', fetch: vi.fn() as never, stressAsk: null })
     speech.live = () => sound
     const s = speaker(reply(`чтобы коробы стояли ${uniq()}. Остальное обсудим по ходу.`))
     // разметка медленнее захода: заход не ждёт разбора
     const app = createApp({ name: 'yandex', model: 'pro', json: async () => (await tick(40), empty), opener: opener('Главное…'), voice: s.m }, undefined, speech)
+    const log = vi.spyOn(console, 'log')
     const ev = await lines(await post(app, '/api/turn', `Что для вас главное ${uniq()}?`, { stream: true }))
+    // строка задержек хода в журнале сервера
+    await vi.waitFor(() => expect(log.mock.calls.flat().some((x) => /^\[ход\] дело=\S+ ход=1 заготовка=- заход=\d+ разметка=\d+ первые=\d+ звук=- реплика=\d+/.test(String(x)))).toBe(true))
+    log.mockRestore()
     const [a, b] = ev.filter((e) => e.t === 'line')
     expect(a.text).toBe('Главное…')
     expect(a.record).toBeUndefined()

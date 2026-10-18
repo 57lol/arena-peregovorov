@@ -25,7 +25,10 @@ function tailOf(text: string): Tail {
   const words = bare.split(/\s+/u)
   const last = words.at(-1) ?? ''
   if (/^да[.!?]$/u.test(raw)) return 'done'
-  if (/[,;:…]$|\.{2,}$/u.test(raw) || hanging.has(last) || numbers.test(last)) return 'hang'
+  if (/[,;:…]$|\.{2,}$/u.test(raw) || hanging.has(last)) return 'hang'
+  // число в конце обычно значит «сейчас продолжит» (точку Scribe ставит и на оборванной фразе), но вопрос
+  // («Can you do 450?») уже закончен: было 2,6 с ожидания на каждый вопрос с ценой
+  if (numbers.test(last)) return /[?!]$/u.test(raw) ? 'done' : 'hang'
   if (/[.!?]$/u.test(raw) || /(?:^|\s)(?:по рукам|договорились|согласен|согласна|согласны)$/u.test(bare)) return 'done'
   if (unit.test(bare) && (words.slice(0, -1).some((w) => numbers.test(w)) || /\d(?:[.,]\d+)?(?:₽|%|кг)$/u.test(bare))) return 'done'
   // Несколько частых полных реплик без пунктуации.

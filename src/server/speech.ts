@@ -473,6 +473,13 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const id = randomUUID()
     if (el) elevenConnect(f, env)
     const out = tee()
+    // когда в поток ушёл первый байт звука — для строки задержек хода в журнале
+    let firstAt: number | undefined
+    const push0 = out.push
+    out.push = (u: Uint8Array) => {
+      if (firstAt === undefined && u.length) firstAt = Date.now()
+      push0(u)
+    }
     const who = quotaOf(c)
     const voice = el ? castFor(b.who, b.voice, env) : b.voice
     const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
@@ -650,6 +657,12 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }, 5 * 60_000).unref?.())
     return {
       url: `/api/tts/live/${id}`,
+      /** Date.now() первого байта звука в потоке (undefined — звука ещё нет) */
+      get firstAt() {
+        return firstAt
+      },
+      /** звук синтезирован целиком (или не удался) */
+      ended: sound.done.then(() => Date.now()),
       /** кто уже говорит (elevenlabs, v3…; fallback — почему не ElevenLabs), если звук пошёл */
       get voice() {
         return known && known.api !== 'none' ? { api: known.api, ...(known.fallback ? { fallback: known.fallback } : {}) } : undefined
