@@ -347,8 +347,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const analyzing: Promise<{ analysis: MoveAnalysis; source: string; error?: string }> = body.walkAway
         ? Promise.resolve({ analysis: walkAwayMove(), source: 'button' })
         : analyzeMove(lab ? llm : ((isEn(sc) && llm.analyzerEn) || llm.analyzer || llm), sc, dict, history, body.playerText, before.lastOpponentOffer)
-      // Спекуляция: пока Pro размечает ход (~1 с), реплику уже пишет модель — по разбору правил. Рамка реплики та же,
-      // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда Pro.
+      // Спекуляция: пока модель размечает ход (Sonnet ~1,5–2 с), реплику уже пишет модель — по разбору правил. Рамка та же,
+      // что по настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — всегда по модели.
       let guess: ReturnType<typeof speak> | undefined
       // только у модели с потоком: промах обрывается сразу и почти ничего не стоит
       if (!body.walkAway && !lab && process.env.SPECULATE !== 'off' && speaker.stream) {

@@ -1,4 +1,5 @@
-// Разбор реплики игрока через LLM: temperature 0, строгий JSON, проверка, кэш. При любой беде — офлайн.
+// Разбор реплики игрока через LLM: temperature 0, строгий JSON, проверка, кэш. Основной разметчик (Claude) не ответил
+// вовремя или ответил не по схеме — запасной (YandexGPT), не вышло и у него — правила.
 
 import { z } from 'zod'
 import { BEHAVIOR_DICT, behaviorGuide, guardBehaviors } from '../engine/behaviors'
@@ -205,17 +206,28 @@ export async function analyzeMove(
     text,
     lastOpponentOffer,
   }
+  const ask = async (m: LLM, timeoutMs: number) =>
+    validate(sc, dict, text, await m.json({
+      system: systemPrompt(sc, dict),
+      user: userPrompt(sc, history, text, lastOpponentOffer),
+      temperature: 0,
+      maxTokens: 700,
+      timeoutMs,
+      schema: schemaFor(sc, dict),
+    }))
   try {
-    const { value, hit } = await cached('analyze', key, async () =>
-      validate(sc, dict, text, await llm.json({
-        system: systemPrompt(sc, dict),
-        user: userPrompt(sc, history, text, lastOpponentOffer),
-        temperature: 0,
-        maxTokens: 700,
-        timeoutMs: WAIT.analyze(),
-        schema: schemaFor(sc, dict),
-      })),
-    )
+    // Ответ запасного ложится в кэш под ключом основного: тот же ход — тот же разбор, кто бы его ни размечал.
+    const { value, hit } = await cached('analyze', key, async () => {
+      const backup = llm.backup
+      if (!backup) return ask(llm, WAIT.analyze())
+      const t0 = Date.now()
+      try {
+        return await ask(llm, WAIT.analyzeFirst())
+      } catch (e) {
+        console.warn(`[разметка] ${llm.model}: ${(e as Error).message.slice(0, 120)} — размечает ${backup.model.split('/').pop()}`)
+        return ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500))
+      }
+    })
     return { analysis: groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }), source: hit ? 'cache' : 'llm' }
   } catch (e) {
     return { analysis: offline(), source: 'offline', error: (e as Error).message }
