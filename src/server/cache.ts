@@ -50,7 +50,16 @@ const pending = new Map<string, Promise<{ value: unknown; hit: boolean }>>()
 export async function cached<T>(kind: string, key: unknown, make: () => Promise<T>): Promise<{ value: T; hit: boolean }> {
   const file = fileOf(kind, key)
   const prev = pending.get(file)
-  if (prev) return { value: (await prev).value as T, hit: true }
+  if (prev) {
+    try {
+      return { value: (await prev).value as T, hit: true }
+    } catch (e) {
+      if (!(e instanceof Error) || e.name !== 'AbortError') throw e
+      // Общий запрос отменил его владелец: другому ходу всё ещё нужен ответ со своим сигналом отмены.
+      if (pending.get(file) === prev) pending.delete(file)
+      return cached(kind, key, make)
+    }
+  }
   const run = (async () => {
     const hit = await peek<T>(kind, key)
     if (hit !== undefined) return { value: hit, hit: true }
@@ -59,5 +68,5 @@ export async function cached<T>(kind: string, key: unknown, make: () => Promise<
     return { value, hit: false }
   })()
   pending.set(file, run)
-  try { return await run } finally { pending.delete(file) }
+  try { return await run } finally { if (pending.get(file) === run) pending.delete(file) }
 }

@@ -142,6 +142,8 @@ body {
 .g-method summary::before,
 .g-fold > summary::before {
   content: '';
+  /* длинный заголовок в две строки не сплющивает треугольник в чёрточку */
+  flex: none;
   width: calc(4 * var(--u));
   height: calc(4 * var(--u));
   background: currentColor;
@@ -675,7 +677,8 @@ body {
 }
 @media (min-width: 900px) {
   .g-play-grid {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    /* 400, а не 380: в блокноте самое длинное слово условий («спецификация») встаёт целиком, не «специфика / ция» */
+    grid-template-columns: minmax(0, 1fr) 400px;
     align-items: start;
   }
   .g-side {
@@ -764,6 +767,10 @@ body {
   /* «Точно уйти?» на пару секунд занимает место подписи рентгена */
   .g-hud-actions:has(.g-leave.is-sure) .g-xray-btn-label {
     display: none;
+  }
+  /* узкая кнопка переносит по пробелу «Что / чувствует», а не рвёт слово «чувствуе / т» */
+  .g-xray-btn-label {
+    overflow-wrap: normal;
   }
   .g-hud-actions {
     gap: 0;
@@ -1534,6 +1541,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: calc(3 * var(--u));
+}
+/* термин — отдельный пункт флекса: без этого на телефоне его сжимает до «(границ / а / Парето)» */
+.g-map-legend .g-term {
+  flex: none;
+  margin-left: 0;
 }
 .g-sw {
   display: inline-block;

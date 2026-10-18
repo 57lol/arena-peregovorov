@@ -179,10 +179,9 @@ function tee() {
 type Tee = ReturnType<typeof tee>
 
 /** Второй кусок mp3 приклеиваем к первому без своей шапки ID3 (иначе посреди звука — мусорный кадр). */
-function noId3(b: Uint8Array): Uint8Array {
-  if (b.length < 10 || b[0] !== 0x49 || b[1] !== 0x44 || b[2] !== 0x33) return b
-  return b.subarray(10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]))
-}
+const id3Size = (b: Uint8Array) => b.length >= 10 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33
+  ? 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]) : 0
+const noId3 = (b: Uint8Array) => b.subarray(id3Size(b))
 const glue = (parts: Uint8Array[]) => new Uint8Array(Buffer.concat(parts))
 
 /**
@@ -530,14 +529,25 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
     /** Байты куска — в поток, как приходят; первый кусок файла без своей шапки ID3. */
     const drain = async (pc: Piece) => {
+      let header = new Uint8Array(0), skip: number | undefined
       for (let i = 0; ; ) {
         while (i < pc.chunks.length) {
-          const u = pc.chunks[i]
-          out.push(i++ === 0 ? noId3(u) : u)
+          let u = pc.chunks[i++]
+          // Граница сетевого чанка может проходить внутри заголовка или тела ID3.
+          if (skip === undefined) {
+            header = glue([header, u])
+            if (header.length < 10) continue
+            skip = id3Size(header)
+            u = header
+            header = new Uint8Array(0)
+          }
+          out.push(u.subarray(skip))
+          skip = Math.max(0, skip - u.length)
         }
         if (pc.ended) break
         await new Promise<void>((r) => (pc.wake = r))
       }
+      if (header.length) out.push(header)
       if (pc.error) throw pc.error
     }
     let moreWake: (() => void) | undefined
