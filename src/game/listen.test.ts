@@ -24,7 +24,7 @@ class FakeSession implements Session {
   get all() { return Int16Array.from(this.pushed.flatMap((p) => [...p])) }
 }
 
-function setup(o: { pauseMs?: ListenIO['pauseMs']; scribe?: boolean } = {}) {
+function setup(o: { pauseMs?: ListenIO['pauseMs']; scribe?: boolean; earlyMs?: number } = {}) {
   const sessions: FakeSession[] = []
   const phases: ListenPhase[] = []
   const io = {
@@ -41,6 +41,8 @@ function setup(o: { pauseMs?: ListenIO['pauseMs']; scribe?: boolean } = {}) {
     onError: vi.fn((_e: unknown, _retry: boolean) => {}),
     onEmpty: vi.fn(),
     now: () => Date.now(),
+    earlyMs: o.earlyMs,
+    onEarly: vi.fn(),
   }
   const l = createListener(io)
   /** подать звук: value на ms миллисекунд (кадрами по 20 мс), часы идут вместе с кадрами */
@@ -251,5 +253,94 @@ describe('голосовой ход: ошибки', () => {
     l.open(Date.now())
     await play(ME, 400)
     expect(sessions).toHaveLength(1)
+  })
+})
+
+describe('голосовой ход: ранний commit', () => {
+  it('замолчал на earlyMs — текст со знаками сразу, ход уходит по нему же без второго ожидания Scribe', async () => {
+    const seen: string[] = []
+    const { l, sessions, play, io } = setup({ earlyMs: 400, pauseMs: (t) => (seen.push(t), /[.?!]$/.test(t) ? 900 : 1500) })
+    l.open(0)
+    await play(ME, 800)
+    await play(0, 380)
+    expect(sessions[0].finished).toBe(false)
+    await play(0, 40)
+    expect(sessions[0].finished).toBe(true)
+    sessions[0].resolve('Давай за двести.')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).toHaveBeenCalledWith('Давай за двести.')
+    // знак конца фразы — порог «фраза закончена» (900), а не «непонятно» (1500)
+    await play(0, 500)
+    expect(io.onText).toHaveBeenCalledWith('Давай за двести.')
+    expect(seen).toContain('Давай за двести.')
+    expect(sessions).toHaveLength(1)
+    expect(io.recognize).not.toHaveBeenCalled()
+  })
+
+  it('заговорил снова — новый поток с началом из кольца, тексты склеиваются', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 400, pauseMs: () => 1500 })
+    l.open(0)
+    await play(ME, 600)
+    await play(0, 420)
+    sessions[0].resolve('Давай за двести,')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).toHaveBeenCalledWith('Давай за двести,')
+    await play(0, 300)
+    await play(ME, 500)
+    expect(sessions).toHaveLength(2)
+    // новый поток получил речь целиком и 300 мс до неё
+    const sent = sessions[1].all
+    expect(sent.filter((x) => x === ME).length).toBe(500 * 16)
+    expect(sent.indexOf(ME)).toBe(300 * 16)
+    await play(0, 450)
+    expect(sessions[1].finished).toBe(true)
+    sessions[1].resolve('а уборку беру на себя.')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).toHaveBeenLastCalledWith('Давай за двести, а уборку беру на себя.')
+    await play(0, 1100)
+    expect(io.onText).toHaveBeenCalledWith('Давай за двести, а уборку беру на себя.')
+    expect(io.recognize).not.toHaveBeenCalled()
+  })
+
+  it('кусок с речью не распознан — вся запись уходит в Яндекс', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 400, pauseMs: () => 900 })
+    l.open(0)
+    await play(ME, 700)
+    await play(0, 420)
+    sessions[0].resolve(null)
+    await play(0, 600)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    expect(io.recognize).toHaveBeenCalledOnce()
+    expect(new Int16Array(io.recognize.mock.calls[0][0]).filter((x) => x === ME).length).toBe(700 * 16)
+    expect(io.onText).toHaveBeenCalledWith('по Яндексу')
+  })
+
+  it('щелчок после раннего commit — не повод терять текст', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 400, pauseMs: () => 1200 })
+    l.open(0)
+    await play(ME, 700)
+    await play(0, 420)
+    sessions[0].resolve('Идёт.')
+    await play(0, 200)
+    await play(ME, 80)
+    await play(0, 1300)
+    expect(sessions).toHaveLength(2)
+    sessions[1].resolve(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onText).toHaveBeenCalledWith('Идёт.')
+    expect(io.recognize).not.toHaveBeenCalled()
+  })
+
+  it('close() после раннего commit глушит поздний текст', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 400 })
+    l.open(0)
+    await play(ME, 600)
+    await play(0, 420)
+    l.close()
+    sessions[0].resolve('поздно')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    expect(io.onText).not.toHaveBeenCalled()
   })
 })

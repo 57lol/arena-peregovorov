@@ -739,7 +739,9 @@ function pickEmotion(e: string, d: Decision, s: OpponentState, engine: Emotion):
 export function partialReply(text: string): { header?: Header | null; line: string; closed: boolean } {
   const m = /"line"\s*:\s*"/.exec(text)
   if (!m) return { line: '', closed: false }
-  const head = text.slice(0, m.index).replace(/,\s*$/, '').trim()
+  // без строгой схемы модель изредка начинает с ```json — заголовок берём с первой скобки
+  const brace = text.indexOf('{')
+  const head = text.slice(brace >= 0 && brace < m.index ? brace : 0, m.index).replace(/,\s*$/, '').trim()
   let header: Header | null = null
   try {
     const o = JSON.parse(`${head}}`) as Record<string, unknown>
@@ -793,8 +795,8 @@ function readySentences(line: string, from: number, closed: boolean): { list: st
 }
 
 const wordsOf = (t: string) => stripTags(unstress(t)).split(/\s+/).filter(Boolean).length
-/** Начало реплики, которое уходит в голос отдельно: не короче стольких слов («Ха!» одно звучит обрывком). */
-const FIRST_WORDS = 4
+/** Начало реплики, которое уходит в голос отдельно: не короче стольких слов («Ха!» одно звучит обрывком, а «Ха, Дима, приятно.» — нет). */
+const FIRST_WORDS = 3
 
 /** Кусок реплики — как clean(), но пометки по месту куска в реплике: только начало может задать подачу. */
 const cleanPiece = (t: string, mid: boolean, tags: number) =>
@@ -1007,7 +1009,7 @@ export async function voice(
           : user
         const t1 = Date.now()
         // зависшую модель долго не ждём: игрок смотрит на «…», а запасная модель ответит за секунду
-        const req: JsonRequest = { system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? wait * 0.75 : wait, schema: schema(sc) }
+        const req: JsonRequest = { system: sys, user: ask, temperature: attempt ? 0.6 : 0.85, maxTokens: 500, timeoutMs: attempt ? wait * 0.75 : wait, schema: schema(sc), loose: true }
         let out: Raw
         try {
           if (m.stream) {

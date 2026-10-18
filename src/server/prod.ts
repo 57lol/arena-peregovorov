@@ -19,6 +19,7 @@ const { makeSpeech } = await import('./speech')
 const { makeSttStream } = await import('./sttStream')
 const { logBudgetHourly } = await import('./budget')
 const { gate } = await import('./gate')
+const { warmRules } = await import('./library')
 
 const { llm, error } = makeLLM()
 const speech = makeSpeech()
@@ -41,6 +42,8 @@ const port = Number(process.env.PORT ?? 8787)
 const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
   console.log(`Прод: порт ${port} · провайдер ${llm.name} (${llm.model})${error ? ` — ${error}, работаю офлайн` : ''}`)
   void speech.prewarm()
+  // после первых запросов страницы: прогрев правил держит процесс ~0,5 с
+  setTimeout(warmRules, 1500).unref()
 })
 logBudgetHourly()
 

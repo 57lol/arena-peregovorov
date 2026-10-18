@@ -30,6 +30,10 @@ const CHUNK = 200 * PER_MS
 export const EMPTY_LIMIT = 3
 /** поток не подключился ни разу — столько не пробуем, сразу Яндекс */
 const SCRIBE_DOWN_MS = 60_000
+/** ранних commit на одну реплику не больше: дальше — как раньше, один в конце */
+export const EARLY_LIMIT = 3
+/** кусок без текста от Scribe, но и речи в нём меньше этого — щелчок, а не потерянные слова */
+const TINY_MS = 300
 
 /** idle — не слушаем (говорит собеседник); listen — ждём речь; speak — игрок говорит; busy — распознаём; failed — не вышло. */
 export type ListenPhase = 'idle' | 'listen' | 'speak' | 'busy' | 'failed'
@@ -50,6 +54,14 @@ export interface ListenIO {
   recognize: (pcm: ArrayBuffer, signal: AbortSignal) => Promise<string>
   /** пауза конца реплики по тому, что уже распознано */
   pauseMs: (text: string) => number
+  /**
+   * Ранний commit: игрок молчит столько мс — сказанное отдаём Scribe, не дожидаясь паузы конца реплики. Текст со знаками
+   * приходит за ~0,25 с, а не через 0,9–1,4 с (до них фраза считалась «непонятной» и действовал длинный порог), и ход
+   * можно готовить, пока идёт пауза. Заговорил снова — новый поток, текст склеивается. Нет — один commit в конце.
+   */
+  earlyMs?: number
+  /** текст после раннего commit, пока игрок молчит: ход можно готовить (тот же текст уйдёт, если он не заговорит) */
+  onEarly?: (text: string) => void
   onPhase: (p: ListenPhase) => void
   onPartial: (text: string) => void
   onText: (text: string) => void
@@ -99,6 +111,12 @@ export function createListener(io: ListenIO) {
   let opened = false
   let idleTimer: ReturnType<typeof setTimeout> | undefined
   let downUntil = 0
+  // ранний commit: куски реплики, уже отданные Scribe (по порядку), и ожидание, заговорит ли игрок снова
+  let segs: { text: Promise<string | null>; voiced: number; done?: string | null }[] = []
+  let segVoiced = 0
+  let parked = false
+  let lost = false
+  let rRun = 0, rStart = 0, rLast = -Infinity
   // распознавание
   let gen = 0
   let job: AbortController | null = null
@@ -159,18 +177,31 @@ export function createListener(io: ListenIO) {
     session?.push(out.buffer)
   }
 
+  /** Что уже распознано в этой реплике: куски раннего commit и промежуточный текст текущего потока. */
+  const heardText = () => [...segs.map((x) => x.done ?? ''), session?.text ?? ''].join(' ').trim()
+
   /** Кадр звука игрока (после from): копим, считаем громкость и паузу. */
   function hear(pcm: Int16Array, t: number, end: number) {
     speech.push(pcm)
     samples += pcm.length
-    if (used) pushChunk(pcm)
     const r = level(pcm)
+    if (parked) {
+      // после раннего commit игрок заговорил снова — новый поток, с PREROLL_MS до первого громкого кадра
+      if (r >= LOUD) {
+        if (!rRun) rStart = t
+        rRun += end - t
+        rLast = end
+      } else if (end - rLast > GAP_MS) rRun = 0
+      if (rRun >= ONSET_MS) resume()
+    } else if (used) pushChunk(pcm)
     if (r >= LOUD) {
       voiced += end - t
       lastLoud = end
+      if (used) segVoiced += end - t
     } else if (voiced < 160) voiced = 0
     if (paused?.(r, end)) return void finish('pause')
     if (samples / PER_MS >= limit) return void finish('limit')
+    if (!parked && used && io.earlyMs && session?.ready && segVoiced >= 160 && end - lastLoud >= io.earlyMs && segs.length < EARLY_LIMIT) commitEarly()
     // щелчок или шум, а не речь: поток с мусором закрываем, слушаем дальше
     if (voiced < 160 && end - lastLoud > FALSE_START_MS) {
       trace('false-start')
@@ -181,6 +212,55 @@ export function createListener(io: ListenIO) {
       run = 0
       set('listen')
     }
+  }
+
+  /** Игрок замолчал на earlyMs: отдаём сказанное Scribe сейчас, а не в конце паузы. */
+  function commitEarly() {
+    const s = session!
+    flushChunk()
+    session = null
+    used = false
+    parked = true
+    rRun = 0
+    clearTimeout(idleTimer)
+    trace('early')
+    const seg: (typeof segs)[number] = { text: s.finish(), voiced: segVoiced }
+    segVoiced = 0
+    segs.push(seg)
+    const g = gen
+    void seg.text.then((t) => {
+      seg.done = t
+      if (g !== gen || !parked || phase !== 'speak' || segs.some((x) => x.done === undefined)) return
+      const text = joined(segs.map((x) => x.done!), segs.map((x) => x.voiced))
+      if (text) io.onEarly?.(text)
+    })
+  }
+
+  /** После раннего commit игрок продолжил: новый поток (подключение идёт, звук копится), начало — из кольца. */
+  function resume() {
+    parked = false
+    rRun = 0
+    trace('resume')
+    openSession()
+    if (!session) {
+      lost = true
+      return
+    }
+    used = true
+    segVoiced = 0
+    clearTimeout(idleTimer)
+    const begin = rStart - PREROLL_MS
+    for (const g of ring) {
+      if (g.end <= begin) continue
+      const cut = g.t < begin ? Math.round((begin - g.t) * PER_MS) : 0
+      pushChunk(cut ? g.pcm.subarray(cut) : g.pcm)
+    }
+  }
+
+  /** Тексты кусков в одну реплику; null — кусок с речью не распознан: тогда вся запись уйдёт в Яндекс. */
+  function joined(texts: (string | null)[], voicedMs: number[]): string | null {
+    if (lost || texts.some((t, i) => t === null && voicedMs[i] >= TINY_MS)) return null
+    return texts.map((t) => t?.trim() ?? '').filter(Boolean).join(' ')
   }
 
   /** Игрок заговорил на кадре f: начало — из кольца, PREROLL_MS до первого громкого, но не раньше from. */
@@ -196,7 +276,11 @@ export function createListener(io: ListenIO) {
     samples = 0
     voiced = 0
     chunkLen = 0
-    paused = speechPause(() => io.pauseMs(session?.text ?? ''))
+    segs = []
+    segVoiced = 0
+    parked = false
+    lost = false
+    paused = speechPause(() => io.pauseMs(heardText()))
     set('speak')
     for (const g of ring) {
       if (g.t > f.t || g.end <= begin) continue
@@ -247,11 +331,18 @@ export function createListener(io: ListenIO) {
     clearTimeout(idleTimer)
     session = null
     used = false
+    const parts = segs
+    const tailVoiced = segVoiced
+    segs = []
+    parked = false
     let text: string | null = null
-    if (s) {
-      text = await s.finish()
+    if (s || parts.length) {
+      // куски раннего commit обычно уже распознаны: без нового потока ждать нечего
+      const got = await Promise.all([...parts.map((x) => x.text), s ? s.finish() : Promise.resolve('')])
       if (g !== gen) return
-      if (!s.ready) downUntil = now() + SCRIBE_DOWN_MS
+      if (s && !s.ready) downUntil = now() + SCRIBE_DOWN_MS
+      text = joined(got, [...parts.map((x) => x.voiced), s ? tailVoiced : 0])
+      lost = false
       trace('scribe', text === null ? 'fallback' : 'final')
     }
     if (text?.trim()) return done(text.trim())
@@ -316,6 +407,9 @@ export function createListener(io: ListenIO) {
     kept = null
     dropSession()
     opened = false
+    segs = []
+    parked = false
+    lost = false
     set('idle')
   }
 

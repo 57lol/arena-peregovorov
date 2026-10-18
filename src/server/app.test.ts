@@ -15,6 +15,12 @@ const turn = async (history: TurnRecord[], playerText: string, offer?: Record<st
 }
 
 describe('API в офлайне', () => {
+  it.each(['/api/turn', '/api/prepare', '/api/report', '/api/tts'])('%s: испорченный JSON — 400, а не 500', async (path) => {
+    const r = await app.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' })
+    expect(r.status).toBe(400)
+    expect(await r.json()).toHaveProperty('error')
+  })
+
   it('health говорит, какой провайдер', async () => {
     const r = (await (await app.request('/api/health')).json()) as { provider: string }
     expect(r.provider).toBe('offline')
@@ -222,5 +228,17 @@ describe('реакция не меняет оценку и решение', () =
     const r = await app.request('/api/turn', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ scenarioId: 'tara', history: [], playerText: 'Привет', reaction: 'а'.repeat(81) }) })
     expect(r.status).toBe(400)
+  })
+})
+
+describe('прогрев', () => {
+  it('правила разметки прогреваются при старте: потом первый ход не ждёт компиляции регулярок', async () => {
+    const { warmRules } = await import('./library')
+    const { groundedOffline } = await import('../engine/offline')
+    const { findScenario, dict } = await import('./library')
+    warmRules()
+    const t = performance.now()
+    groundedOffline(findScenario('stop')!, 'Слушай, братан, извини, правда не хотел. Тебя как зовут?', dict)
+    expect(performance.now() - t).toBeLessThan(150)
   })
 })

@@ -425,10 +425,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
     // англицизмы и сокращения — как их говорят (forEleven), ударения — знаком U+0301 (render), пометки модели остаются
     const prep = async (text: string): Promise<TtsRequest> => {
-      if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
+      if (english(text)) return { text: forEnglish(unstress(text), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who, live: true }
       roomy ??= clients.left('el:s', who, perSession, HOUR) && clients.left('el:day', who, perIp, DAY)
       const marked = await speakable(forEleven(unstress(text)), roomy)
-      return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who }
+      return { text: render(spellOut(marked), 'eleven').replace(/[«»"]/g, ''), voice, who: b.who, live: true }
     }
     let firstText: string | undefined
     let gotFirst!: (t: string) => void
@@ -774,10 +774,15 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     for (const { who, voice, text } of ELEVEN_KNOWN) {
       if (seen.has(voice)) continue
       seen.add(voice)
-      const q = { text: english(text) ? 'Okay.' : 'Так.', voice, who }
-      const job = elevenJob(q, fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(q, env) }), Date.now() + WAIT.eleven(), () => {})
-      const clip = await job.done.catch((e: Error) => console.warn(`[speech] прогрев ${who}: ${e.message}`))
-      if (clip?.cache === 'miss') console.log(`[speech] прогрет голос ${who}`)
+      // лица на v3 говорят живые реплики v4 Turbo (elevenBody) — прогреваем голос и в ней
+      for (const live of [false, true]) {
+        const q = { text: english(text) ? 'Okay.' : 'Так.', voice, who, live }
+        const body = elevenBody(q, env)
+        if (live && body.model_id === elevenBody({ ...q, live: false }, env).model_id) continue
+        const job = elevenJob(q, fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body }), Date.now() + WAIT.eleven(), () => {})
+        const clip = await job.done.catch((e: Error) => console.warn(`[speech] прогрев ${who}: ${e.message}`))
+        if (clip?.cache === 'miss') console.log(`[speech] прогрет голос ${who}${live ? ' (живые реплики)' : ''}`)
+      }
     }
   }
 

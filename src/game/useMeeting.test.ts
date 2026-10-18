@@ -50,9 +50,10 @@ vi.mock('./speech', () => ({
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(), setSttLang: vi.fn(), setCallVoice: vi.fn(),
   speechPlaying: () => speech.playing, canRecord: () => true, onSpeechEnd: () => () => {},
+  reactionText: (r?: { text: string }) => r?.text,
 }))
-const api = vi.hoisted(() => ({ turn: vi.fn() }))
-vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn }))
+const api = vi.hoisted(() => ({ turn: vi.fn(), prepare: vi.fn() }))
+vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn, prepareTurn: api.prepare }))
 import { useMeeting } from './useMeeting'
 
 let props: MeetingProps
@@ -369,6 +370,32 @@ describe('мгновенная реакция в useMeeting', () => {
     expect(props.history).toHaveLength(0)
     finish(); await advance()
     expect(props.history).toHaveLength(1)
+  })
+
+  it('ход заранее: тот же текст и та же реакция уходят серверу; реплика близко — записи реакции нет, лицо меняется', async () => {
+    render(); resolveAudio(prepared); await advance()
+    api.prepare.mockClear()
+    api.turn.mockImplementation(() => new Promise(() => {}))
+    speech.reaction.mockImplementation((...a: unknown[]) => ({ text: (a[3] as { text?: string } | undefined)?.text, cancel: vi.fn(), done: Promise.resolve() }))
+    meeting.prepare('давай 1000')
+    expect(api.prepare).toHaveBeenCalledOnce()
+    expect(api.prepare.mock.calls[0][0]).toMatchObject({ text: 'давай 1000', history: [], reaction: expect.any(String) })
+    await advance(300)
+    speech.reaction.mockClear()
+    void meeting.send('давай 1000'); render()
+    expect(speech.reaction).not.toHaveBeenCalled()
+    expect(meeting.emotion).toBe('surprised')
+    expect(api.turn.mock.calls.at(-1)?.[0].reaction).toBe(api.prepare.mock.calls[0][0].reaction)
+  })
+
+  it('без заготовки (или другой текст) — реакция как раньше', async () => {
+    render(); resolveAudio(prepared); await advance()
+    api.turn.mockImplementation(() => new Promise(() => {}))
+    meeting.prepare('давай 1000')
+    await advance(300)
+    speech.reaction.mockClear()
+    void meeting.send('давай 1000, и уборку беру'); render()
+    expect(speech.reaction).toHaveBeenCalledOnce()
   })
 })
 

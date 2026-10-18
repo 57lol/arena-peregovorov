@@ -29,6 +29,11 @@ describe('AITunnel: модель реплики', () => {
     // Claude — через Google Vertex (быстрее начинает), другой поставщик — если Vertex не ответил
     expect(sent[0].provider).toEqual({ order: ['google-vertex'], allow_fallbacks: true })
     expect((await b.total()).llmRub).toBeCloseTo(0.42)
+    // реплика (loose): у Claude без строгой схемы — иначе кэш промпта не срабатывает; у других моделей схема остаётся
+    await m.json({ system: 'кто ты', user: 'реплика', temperature: 0.8, schema: { name: 'x', schema: {} }, loose: true })
+    expect(sent[1].response_format).toEqual({ type: 'json_object' })
+    await aitunnel('gpt-6.1-sol', b, env).json({ system: 'кто ты', user: 'реплика', temperature: 0.8, schema: { name: 'x', schema: {} }, loose: true })
+    expect(sent[2].response_format.type).toBe('json_schema')
   })
 
   it('модель по строке «провайдер:модель»; без ключа — понятная ошибка', () => {

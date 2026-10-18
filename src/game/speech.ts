@@ -724,11 +724,14 @@ function warmReactions(face: string) {
   }
 }
 
+/** Текст реакции, который уйдёт модели реплики вместе с ходом: есть, только когда реакция звучит голосом ElevenLabs. */
+export const reactionText = (reaction?: Reaction) => (elevenOn() && reaction ? reaction.text : undefined)
+
 /** Без ElevenLabs остаются прежние фразы-паузы. */
 export function startReaction(voice: string, casual: boolean, allowed: () => boolean, reaction?: Reaction): Filler & { text?: string } {
-  if (!elevenOn() || !reaction) return startFiller(voice, casual, allowed)
-  warmReactions(reaction.face)
-  return { ...startFiller(voice, casual, allowed, 320, reaction.path), text: reaction.text }
+  if (!reactionText(reaction)) return startFiller(voice, casual, allowed)
+  warmReactions(reaction!.face)
+  return { ...startFiller(voice, casual, allowed, 320, reaction!.path), text: reaction!.text }
 }
 
 export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY, reactionPath?: string): Filler {

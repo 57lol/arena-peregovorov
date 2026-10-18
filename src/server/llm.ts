@@ -16,6 +16,12 @@ export interface JsonRequest {
   pro?: boolean
   /** свой таймаут, мс; без него — LLM_TIMEOUT_MS */
   timeoutMs?: number
+  /**
+   * Claude: JSON по описанию в промпте, без строгой схемы. Со строгой схемой кэш промпта у Claude через AITunnel не
+   * срабатывает ни разу (замер 18.10: 0 из 6 запросов, 2,1 ₽ за реплику; без неё — 3013 токенов из кэша, 0,42 ₽),
+   * а первые слова приходят не раньше. Для реплики, где порядок полей и так задан промптом.
+   */
+  loose?: boolean
 }
 
 export interface LLM {
@@ -272,7 +278,7 @@ export function aitunnel(model?: string, b: Budget = sharedBudget(), env = proce
   const url = `${(env.AITUNNEL_BASE_URL ?? 'https://api.aitunnel.ru/v1').replace(/\/$/, '')}/chat/completions`
   const claude = /^claude/.test(m)
   void b.mode()
-  const request = ({ system, user, temperature, maxTokens, schema }: JsonRequest) => ({
+  const request = ({ system, user, temperature, maxTokens, schema, loose }: JsonRequest) => ({
     model: m,
     temperature,
     // с рассуждением «minimal» его почти нет, но запас нужен: иначе ответ может прийти пустым
@@ -281,7 +287,7 @@ export function aitunnel(model?: string, b: Budget = sharedBudget(), env = proce
       { role: 'system', content: claude ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] : system },
       { role: 'user', content: user },
     ],
-    response_format: schema
+    response_format: schema && !(claude && loose)
       ? { type: 'json_schema', json_schema: { name: schema.name, schema: schema.schema, strict: true } }
       : { type: 'json_object' },
     ...aitunnelFlags(m, env),
