@@ -310,6 +310,9 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
   const stance = state.playerStance ?? {}
   const told = allowed.filter((i) => i.id !== it?.id)
   const reasons = told.length ? ' Объяснять, зачем тебе это, можно только тем, что уже рассказал.' : ' Зачем тебе это — пока не объясняешь: своих причин ты ещё не рассказывал.'
+  const offering = d.kind === 'counter' || d.kind === 'reveal'
+  const feigned = offering && d.feigned?.length ? ` Хитрость: ${d.feigned.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')} подай как свою уступку, будто она тебе чего-то стоит. Что тебе самому так удобно, не признавайся.` : ''
+  const fin = offering && d.final ? ' Время встречи кончается: скажи, что это твоё последнее предложение, дальше только да или нет.' : ' Торг не закончен: не называй это последним словом.'
   let text = ''
   let position: Offer = prev
   let changed: IssueId[] = []
@@ -353,8 +356,6 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const hush = quiet.length ? ` ${quiet.map((i) => `«${lc(i.title)}: ${i.options[d.offer[i.id]!]}»`).join(', ')} — молча в листке, вслух не называй: это и ему выгодно, не выдавай за своё условие.` : ''
       const back = backSteps(sc, d.offer, prev, stance)
       const trade = back.length ? ` По ${back.map((i) => `«${lc(i.title)}»`).join(', ')} ты отходишь от того, что он просил: подай это как размен («раз…, то…»).` : ''
-      const feigned = d.feigned?.length ? ` Хитрость: ${d.feigned.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')} подай как свою уступку, будто она тебе чего-то стоит. Что тебе самому так удобно, не признавайся.` : ''
-      const fin = d.final ? ' Время встречи кончается: скажи, что это твоё последнее предложение, дальше только да или нет.' : ' Торг не закончен: не называй это последним словом.'
       const free = echoFree(sc, stance, stanceBefore, prev)
       text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${free}${refuse}${worse}${trade}${feigned}${hush}${fin}${reasons}`
       break
@@ -371,6 +372,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
             ? `Он спросил, что для тебя главное. Расскажи главное: [${it?.id}] «${tame(it?.text ?? "")}». Это ответ на его вопрос.`
             : `Рассказываешь, зачем тебе ${about}: [${it?.id}] «${tame(it?.text ?? "")}». Это прямой ответ на его вопрос.`
       text = `${lead} Своими словами, с живыми подробностями, не цитатой.${d.offer ? ` И предлагаешь: ${terms(sc, d.offer)}${changed.length && changed.length < sc.issues.length ? ` (меняется: ${changed.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')})` : ''}.` : ' Условия не меняются, их не перечисляешь.'}`
+      if (d.offer) text += feigned + fin
       break
     }
     case 'respond': {
@@ -409,7 +411,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       text = 'Уходишь: разговор окончен, сделки не будет. Одна-две фразы.'
       break
   }
-  return { decision: d, text, position, allowed, locked, final: d.kind === 'counter' && !!d.final, changed, prev }
+  return { decision: d, text, position, allowed, locked, final: offering && !!d.final, changed, prev }
 }
 
 export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: string, frame: Frame, state: OpponentState, prev: Offer): string {
@@ -603,7 +605,7 @@ export interface CheckContext {
   mine: string[]
 }
 
-const isBargaining = (d: Decision) => (d.kind === 'counter' && !d.final) || d.kind === 'reveal' || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
+const isBargaining = (d: Decision) => ((d.kind === 'counter' || d.kind === 'reveal') && !d.final) || d.kind === 'respond' || (d.kind === 'hold' && d.reason !== 'timeout' && d.reason !== 'player_left')
 
 /** Что модель заявила до реплики (согласие, условия, раскрытые причины) против решения движка. */
 export function checkHeader(sc: Scenario, frame: Frame, out: Header): string[] {

@@ -76,8 +76,8 @@ const UNITS: Unit[] = [
 ]
 const UNIT_RE = UNITS.map((u) => `(${u.re})`).join('|')
 // число цифрами («1 200 000», «480,000», «1,2») или словами, в т.ч. составное («двести двенадцать», «four hundred eighty»).
-// «480,000» — тысячи через запятую (по-английски), а «1,250 млн» — дробь.
-const NUM = `(\\d{1,3}(?:[ \\u00a0]\\d{3})+(?!\\d|[.,]\\d)|\\d{1,3}(?:,\\d{3})+(?![\\d.,]|\\s*(?:млн|млрд|тыс|миллион|миллиард))|\\d+(?:[.,]\\d+)?|${WORD_RE}(?:\\s+${WORD_RE})*)`
+// «480,000» и «450.000» — тысячи, а «1,250 млн» — дробь.
+const NUM = `(\\d{1,3}(?:[ \\u00a0]\\d{3})+(?!\\d|[.,]\\d)|\\d{1,3}(?:[.,]\\d{3})+(?![\\d.,]|\\s*(?:млн|млрд|тыс|миллион|миллиард))|\\d+(?:[.,]\\d+)?|${WORD_RE}(?:\\s+${WORD_RE})*)`
 const CURRENCY_AFTER = '(?:\\s*(?:руб\\p{L}*|₽|euros?(?!\\p{L})|€|dollars?(?!\\p{L})|\\$))?'
 // «two-year warranty», «10-week delivery» — число и единица через дефис
 const QTY = new RegExp(`(?<![\\p{L}\\d])${NUM}(?:\\s*-\\s*(?=\\p{L})|\\s*)(?:(${UNIT_RE})${CURRENCY_AFTER})?`, 'giu')
@@ -110,7 +110,7 @@ const EN_CLOCK = new RegExp(`(?<![\\p{L}\\d])${NUM}\\s*(a\\.?m\\.?|p\\.?m\\.?)(?
 
 const THOUSAND = new Set(['тысяча', 'тысячу', 'тыща', 'тыщу'])
 
-function num(s: string): number {
+function num(s: string, decimal = false): number {
   const parts = s.toLowerCase().split(/\s+/)
   if (parts.every((p) => WORDS[p] !== undefined)) return parts.reduce((a, p) => (THOUSAND.has(p) ? (a || 1) * 1000 : a + WORDS[p]), 0)
   const en = s.toLowerCase().split(/[\s-]+/).filter((p) => p !== 'and')
@@ -131,7 +131,7 @@ function num(s: string): number {
     }
     return total + cur
   }
-  if (/^\d{1,3}(?:,\d{3})+$/.test(s)) return Number(s.replace(/,/g, ''))
+  if (!decimal && /^\d{1,3}(?:,\d{3})+$|^\d{1,3}(?:\.\d{3})+$/.test(s)) return Number(s.replace(/[.,]/g, ''))
   return Number(s.replace(/[  ]/g, '').replace(',', '.'))
 }
 
@@ -168,7 +168,7 @@ export function quantities(text: string): Quantity[] {
   for (const m of text.matchAll(PREFIX)) {
     if (taken(m.index!)) continue
     const k = m[3] ? (/^m/i.test(m[3]) ? 1e6 : 1e3) : 1
-    out.push({ value: num(m[2]) * k, dim: 'money', at: m.index!, end: m.index! + m[0].length })
+    out.push({ value: num(m[2], k > 1) * k, dim: 'money', at: m.index!, end: m.index! + m[0].length })
   }
   for (const m of text.matchAll(RATE)) {
     const n = m[1] ? num(m[1]) : 1
@@ -178,11 +178,11 @@ export function quantities(text: string): Quantity[] {
   }
   for (const m of text.matchAll(QTY)) {
     if (taken(m.index!)) continue
-    const n = num(m[1])
-    if (!Number.isFinite(n)) continue
     // «2к» — две тысячи, а «2 к понедельнику» — нет
     const unitStr = m[2] && !(/^к$/iu.test(m[2]) && /^\s/u.test(m[0].slice(m[1].length))) ? m[2] : undefined
     const u = unitStr ? unitOf(unitStr.trim()) : undefined
+    const n = num(m[1], (u?.k ?? 1) >= 1000)
+    if (!Number.isFinite(n)) continue
     out.push({ value: n * (u?.k ?? 1), dim: u?.dim ?? 'plain', at: m.index!, end: m.index! + (u ? m[0] : m[1]).length })
   }
   for (const m of text.matchAll(EN_BARE)) {

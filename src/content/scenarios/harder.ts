@@ -19,6 +19,6 @@ export function harder(sc: Scenario): Scenario {
     id: sc.id + HARD_SUFFIX,
     title: `${sc.title}: жёстче`,
     harder: 1,
-    blurb: `Та же история, но ${sc.opponent.character.name.split(/\s+/)[0]} уступает медленнее, а о своём рассказывает только тем, кому доверяет побольше.${trick}`,
+    blurb: `Та же история, но ${sc.opponent.character.short ?? sc.opponent.character.name.split(/\s+/)[0]} уступает медленнее, а о своём рассказывает только тем, кому доверяет побольше.${trick}`,
   }
 }

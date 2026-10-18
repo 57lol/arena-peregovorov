@@ -34,7 +34,7 @@ const ACCEPT = new RegExp(
     `it'?s a deal|we have a deal|we've got a deal|you('ve| have) got a deal|i accept|we accept|` +
     `i('ll| will) take it|we('ll| will) take it|let'?s sign|shake on it|we can sign|` +
     // «deal», «agreed», «sounds good» — только целой фразой: «that's not a good deal» — не согласие
-    `^\\s*(?:(?:ok(?:ay)?|fine|alright|then|good|great|perfect)[,!.]?\\s+)?(?:deal|agreed|sounds good|works for me|fine by me)(?: to me)?[.!]*\\s*$)`,
+    `^\\s*(?:(?:yes|ok(?:ay)?|fine|alright|then|good|great|perfect)[,!.]?\\s+)?(?:deal|agreed|sounds good|(?:that )?works for (?:me|us)|fine by me)(?: to me|,? my friend)?[.!]*\\s*$)`,
   'iu',
 )
 const NEG = /(не|нет|никак)\s+$|(?<!\p{L})(?:no|not|never|not a)\s+$|n't\s+$/iu
@@ -43,12 +43,12 @@ const WALK = new RegExp(
   `${L}(ухожу|уходим|я пас|мы пас|завершаем переговоры|прекращаем переговоры|до свидания|всего доброго|всего хорошего|` +
     // «отказываюсь от предоплаты» и «сделки не будет без отсрочки» — условие, а не уход
     `сделки не будет(?!\\s+без${R})|нам не по пути|я отказываюсь(?!\\s+от${R})|мы отказываемся(?!\\s+от${R})|разговор окончен|больше не о чем говорить|` +
-    `i'?m leaving|i am leaving|we'?re leaving|we are leaving|i'?m out${R}|we'?re done here|this meeting is over|goodbye|good bye|bye${R}|` +
-    `no deal(?!\\s+(?:if|unless|without))|we'?ll go with (?:qingdao|the other|another|them)|we will go with (?:qingdao|the other|another|them))`,
+    `i'?m leaving|i am leaving|we'?re leaving|we are leaving|i'?m out${R}|i(?:'m| am) walking away|we(?:'re| are) done here|this meeting is over|goodbye|good bye|bye${R}|` +
+    `no deal(?!\\s+(?:if|unless|without))|(?:i|we)(?:'ll| will) go with (?:qingdao|the other|another|them))`,
   'iu',
 )
 
-const CONDITIONAL = /(?<![\p{L}])(если|не нравится|не устраивает|не согласны|не хотите|иначе|или|либо|тогда|if|unless|otherwise|or else|or we|then)(?![\p{L}])/iu
+const CONDITIONAL = /(?<![\p{L}])(если|не нравится|не устраивает|не согласны|не хотите|иначе|или|либо|тогда|if|unless|otherwise|or else|or we|or i|then)(?![\p{L}])/iu
 
 const QUESTION = /^((а|and|so)\s+)?(почему|зачем|расскажите|поясните|объясните|интересно|хочу понять|помогите понять|why|tell me|explain|help me understand|how come|what makes|I wonder)(?![\p{L}])/iu
 
@@ -168,8 +168,8 @@ export function withContext(
 
 // Короткое согласие целой репликой: «да, давайте», «окей, договорились», «идёт», «по рукам». Одно «окей» или «хорошо» —
 // нет: голосом это часто «слышу вас» перед паузой, и сделка закрылась бы на полуслове.
-const YES_WORD = String.raw`(?:да|ок|окей|ok|okay|хорошо|ладно|ну|ну\s+ладно|ну\s+хорошо|тогда|так)`
-const YES_DEAL = String.raw`(?:давайте\s+так|давай\s+так|договорились|по\s+рукам|идёт|идет|годится|пойд[её]т|согласен|согласна|согласны|принимаю|принимаем|беру|берём|берем|оформляйте|оформляем|так\s+и\s+сделаем|уговорили|deal|agreed|it'?s\s+a\s+deal|sounds\s+good|let'?s\s+do\s+it)`
+const YES_WORD = String.raw`(?:да|ок|окей|ok|okay|yes|alright|хорошо|ладно|ну|ну\s+ладно|ну\s+хорошо|тогда|так)`
+const YES_DEAL = String.raw`(?:давайте\s+так|давай\s+так|договорились|по\s+рукам|идёт|идет|годится|пойд[её]т|согласен|согласна|согласны|принимаю|принимаем|беру|берём|берем|оформляйте|оформляем|так\s+и\s+сделаем|уговорили|deal(?:,?\s+my\s+friend)?|agreed|it'?s\s+a\s+deal|you(?:'ve|\s+have)\s+got\s+a\s+deal|(?:that\s+)?works\s+for\s+(?:me|us)|sounds\s+good|let'?s\s+do\s+it)`
 const BARE_YES = new RegExp(
   String.raw`^\s*(?:${YES_WORD}[\s,!.—-]+)*${YES_DEAL}(?:[\s,!.—-]+(?:так|тогда|${YES_DEAL}))*[\s!.]*$|` +
     // «давайте» — только с «да», «окей», «хорошо» впереди: одно «давайте…» голосом бывает началом новой цифры

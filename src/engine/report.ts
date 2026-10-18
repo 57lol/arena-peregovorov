@@ -150,7 +150,7 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
         got: deal ? i.options[deal[i.id]] : undefined,
         avoided: !!deal && deal[i.id] === both,
         asked: asked.has(i.id),
-        feigned: history.some((h) => h.decision.kind === 'counter' && !!h.decision.feigned?.includes(i.id)),
+        feigned: history.some((h) => (h.decision.kind === 'counter' || h.decision.kind === 'reveal') && !!h.decision.feigned?.includes(i.id)),
       }
     })
 
@@ -304,7 +304,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
   // Обмен (размен): пункты, где интересы разные по весу
   const trades = r.issues.filter((i) => i.kind === 'integrative')
   for (const i of trades) {
-    if (!r.deal) break
+    if (!r.deal || r.leftOnTable <= 0) break
     const mine = i.playerWeight > i.opponentWeight
     const got = i.player / Math.max(1, i.playerMax)
     if (mine && got < 0.6)
@@ -324,7 +324,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
 
   for (const t of r.traps)
     if (t.feigned)
-      out.push(`Собеседник подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. Проверяйте вопросом, чего уступка стоит на самом деле.`)
+      out.push(`Собеседник подал «${t.title.toLowerCase()} — ${t.bothWant}» как свою уступку, хотя сам этого хотел. ${t.asked ? 'Вы проверили этот пункт вопросом.' : 'Проверяйте вопросом, чего уступка стоит на самом деле.'}`)
 
   const asked = history.filter((h) => h.analysis.asksAbout?.length || h.analysis.behaviors.some((b) => dict[b.id]?.asksInterest)).length
   const revealed = state?.revealed.length ?? 0

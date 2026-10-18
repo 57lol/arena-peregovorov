@@ -53,9 +53,9 @@ const HINT: Record<EndingId, string> = {
 // {got} — что записали по совместимому пункту.
 const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
   china: {
-    legend: { title: 'Заказ по спецификации', epilogue: 'Линия работает, повторный заказ идёт по утверждённому эталону. Ли Вэй пишет: «Друг, теперь артикул знаю на память». Склад завода занят нужными деталями.' },
+    legend: { title: 'Заказ по спецификации', epilogue: 'Линия работает, повторный заказ идёт по утверждённому эталону. Ли Вэй пишет: «Друг, теперь артикул знаю на память». Датчики соответствуют согласованной спецификации.' },
     cold_win: { title: 'Цена без улыбки', epilogue: 'Датчики приехали на согласованных условиях. Ли Вэй больше не шутит: на каждую просьбу присылает строку договора. Следующий заказ придётся обсуждать заново.' },
-    middling: { title: 'Счёт сошёлся', epilogue: 'Заказ оформлен, но в цене, партии и сроках остался запас для торга. Ли Вэй присылает фото коробок: «Считаем, считаем. Всё по списку». Список стоило проверить внимательнее.' },
+    middling: { title: 'Счёт сошёлся', epilogue: 'Заказ оформлен. {missed} Ли Вэй присылает фото коробок: «Считаем, считаем. Всё по списку».' },
     lose_lose: { title: 'Похожий — не тот же', epilogue: 'Повторную поставку снова обсуждают по фотографиям. Оказалось, Ли Вэй тоже хотел единый эталон: возвраты ему обходятся дорого. Общий интерес так и не стал условием заказа.' },
     short: { title: 'Акция дороже запаса', epilogue: 'Финансист сравнил весь заказ с предложением казанского склада. Запасной вариант был выгоднее. Цена одной штуки отвлекла от остальных условий и состава покупки.', noDeal: 'Вы ушли на казанский склад, хотя последнее предложение Ли Вэя с учётом доптоваров давало больше. В следующий раз сравните полный заказ до ухода.' },
     walked: { title: 'Только нужное', epilogue: 'Вы вернулись к запасному поставщику. Ли Вэй прислал каталог, но заказа без вашего согласия нет. Завод купит нужную партию, даже если без эффектной акции.' },
@@ -121,7 +121,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     legend: {
       title: TITLE.legend,
       epilogue:
-        'The line arrived in eight weeks, and Emre\'s engineer stayed two weeks in the shop: your operators now spray better ' +
+        'The line arrived on the agreed schedule, and Emre\'s engineer stayed two weeks in the shop: your operators now spray better ' +
         'than the people who trained them. In spring Emre brought a delegation from another Alabuga resident to see "our best line in Russia". ' +
         'You got a box of lokum and a discount on the next oven.',
     },
@@ -134,8 +134,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     middling: {
       title: TITLE.middling,
       epilogue:
-        'The contract is signed, the line paints casings, nobody complains. At a trade fair in Kazan Emre smiled and said: ' +
-        '"We could both do better, my friend." You still don\'t know what exactly he meant.',
+        'The contract is signed, the line paints casings. {missed} At a trade fair in Kazan you and Emre compare notes on the first months of operation.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
@@ -168,7 +167,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     timeout: {
       title: TITLE.timeout,
       epilogue:
-        'You parted with "let\'s talk next week". Next week Emre had already shipped the line to Almaty. ' +
+        'You parted with "let\'s talk next week". Next week Emre was still waiting for the Almaty deposit, but could no longer hold your production slot. ' +
         'Your shop opened on the Qingdao line, a month late.',
     },
   },
@@ -336,13 +335,26 @@ function generic(female: boolean): Record<EndingId, EndingText> {
   }
 }
 
+/** Упущенные условия — только из расчёта, включая отдельную потерю на доптоварах. */
+function missed(sc: Scenario, report?: Report): string {
+  const en = baseCaseId(sc.id) === 'istanbul'
+  if (!report) return en ? 'The result depends on the whole package.' : 'Результат зависит от всего пакета условий.'
+  const changes = report.betterDeal?.changes ?? []
+  if (!changes.length) return en ? 'Neither side could gain more without the other giving something up.' : 'Улучшить условия для обеих сторон одновременно уже нельзя.'
+  if (changes.every((c) => c.issue.startsWith('extra-')))
+    return `Потеря выгоды только в доптоварах: ${changes.map((c) => c.title).join(', ')}. От них можно было отказаться, сохранив основные условия.`
+  const terms = changes.map((c) => `«${c.title}»: ${c.to}`).join('; ')
+  return en ? `A better package was possible without either side losing out: ${terms}.` : `Можно было улучшить пакет без потерь для сторон: ${terms}.`
+}
+
 function fill(text: string, sc: Scenario, report?: Report): string {
   const trap = report?.traps.find((t) => !t.avoided) ?? report?.traps[0]
   const compatible = sc.issues.find((i) => i.kind === 'compatible')
   const P = sc.player.profile
   const mine = [...sc.issues].sort((a, b) => issueWeight(P, b.id) - issueWeight(P, a.id))[0]
   const vars: Record<string, string> = {
-    name: sc.opponent.character.name.split(/\s+/)[0],
+    name: sc.opponent.character.short ?? sc.opponent.character.name.split(/\s+/)[0],
+    missed: missed(sc, report),
     mine: mine?.title ?? '',
     trap: trap?.title ?? compatible?.title ?? '',
     both: trap?.bothWant ?? (compatible ? compatible.options[bestOption(P, compatible.id)] : ''),

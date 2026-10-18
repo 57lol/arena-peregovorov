@@ -11,7 +11,7 @@ export type EndingId = 'legend' | 'cold_win' | 'lose_lose' | 'middling' | 'short
 /** Порядок на карте финалов: от лучшей сделки к худшим, потом исходы без сделки. */
 export const ENDING_IDS: EndingId[] = ['legend', 'cold_win', 'middling', 'lose_lose', 'short', 'walked', 'slammed', 'timeout']
 
-/** Пороги — те же, что у звёзд и в ведомости: 60 доверия — «хорошо», меньше 35 — «плохо», 90% Парето — «ничего не осталось». */
+/** Для лучшего финала нужны и общий результат, и выигрыш игрока, и доверие; меньше 35 — холодная победа. */
 const ENDING_RULES = {
   legendEfficiency: 0.9,
   legendTrust: 50,
@@ -30,6 +30,7 @@ export interface EndingFacts {
   efficiency: number
   trust: number
   trapMissed: boolean
+  extras: boolean
   /** Сколько вам давало последнее предложение собеседника (если лежало целиком). */
   onTable?: number
 }
@@ -46,6 +47,7 @@ export function endingFacts(sc: Scenario, report: Report, state?: OpponentState)
     efficiency: o.paretoEfficiency,
     trust: o.relationship,
     trapMissed: o.status === 'deal' && report.traps.some((t) => !t.avoided),
+    extras: upsellPenalty(sc, state) > 0,
     onTable: isComplete(sc, last) ? score(sc.player.profile, last) - upsellPenalty(sc, state) : undefined,
   }
 }
@@ -57,7 +59,7 @@ export function pickEnding(f: EndingFacts): EndingId {
     if (f.trapMissed) return 'lose_lose'
     const gain = (f.playerPoints - f.batna) / Math.max(1, f.maxPoints - f.batna)
     if (f.trust < R.coldTrust && gain >= R.coldGain) return 'cold_win'
-    if (f.efficiency >= R.legendEfficiency && f.trust >= R.legendTrust) return 'legend'
+    if (gain >= R.coldGain && !f.extras && f.efficiency >= R.legendEfficiency && f.trust >= R.legendTrust) return 'legend'
     return 'middling'
   }
   if (f.status === 'walked_away' && f.endedBy === 'opponent') return 'slammed'

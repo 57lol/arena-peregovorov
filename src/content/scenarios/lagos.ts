@@ -26,7 +26,7 @@ export const lagos: Scenario = {
     { id: 'delivery', title: 'Shipment deadline', options: ['8 weeks', '10 weeks', '12 weeks', '14 weeks', '16 weeks'], kind: 'integrative' },
     { id: 'payment', title: 'Payment in USD', options: ['10% upfront', '30% upfront', '50% upfront', '70% upfront', '100% upfront'], kind: 'integrative' },
     { id: 'exclusivity', title: 'Distribution exclusivity', options: ['West Africa exclusivity', 'Nigeria-wide exclusivity', 'South West Nigeria exclusivity', 'Non-exclusive distribution'],
-      aliases: [['exclusive across west africa'], ['exclusive throughout nigeria', 'exclusive across nigeria'], ['south west exclusivity', 'south-west nigeria exclusivity'], ['non-exclusive', 'nonexclusive']], kind: 'integrative' },
+      aliases: [['exclusive across west africa'], ['exclusive throughout nigeria', 'exclusive across nigeria', 'exclusivity across nigeria'], ['south west exclusivity', 'south-west nigeria exclusivity'], ['non-exclusive', 'nonexclusive', 'no exclusivity']], kind: 'integrative' },
     { id: 'training', title: 'Service training', options: ['remote training', '1 week on site', '2 weeks on site'], kind: 'compatible' },
   ],
   player: {
@@ -49,6 +49,7 @@ export const lagos: Scenario = {
   opponent: {
     character: {
       name: 'Adebayo Adeyemi', role: 'owner and managing director', company: 'Meridian Industrial Partners, Lagos', tone: 'neutral', portrait: 'lagos',
+      short: 'Адебайо', nativeEnglish: true,
       bio: 'Forty-five. A Nigerian mechanical engineer who built Meridian with two former colleagues after a decade managing industrial maintenance contracts. English is his first language. He knows his customers by their production problems, reads shipping schedules closely and keeps a notebook of promises made by suppliers. Courteous, measured and good-humoured; he will not confuse a pleasant meeting with a sound contract. His patterned pocket square is a gift from his sister, a textile designer.',
       speech: 'Native, grammatical Nigerian English. Precise business language, natural contractions and occasional understated local phrasing such as "You are welcome" when greeting a guest or "Let us put this properly" when clarifying a package. No pidgin, phonetic accent, broken grammar, caricature or habitual honorifics. Address the guest respectfully, use figures and concrete operational examples. Be warm without automatic agreement. Never switch to Russian. Do not assume nationality determines anyone\'s interests.',
       voiceExamples: ['You are welcome. I hope the journey from the airport was comfortable.', 'Let us put this properly: shipment is not arrival.', 'A territory on paper is only useful if we can support the customers in it.', 'What would you need from us to hold that production slot?', 'I can move on the deposit if the rest of the package makes sense.'],
@@ -58,7 +59,8 @@ export const lagos: Scenario = {
         final: ['We need to conclude. My final proposal is {offer}. Can you accept it?'],
         reveal: ['Since you have asked: {interest}.', 'The practical reason is this: {interest}.'],
         no_offer: ['What specific terms are you proposing?', 'I understand the intention. Please put some terms on the table.'],
-        no_movement: ['We have covered that ground. My proposal remains {main}.', 'Repeating the figure does not change the business case.'],
+        no_news: ['Your proposal is on the table. What can you offer in return?', 'I need a change in your proposal before I can revise mine.'],
+        no_movement: ['We have covered that ground. My proposal remains unchanged: {main}.', 'Repeating the figure does not change the business case.'],
         not_ready_to_reveal: ['I would rather establish the outline before opening our internal plans.', 'That is commercially sensitive. Let us build a little confidence first.'],
         warn_tone: ['Please keep this professional.', 'I will not continue if we speak to each other like that.'],
         walk_away: ['I am ending this meeting. Our team will pursue the alternative supplier.', 'This conversation is no longer productive. Good afternoon.'],

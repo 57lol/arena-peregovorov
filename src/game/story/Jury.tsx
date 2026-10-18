@@ -115,7 +115,7 @@ export function Jury(p: Props) {
           <span className="jr-step-name">🇬🇧 English: поставщик из Стамбула</span>
           <span className="jr-step-note">
             Командировка в Стамбул · переговоры на английском, собеседник говорит с турецким акцентом: экспорт-менеджер{' '}
-            {english.opponent.character.name}, {english.turnLimit} реплик; разбор и подсказки — по-русски
+            {PORTRAITS[portraitFor(english)].label}, {english.turnLimit} реплик; разбор и подсказки — по-русски
           </span>
         </button>
 
@@ -129,7 +129,7 @@ export function Jury(p: Props) {
           <Face sc={lagos} />
           <span className="jr-step-name">🇳🇬 Lagos: экспорт и партнёрство</span>
           <span className="jr-step-note">
-            вторая командировка · финальный уровень: переговоры на английском с носителем языка {lagos.opponent.character.name}, {lagos.turnLimit} реплик; разбор и
+            вторая командировка · финальный уровень: переговоры на английском с носителем языка {PORTRAITS[portraitFor(lagos)].label}, {lagos.turnLimit} реплик; разбор и
             подсказки — по-русски
           </span>
         </button>
