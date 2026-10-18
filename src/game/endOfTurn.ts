@@ -24,6 +24,7 @@ function tailOf(text: string): Tail {
   const bare = raw.replace(/[.!?…,:;]+$/u, '').trim()
   const words = bare.split(/\s+/u)
   const last = words.at(-1) ?? ''
+  if (/^да[.!?]$/u.test(raw)) return 'done'
   if (/[,;:…]$|\.{2,}$/u.test(raw) || hanging.has(last) || numbers.test(last)) return 'hang'
   if (/[.!?]$/u.test(raw) || /(?:^|\s)(?:по рукам|договорились|согласен|согласна|согласны)$/u.test(bare)) return 'done'
   if (unit.test(bare) && (words.slice(0, -1).some((w) => numbers.test(w)) || /\d(?:[.,]\d+)?(?:₽|%|кг)$/u.test(bare))) return 'done'

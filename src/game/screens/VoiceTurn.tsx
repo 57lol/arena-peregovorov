@@ -1,5 +1,5 @@
 import type { Meeting } from '../useMeeting'
-import { useVoiceTurn } from '../useVoiceTurn'
+import type { useVoiceTurn } from '../useVoiceTurn'
 import { canRecord } from '../speech'
 import { Button } from '../ui'
 
@@ -7,8 +7,7 @@ import { Button } from '../ui'
  * Голосовой режим встречи (основной с 18.10): поля ввода нет, микрофон слушает сам, как только собеседник договорил;
  * пауза в речи отправляет реплику. Одинаково в 3D и в запасном 2D.
  */
-export function VoiceTurn({ m, paused = false }: { m: Meeting; paused?: boolean }) {
-  const v = useVoiceTurn(m, paused)
+export function VoiceTurn({ m, v }: { m: Meeting; v: ReturnType<typeof useVoiceTurn> }) {
   const theirs = !m.pending && !m.done && !v.myTurn && !m.heard
   const hint = m.pending
     ? `${m.name} думает…`

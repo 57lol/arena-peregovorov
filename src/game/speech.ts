@@ -98,18 +98,24 @@ export function setVolume(v: number) {
   }
 }
 
-/** Наш единственный <audio>, сразу с нужной громкостью. На iPhone volume не меняется — там громкость только кнопками. */
+/** Звонок навсегда привязан к Web Audio; обычные встречи используют отдельный плеер. */
 function player(): HTMLAudioElement {
-  if (!audio) {
-    audio = new Audio()
-    // голосовой режим ловит конец звука собеседника по событию, а не опросом: микрофон принимает с этой точки
-    for (const e of ['ended', 'pause', 'error']) audio.addEventListener(e, (ev) => {
-      endedAt = ev.timeStamp || performance.now()
-      endWatchers.forEach((f) => f())
-    })
-  }
+  audio = (calling ? callAudio : plainAudio) ?? makePlayer()
+  if (calling) callAudio = audio
+  else plainAudio = audio
   applyVolume()
   return audio
+}
+
+function makePlayer() {
+  const a = new Audio()
+  // голосовой режим ловит конец звука собеседника по событию, а не опросом: микрофон принимает с этой точки
+  for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, (ev) => {
+    if (a !== audio) return
+    endedAt = ev.timeStamp || performance.now()
+    endWatchers.forEach((f) => f())
+  })
+  return a
 }
 
 let endedAt = 0
@@ -174,26 +180,70 @@ function pace(a: HTMLAudioElement, voice: string) {
 }
 const rateOf = (voice: string) => (speaker.persona?.voice === voice ? (speaker.persona.rate ?? 1) : 1)
 
-// Один <audio> на всю игру: iOS разрешает ему звучать и позже, если первый play() был внутри клика.
+// Оба плеера сохраняем между встречами и разрешаем внутри первого жеста (iOS).
 let audio: HTMLAudioElement | null = null
+let plainAudio: HTMLAudioElement | null = null
+let callAudio: HTMLAudioElement | null = null
+let calling = false
+let unlocked = false
+let blocked = false
+const accessWatchers = new Set<() => void>()
+export const audioAccess = {
+  get: () => blocked,
+  subscribe: (f: () => void) => { accessWatchers.add(f); return () => void accessWatchers.delete(f) },
+}
+function setBlocked(value: boolean) {
+  if (blocked === value) return
+  blocked = value
+  accessWatchers.forEach((f) => f())
+}
+async function playAudio(a: HTMLAudioElement) {
+  resumeCallVoice()
+  const src = a.src
+  try {
+    await a.play()
+    if (a === audio && a.src === src) setBlocked(false)
+  } catch (e) {
+    if (a === audio && a.src === src && e instanceof Error && e.name === 'NotAllowedError') setBlocked(true)
+    throw e
+  }
+}
 let url = ''
 // 25 мс тишины: пустой wav без отсчётов некоторые браузеры так и не доигрывают
 const SILENT = `data:audio/wav;base64,UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YcgAAACA${'gICA'.repeat(66)}gA==`
 
-/** Прогрев: вызывать синхронно в обработчике клика или Enter. Заодно обрывает прошлую реплику. */
-export function unlockAudio() {
+/** Прогрев в жесте. Фоновый обработчик жестов не обрывает уже звучащую реплику. */
+export function unlockAudio(interrupt = true) {
   if (typeof Audio === 'undefined') return
-  const a = player()
   resumeCallVoice()
-  stopAudio()
-  a.src = SILENT
-  a.play().catch(() => {})
+  if (interrupt) stopAudio()
+  plainAudio ??= makePlayer()
+  callAudio ??= makePlayer()
+  for (const a of [plainAudio, callAudio]) {
+    if (!a.paused && !a.ended) continue
+    // Реплика уже ждёт play (например, считаем громкость): разрешаем её, не меняя источник.
+    if (a !== audio || !lip || a.ended) a.src = SILENT
+    void a.play().then(() => { unlocked = true }).catch(() => {})
+  }
+}
+
+if (typeof window !== 'undefined') {
+  for (const event of ['pointerdown', 'keydown', 'touchend']) window.addEventListener?.(event, () => {
+    if (!unlocked) unlockAudio(false)
+    else resumeCallVoice()
+  }, { capture: true, passive: true })
 }
 
 /** Видеозвонок: голос собеседника «через связь» (callVoice.ts) — на время встречи. */
 export function setCallVoice(on: boolean) {
   if (typeof Audio === 'undefined') return
-  callVoice(player(), on)
+  if (calling !== on) stopAudio()
+  calling = on
+  if (on) callVoice(player(), true)
+  else {
+    if (callAudio) callVoice(callAudio, false)
+    player()
+  }
 }
 
 export function stopAudio() {
@@ -478,7 +528,7 @@ export async function playPrepared(p: Prepared, allowed = () => true): Promise<b
   if (url !== p.url || !allowed() || recording) return false
   setGain(g)
   try {
-    await a.play()
+    await playAudio(a)
     return true
   } catch {
     return false
@@ -639,7 +689,7 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
     const timer = setTimeout(no, ms)
     a.addEventListener('playing', yes)
     a.addEventListener('error', no)
-    a.play().catch(no)
+    playAudio(a).catch(no)
   })
 }
 
@@ -773,7 +823,7 @@ export function startFiller(voice: string, casual: boolean, allowed: () => boole
       if (lip !== me || recording || cancelled || !allowed()) return end()
       started = true
       setGain(g)
-      void a.play().catch(end)
+      void playAudio(a).catch(end)
     })
   }, delay)
   return {

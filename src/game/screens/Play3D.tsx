@@ -11,10 +11,10 @@ import { Vector3 } from 'three'
 import { isComplete, sameOffer, score } from '../../engine/utility'
 import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { effectText, type Tip, type TurnFeedback } from '../instant'
-import { mentorLine, useTutorial, type Tutorial, type TutorStep } from '../tutorial'
-import { endText, useMeeting, type Meeting, type MeetingProps } from '../useMeeting'
+import { mentorLine, type Tutorial, type TutorStep } from '../tutorial'
+import { endText, type Meeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, PixelIcon, SpeechField, Stamp, type IconName } from '../ui'
-import { useVoiceTurn } from '../useVoiceTurn'
+import type { useVoiceTurn } from '../useVoiceTurn'
 import { attachInput, isTyping } from '../world3d/input'
 import type { Pose } from '../world3d/head'
 import type { PaperId } from '../world3d/papers'
@@ -31,6 +31,10 @@ import '../world3d/world3d.css'
 import '../world3d/play3d.css'
 
 type Props = MeetingProps & {
+  m: Meeting
+  v: ReturnType<typeof useVoiceTurn>
+  tut: Tutorial
+  onVoicePause: (paused: boolean) => void
   /** в запасной 2D-вид: WebGL отвалился или устройство не тянет (сам игрок вид не выбирает) */
   onClassic: (why: 'slow') => void
 }
@@ -38,29 +42,20 @@ type Props = MeetingProps & {
 const reduced = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 export default function Play3D(props: Props) {
-  const { history, onFinish, onQuit, onClassic } = props
+  const { history, onFinish, onQuit, onClassic, m, v, tut, onVoicePause } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const [world, setWorld] = useState<World | null>(null)
   const [pose, setPose] = useState<Pose>('face')
   const [menu, setMenu] = useState(false)
+  useEffect(() => onVoicePause(menu), [menu, onVoicePause])
   // «Сделка» внизу: предложить, согласиться, уйти
   const [deal, setDeal] = useState(false)
   const [detail, setDetail] = useState(false)
   const [looked, setLooked] = useState(false)
   // лист в руках (телефон): поднят со стола и стоит перед глазами
   const [held, setHeld] = useState<PaperId | null>(null)
-  const m = useMeeting(props, {
-    afterSend: () => {
-      // ответ пришёл — кладём бумаги и поднимаем глаза на собеседника
-      setHeld(null)
-      worldRef.current?.look('face')
-    },
-  })
-  const worldRef = useRef<World | null>(null)
-  worldRef.current = world
   const { sc, state, last, done, pending, line, emotion, talking, xray, stamp, canAccept } = m
   // первая встреча — обучающая: бумаги и кнопки появляются по одной, когда впервые нужны
-  const tut = useTutorial(props.tutorial, props.onTutorialOff, m)
   const notebookOn = tut.shows('notebook')
   // взгляд на стол — шорох бумаг
   useEffect(() => {
@@ -151,7 +146,12 @@ export default function Play3D(props: Props) {
   const prevTurns = useRef(turns)
   useEffect(() => {
     if (!world) return
-    if (turns > prevTurns.current) world.company?.stir('table', 3.5)
+    if (turns > prevTurns.current) {
+      // ответ пришёл — кладём бумаги и поднимаем глаза на собеседника
+      setHeld(null)
+      world.look('face')
+      world.company?.stir('table', 3.5)
+    }
     prevTurns.current = turns
   }, [world, turns])
   // по рукам: смотрим на стол, где на листок ложится штамп (на телефоне листок сам поднимается к глазам)
@@ -461,6 +461,11 @@ export default function Play3D(props: Props) {
         <Button variant="paper" icon="menu" className="w3-menu-btn" aria-label="Меню" aria-expanded={menu} onClick={() => setMenu(true)}>
           <span className="w3-menu-label">Меню</span>
         </Button>
+        {m.soundBlocked && (
+          <Button variant="brass" icon="sound" className="w3-menu-btn" disabled={!!pending} onClick={m.enableSound}>
+            Включить звук
+          </Button>
+        )}
         {tut.shows('desk') && !done && (
           <p className="w3-clock-line">
             <PixelIcon name="clock" px={2} />
@@ -485,7 +490,7 @@ export default function Play3D(props: Props) {
         ) : (
           <ControlBar
             m={m}
-            paused={menu}
+            v={v}
             hint={
               pose === 'desk' && !held && world?.portrait && !tut.on ? (
                 'Нажмите на лист — возьмёте в руки'
@@ -604,8 +609,7 @@ type Line = { text: ReactNode; kind?: 'error' | 'you' | 'note' }
 
 interface BarProps {
   m: Meeting
-  /** меню открыто — микрофон не слушает */
-  paused: boolean
+  v: ReturnType<typeof useVoiceTurn>
   /** подсказка, когда сказать больше нечего: «осмотреться», «возьмите лист» */
   hint: ReactNode
   look: ReactNode
@@ -652,8 +656,7 @@ function ControlBar(p: BarProps) {
 
 /** Голосовой режим: микрофон слушает сам, как только собеседник договорил; пауза в речи отправляет реплику. */
 function VoiceBar(p: BarProps) {
-  const { m } = p
-  const v = useVoiceTurn(m, p.paused)
+  const { m, v } = p
   const theirs = !m.pending && !m.done && !v.myTurn && !m.heard
   let talk: ReactNode
   if (theirs) talk = <Key icon="mic" label="Перебить" className="w3-talk" aria-label="Перебить и ответить" onClick={v.interrupt} />

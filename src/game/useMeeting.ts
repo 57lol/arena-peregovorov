@@ -14,7 +14,7 @@ import { firstName, isVideoCall, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, reactionText, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { audioAccess, canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, reactionText, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -65,12 +65,15 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const [instantOn, setInstantOn] = useState(loadInstantOn)
   const [source, setSource] = useState<string>('')
   const [voiceOn, setVoiceOn] = useState(loadVoiceOn)
+  const audioBlocked = useSyncExternalStore(audioAccess.subscribe, audioAccess.get, audioAccess.get)
+  const [replay, setReplay] = useState(0)
   const settings = useSyncExternalStore(voiceSettings.subscribe, voiceSettings.get, voiceSettings.get)
   // микрофон не дали или его нет: встреча идёт текстом, причина — над полем
   const [micBlocked, setMicBlocked] = useState<string | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const voiceRef = useRef(voiceOn)
   const [delivery, setDelivery] = useState<{ text: string; record: TurnRecord | undefined; cps?: number } | null>(null)
+  const restored = useRef<typeof delivery>(null)
   // начало реплики, пока ход ещё идёт: печатается вместе со звуком, который сервер уже синтезирует (ход потоком)
   const [early, setEarly] = useState<{ text: string; cps: number } | null>(null)
   const playback = useRef<ReturnType<typeof startLinePlayback> | null>(null)
@@ -91,6 +94,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   // сервер ещё не ответил про голос (медленный /api/health) — считаем, что голос есть: реплика без звука просто печатается.
   // Раньше тут было !!speech?.tts, и при долгом ответе /api/health собеседник молчал всю встречу
   const canVoice = (speech ? speech.tts : true) && online
+  const soundBlocked = audioBlocked && voiceOn && canVoice
   // как и с голосом: пока /api/health не ответил, считаем, что распознавание есть; отказ сервера выключит микрофон
   const canMic = (speech ? speech.stt || !!speech.scribe : true) && online && !micOff
   // голосовой режим — основной: без поля ввода, микрофон слушает сам с конца реплики собеседника
@@ -113,6 +117,12 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       // начало реплики уже звучит по потоку — не обрываем
       if (!liveNow()) stopAudio()
       setDelivery(null)
+      return
+    }
+    // Ошибка не создала нового хода: возвращаем прежнюю печать, не трогая звук потока.
+    if (restored.current?.text === line && restored.current.record === last) {
+      setDelivery(restored.current)
+      restored.current = null
       return
     }
     // реплика уже прозвучала (звучит) по потоку с первой фразы: не скачиваем и не играем заново, только печать
@@ -146,7 +156,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     }
     // canVoice/voiceOn обрабатываются отдельно: включение голоса не перезапускает печать.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line, last, pending, sc])
+  }, [line, last, pending, sc, replay])
   useEffect(() => {
     if (!canVoice || !voiceOn) {
       playback.current?.silent()
@@ -183,7 +193,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   }, [voiceMode])
   // Собеседник договорил: реплика прозвучала до конца (или напечаталась, если без голоса). Тогда слушаем игрока
   const voicedLine = delivered && delivery.cps !== undefined
-  const heard = !pending && !done && delivered && !lineWaiting && !audioPlaying && !speechPlaying() && (voicedLine || !talking)
+  const heard = !pending && !done && !soundBlocked && delivered && !lineWaiting && !audioPlaying && !speechPlaying() && (voicedLine || !talking)
 
   // фразы-паузы лица — заранее: через 0,6 с после реплики игрока звучат без задержки на загрузку
   // видеозвонок: голос собеседника звучит «через связь» (полоса телефона, компрессия, лёгкие помехи)
@@ -214,6 +224,14 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     }
     // Внутри клика разрешаем звук; новая реплика прозвучит без перезапуска текущей.
     unlockAudio()
+  }
+
+  const enableSound = () => {
+    if (pending) return
+    unlockAudio()
+    restored.current = null
+    setDelivery(null)
+    setReplay((n) => n + 1)
   }
 
   const before = history[history.length - 2]
@@ -255,6 +273,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     if (pending || done) return
     const t = text.trim()
     if (!t) return
+    restored.current = null
     const reaction = chooseReaction(t, state, portraitFor(sc))
     setReactionEmotion(reaction?.emotion ?? 'thinking')
     setPending(t)
@@ -309,6 +328,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     } catch (e) {
       f?.cancel()
       if (g !== gen.current) return
+      restored.current = delivery ?? { text: line, record: last }
       setError(e instanceof ApiError ? e.message : 'Не получилось отправить реплику. Попробуйте ещё раз.')
     } finally {
       if (g === gen.current) {
@@ -342,6 +362,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   /** Переиграть с хода turn (с 1): всё, что было до него, остаётся, реплика — в поле ввода. */
   const rewind = (turn: number) => {
     gen.current++
+    restored.current = null
     setPending(null)
     setEarly(null)
     filler.current?.cancel()
@@ -352,6 +373,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   }
   const undo = () => {
     gen.current++
+    restored.current = null
     setPending(null)
     setEarly(null)
     filler.current?.cancel()
@@ -369,7 +391,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     sc, P, last, state, done, name, history,
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
-    voiceOn, toggleVoice, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
+    voiceOn, toggleVoice, soundBlocked, enableSound, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     voiceMode, voiceNote, voicedLine, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,

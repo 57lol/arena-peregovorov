@@ -3,7 +3,7 @@
 // и без перезаписи файлов. Включается только на встречу-видеозвонок (cast.isVideoCall).
 //
 // <audio> заводится в Web Audio один раз и навсегда, поэтому граф строим лениво — только когда звонок включили
-// и контекст уже работает (иначе голос замолчал бы целиком). Вне звонка звук идёт по прямой ветке без обработки.
+// и контекст уже работает (иначе голос замолчал бы целиком). Вне звонка speech.ts берёт другой <audio>.
 
 let ctx: AudioContext | null = null
 let graph: { dry: GainNode; wet: GainNode; hiss: GainNode } | null = null
@@ -27,14 +27,14 @@ export function callVoice(a: HTMLAudioElement, on: boolean) {
     } catch {
       return
     }
-    ctx.onstatechange = () => wire()
+    ctx.onstatechange = () => { resumeCallVoice(); wire() }
   }
   wire()
 }
 
 /** Вызывать в клике или нажатии: на iPhone контекст звука просыпается только так. */
 export function resumeCallVoice() {
-  if (ctx && (want || graph) && ctx.state !== 'running') void ctx.resume().catch(() => {})
+  if (ctx && want && ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {})
 }
 
 /** Для проверок: звонок включён и голос идёт через обработку. */

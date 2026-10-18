@@ -36,7 +36,7 @@ describe.each(['3d', '2d'] as const)('бумаги встречи: %s', (view) =
     const props: MeetingProps = { game: { scenario: sc, fromLibrary: true }, history, setHistory: vi.fn(),
       redo: '', speech: { tts: false, stt: false }, tutorial: false,
       onTutorialOff: vi.fn(), onFinish: vi.fn(), onQuit: vi.fn() }
-    return { html: renderToStaticMarkup(view === '3d' ? <Papers3D {...props} /> : <Play {...props} />), history }
+    return { html: renderToStaticMarkup(view === '3d' ? <Papers3D {...props} /> : <Play {...props} view="classic" onClassic={vi.fn()} />), history }
   }
 
   it('после сделки блокнот и подписанный листок совпадают с разбором, редактирование закрыто', () => {

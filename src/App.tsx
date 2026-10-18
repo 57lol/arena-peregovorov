@@ -33,8 +33,6 @@ const RoomReceipt = Object.assign(lazy(() => import('./game/screens/RoomReceipt'
 const Career = Object.assign(lazy(() => import('./game/screens/Career').then((m) => ({ default: m.Career }))), { displayName: 'Career' })
 const MapScreen = Object.assign(lazy(() => import('./game/screens/Map').then((m) => ({ default: m.MapScreen }))), { displayName: 'MapScreen' })
 
-// 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
-const Play3D = lazy(() => import('./game/screens/Play3D'))
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
 const CutscenePlayer = lazy(() => import('./game/cutscene/Cutscene').then((m) => ({ default: m.CutscenePlayer })))
 const Jury = lazy(() => import('./game/story/Jury').then((m) => ({ default: m.Jury })))
@@ -541,20 +539,6 @@ export default function App() {
       },
       onQuit: () => go(home(from)),
     }
-    if (view === '3d')
-      return (
-        <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
-          <BudgetNote />
-          <Play3D
-            key={playKey}
-            {...meeting}
-            onClassic={() => {
-              setView('classic')
-              setViewNote('Устройство не тянет 3D, поэтому встреча продолжается в упрощённом виде.')
-            }}
-          />
-        </Suspense>
-      )
     return (
       <>
         {viewNote && (
@@ -563,7 +547,10 @@ export default function App() {
           </p>
         )}
         <BudgetNote />
-        <Play key={playKey} {...meeting} />
+        <Play key={playKey} {...meeting} view={view} onClassic={() => {
+          setView('classic')
+          setViewNote('Устройство не тянет 3D, поэтому встреча продолжается в упрощённом виде.')
+        }} />
       </>
     )
   }

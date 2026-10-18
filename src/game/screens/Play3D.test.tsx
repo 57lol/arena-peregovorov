@@ -5,6 +5,9 @@ import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { buildReport } from '../../engine/report'
 import { initialState } from '../../engine/turn'
 import { startFrameLoop } from '../frameLoop'
+import type { Meeting } from '../useMeeting'
+import type { useVoiceTurn } from '../useVoiceTurn'
+import type { Tutorial } from '../tutorial'
 
 // Неглубокий renderer, как в App.test: layout-cleanup → сброс refs → кадр → passive-cleanup.
 // Важно оставить окно между удалением DOM встречи и очисткой пассивных эффектов.
@@ -39,10 +42,7 @@ vi.mock('react', async (original) => {
     useLayoutEffect: (fn: Effect, deps?: unknown[]) => effect(hooks.layout, hooks.layoutCleanups)(fn, deps),
   }
 })
-vi.mock('../useMeeting', () => ({ useMeeting: (props: { game: { scenario: unknown } }) => ({
-  sc: props.game.scenario, state: { ...initialState(sc), status: 'walked_away' }, done: true,
-}), endText: () => 'Встреча окончена' }))
-vi.mock('../tutorial', () => ({ useTutorial: () => ({ on: false, shows: () => false }) }))
+vi.mock('../useMeeting', () => ({ endText: () => 'Встреча окончена' }))
 vi.mock('../world3d/input', () => ({ attachInput: () => vi.fn() }))
 vi.mock('../world3d/stage', () => ({ World: class {
   listeners = new Set<() => void>()
@@ -119,6 +119,9 @@ afterEach(() => { hooks.layoutCleanups.forEach((fn) => fn?.()); hooks.passiveCle
 
 it('встреча → разбор → назад: DOM не измеряется после удаления, новая встреча получает свой RAF', () => {
   const meeting = () => <Play3D game={{ scenario: sc, fromLibrary: true }} history={[]} setHistory={vi.fn()}
+    m={{ sc, state: { ...initialState(sc), status: 'walked_away' }, done: true } as Meeting}
+    v={{} as ReturnType<typeof useVoiceTurn>} onVoicePause={vi.fn()}
+    tut={{ on: false, shows: () => false } as unknown as Tutorial}
     redo="" onFinish={vi.fn()} onQuit={vi.fn()} onClassic={vi.fn()} tutorial={false} onTutorialOff={vi.fn()} />
   // Вызываем экран, не вложенные компоненты; hooks и внешние ресурсы работают.
   const renderMeeting = () => { const el = meeting(); return Play3D(el.props) }
@@ -136,4 +139,24 @@ it('встреча → разбор → назад: DOM не измеряетс�
   unmount()
   expect(frames.size).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('запрет автозвука показывает заметную кнопку w3 рядом с меню и вызывает повтор реплики', () => {
+  const enableSound = vi.fn()
+  let tree: ReactNode
+  mount(() => tree = Play3D({ game: { scenario: sc, fromLibrary: true }, history: [], setHistory: vi.fn(),
+    redo: '', onFinish: vi.fn(), onQuit: vi.fn(), onClassic: vi.fn(), tutorial: false, onTutorialOff: vi.fn(),
+    m: { sc, state: { ...initialState(sc), status: 'walked_away' }, done: true, soundBlocked: true, enableSound } as unknown as Meeting,
+    v: {} as ReturnType<typeof useVoiceTurn>, onVoicePause: vi.fn(),
+    tut: { on: false, shows: () => false } as unknown as Tutorial }))
+  const find = (n: ReactNode): Record<string, unknown> | undefined => {
+    if (Array.isArray(n)) return n.map(find).find(Boolean)
+    if (!isValidElement<Record<string, unknown>>(n)) return
+    if (n.props.children === 'Включить звук') return n.props
+    return find(n.props.children as ReactNode)
+  }
+  const button = find(tree)!
+  expect(button).toMatchObject({ className: 'w3-menu-btn', variant: 'brass', disabled: false })
+  ;(button.onClick as () => void)()
+  expect(enableSound).toHaveBeenCalledOnce()
 })

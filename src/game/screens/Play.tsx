@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { isComplete, sameOffer } from '../../engine/utility'
 import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { canRecord, stopAudio } from '../speech'
@@ -11,9 +11,12 @@ import { VoiceSettings2D } from './VoiceSettings'
 import { Margin, MarginOff } from './Margin'
 import { Mentor } from './Mentor'
 import { Notes, Slip, XRay } from './meetingParts'
+import { useVoiceTurn } from '../useVoiceTurn'
+import type { View } from '../view'
 
-/** Запасной 2D-вид: сам, когда нет WebGL или 3D не тянет; выбора у игрока нет (капитан 18.10: «зачем нам 2D»). */
-type Props = MeetingProps
+// Логика встречи и микрофон живут выше смены вида: слабый 3D не отменяет ход или заготовку.
+const Play3D = lazy(() => import('./Play3D'))
+type Props = MeetingProps & { view: View; onClassic: (why: 'slow') => void }
 
 export function Play(props: Props) {
   const { history, onFinish } = props
@@ -29,6 +32,8 @@ export function Play(props: Props) {
       sideRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     },
   })
+  const [voicePaused, setVoicePaused] = useState(false)
+  const v = useVoiceTurn(m, !m.voiceMode || (props.view === '3d' && voicePaused))
   const {
     sc, P, last, state, done, name, draft, setDraft, picks, pending, error, setError, talking, setTalking,
     xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, lineWaiting, lineCps, lineKey, setMicOff,
@@ -93,6 +98,12 @@ export function Play(props: Props) {
     </Button>
   )
 
+  if (props.view === '3d') return (
+    <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
+      <Play3D {...props} m={m} v={v} tut={tut} onVoicePause={setVoicePaused} />
+    </Suspense>
+  )
+
   return (
     <div className="px-root g-page" data-desk={sceneFor(sc)}>
       <main className="px-desk g-desk g-play">
@@ -105,6 +116,7 @@ export function Play(props: Props) {
                 <span />
               )}
               <div className="g-hud-actions">
+                {m.soundBlocked && <Button variant="brass" icon="sound" disabled={!!pending} onClick={m.enableSound}>Включить звук</Button>}
                 {voiceBtn}
                 {tut.shows('feel') && (
                 <Button
@@ -210,7 +222,7 @@ export function Play(props: Props) {
                     </Button>
                   </div>
                 )}
-                {m.voiceMode ? <VoiceTurn m={m} /> : <SpeechField
+                {m.voiceMode ? <VoiceTurn m={m} v={v} /> : <SpeechField
                   label={pending ? `${name} думает…` : 'Ваша реплика'}
                   value={pending ?? draft}
                   disabled={!!pending}

@@ -11,6 +11,8 @@ const hooks = vi.hoisted(() => ({
   slots: [] as unknown[], cursor: 0, dirty: false,
   effects: [] as (() => void)[], cleanups: [] as (() => void)[],
 }))
+const view = vi.hoisted(() => ({ value: 'classic' }))
+vi.mock('./game/view', () => ({ loadView: () => view.value }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
   useState: (initial: unknown) => {
@@ -102,6 +104,7 @@ const act = async (name: string, callback: string, ...args: unknown[]) => {
 }
 
 beforeEach(async () => {
+  view.value = 'classic'
   vi.resetModules()
   hooks.slots = []; hooks.effects = []; hooks.cleanups = []; hooks.cursor = 0
   vi.stubGlobal('localStorage', memoryStorage())
@@ -132,6 +135,30 @@ const backTo = async (screen: string) => {
   window.dispatchEvent(Object.assign(new Event('popstate'), { state: { screen } }))
   await vi.waitFor(() => { render(); expect(savedState().screen).toBe(screen) })
 }
+
+it('автоматический переход 3D → 2D сохраняет компонент встречи и его key', async () => {
+  await backTo('play')
+  hooks.cleanups.forEach((cleanup) => cleanup?.())
+  hooks.slots = []; hooks.effects = []; hooks.cleanups = []
+  view.value = '3d'
+  vi.resetModules()
+  App = (await import('./App')).default
+  render()
+  const find = (node: ReactNode): React.ReactElement<Record<string, unknown>> | undefined => {
+    if (Array.isArray(node)) return node.map(find).find(Boolean)
+    if (!isValidElement<Record<string, unknown>>(node)) return
+    if ('game' in node.props && 'setHistory' in node.props) return node
+    return find(node.props.children as ReactNode)
+  }
+  const before = find(tree)!
+  expect(before.props.onClassic).toBeTypeOf('function')
+  ;(before.props.onClassic as () => void)()
+  render()
+  const after = find(tree)!
+  expect(after.type).toBe(before.type)
+  expect(after.key).toBe(before.key)
+  expect(after.props.history).toBe(before.props.history)
+})
 
 describe('повтор отправленной командной попытки', () => {
   it.each(['brief', 'setup'])('запоздалый допуск не отменяет новый переход к %s', async (target) => {

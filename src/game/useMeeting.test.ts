@@ -8,13 +8,25 @@ import { BEHAVIOR_DICT } from '../engine/behaviors'
 import { groundAnalysis } from '../engine/offerEvidence'
 import { buildReport } from '../engine/report'
 import { score } from '../engine/utility'
+import { isValidElement, useRef, type ReactNode } from 'react'
+import { Play } from './screens/Play'
+import { ApiError } from './api'
 
 // Тот же неглубокий жизненный цикл hooks, что в App.test.tsx; сеть и аудиоустройство не нужны.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, dirty: false,
   effects: [] as (() => void)[], cleanups: [] as (() => void)[] }))
-const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async () => true), stop: vi.fn(),
-  reaction: vi.fn(), live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false }))
+const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async (_p: Prepared, _allowed: () => boolean) => true), stop: vi.fn(),
+  reaction: vi.fn(), live: vi.fn(async (_src: string, _allowed: () => boolean) => true), take: vi.fn((_text: string): { playing: boolean } | null => null), heard: '', playing: false, blocked: false, unlock: vi.fn() }))
 const settings = vi.hoisted(() => ({ snap: { mode: 'text', pause: 'medium' } }))
+const screen = vi.hoisted(() => ({ enabled: false, view: '3d' as '3d' | 'classic',
+  meeting: null as import('./useMeeting').Meeting | null, tree: null as ReactNode, voice: null as unknown }))
+vi.mock('./tutorial', () => ({ useTutorial: () => ({ on: false, shows: () => false }), mentorLine: () => null }))
+vi.mock('./useVoiceTurn', () => ({ useVoiceTurn: (m: import('./useMeeting').Meeting) => {
+  screen.meeting = m
+  const session = useRef({ phase: 'listen', mic: 'on', partial: '', myTurn: false })
+  screen.voice = session.current
+  return session.current
+} }))
 vi.mock('./voiceSettings', () => ({ voiceSettings: { subscribe: () => () => {}, get: () => settings.snap }, saveInputMode: vi.fn(), savePause: vi.fn() }))
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
@@ -44,8 +56,10 @@ vi.mock('react', async (original) => ({
 }))
 vi.mock('./audio/scene', () => ({ useMeetingSounds: () => {} }))
 vi.mock('./speech', () => ({
+  MAX_REC_SEC: 60,
   loadVoiceOn: () => speech.on, saveVoiceOn: vi.fn(), voiceFor: () => 'vasily', ttsVoice: () => ({ voice: 'vasily' }),
-  prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: vi.fn(),
+  prepareLine: speech.prepare, playPrepared: speech.play, stopAudio: speech.stop, unlockAudio: speech.unlock,
+  audioAccess: { subscribe: () => () => {}, get: () => speech.blocked },
   informal: () => true, startReaction: speech.reaction,
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(), setSttLang: vi.fn(), setCallVoice: vi.fn(),
@@ -53,7 +67,7 @@ vi.mock('./speech', () => ({
   reactionText: (r?: { text: string }) => r?.text,
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn(), prepare: vi.fn() }))
-vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn, prepareTurn: api.prepare }))
+vi.mock('./api', async (original) => ({ ...await original<typeof import('./api')>(), playTurn: api.turn, prepareTurn: api.prepare }))
 import { useMeeting } from './useMeeting'
 
 let props: MeetingProps
@@ -63,9 +77,14 @@ const prepared = { url: 'blob:greeting', duration: 3 }
 function render() {
   for (let n = 0; n < 20; n++) {
     hooks.cursor = 0; hooks.dirty = false
-    // самодельный рендер для теста: хук вызывается не из компонента намеренно
-    // oxlint-disable-next-line react-hooks/rules-of-hooks
-    meeting = useMeeting(props)
+    if (screen.enabled) {
+      screen.tree = Play({ ...props, view: screen.view, onClassic: () => { screen.view = 'classic' } })
+      meeting = screen.meeting!
+    } else {
+      // самодельный рендер для теста: хук вызывается не из компонента намеренно
+      // oxlint-disable-next-line react-hooks/rules-of-hooks
+      meeting = useMeeting(props)
+    }
     hooks.effects.splice(0).forEach((effect) => effect())
     if (!hooks.dirty) return
   }
@@ -75,8 +94,10 @@ async function advance(ms = 0) { await vi.advanceTimersByTimeAsync(ms); render()
 beforeEach(() => {
   vi.useFakeTimers()
   hooks.slots = []; hooks.cursor = 0; hooks.effects = []; hooks.cleanups = []
+  screen.enabled = false; screen.view = '3d'; screen.meeting = null; screen.voice = null
   speech.reaction.mockReset(); speech.reaction.mockImplementation(() => ({ cancel: vi.fn(), done: Promise.resolve() }))
-  speech.on = true; speech.prepare.mockReset(); speech.play.mockClear(); speech.stop.mockClear()
+  speech.on = true; speech.prepare.mockReset(); speech.play.mockReset(); speech.play.mockResolvedValue(true); speech.stop.mockClear()
+  speech.blocked = false; speech.unlock.mockClear()
   speech.playing = false; settings.snap = { mode: 'text', pause: 'medium' }
   speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
   speech.prepare.mockImplementation(() => new Promise((r) => { resolveAudio = r }))
@@ -87,7 +108,7 @@ beforeEach(() => {
     onTutorialOff: vi.fn(), onFinish: vi.fn(), onQuit: vi.fn(),
   }
 })
-afterEach(() => { hooks.cleanups.forEach((fn) => fn?.()); vi.useRealTimers() })
+afterEach(() => { hooks.cleanups.forEach((fn) => fn?.()); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('блокнот после сделки', () => {
   it.each(['accept', 'price200'] as const)('%s: вместо черновика — подписанные условия и выгода из разбора; переигрывание возвращает черновик', async (mode) => {
@@ -191,6 +212,66 @@ describe('голосовой режим', () => {
 })
 
 describe('реплики в настоящем useMeeting', () => {
+  it('после запрета звука действие «Включить звук» повторяет текущую реплику без нового хода', async () => {
+    render(); await advance()
+    speech.play.mockImplementationOnce(async () => { speech.blocked = true; return false })
+    resolveAudio(prepared); await advance()
+    expect(meeting.soundBlocked).toBe(true)
+    meeting.enableSound(); render(); await advance()
+    expect(speech.unlock).toHaveBeenCalledOnce()
+    speech.play.mockImplementationOnce(async () => { speech.blocked = false; return true })
+    resolveAudio(prepared); await advance()
+    expect(speech.play).toHaveBeenCalledTimes(2)
+    expect(meeting.soundBlocked).toBe(false)
+    expect(props.history).toEqual([])
+  })
+  it('429, 401 и 409 возвращают прежнюю реплику без повторной озвучки и ожидания микрофона', async () => {
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: true, stt: true }
+    render(); await advance(); resolveAudio(prepared); await advance()
+    const cps = meeting.lineCps
+    for (const status of [429, 401, 409]) {
+      api.turn.mockRejectedValueOnce(new ApiError(`Ошибка ${status}`, status))
+      const sent = meeting.send('Попробуем ещё'); render()
+      await sent; await advance()
+      expect(meeting.pending).toBeNull()
+      expect(meeting.error).toBe(`Ошибка ${status}`)
+      expect(meeting.lineCps).toBe(cps)
+      expect(meeting.lineWaiting).toBe(false)
+      expect(meeting.heard).toBe(true)
+      expect(speech.prepare).toHaveBeenCalledOnce()
+      expect(speech.play).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('ошибка после начала потока не обрывает новый звук эффектом старой реплики', async () => {
+    render(); await advance(); resolveAudio(prepared); await advance()
+    let reject!: (e: Error) => void
+    api.turn.mockImplementationOnce((_t: unknown, onLine: (l: { text: string; audio: string }) => void) => {
+      onLine({ text: 'Начало ответа', audio: '/live/new' })
+      return new Promise((_resolve, r) => { reject = r })
+    })
+    const sent = meeting.send('Новые условия'); render(); await advance()
+    speech.stop.mockClear()
+    reject(new ApiError('409', 409)); await sent; await advance()
+    expect(speech.stop).not.toHaveBeenCalled()
+    expect(speech.prepare).toHaveBeenCalledOnce()
+    expect(meeting.lineWaiting).toBe(false)
+  })
+
+  it('быстрая ошибка без промежуточного рендера не глушит явную перемотку после следующего хода', async () => {
+    render(); await advance(); resolveAudio(prepared); await advance()
+    api.turn.mockRejectedValueOnce(new ApiError('Лимит', 429))
+    await meeting.send('Раз'); await advance()
+    api.turn.mockResolvedValueOnce({ source: 'llm', record: { turn: 1, playerText: 'Два', opponentLine: 'Ответ', emotion: 'neutral',
+      analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(props.game.scenario) } })
+    const sent = meeting.send('Два'); render(); await sent; await advance()
+    resolveAudio({ ...prepared, url: 'blob:answer' }); await advance()
+    meeting.undo(); render(); await advance()
+    expect(speech.prepare).toHaveBeenCalledTimes(3)
+    expect(meeting.lineWaiting).toBe(true)
+  })
+
   it('приветствие скрыто с первого рендера; готовность звука открывает его один раз', async () => {
     render()
     expect(meeting.lineWaiting).toBe(true)
@@ -431,4 +512,77 @@ it('старый ответ не снимает pending нового хода п
   expect(props.history).toHaveLength(0)
   next({ record, source: 'llm' }); await advance()
   expect(props.history).toHaveLength(1)
+})
+
+// Настоящий владелец встречи меняет только представление, сохраняя hooks и голосовую сессию.
+describe('3D → 2D во время встречи', () => {
+  const record: TurnRecord = { turn: 1, playerText: 'привет', opponentLine: 'Ответ в 2D', emotion: 'neutral',
+    analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(getScenario('dorm')!) }
+  beforeEach(() => {
+    screen.enabled = true
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1200, innerHeight: 900 }))
+  })
+  function fallback() {
+    expect(isValidElement<{ children: React.ReactElement<{ onClassic: () => void }> }>(screen.tree)).toBe(true)
+    if (isValidElement<{ children: React.ReactElement<{ onClassic: () => void }> }>(screen.tree)) screen.tree.props.children.props.onClassic()
+    render()
+  }
+  it('в 2D кнопка «Включить звук» повторяет текущую реплику', async () => {
+    screen.view = 'classic'; speech.blocked = true
+    render(); await advance(); resolveAudio(null); await advance()
+    const find = (n: ReactNode): Record<string, unknown> | undefined => {
+      if (Array.isArray(n)) return n.map(find).find(Boolean)
+      if (!isValidElement<Record<string, unknown>>(n)) return
+      if (n.props.children === 'Включить звук') return n.props
+      return find(n.props.children as ReactNode)
+    }
+    const button = find(screen.tree)!
+    expect(button).toMatchObject({ variant: 'brass', disabled: false })
+    ;(button.onClick as () => void)()
+    render(); await advance()
+    expect(speech.unlock).toHaveBeenCalledOnce()
+    resolveAudio(prepared); await advance()
+    expect(speech.play).toHaveBeenCalledOnce()
+  })
+  it('отправленный ход доходит и озвучивается один раз в 2D', async () => {
+    render(); await advance(); resolveAudio(prepared); await advance()
+    let answer!: (r: unknown) => void
+    api.turn.mockImplementationOnce(() => new Promise((r) => { answer = r }))
+    const sent = meeting.send('привет'); render()
+    fallback()
+    expect(meeting.pending).toBe('привет')
+    answer({ record, source: 'llm' }); await sent; await advance()
+    resolveAudio({ ...prepared, url: 'blob:2d' }); await advance()
+    expect(props.history).toEqual([record])
+    expect(meeting.line).toBe(record.opponentLine)
+    expect(speech.play).toHaveBeenCalledTimes(2)
+    expect(speech.play.mock.calls[1][0]).toMatchObject({ url: 'blob:2d' })
+  })
+  it('звучащая реплика продолжается без stop, повторной загрузки и play', async () => {
+    render(); await advance(); resolveAudio(prepared); await advance()
+    speech.playing = true
+    speech.stop.mockClear()
+    const cps = meeting.lineCps
+    fallback(); await advance()
+    expect(speech.stop).not.toHaveBeenCalled()
+    expect(speech.prepare).toHaveBeenCalledOnce()
+    expect(speech.play).toHaveBeenCalledOnce()
+    expect(meeting.lineCps).toBe(cps)
+  })
+  it('заготовка и сессия микрофона переживают смену вида до отправки', async () => {
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: true, stt: true }
+    render(); await advance(); resolveAudio(prepared); await advance()
+    meeting.prepare('привет')
+    const voice = screen.voice
+    fallback()
+    expect(screen.voice).toBe(voice)
+    speech.reaction.mockClear()
+    api.turn.mockResolvedValueOnce({ record, source: 'llm' })
+    await meeting.send('привет'); await advance()
+    resolveAudio({ ...prepared, url: 'blob:prepared-2d' }); await advance()
+    expect(props.history).toEqual([record])
+    expect(speech.reaction).not.toHaveBeenCalled()
+    expect(speech.play.mock.calls.at(-1)?.[0]).toMatchObject({ url: 'blob:prepared-2d' })
+  })
 })
