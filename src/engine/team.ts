@@ -24,6 +24,8 @@ export interface Attempt {
   axes: Record<Axis, number>
   /** частота приёма в единицах эталона Rackham (доля реплик или раз на 12 реплик) */
   bench: Partial<Record<BehaviorId, number>>
+  /** фактические количества, включая приёмы без нормы; отсутствует в старых записях */
+  counts?: Partial<Record<BehaviorId, number>>
   /** приёмы на уровне средних переговорщиков: сильных не хватило или слабых слишком много */
   slips: BehaviorId[]
   /** совместимые пункты: нашёл — спросил о нём или договорился о том, чего хотели оба */
@@ -85,6 +87,7 @@ export function attemptOf(sc: Scenario, history: TurnRecord[], dict: BehaviorDic
     ending: pickEnding(endingFacts(sc, report, state)),
     axes: report.axes,
     bench,
+    counts: Object.fromEntries(report.benchmark.map((r) => [r.id, r.count])),
     slips: report.benchmark.filter((r) => r.verdict === 'average').map((r) => r.id),
     traps: report.traps.map((t) => ({ issue: t.issue, title: t.title, found: t.asked || t.avoided })),
     turns: history.length,

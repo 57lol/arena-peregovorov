@@ -1,3 +1,5 @@
+import { detectBehaviors } from './behaviors'
+import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
 import { mentionedIssues, parseOffer, type Mention } from './offline/parseOffer'
 import type { MoveAnalysis, Offer, Scenario } from './types'
@@ -120,6 +122,17 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   }
   if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
+  const parts = sentences(text)
+  if (!parts.some((p, i) => requestsInformation(p, parts[i + 1]) &&
+    (p.includes('?') || /^(?:почему|зачем|расскажите|что|как|сколько|why|tell me|what|how|would|could|can)/iu.test(p)))) {
+    delete other.asksAbout
+    if (other.talk) other.talk = other.talk.filter((act) => act !== 'question')
+  }
+  if (isTentative(text) || analysis.behaviors.some((h) => h.id === 'whatif') || detectBehaviors(text).some((h) => h.id === 'whatif')) {
+    delete other.accepts
+    delete other.upsells
+    return other
+  }
   const supported = explicitOffer(sc, text, offer)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

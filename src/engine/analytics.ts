@@ -80,7 +80,7 @@ export function nextPractice(report: Report): string[] {
     .sort((a, b) => b.count - a.count || BEHAVIORS.findIndex((v) => v.id === a.id) - BEHAVIORS.findIndex((v) => v.id === b.id))
   for (const row of weak) tips.push(behaviorById(row.id)!.advice)
   if (report.leftOnTable > 0) tips.push(behaviorById('package')!.advice)
-  for (const row of report.benchmark.filter((r) => r.polarity === 'strong' && r.count === 0)) tips.push(behaviorById(row.id)!.advice)
+  for (const row of report.benchmark.filter((r) => r.polarity === 'strong' && (r.comparison?.count ?? r.count) === 0)) tips.push(behaviorById(row.id)!.advice)
   if (!tips.length) tips.push(behaviorById('summarize')!.advice)
   return [...new Set(tips)].slice(0, 3)
 }

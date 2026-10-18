@@ -28,7 +28,7 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
   const a = p[pick]
   const ending = catalog.find((e) => e.id === a.ending)
   const share = p.share ?? 'none'
-  const strong = BEHAVIORS.filter((b) => b.polarity === 'strong' && (a.bench[b.id] ?? 0) > 0 && !a.slips.includes(b.id))
+  const strong = BEHAVIORS.filter((b) => b.polarity === 'strong' && (a.counts?.[b.id] ?? a.bench[b.id] ?? 0) > 0 && !a.slips.includes(b.id))
   const slips = a.slips.map((id) => behaviorById(id)).filter((b) => !!b)
   const missed = a.traps.filter((t) => !t.found)
   const short = a.status === 'deal' && a.points < a.batna
@@ -78,7 +78,7 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
             <ul className="g-pcard-list">
               {strong.map((b) => (
                 <li key={b.id}>
-                  {b.title}: {often(a.bench[b.id] ?? 0, b.benchmark?.unit ?? 'share')}
+                  {b.title}: {a.counts ? `${a.counts[b.id] ?? 0} из ${a.turns} реплик` : often(a.bench[b.id] ?? 0, b.benchmark?.unit ?? 'share')}
                 </li>
               ))}
               {a.traps.filter((t) => t.found).map((t) => (

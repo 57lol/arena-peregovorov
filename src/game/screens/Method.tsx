@@ -1,6 +1,6 @@
 import { SOURCES, type SourceKey } from '../../engine/behaviors'
 
-const KEY_SOURCES: SourceKey[] = ['rackham78', 'thompsonHrebec96', 'laxSebenius86', 'weingart90', 'yeomans20', 'bianchi24']
+const KEY_SOURCES: SourceKey[] = ['rackham78', 'fisherUry81', 'rackham88', 'thompsonHrebec96', 'laxSebenius86', 'weingart90', 'yeomans20', 'bianchi24']
 const MORE = [
   { cite: 'Faratin, Sierra & Jennings, 1998. Negotiation decision functions (кривая уступок)', url: 'https://eprints.soton.ac.uk/252117/2/paper02.pdf' },
   { cite: 'Curhan, Elfenbein & Xu, 2006. Subjective value in negotiation', url: 'https://doi.org/10.1037/0022-3514.91.3.493' },
@@ -27,8 +27,9 @@ export function Method({ compact = false }: { compact?: boolean }) {
             правилам, у каждого сдвига есть причина.
           </li>
           <li>
-            <b>Поведение.</b> 17 приёмов, которые видно в словах, с цитатами из ваших реплик — в сравнении с тем, как говорят
-            сильные переговорщики (Rackham & Carlisle, 103 реальные сессии).
+            <b>Поведение.</b> 22 приёма, которые видно в словах, с цитатами из ваших реплик — в сравнении с тем, как говорят
+            сильные переговорщики (Rackham & Carlisle, 103 реальные сессии). Пять из них — из Гарвардского метода
+            (объективный критерий, общая задача, пробный вариант) и SPIN (вопросы о последствиях и о выгоде).
           </li>
         </ol>
         <p>

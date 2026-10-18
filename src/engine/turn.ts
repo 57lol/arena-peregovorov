@@ -114,6 +114,7 @@ function lastOffer(past: MoveAnalysis[], sc: Scenario): Offer | undefined {
 }
 
 function asksInterest(analysis: MoveAnalysis, dict: BehaviorDict): boolean {
+  if (analysis.behaviors.some((b) => b.id === 'attack' || b.id === 'ultimatum')) return false
   return !!analysis.asksAbout?.length || analysis.behaviors.some((b) => dict[b.id]?.asksInterest)
 }
 

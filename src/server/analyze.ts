@@ -12,7 +12,7 @@ import { cached } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-const PROMPT_VERSION = 'a13'
+const PROMPT_VERSION = 'a15'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -86,6 +86,7 @@ ${behaviors}
 - behaviors: только явные; quote — дословный кусок реплики, 3–12 слов. На фразу обычно один индикатор, самый точный.
 - offer: что игрок сам предлагает сейчас (не отвергаемое, не слова оппонента); option — ближайший номер. Условие своими словами тоже считается: «пусть пацаны сидят в выходные допоздна» — это вариант «выходные допоздна». Перечислил условия списком — разметь каждое.
 - Каждый пункт offer требует явно названного значения: числа с единицей, срока («на год») или слов конкретного варианта. «Обсуждаем скидку и резерв» не задаёт ни процента скидки, ни размера резерва. Годовой объём закупок не задаёт срок договора. «Деньги не предлагаю» — пустое предложение по деньгам, а не ноль и не извинение.
+- Гипотеза («не предложение», «гипотетически», «what if», «just an idea») — обсуждение без обязательств: offer пустой, accepts false. Отрицание, сарказм и вопросы-наезды не получают положительных приёмов.
 - accepts: только явное «договорились», «по рукам» на всё предложение оппонента. Вопрос или условие — false.
 - walksAway: только безусловный уход; «не нравится — до свидания» — ultimatum.
 - asksAbout: пункты, о причинах которых игрок спрашивает («зачем», «почему», «что тебе важно»), и вопрос о том, как у оппонента самого обстоят дела с пунктом («ты сам-то на служебный едешь?», «вам самим как удобнее возить?»); общий вопрос «зачем тебе всё это», «что главное» — все пункты. Своё предложение с «идёт?» — не вопрос о причинах.
@@ -99,7 +100,7 @@ const EN_RULES = `
 
 Переговоры идут на английском: реплика игрока и оппонента — по-английски.
 - quote — дословный кусок английской реплики, как сказано (с его ошибками), без перевода.
-- Примеры: «Why is full payment upfront so important for you?» — ask_interest; «So you mean the line is already built?» — check; «If you deliver in 8 weeks, we can pay 70% upfront» — package, offer: доставка 8 weeks и 70% upfront; «We have another quote from Qingdao» — alternative; «Let's split the difference» — split; «That's a generous offer, trust me» — irritator; «This is our final offer» / «take it or leave it» — ultimatum; «That's ridiculous» — attack; «Nice to meet you, how was your flight?» — rapport и talk personal.
+- Примеры: «Why is full payment upfront so important for you?» — ask_interest; «So you mean the line is already built?» — check; «If you deliver in 8 weeks, we can pay 70% upfront» — package, offer: доставка 8 weeks и 70% upfront; «We have another quote from Qingdao» — alternative; «Let's split the difference» — split; «That's a generous offer, trust me» — irritator; «This is our final offer» / «take it or leave it» — ultimatum; «That's ridiculous» — attack; «Nice to meet you, how was your flight?» — rapport и talk personal. «What's the market rate for this?» — criteria; «What does a delay cost you?» — implication; «How would it help you if we delivered earlier?» — need_payoff; «Let's work on this together» — joint_frame; «What if we split the payment?» — whatif.
 - Числа: «€450,000», «450k», «four hundred fifty thousand», «450 thousand euros» — одна и та же цена; «half upfront», «fifty-fifty» — 50%; «two months» ≈ 8 недель; «a year and a half» — 18 months.
 - accepts: «deal», «agreed», «it's a deal», «we have a deal», «I accept your offer». «No way», «that's not a good deal», «deal?» — false.
 - walksAway: «I'm leaving», «we'll go with Qingdao», «goodbye» без условия; «or we go with Qingdao» — ultimatum.

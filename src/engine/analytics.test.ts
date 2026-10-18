@@ -101,13 +101,13 @@ describe('данные графиков встречи', () => {
   })
 })
 
-describe('полосы 17 приёмов и советы', () => {
+describe('полосы 22 приёмов и советы', () => {
   it('сохраняет все индикаторы и показывает нули только при наличии ходов', () => {
     const empty = behaviorProfile([])
-    expect(empty).toHaveLength(17)
-    expect(empty.map((r) => profileBar(r, 0).you)).toEqual(Array(17).fill(null))
+    expect(empty).toHaveLength(22)
+    expect(empty.map((r) => profileBar(r, 0).you)).toEqual(Array(22).fill(null))
     const rows = behaviorProfile([{ behaviors: [] }])
-    expect(rows.map((r) => profileBar(r, 1).you)).toEqual(Array(17).fill(0))
+    expect(rows.map((r) => profileBar(r, 1).you)).toEqual(Array(22).fill(0))
     expect(profileBar(rows.find((r) => r.id === 'check')!, 1).skilled).toBe(9.7)
   })
 

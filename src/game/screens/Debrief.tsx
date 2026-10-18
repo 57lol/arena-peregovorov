@@ -546,7 +546,7 @@ function Behavior({ sc, rows, history, wide, tips }: { sc: Scenario; rows: Profi
   const n = history.length
   const strong = rows.filter((r) => r.polarity === 'strong' && r.count > 0)
   const weak = rows.filter((r) => r.polarity === 'weak' && r.count > 0)
-  const missing = rows.filter((r) => r.polarity === 'strong' && r.count === 0 && r.benchmark)
+  const missing = rows.filter((r) => r.polarity === 'strong' && (r.comparison?.count ?? r.count) === 0 && r.benchmark)
   const neutral = rows.filter((r) => r.polarity === 'neutral' && r.count > 0)
   return (
     <section className="g-sheet g-behavior" aria-labelledby="beh-h">
@@ -609,13 +609,14 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
  */
 export function Bench({ row, who = 'вы', n }: { row: ProfileRow; who?: string; n?: number }) {
   const b = row.benchmark!
+  const count = row.comparison?.count ?? row.count
   const v = row.value ?? 0
   const you = n !== undefined
-    ? `${row.count ? `${row.count} ${plural(row.count, 'раз', 'раза', 'раз')}` : 'ни разу'} из ${n} ${plural(n, 'реплики', 'реплик', 'реплик')}`
+    ? `${count ? `${count} ${plural(count, 'раз', 'раза', 'раз')}` : 'ни разу'} из ${n} ${plural(n, 'реплики', 'реплик', 'реплик')}`
     : often(v, b.unit)
   return (
     <ul className="g-bench" aria-label={`${who}: ${you}; сильные переговорщики: ${often(b.skilled, b.unit)}; средние: ${often(b.average, b.unit)}`}>
-      <li className="g-bench-l-you"><b>{who.charAt(0).toUpperCase() + who.slice(1)}:</b> {you}</li>
+      <li className="g-bench-l-you">{row.comparison && <span>{row.comparison.title}. </span>}<b>{who.charAt(0).toUpperCase() + who.slice(1)}:</b> {you}</li>
       <li className="g-bench-l-skilled">Сильные переговорщики: {often(b.skilled, b.unit)}</li>
       <li className="g-bench-l-average">Средние: {often(b.average, b.unit)}</li>
     </ul>

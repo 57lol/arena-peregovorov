@@ -120,3 +120,52 @@
   «Outcome explorer»: показывать, какие правила сработали. Формат причин у дельт доверия.
 - Griftlands (Klei, 2021), Ace Attorney (Capcom), Disco Elysium (ZA/UM, 2019), Papers, Please (2013), Hostage Negotiator (Van Ryder Games, 2015), Deus Ex: Human Revolution (2011), Oblivion (2006), Crusader Kings III (2020), Suck Up! (2024), Event[0] (2016).
   Что взяли и что нет — в таблице в конце [method.md](method.md).
+
+## Методика v2: Гарвардский метод, SPIN, BATNA
+
+Подробно — в [method-v2.md](method-v2.md). DOI сверены через Crossref 18.10.2026. Уровень проверки указан у каждого источника.
+
+**Гарвардский метод**
+- **Fisher, R., & Ury, W. (1981).** *Getting to Yes.* Конспект на Beyond Intractability: https://www.beyondintractability.org/bksum/fisher-getting
+  Четыре принципа: люди отдельно от проблемы, интересы вместо позиций, варианты к взаимной выгоде, объективные критерии. Книгу целиком не читали, опираемся на конспект. Основание для «Объективного критерия», «Общей задачи» и «Пробного варианта».
+- **Shonk, K. Principled Negotiation: Focus on Interests to Create Value.** Program on Negotiation, Harvard Law School. https://www.pon.harvard.edu/daily/negotiation-skills-daily/principled-negotiation-focus-interests-create-value/
+  Бесплатная статья PON, прочитана полностью. Примеры мерок (рыночная стоимость, отраслевые нормы, эксперт, закон) и совет «сначала придумать варианты, потом выбирать». Это рекомендации, а не эксперимент.
+- **Fisher, R. (1983).** Negotiating power. *American Behavioral Scientist*, 27(2), 149–166. https://doi.org/10.1177/000276483027002004
+  Источники переговорной силы, включая хорошо проработанную альтернативу. Прочитано только по аннотации.
+- **Grigorov, D. N., & Snoeck Henkemans, A. F. (2019).** Hypothetical questions as strategic devices in negotiation. *Negotiation Journal*, 35(3), 363–385. https://doi.org/10.1111/nejo.12297
+  Открытый доступ (CC BY-NC). Предложение в форме «а что если…?» легко забрать назад, поэтому даже в жёстком торге его слышат как гибкость. Это разбор реальных переговоров (Dragons' Den), а не эксперимент. Прочитано по пересказу PON: https://www.pon.harvard.edu/daily/negotiation-skills-daily/negotiation-research-you-can-use-have-you-tried-a-hypothetical-question-nb/
+
+**Объективные критерии и доводы**
+- **Babcock, L., & Loewenstein, G. (1997).** Explaining bargaining impasse: the role of self-serving biases. *Journal of Economic Perspectives*, 11(1), 109–126. https://doi.org/10.1257/jep.11.1.109
+  Главная причина тупиков — «справедливость в свою пользу». Если стороны знают об этом перекосе, тупиков меньше. Прочитано по аннотации AEA. Почему мерку стоит согласовать заранее.
+- **Maaravi, Y., Ganzach, Y., & Pazy, A. (2011).** Negotiation as a form of persuasion: arguments in first offers. *JPSP*, 101(2), 245–255. https://doi.org/10.1037/a0023331
+  Доводы, приложенные к первому предложению, вызывают встречные доводы, и итог для автора хуже, особенно если контраргументы придумать легко. Прочитано по вторичному описанию. Оговорка в совете к «Объективному критерию».
+- **Hüffmeier, J., Freund, P. A., Zerres, A., Backhaus, K., & Hertel, G. (2014).** Being tough or being nice? A meta-analysis on the impact of hard- and softline strategies in distributive negotiations. *Journal of Management*, 40(3), 866–892. https://doi.org/10.1177/0149206311423788
+  34 исследования: жёсткая линия чаще даёт больше денег, мягкая — лучшие отношения. Прочитано по аннотации. Поддерживает раздельные счета «Сделка» и «Отношения».
+
+**SPIN**
+- **Rackham, N. (1988).** *SPIN Selling.* Gower; сейчас Routledge. https://www.routledge.com/SPIN-Selling-1st-Edition/Rackham/p/book/9780566076893
+  Книга по исследованию Huthwaite (около 35 000 визитов продавцов). Книгу не читали, данные взяты из материалов разработчика (ниже).
+- **Huthwaite International (2016).** SPIN Selling applies science to the art of selling. https://www.huthwaiteinternational.com/blog/spin-selling-applies-science-to-the-art-of-selling
+  Прочитано полностью. Определения четырёх видов вопросов. В крупных сделках успех предсказывает явно высказанная потребность, а не жалоба клиента. Расхваливание решения, о котором клиент не просил, — главный источник возражений. Это данные самого разработчика метода. Рецензированной проверки типов вопросов в открытом доступе не нашли.
+- **Алешина О. Г., Калинина К. С., Ратманская А. К., Снапкова М. А. (2013).** Успешная продажа: шаг за шагом. *Актуальные вопросы экономических наук* (ТЭИ СФУ). https://cyberleninka.ru/article/n/uspeshnaya-prodazha-shag-za-shagom
+  Русские названия видов вопросов: ситуационные, проблемные, извлекающие, направляющие. Эмпирики нет.
+
+**BATNA**
+- **Magee, J. C., Galinsky, A. D., & Gruenfeld, D. H. (2007).** Power, propensity to negotiate, and moving first in competitive interactions. *PSPB*, 33(2), 200–212. https://doi.org/10.1177/0146167206294413
+  Люди с сильной альтернативой чаще сами делают первое предложение и выигрывают от этого. Прочитано по аннотации.
+- **Kim, P. H., & Fragale, A. R. (2005).** Choosing the path to bargaining power: an empirical comparison of BATNAs and contributions in negotiation. *JAP*, 90(2), 373–381. https://doi.org/10.1037/0021-9010.90.2.373
+  Сильная альтернатива важнее всего, когда зона соглашения узкая. Прочитано по вторичному описанию.
+- **Зинчак Е. В., Сущева М. М. (2014).** Использование наилучшей альтернативы обсуждаемому соглашению (НАОС) в переговорах. *Евразийский Союз Учёных.* https://cyberleninka.ru/article/n/ispolzovanie-nailuchshey-alternativy-obsuzhdaemomu-soglasheniyu-naos-v-peregovorah
+  Русская терминология НАОС и точка резервирования. Обзор без эмпирики.
+
+**Совместное решение задачи и взгляд с позиции собеседника**
+- **Pruitt, D. G. (1983).** Strategic choice in negotiation. *American Behavioral Scientist*, 27(2), 167–194. https://doi.org/10.1177/000276483027002005
+  Четыре стратегии: решать задачу, давить, уступать, бездействовать. Выгоду обеим сторонам даёт только решение задачи. Прочитано по аннотации. Основание для «Общей задачи».
+- **De Dreu, C. K. W., Weingart, L. R., & Kwon, S. (2000).** Influence of social motives on integrative negotiation: a meta-analytic review and test of two theories. *JPSP*, 78(5), 889–905. https://doi.org/10.1037/0022-3514.78.5.889
+  28 исследований: при просоциальной установке меньше давления, больше совместного поиска и выше общий результат. Прочитано по вторичному описанию.
+- **Rackham, N., & Carlisle, J. (1978).** Part 2: Planning for Negotiations (см. выше). Цифры о подготовке взяты из [Nick Anderson, The Effective Negotiator Research, The Crispian Advantage, 3 мая 2021](https://thecrispianadvantage.com/the-effective-negotiator-research/), таблицы в разделах Exploring Options и Looking for Common Ground: вариантов на пункт 5,1 против 2,6, общая почва 38% против 11% записей. Источник один, со вторым не сверено.
+- **Galinsky, A. D., Maddux, W. W., Gilin, D., & White, J. B. (2008).** Why it pays to get inside the head of your opponent. *Psychological Science*, 19(4), 378–384. https://doi.org/10.1111/j.1467-9280.2008.02096.x
+  Кто думает о позиции собеседника, чаще находит скрытые совпадения, а сочувствие иногда мешает. Прочитано по аннотации. Отдельного индикатора нет: это способ думать, а не слова.
+
+**Проверено и не использовано:** Pinkley, Neale & Bennett (1994), https://doi.org/10.1006/obhd.1994.1006, и Pruitt & Lewis (1975), https://doi.org/10.1037/0022-3514.31.4.621 — DOI верны, но текст и аннотацию прочитать не удалось, поэтому выводы из них не берём. Weger и др. (2014) об активном слушании, https://doi.org/10.1080/10904018.2013.813234, прочитано только по пересказу. Vecchi, Van Hasselt & Romano (2005) о кризисных переговорах, https://doi.org/10.1016/j.avb.2004.10.001, — только библиографическая запись.

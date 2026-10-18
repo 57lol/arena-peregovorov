@@ -36,7 +36,7 @@ describe('графики разбора', () => {
 
   it('не скрывает неиспользованные приёмы и показывает все доказательства', () => {
     const html = renderToStaticMarkup(<BehaviorProfile rows={report.benchmark} history={history} tips={nextPractice(report)} />)
-    expect(html.match(/<details/g)).toHaveLength(17)
+    expect(html.match(/<details/g)).toHaveLength(22)
     expect(html).toContain('Ход 1.')
     expect(html).toContain('В следующей встрече')
     expect(html).toContain('без численной нормы')

@@ -197,7 +197,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
 
 export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; history: TurnRecord[]; tips: string[] }) {
   return <div className="g-profile">
-    <p className="g-muted">Все 17 индикаторов. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть доказательства.</p>
+    <p className="g-muted">Все 22 индикатора. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть доказательства.</p>
     <div className="g-profile-grid">
       {rows.map((row) => {
         const bar = profileBar(row, history.length)
@@ -210,10 +210,11 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
               <span style={{ width: `${(bar.you ?? 0) / bar.max * 100}%` }} />
               {bar.skilled !== null && <i style={{ left: `${bar.skilled / bar.max * 100}%` }} />}
             </span>
-            <span className="g-profile-caption">{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${bar.skilled}` : ' · без численной нормы'}</span>
+            <span className="g-profile-caption">{row.comparison && 'Все вопросы: '}{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${bar.skilled}` : ' · без численной нормы'}</span>
           </summary>
           <div className="g-profile-evidence">
             <p>{plainWords(def.definition)}</p>
+            {row.comparison && <p>{row.comparison.title}: {row.comparison.count} из {history.length} ходов. Полоса и эталон относятся к этой общей частоте; счётчик приёма показан отдельно.</p>}
             {bar.skilled !== null && <p>{row.polarity === 'weak' ? 'Реже — лучше.' : 'Чаще — полезнее, если приём уместен.'} {bar.benchmark?.note}</p>}
             {bar.benchmark?.unit === 'reasons' && <p>У сильных — {bar.benchmark.skilled} довода на аргумент, у средних — {bar.benchmark.average}. Здесь считаем ходы с избытком доводов; среднего числа доводов в истории нет.</p>}
             {!bar.benchmark && <p>У этого приёма нет численного эталона Rackham & Carlisle.</p>}

@@ -4,9 +4,8 @@ import { BEHAVIORS, BEHAVIOR_DICT, behaviorGuide, behaviorProfile, detectBehavio
 const ids = (text: string, ctx = {}) => detectBehaviors(text, ctx).map((h) => h.id)
 
 describe('словарь индикаторов', () => {
-  it('от 10 до 17 индикаторов, id уникальны, у всех есть источник и примеры', () => {
-    expect(BEHAVIORS.length).toBeGreaterThanOrEqual(10)
-    expect(BEHAVIORS.length).toBeLessThanOrEqual(17)
+  it('22 индикатора, id уникальны, у всех есть источник и примеры', () => {
+    expect(BEHAVIORS).toHaveLength(22)
     expect(new Set(BEHAVIORS.map((b) => b.id)).size).toBe(BEHAVIORS.length)
     for (const b of BEHAVIORS) {
       expect(b.sources.length, b.id).toBeGreaterThan(0)
@@ -74,6 +73,65 @@ describe('разметка живых реплик', () => {
   it('первое предложение за встречу — якорь', () => {
     expect(ids('Предлагаем 188 за короб.', { offered: true, firstOffer: true })).toContain('anchor')
     expect(ids('Предлагаем 188 за короб.', { offered: true, firstOffer: false })).not.toContain('anchor')
+  })
+})
+
+describe('методика v2: Гарвардский метод и SPIN', () => {
+  const cases: [string, string[], string[]][] = [
+    // объективный критерий
+    ['Давайте сначала договоримся, по какой методике считаем, а потом о цифре.', ['criteria'], []],
+    ['Опираемся на рыночную цену или на средние условия по отрасли?', ['criteria'], []],
+    ['Откуда взялась цифра 205?', ['criteria'], []],
+    ['Предлагаю индексировать цену по инфляции.', ['criteria'], []],
+    ['Can we agree on a published benchmark before we discuss the number?', ['criteria'], []],
+    ['How did you arrive at this price?', ['criteria'], []],
+    ['Это честная цена, поверьте.', ['irritator'], ['criteria']],
+    ['У нас есть другой поставщик, он возит по 212.', ['alternative'], ['criteria']],
+    ['This is a fair offer.', ['irritator'], ['criteria']],
+    // вопрос о последствиях
+    ['Сколько это стоит вам в месяц, если поставка задерживается на неделю?', ['implication'], []],
+    ['Что будет, если вакансия закроется только через два месяца?', ['implication'], []],
+    ['Чем грозит срыв поставки к запуску?', ['implication'], []],
+    ['What does a one-week delay cost your production line?', ['implication'], []],
+    ['What happens downstream when a shipment slips?', ['implication'], []],
+    ['Что будет, если мы не договоримся?', ['ask_interest'], ['implication']],
+    ["What happens if we don't agree?", ['ask_interest'], ['implication', 'whatif']],
+    ['Сколько вы хотите за короб?', [], ['implication', 'need_payoff']],
+    // вопрос о выгоде
+    ['Если бы поставки шли без задержек, что это дало бы вашему цеху?', ['need_payoff'], []],
+    ['Насколько было бы полезно сократить срок до трёх дней?', ['need_payoff'], []],
+    ['If deliveries arrived on time, what would that free up for your team?', ['need_payoff'], []],
+    ['Would it help if we kept a reserve at our warehouse?', ['need_payoff'], []],
+    ['Это же выгодно для вас!', [], ['need_payoff']],
+    // общая задача
+    ['Давайте решать проблему, а не спорить, кто прав.', ['joint_frame'], []],
+    ['Давайте найдём решение, которое устроит нас обоих.', ['joint_frame'], []],
+    ["Let's work on the problem together, side by side.", ['joint_frame'], []],
+    ['We both want this delivered on time.', ['joint_frame'], []],
+    ['Наш интерес — цена.', [], ['joint_frame']],
+    ['Давайте вместе, или мы уходим к другому поставщику.', ['ultimatum'], ['joint_frame']],
+    // пробный вариант
+    ['А что если разбить оплату на два платежа?', ['whatif'], []],
+    ['Допустим, я беру меньший оклад, что тогда с премией?', ['whatif'], []],
+    ['Какие ещё есть варианты, кроме скидки?', ['whatif'], []],
+    ['Hypothetically, if we moved delivery up, would the price come down?', ['whatif'], []],
+    ['What if we split the payment into two installments?', ['whatif'], []],
+    ['А что если мы платим быстро, а вы держите запас?', ['package'], ['whatif']],
+    ['Как вам такой вариант: 190 и отсрочка 30 дней?', [], ['whatif']],
+    ['Вы что, издеваетесь? Это бред, а не предложение.', ['attack'], ['whatif']],
+    ['Это пока не предложение, просто идея: разбить поставку на две партии.', ['whatif'], []],
+  ]
+  for (const [text, must, mustNot] of cases) {
+    it(text, () => {
+      const got = ids(text)
+      for (const m of must) expect(got, `нет ${m}`).toContain(m)
+      for (const m of mustNot) expect(got, `лишний ${m}`).not.toContain(m)
+    })
+  }
+
+  it('вопросы SPIN снимают «мгновенное встречное», как и вопрос об интересах', () => {
+    const ctx = { offered: true, opponentJustOffered: true }
+    expect(ids('Во что вам обходится день простоя? Тогда давайте 188 и оплата по факту.', ctx)).not.toContain('instant_counter')
   })
 })
 

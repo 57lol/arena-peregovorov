@@ -1,6 +1,7 @@
 // Офлайн-разметчик: русские правила вместо LLM (и минимум английских — для дел на английском).
 // Грубее, но играбельно и полностью воспроизводимо.
 
+import { isTentative, requestsInformation } from '../methodIntent'
 import { parseUpsells } from '../upsells'
 import { BEHAVIOR_DICT, detectBehaviors } from '../behaviors'
 import type { BehaviorDict } from '../dictionary'
@@ -73,21 +74,22 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   const parts = clauses(extras.main)
   const asksAbout = new Set<string>()
   let accepts = false
-  for (const c of parts) {
+  for (const [i, c] of parts.entries()) {
     const isQ = c.endsWith('?') || QUESTION.test(c)
-    if (isQ) mentionedIssues(sc, c).forEach((id) => asksAbout.add(id))
+    if (isQ && requestsInformation(c, parts[i + 1])) mentionedIssues(sc, c).forEach((id) => asksAbout.add(id))
     const a = ACCEPT.exec(c)
     if (a && !c.endsWith('?') && !NEG.test(c.slice(0, a.index))) accepts = true
   }
 
+  const tentative = isTentative(text) || behaviors.some((h) => h.id === 'whatif')
   const offer = parseOffer(sc, extras.main, 'player')
   const toneViolation = RUDE.test(text)
   // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
   const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
 
   const out: MoveAnalysis = { behaviors, ...(extras.choices.length ? { upsells: extras.choices } : {}) }
-  if (Object.keys(offer).length) out.offer = offer
-  if (accepts) out.accepts = true
+  if (!tentative && Object.keys(offer).length) out.offer = offer
+  if (accepts && !tentative) out.accepts = true
   if (walksAway) out.walksAway = true
   if (asksAbout.size) out.asksAbout = [...asksAbout]
   if (toneViolation) out.toneViolation = true
@@ -114,8 +116,9 @@ export function talkActs(sc: Scenario, text: string): TalkAct[] {
   if (APOLOGY.test(text)) out.add('apology')
   if (JOKE.test(text)) out.add('joke')
   if (PERSONAL.test(text)) out.add('personal')
-  for (const c of clauses(text))
-    if (c.endsWith('?') && !DEAL_Q.test(c.trim()) && !Object.keys(parseOffer(sc, c)).length && c.split(/\s+/).length >= 3) out.add('question')
+  const parts = clauses(text)
+  for (const [i, c] of parts.entries())
+    if (requestsInformation(c, parts[i + 1]) && c.endsWith('?') && !DEAL_Q.test(c.trim()) && !Object.keys(parseOffer(sc, c)).length && c.split(/\s+/).length >= 3) out.add('question')
   return [...out]
 }
 
@@ -129,7 +132,7 @@ function markerHits(text: string, dict: BehaviorDict): BehaviorHit[] {
 }
 
 // Индикаторы, которые ставятся не по словам, а по ходу игры (см. behaviors.ts: anchor, instant_counter).
-const ENGAGES = new Set(['ask_interest', 'check', 'label', 'summarize', 'priority'])
+const ENGAGES = new Set(['ask_interest', 'check', 'label', 'summarize', 'priority', 'implication', 'need_payoff'])
 
 /**
  * Добавить индикаторы по контексту хода — одинаково и для LLM, и для офлайна:
