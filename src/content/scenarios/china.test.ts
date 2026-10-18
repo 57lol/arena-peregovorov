@@ -6,7 +6,8 @@ import { groundedOffline, offlineTurn, parseOffer, mentionedIssues } from '../..
 import { buildReport } from '../../engine/report'
 import { initialState, stateAfter } from '../../engine/turn'
 import { groundAnalysis } from '../../engine/offerEvidence'
-import { score, type FullOffer } from '../../engine/utility'
+import { formatOffer, score, type FullOffer } from '../../engine/utility'
+import { upsellLine } from '../../engine/upsells'
 import { checkScenario } from '../../engine/validate'
 import type { TurnRecord } from '../../engine/types'
 import { endingCatalog } from '../endings'
@@ -77,6 +78,22 @@ describe('допродажа', () => {
 
   it.each(['Нужны ли адаптеры?', 'Если дадите скидку, беру адаптеры.', 'Вы сказали: беру адаптеры.', 'Не уверен, нужны ли адаптеры.', 'Договорились.'])('не добавляет товар без явного согласия: %s', (text) => {
     expect(say(text).upsells ?? []).toEqual([])
+  })
+
+  it('отказ, уже сказанный в живой реплике, не повторяется строкой заказа; покупка с ценой — всегда', () => {
+    const [h] = play('Спасибо, адаптеры и держатели не нужны.')
+    const full = upsellLine(sc, h.stateAfter)
+    expect(full).toContain('адаптеры убираю')
+    expect(full).toContain('Фонарик пока себе оставлю')
+    const rest = upsellLine(sc, h.stateAfter, 'Понял, убираю адаптеры. Эталон запишем.')
+    expect(rest).not.toContain('адаптеры убираю')
+    expect(rest).toContain('Фонарик пока себе оставлю')
+    const [b] = play('Беру адаптеры.')
+    expect(upsellLine(sc, b.stateAfter, 'Адаптеры добавил.')).toContain('плюс 2400 юаней')
+  })
+
+  it('в условиях MOQ не превращается в «moq»', () => {
+    expect(formatOffer(sc, { price: 1, moq: 3 })).toBe('цена датчика за штуку — 44 юаня, MOQ — минимальная партия — 750 штук')
   })
 
   it('вежливый отказ сохраняется, товары после него не навязываются', () => {

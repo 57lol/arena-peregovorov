@@ -78,9 +78,12 @@ export function sameOffer(a: Offer | undefined, b: Offer | undefined): boolean {
   return true
 }
 
+/** «Цена за коробку» → «цена за коробку», но «MOQ — …» и имена внутри названия не трогаем. */
+const lowerTitle = (t: string) => /^\p{Lu}{2}/u.test(t) ? t : t[0].toLowerCase() + t.slice(1)
+
 export function formatOffer(sc: Scenario, offer: Offer): string {
   return sc.issues
     .filter((i) => typeof offer[i.id] === 'number')
-    .map((i) => `${i.title.toLowerCase()} — ${i.options[offer[i.id]!]}`)
+    .map((i) => `${lowerTitle(i.title)} — ${i.options[offer[i.id]!]}`)
     .join(', ')
 }

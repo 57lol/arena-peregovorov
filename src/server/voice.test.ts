@@ -137,6 +137,17 @@ describe('безопасный вариант: согласие и причин�
     expect(safe).toMatch(/Договорились: цена за короб — 204/)
   })
 
+  it('отдельное «Согласен.» — уже согласие: условия второй раз не дописываем', () => {
+    const deal = { price: 1, payment: 0, rush: 4, term: 2, schedule: 2 }
+    const s = { ...initialState(tara), deal, status: 'deal' as const }
+    const frame = frameFor(tara, { kind: 'accept' }, s, deal)
+    const said = { said: tara.opening, heard: '', mine: [] }
+    const yes = prune(tara, frame, { line: 'Считаем: двести четыре за короб. Согласен. Пишу в заказ.', emotion: 'happy', terms: [], agrees: true, reveals: [] }, said)!
+    expect(yes).not.toMatch(/Договорились:/)
+    const partly = prune(tara, frame, { line: 'По цене согласен, считаем дальше.', emotion: 'happy', terms: [], agrees: true, reveals: [] }, said)!
+    expect(partly).toMatch(/Договорились:/)
+  })
+
   it('номер варианта вне диапазона из ответа модели не роняет ход', async () => {
     const m = { name: 'aitunnel' as const, model: `x-${Math.random()}`, json: async () => ({ line: 'Ладно, по рукам!', emotion: 'happy', terms: [{ issue: 'wifi', option: 9 }], agrees: true, reveals: [] }) }
     const s = { ...initialState(dorm), turn: 1 }

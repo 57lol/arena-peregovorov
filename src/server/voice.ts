@@ -406,7 +406,7 @@ ${can}${last.length ? `\nТвои прошлые реплики начинали
 
 // ——— проверка ———
 
-const AGREE = /(?<!\p{L})(договорились|по рукам|согласен на (всё|все|это|твои|ваши|ваше|твоё)|принимаю (ваше|твоё|ваши|твои|предложение|условия)|сделка заключена|фиксируем|оформляем|подписываем|it'?s a deal|we have a deal|we've got a deal|you('ve| have) got (yourself )?a deal|done deal|let'?s (shake|sign)|i accept (your|the|this)|we accept (your|the|this)|^(ok(ay)?,? )?(deal|agreed)(?![\p{L}-]))/iu
+const AGREE = /(?<!\p{L})(договорились|по рукам|согласен на (всё|все|это|твои|ваши|ваше|твоё)|принимаю (ваше|твоё|ваши|твои|предложение|условия)|сделка заключена|фиксируем|оформляем|подписываем|it'?s a deal|we have a deal|we've got a deal|you('ve| have) got (yourself )?a deal|done deal|let'?s (shake|sign)|i accept (your|the|this)|we accept (your|the|this)|^(ok(ay)?,? )?(deal|agreed)(?![\p{L}-])|^((да|хорошо|ладно),? )?соглас(ен|на)(,? друг)?[.!]*$)/iu
 const IF = /(?<!\p{L})(если|раз|тогда|давай|давайте|при условии|только|когда|if|then|only|when|as long as|provided|unless)(?!\p{L})/iu
 const FINAL = /(последн\p{L}* (слово|предложени\p{L}*|цен\p{L}*|цифр\p{L}*)|окончательн\p{L}*|финальн\p{L}*|крайн\p{L}* (предложени|цен|цифр)\p{L}*|тв[её]рдое слово|больше не (уступлю|двинусь|подвинусь|могу уступить)|дальше (не двинусь|не подвинусь|двигаться не)|(это|вот) мой предел|торга не будет|без торга|не обсуждается|(final|last|best and final) (offer|price|word|number)|take it or leave it|that'?s my limit|(can'?t|cannot|won'?t) go (any )?(lower|further|down)|non-negotiable|not negotiable)/iu
 /** «Это моё последнее слово» — да; «это ещё не последнее слово», «not my final offer» — нет. */
@@ -1064,7 +1064,7 @@ export async function voice(
     const { kind, problems, attempts, ...v } = value
     return {
       ...v,
-      line: kind === 'template' ? v.line : [v.line, upsellLine(sc, state)].filter(Boolean).join(' '),
+      line: kind === 'template' ? v.line : [v.line, upsellLine(sc, state, v.line)].filter(Boolean).join(' '),
       source: hit ? ('cache' as const) : kind,
       model: m.model.split('/').pop(),
       ...(problems?.length ? { problems } : {}),

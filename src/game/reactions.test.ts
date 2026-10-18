@@ -34,6 +34,11 @@ describe('мгновенная реакция по-английски (дело 
     expect(chooseReaction('Final offer.', mood, 'emre')?.type).toBe('suspicion')
     for (const [text] of english) expect(chooseReaction(text, mood, 'emre')!.text).not.toMatch(/[а-яё]/iu)
   })
+
+  it('«Вы что, издеваетесь? … грабёж!» — обида, а не раздумье (живая партия с Ли Вэем 18.10)', () => {
+    expect(classifyTone('Вы что, издеваетесь? Сорок восемь юаней — это грабёж!')).toBe('rude')
+    expect(chooseReaction('Вы что, издеваетесь? Сорок восемь юаней — это грабёж!', { trust: 50, tension: 20 }, 'china')?.type).toBe('hurt')
+  })
 })
 
 describe('мгновенная реакция', () => {

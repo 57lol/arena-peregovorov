@@ -23,7 +23,7 @@ const EN = {
 
 export function classifyTone(text: string): PlayerTone {
   const t = text.slice(0, 1500).toLowerCase().replace(/ё/g, 'е')
-  if (isRude(t) || /охрен|офигел|ты ч[ео][,?! ]|не борзей|ты кто такой/u.test(t) || EN.rude.test(t)) return 'rude'
+  if (isRude(t) || /охрен|офигел|ты ч[ео][,?! ]|не борзей|ты кто такой|издеваетесь|издеваешься|грабеж|обдиралов|за дурака/u.test(t) || EN.rude.test(t)) return 'rude'
   if (EN.pressure.test(t)) return 'pressure'
   if (EN.apology.test(t)) return 'apology'
   if (EN.interest.test(t)) return 'interest'

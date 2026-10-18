@@ -27,8 +27,11 @@ export function upsellPenalty(sc: Scenario, state?: OpponentState): number {
   return (sc.upsells ?? []).reduce((n, u) => n + (state?.upsells?.[u.id] === 'accepted' ? u.penalty : 0), 0)
 }
 
-/** Одна и та же строка заказа в живом и офлайн-ответе. */
-export function upsellLine(sc: Scenario, state: OpponentState): string {
+/**
+ * Одна и та же строка заказа в живом и офлайн-ответе. said — уже сказанная реплика: если в ней отказ от товара
+ * уже принят («Понял, убираю адаптеры»), второй раз «Хорошо, адаптеры убираю» не повторяем (покупка с ценой — всегда).
+ */
+export function upsellLine(sc: Scenario, state: OpponentState, said = ''): string {
   if (!sc.upsells?.length || state.status === 'walked_away' || state.status === 'timeout') return ''
   if (state.status === 'deal') {
     const bought = sc.upsells.filter((u) => state.upsells?.[u.id] === 'accepted')
@@ -37,7 +40,8 @@ export function upsellLine(sc: Scenario, state: OpponentState): string {
   const changes = state.upsellChanges ?? []
   if (changes.length) return changes.map((x) => {
     const u = sc.upsells!.find((u) => u.id === x.id)
-    return u ? x.choice === 'accepted' ? u.accepted : u.refused : ''
+    if (!u) return ''
+    return x.choice === 'accepted' ? u.accepted : u.keywords.some((k) => said.toLowerCase().includes(k)) ? '' : u.refused
   }).filter(Boolean).join(' ')
   const pending = sc.upsells.filter((u) => !state.upsells?.[u.id])
   if (!pending.length || ![1, 3, 5].includes(state.turn)) return ''
