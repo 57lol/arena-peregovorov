@@ -3,6 +3,25 @@ import numpy as np
 from people import Face, SKIN_MID, builder
 from pixel import band, ellipse_mask, grid, line, paint, poly_mask, put, shade_ellipsoid
 
+# Глаза уже, чем у общего набора: узкий миндаль, верхнее веко без складки, тёмная радужка почти во весь разрез,
+# внешний уголок на точку выше внутреннего. Левый глаз; правый зеркалим (кроме взгляда в сторону).
+EYES = {
+    'open':   ['........', '.LLLLL..', 'LwpppwLL', '..ppw...'],
+    'smile':  ['........', '.LLLLLL.', 'LwpppwLL', '.hhhhhh.'],
+    'narrow': ['........', '........', 'LLLLLLLL', '.wwppws.'],
+    'side':   ['........', '.LLLLL..', 'LwwwppLL', '....pp..'],
+    'closed': ['........', '........', 'LLLLLLL.', '..ssss..'],
+    'arc':    ['........', '.LLLL...', 'L....LL.', '........'],
+    'glare':  ['L.......', 'LLLLLLLL', '.wwppL..', '.ssssss.'],
+}
+EYE_STATE = {'neutral': 'open', 'pleased': 'smile', 'happy': 'arc', 'thinking': 'side', 'annoyed': 'narrow', 'angry': 'glare'}
+
+
+def eyes(c, E, eyL, eyR, ey, emotion, frame):
+    st = 'closed' if frame == 'blink' else EYE_STATE[emotion]
+    put(c, eyL, ey, EYES[st], E)
+    put(c, eyR, ey, EYES[st], E, flip=(st != 'side'))
+
 
 def spec():
     face = Face(top=16, cy=38, rx=20, jaw_y=55, jaw_w=17, chin_y=65, chin_w=8, cheek=2.3)
@@ -46,7 +65,7 @@ def spec():
         line(c, [(78, 86), (81, 87)], p['skin'][1], thick=2)
 
     return dict(face=face, skin=SKIN_MID, ey=38, age=38, female=False, neck=9,
-                nose='small', shoulders=42, brow=(37, 1), pupil=37,
+                nose='small', shoulders=42, brow=(37, 1), brow_dy=1, pupil=37, eyes=eyes,
                 body=body, collar=collar, hair=hair, extra=extra, forehead=False)
 
 

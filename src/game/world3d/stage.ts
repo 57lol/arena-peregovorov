@@ -8,6 +8,7 @@ import { DefaultLoadingManager, MathUtils, PerspectiveCamera, Raycaster, Scene, 
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import type { PortraitId } from '../ui/assets'
 import { Company } from './company'
+import { screenCenter, SCREEN_SIZE, VideoCall } from './call'
 import { Head, YAW_MAX, type Pose } from './head'
 import { EYE, SEATS, SPRITE_M_PER_PX } from './layout'
 import { Desk, type PaperId } from './papers'
@@ -47,7 +48,12 @@ export class World {
   readonly head = new Head()
   readonly css: CSS3DRenderer
   readonly desk = new Desk()
-  readonly company: Company | null = null
+  readonly company: Company | VideoCall | null = null
+  /** видеозвонок: собеседник на экране ноутбука, а не за столом (комната cafe) */
+  readonly call: boolean
+  /** угол обзора у стола и приближенный — на экран ноутбука (только в звонке) */
+  private fovDesk = 50
+  private fovFace = 50
   room: RoomBuild & { exit: ExitPlan }
   /** CSS-пикселей на одну игровую точку */
   px = 4
@@ -101,12 +107,22 @@ export class World {
     this.room = buildAnyRoom(o.kind)
     this.scene.add(this.room.group)
     this.scene.add(this.desk.group)
-    if (o.opponent) this.company = new Company(this.room.group, o.caseId ?? '', o.opponent, { plan: this.room.exit, door: this.room.door })
+    this.call = o.kind === 'cafe'
+    if (this.call) {
+      // бумаги ложатся по бокам от ноутбука, листок с предложением «приходит» из-под экрана
+      this.desk.spots = CALL_SPOTS
+      this.desk.themFrom = { x: 0.1, z: -0.2 }
+    }
+    if (o.opponent)
+      this.company = this.call
+        ? new VideoCall(this.room.group, o.opponent)
+        : new Company(this.room.group, o.caseId ?? '', o.opponent, { plan: this.room.exit, door: this.room.door })
     this.camera.rotation.order = 'YXZ'
     if (o.reducedMotion) this.head.stiffness = 30
     this.ro = new ResizeObserver(() => this.resize())
     this.ro.observe(el)
     this.resize()
+    if (this.call) this.head.pitch = this.head.tp
   }
 
   on(fn: (f: Frame) => void) {
@@ -145,6 +161,7 @@ export class World {
     // стол на телефоне виден уже в обычном взгляде: голова чуть ниже, на стол — круче
     const tall = this.portrait
     this.head.poses = { face: { yaw: 0, pitch: (tall ? -15 : -6) * D }, desk: { yaw: 0, pitch: (tall ? -52 : -55) * D } }
+    if (this.call) this.frameCall(w / h)
     // бумаги: страница в CSS-пикселях примерно того размера, каким лист виден, когда склонились к столу
     const deskEye = new Vector3(EYE.x, EYE.y + 0.1, EYE.z - 0.3)
     const nb = this.desk.sheets.notebook.spot
@@ -191,6 +208,15 @@ export class World {
     const cam = this.camera
     cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe + this.stand * 0.42, EYE.z - lean * 0.3 + this.stand * 0.25)
     cam.rotation.set(h.pitch, h.yaw, 0)
+    if (this.call) {
+      // смотрим на экран — камера приближает его; к столу, по сторонам и вставая — обычный угол
+      const k = Math.max(MathUtils.smoothstep(lean, 0, 0.6), MathUtils.smoothstep(Math.abs(h.yaw), 0.08, 0.45), Math.min(1, this.stand * 2))
+      const fov = MathUtils.lerp(this.fovFace, this.fovDesk, k)
+      if (Math.abs(fov - cam.fov) > 1e-3) {
+        cam.fov = fov
+        cam.updateProjectionMatrix()
+      }
+    }
     cam.updateMatrixWorld()
 
     // часы: стрелки догоняют время встречи
@@ -209,6 +235,24 @@ export class World {
     this.pipe.render(this.scene, cam, { xray: this.xray, fade: this.fade, dim: this.desk.heldAmount * 0.45 })
     this.css.render(this.scene, cam)
     recordRenderFrame('3d', this.pipe.w, this.pipe.h)
+  }
+
+  /**
+   * Видеозвонок: взгляд «на собеседника» — это взгляд на экран ноутбука. Угол обзора подбираем так, чтобы экран
+   * занимал половину высоты кадра на ноутбуке и почти всю ширину на телефоне; у стола остаётся обычный угол.
+   * Экран стоит в верхней половине кадра: внизу под ним — реплика собеседника и поле ввода, лицо они не закрывают.
+   */
+  private frameCall(aspect: number) {
+    const c = screenCenter()
+    const dist = Math.hypot(EYE.y - c.y, EYE.z - c.z)
+    const byH = 2 * Math.atan(SCREEN_SIZE.h / 0.5 / 2 / dist)
+    const byW = 2 * Math.atan(SCREEN_SIZE.w / 0.94 / 2 / dist / aspect)
+    this.fovDesk = this.camera.fov
+    this.fovFace = Math.min(this.fovDesk, Math.max(byH, byW) / D)
+    const pitch = Math.atan2(c.y - EYE.y, EYE.z - c.z) - this.fovFace * D * 0.2
+    const facing = this.head.tp > (pitch + this.head.poses.desk.pitch) / 2
+    this.head.poses = { ...this.head.poses, face: { yaw: 0, pitch } }
+    if (facing) this.head.look('face')
   }
 
   look(p: Pose) {
@@ -272,6 +316,21 @@ export class World {
     this.canvas.remove()
     this.cssLayer.remove()
   }
+}
+
+/** Бумаги в звонке: блокнот слева от ноутбука, листок и карточка справа. */
+const CALL_SPOTS = {
+  wide: {
+    notebook: { x: -0.34, z: 0.08, w: 0.26, h: 0.32, rot: 4 },
+    card: { x: 0.36, z: 0.12, w: 0.17, h: 0.2, rot: -6 },
+    slip: { x: 0.33, z: -0.18, w: 0.24, h: 0.26, rot: 3 },
+  },
+  // на телефоне виден узкий кусок стола перед ноутбуком: листы лежат стопкой, берут их тапом
+  tall: {
+    notebook: { x: -0.08, z: 0.14, w: 0.26, h: 0.36, rot: 4 },
+    card: { x: 0.12, z: 0.21, w: 0.16, h: 0.19, rot: -8 },
+    slip: { x: 0.11, z: 0.02, w: 0.2, h: 0.24, rot: 5 },
+  },
 }
 
 const tmp = new Vector3()

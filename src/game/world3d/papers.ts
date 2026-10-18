@@ -191,6 +191,10 @@ export class Desk {
   readonly group = new Group()
   readonly sheets: Record<PaperId, Sheet>
   private tall = false
+  /** свои места бумаг (видеозвонок: по бокам от ноутбука) вместо обычных */
+  spots?: { wide: Record<PaperId, Spot>; tall: Record<PaperId, Spot> }
+  /** откуда едет листок собеседника */
+  themFrom = { x: 0.05, z: -0.78 }
   /** лист, который держим в руках (телефон) */
   holding: PaperId | null = null
   /** лист с предложением на столе вообще есть */
@@ -234,7 +238,7 @@ export class Desk {
   layout(tall: boolean, pxPerM = 1500, screenW = 390) {
     this.tall = tall
     for (const s of Object.values(this.sheets)) {
-      const spot = (tall ? TALL : WIDE)[s.id]
+      const spot = (tall ? (this.spots?.tall ?? TALL) : (this.spots?.wide ?? WIDE))[s.id]
       s.spot = spot
       s.mesh.scale.set(spot.w, spot.h, 1)
       s.shadow.scale.set(spot.w, spot.h, 1)
@@ -256,7 +260,7 @@ export class Desk {
   slideSlip(from: 'them' | 'me') {
     const s = this.sheets.slip
     s.slide = 0
-    s.slideFrom.set(from === 'them' ? 0.05 : this.sheets.notebook.spot.x, 0, from === 'them' ? -0.78 : this.sheets.notebook.spot.z)
+    s.slideFrom.set(from === 'them' ? this.themFrom.x : this.sheets.notebook.spot.x, 0, from === 'them' ? this.themFrom.z : this.sheets.notebook.spot.z)
   }
 
   hold(id: PaperId | null) {
@@ -270,7 +274,7 @@ export class Desk {
     this.hidden.delete(id)
     const s = this.sheets[id]
     s.slide = 0
-    if (id === 'slip') s.slideFrom.set(0.05, 0, -0.78)
+    if (id === 'slip') s.slideFrom.set(this.themFrom.x, 0, this.themFrom.z)
     else s.slideFrom.set(s.spot.x, 0, s.spot.z + 0.35)
   }
 

@@ -58,6 +58,8 @@ export const SCENES = {
   inei: { bg: '/assets/scenes/inei.png', desk: '/assets/scenes/inei-desk.png', title: 'Кабинет закупок «Инея»' },
   // английское дело «The Istanbul Line»: офис продаж Marmara Coating Systems в Ускюдаре
   istanbul: { bg: '/assets/scenes/istanbul.png', desk: '/assets/scenes/istanbul-desk.png', title: 'Офис Marmara Coating Systems в Ускюдаре' },
+  // видеозвонок (дело «Поставщик из Иу»): экран ноутбука в кофейне, картинки — tools/art/call_screen.py
+  cafe: { bg: '/assets/scenes/cafe.png', desk: '/assets/scenes/cafe-desk.png', title: 'Видеозвонок из кофейни' },
 } as const
 export type SceneId = keyof typeof SCENES
 
