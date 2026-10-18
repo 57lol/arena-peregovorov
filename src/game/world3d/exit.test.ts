@@ -3,6 +3,7 @@ import { EXITS, SEAT, exitDone, exitFrame, pathLength, pointAt, walkFor, type Pt
 import { EYE, ROOM, SEATS, TABLE } from './layout'
 import { PLACE as OFFICES } from './room3d.gen'
 import { PLACE as BYTOVKA } from './rooms/bytovka.gen'
+import { PLACE as CAFE } from './rooms/cafe.gen'
 import { PLACE as DORM } from './rooms/dorm.gen'
 import { PLACE as INEI } from './rooms/inei.gen'
 import { PLACE as SHOP } from './rooms/shop.gen'
@@ -56,6 +57,12 @@ const OBSTACLES: Record<keyof typeof EXITS, Obstacle[]> = {
     { r: [-2.25, -2.0, -0.9, 0.2], what: 'лавка в торце' },
     { c: [STREET.dog[0], STREET.dog[1], 0.4], what: 'собака' },
     { r: [STREET.kiosk[0], STREET.kiosk[1], STREET.kiosk[2] - STREET.kiosk[3], STREET.kiosk[2]], what: 'ларёк' },
+  ],
+  cafe: [
+    table, chairs[0], chairs[1],
+    { r: [-HW, CAFE.bar[1], CAFE.bar[2], CAFE.bar[3]], what: 'барная стойка' },
+    ...CAFE.stools.map(([x, z]) => ({ c: [x, z, 0.19], what: 'барный табурет' }) as Circle),
+    { c: [CAFE.coat[0], CAFE.coat[1], 0.25], what: 'вешалка' },
   ],
 }
 
