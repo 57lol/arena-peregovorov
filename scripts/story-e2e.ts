@@ -155,9 +155,8 @@ async function play(kase: string, phone: boolean) {
     deviceScaleFactor: phone ? 2 : 1,
     hasTouch: phone,
   })
-  // прогоны идут программным рендером параллельно с другими — fps тут ничего не говорит о живом устройстве,
-  // поэтому проверку «не тянет 3D» (она смотрит только на видимую вкладку) в прогоне отключаем
-  await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
+  // Раньше здесь подменяли document.hidden, чтобы отключить проверку «не тянет 3D», но цикл кадров (frameLoop) на
+  // скрытой вкладке не рисует — сцена была чёрной, листов на столе не было. Ушёл ли прогон в 2D — видно по .w3-canvas
   const page = await ctx.newPage()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(String(e)))
@@ -256,7 +255,7 @@ async function play(kase: string, phone: boolean) {
     await shot(page, '11-карта-после', true)
     if (!(await page.locator('.mp-bridge').isVisible()) && kase !== 'launch') fail(`${tag}: после главы нет мостика «что было дальше»`)
   } catch (e) {
-    fail(`${tag}: ${String(e).split('\n')[0]}`)
+    fail(`${tag}: ${String(e).split('\n').slice(0, 3).join(' ')}`)
     await shot(page, 'ошибка').catch(() => {})
   } finally {
     if (errors.length) fail(`${tag}: ошибки в консоли: ${errors.slice(0, 3).join(' | ')}`)

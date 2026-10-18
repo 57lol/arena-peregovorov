@@ -25,6 +25,8 @@ export interface EndingText {
   epilogue: string
   /** для «Сами себе дороже» без сделки: ушли от предложения лучше запасного */
   noDeal?: string
+  /** для «Нормально. Но…», когда лучше сразу для обоих было нельзя: эпилог не говорит «могли бы лучше оба» */
+  efficient?: string
 }
 
 const TONE: Record<EndingId, EndingTone> = {
@@ -80,6 +82,9 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
       epilogue:
         'Договор подписан, линия работает, коробки приходят. Финдиректор кивнул — не похвалил и не поругал. ' +
         'Через месяц на выставке Марат бросил между делом: «Могли бы и лучше. Оба». Вы так и не поняли, что он имел в виду.',
+      efficient:
+        'Договор подписан, линия работает, коробки приходят. Финдиректор кивнул — не похвалил и не поругал. ' +
+        'Лучше сразу для обоих условия было не записать, но и праздновать особенно нечего: на выставке Марат кивнул вам издалека.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
@@ -189,6 +194,9 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
       epilogue:
         'Дарина вышла, линию приняла, жалоб нет, восторгов тоже. Кадровик, подшивая бумаги, заметил: пару пунктов можно было ' +
         'записать иначе — и выиграли бы оба. Дарина, похоже, думала о том же, но промолчала.',
+      efficient:
+        'Дарина вышла, линию приняла, жалоб нет, восторгов тоже. Кадровик, подшивая бумаги, пересчитал оффер: лучше сразу для обоих ' +
+        'его было не записать. Но и праздновать особенно нечего: Дарина держится вежливо и немного в стороне.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
@@ -302,6 +310,9 @@ function generic(female: boolean): Record<EndingId, EndingText> {
       epilogue:
         'Договор подписан и исполняется: ничего плохого, ничего выдающегося. Где-то между пунктами осталась ценность, ' +
         'которую не забрал никто — ни вы, ни {name}.',
+      efficient:
+        'Договор подписан и исполняется: ничего плохого, ничего выдающегося. Лучше сразу для обоих условия было не записать, ' +
+        'но и праздновать особенно нечего: {name} держится вежливо и немного в стороне.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
@@ -379,6 +390,9 @@ export function endingCatalog(sc: Scenario, female = false): EndingCard[] {
 export function endingOf(sc: Scenario, report: Report, state?: OpponentState, female = false): EndingCard {
   const id = pickEnding(endingFacts(sc, report, state))
   const t = textsFor(sc, female)[id]
-  const raw = report.outcome.status !== 'deal' && t.noDeal ? t.noDeal : t.epilogue
+  const raw =
+    report.outcome.status !== 'deal' && t.noDeal ? t.noDeal
+    : id === 'middling' && !report.leftOnTable && t.efficient ? t.efficient
+    : t.epilogue
   return { id, title: t.title, epilogue: fill(raw, sc, report), hint: HINT[id], tone: TONE[id] }
 }

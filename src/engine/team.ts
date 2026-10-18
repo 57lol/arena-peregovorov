@@ -95,6 +95,12 @@ export function attemptOf(sc: Scenario, history: TurnRecord[], dict: BehaviorDic
   }
 }
 
+/** Какие именно звёзды у попытки — как в разборе игрока; по одному числу stars их не восстановить (ушёл с доверием — одна звезда, но не «сделка»). */
+export function attemptStars(a: Pick<Attempt, 'status' | 'points' | 'batna' | 'efficiency' | 'trust'>) {
+  const good = a.status === 'deal' && a.points >= a.batna
+  return { deal: good, value: good && a.efficiency >= 0.9, trust: a.trust >= 60 }
+}
+
 /** Какая попытка лучше: звёзды, потом очки, потом Парето, потом доверие. */
 export function better(a: Attempt, b: Attempt): Attempt {
   const key = (x: Attempt) => [x.stars, x.status === 'deal' ? x.points : -1, x.efficiency, x.trust]
