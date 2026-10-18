@@ -1,8 +1,10 @@
 /// <reference lib="dom" />
-// Телефоны: вся игра на 390×844, 375×667, 360×800, 430×932 (+ встреча лёжа 844×390) и контрольный десктоп 1440×900.
-// Встреча — текстом (прогоны Playwright) и голосом (?voiceonly, часть voice: панель микрофона и меню).
+// Телефоны: вся игра на 390×844, 390×664 (iPhone 14 в Safari), 375×667, 360×800, 430×932 (+ встреча лёжа 844×390)
+// и контрольный десктоп 1440×900.
+// Встреча — текстом (прогоны Playwright) и голосом (?voiceonly, часть voice: панель микрофона и меню «Сделка»).
 // На каждом экране проверяем: нет горизонтальной прокрутки, ничего не вылезает за край и не обрезано,
 // кнопки не меньше 44 px и не перекрыты липкими панелями, текст не налезает друг на друга, читаемый текст не мельче 14 px.
+// Встреча в 3D (с 18.10): субтитры собеседника не заходят на лицо, имя — над головой, панель внизу узкая.
 // Снимки — в ~/Arena-materials/final/mobile-shots/<метка>/<браузер>-<вьюпорт>/.
 //
 // Запуск: SPEECH=off LLM_PROVIDER=offline npm run dev, потом
@@ -33,13 +35,14 @@ interface Vp {
 }
 const VPS: Vp[] = [
   { id: '390', width: 390, height: 844, phone: true },
+  { id: '664', width: 390, height: 664, phone: true },
   { id: '375', width: 375, height: 667, phone: true },
   { id: '360', width: 360, height: 800, phone: true },
   { id: '430', width: 430, height: 932, phone: true },
   { id: '844', width: 844, height: 390, phone: true },
   { id: '1440', width: 1440, height: 900, phone: false },
 ]
-const vpIds = arg('vp', '390,375,360,430,844,1440').split(',')
+const vpIds = arg('vp', '390,664,375,360,430,844,1440').split(',')
 const BROWSERS: Record<string, BrowserType> = { chromium, webkit }
 const browserIds = arg('browsers', 'chromium').split(',')
 
@@ -251,9 +254,10 @@ async function context(browser: Browser, vp: Vp) {
       ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
       : undefined,
   })
-  // программный рендер в прогоне — fps ничего не говорит о живом телефоне: проверку «не тянет 3D» отключаем
+  // программный рендер в прогоне — fps ничего не говорит о живом телефоне: проверку «не тянет 3D» отключаем.
+  // Кадры при этом идут: субтитры, имя над головой и наставник расставляются, как на живом телефоне
   await ctx.addInitScript({
-    content: "if (/view=3d/.test(location.search)) Object.defineProperty(Document.prototype, 'hidden', { get: () => true })",
+    content: `setInterval(() => { const w = window.__world; if (w && !w.__pinned) { Object.defineProperty(w, 'fps', { get: () => 60, set: () => {} }); w.__pinned = true } }, 100)`,
   })
   // tsx заворачивает функции в __name — в браузере его нет
   await ctx.addInitScript({ content: 'window.__name = (f) => f' })
@@ -395,7 +399,13 @@ async function lookDesk(page: Page) {
 async function lookFace(page: Page) {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   const btn = page.locator('.w3-look')
-  if (/Собеседник|Поднять|лицо/i.test(await btn.innerText().catch(() => ''))) await btn.click()
+  const label = async () => (await btn.getAttribute('aria-label').catch(() => '')) ?? ''
+  // лист в руках — сначала на стол, потом глаза на собеседника
+  if (/Положить/.test(await label())) {
+    await btn.click()
+    await page.waitForTimeout(300)
+  }
+  if (/Поднять глаза/.test(await label())) await btn.click()
   else await page.keyboard.press('ArrowUp')
   await page.waitForTimeout(1200)
 }
@@ -408,9 +418,54 @@ async function hold(page: Page, id: string, phone: boolean) {
   await page.waitForTimeout(1100)
 }
 
-async function meeting(page: Page, vp: Vp, tag: string, shot: (n: string, full?: boolean) => Promise<void>, lines: string[]) {
+/** Субтитры не заходят на лицо собеседника, имя висит над головой, панель внизу не выше 72 px. */
+async function sceneCheck(page: Page, vp: Vp, tag: string) {
+  const r = await page.evaluate(() => {
+    type V = { x: number; y: number; z: number; set: (x: number, y: number, z: number) => V }
+    const vec = (): V => ({ x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this } })
+    const w = (window as unknown as { __world?: { head: { pose: string }; company?: { lead?: { anchor: (k: string, v: V) => V } }; project: (v: V, o: { x: number; y: number; behind: boolean }) => unknown } }).__world
+    const lead = w?.company?.lead
+    if (!w || !lead || w.head.pose !== 'face') return null
+    const at = (k: string) => {
+      const o = { x: 0, y: 0, behind: false }
+      w.project(lead.anchor(k, vec()), o)
+      return o
+    }
+    const box = (s: string) => {
+      const e = document.querySelector(s)
+      if (!e || getComputedStyle(e).opacity === '0' || e.classList.contains('is-hidden')) return null
+      const b = e.getBoundingClientRect()
+      return b.width ? { top: b.top, bottom: b.bottom, left: b.left, right: b.right, height: b.height } : null
+    }
+    return { head: at('head'), chin: at('chin'), them: box('.w3-them'), name: box('.w3-name'), bar: box('.w3-bar') }
+  })
+  if (!r) return
+  if (r.them && !r.chin.behind && r.them.top < r.chin.y - 2) fail(`${tag}: субтитры заходят на лицо (верх ${Math.round(r.them.top)} < подбородок ${Math.round(r.chin.y)})`)
+  if (r.name && r.name.bottom > r.head.y + r.name.height + 2) fail(`${tag}: имя ниже макушки собеседника`)
+  if (vp.phone && r.bar && r.bar.height > 72) fail(`${tag}: панель внизу высотой ${Math.round(r.bar.height)} px`)
+}
+
+/** «Сделка» → «Согласиться», если собеседник положил условия; иначе меню закрываем. */
+async function acceptByDeal(page: Page) {
+  await page.locator('.w3-deal-btn').click()
+  await page.waitForTimeout(200)
+  const item = page.getByRole('menuitem', { name: /Согласиться/ })
+  if (!(await item.isVisible().catch(() => false)) || (await item.isDisabled())) {
+    await page.locator('.w3-deal-btn').click()
+    return false
+  }
+  await item.click()
+  const sure = page.getByRole('menuitem', { name: /Всё равно согласиться/ })
+  await page.waitForTimeout(200)
+  if (await sure.isVisible().catch(() => false)) await sure.click()
+  await waitReply(page)
+  return true
+}
+
+async function meeting(page: Page, vp: Vp, tag: string, shot: (n: string, full?: boolean) => Promise<void>, lines: string[], dir: string) {
   await page.waitForSelector('.w3-canvas', { timeout: 40_000 })
   await page.waitForTimeout(2500)
+  await sceneCheck(page, vp, `${tag} m1`)
   await shot('m1-вход')
   // клавиатура: поле ввода в фокусе, видимая область сжата
   await page.locator('.w3-say textarea').focus()
@@ -425,7 +480,7 @@ async function meeting(page: Page, vp: Vp, tag: string, shot: (n: string, full?:
     await page.waitForTimeout(300)
     const r = await page.evaluate(() => {
       const box = (s: string) => document.querySelector(s)?.getBoundingClientRect()
-      return { field: box('.w3-say textarea'), send: box('.w3-say-row .px-btn'), them: box('.w3-them') }
+      return { field: box('.w3-say textarea'), send: box('.w3-say .w3-send'), them: box('.w3-them') }
     })
     const top = vp.height - kb
     if (!r.field || r.field.bottom > top + 1) fail(`${tag} m2: поле ввода под клавиатурой`)
@@ -440,7 +495,16 @@ async function meeting(page: Page, vp: Vp, tag: string, shot: (n: string, full?:
   })
   await lookFace(page)
   await say(page, lines[0])
+  await sceneCheck(page, vp, `${tag} m3`)
   await shot('m3-ответ')
+  // «Сделка»: меню над панелью — предложить, согласиться, уйти
+  await page.locator('.w3-deal-btn').click()
+  await page.waitForTimeout(300)
+  const items = await page.getByRole('menuitem').count()
+  if (items < 2) fail(`${tag}: в меню «Сделка» ${items} пунктов`)
+  // меню поверх сцены нарочно — снимок без проверки налезаний
+  await page.screenshot({ path: join(dir, 'm3b-сделка.png') })
+  await page.locator('.w3-deal-btn').click()
   await lookDesk(page)
   await shot('m4-стол')
   await hold(page, 'notebook', vp.phone)
@@ -451,25 +515,18 @@ async function meeting(page: Page, vp: Vp, tag: string, shot: (n: string, full?:
   if (await sure.isVisible().catch(() => false)) await sure.click()
   await waitReply(page)
   await shot('m6-ответ-на-предложение')
-  // меню встречи
   for (let k = 0; k < 6; k++) {
     if (await page.locator('.w3-end').isVisible()) break
-    await lookDesk(page)
-    if ((await page.locator('.w3-paper--slip button').count()) > 0 || (k > 0 && (await paperPoint(page, 'slip')))) {
+    // листок собеседника — в руки (телефон) для снимка, согласие — из «Сделки»
+    if (k === 0 && vp.phone && (await page.locator('.w3-paper--slip button').count()) > 0) {
+      await lookDesk(page)
+      if (/На стол/.test(await page.locator('.w3-look').innerText())) await page.locator('.w3-look').click()
+      await page.waitForTimeout(600)
       await hold(page, 'slip', vp.phone)
-      if (k === 0) {
-        await shot('m7-листок')
-      }
-      const accept = page.locator('.w3-paper--slip').getByRole('button', { name: /Принять|Согласиться/ })
-      if (await accept.isVisible().catch(() => false)) {
-        await accept.click()
-        const again = page.locator('.w3-paper--slip').getByRole('button', { name: /Всё равно (принять|согласиться)/i })
-        await page.waitForTimeout(200)
-        if (await again.isVisible().catch(() => false)) await again.click()
-        await waitReply(page)
-        break
-      }
+      await shot('m7-листок')
+      await lookFace(page)
     }
+    if (await acceptByDeal(page)) break
     await lookFace(page)
     await say(page, lines[1 + (k % (lines.length - 1))])
   }
@@ -491,7 +548,7 @@ async function meetingRun(page: Page, vp: Vp, dir: string, tag: string) {
     await page.locator('.jr-case').filter({ hasText: /Тара/ }).click()
     await page.waitForSelector('.g-dossier')
     await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).filter({ visible: true }).last().click()
-    await meeting(page, vp, tag, shot, TARA)
+    await meeting(page, vp, tag, shot, TARA, dir)
     await page.getByRole('button', { name: 'Разбор встречи' }).click()
     await page.waitForSelector('.g-main')
     await page.waitForTimeout(800)
@@ -531,9 +588,10 @@ async function voiceRun(page: Page, vp: Vp, dir: string, tag: string) {
       await fresh(page, `/?case=tara&view=${view}&voiceonly`)
       await page.getByRole('button', { name: 'К делу' }).click()
       await page.getByRole('button', { name: /^(Войти|Начать разговор)/ }).filter({ visible: true }).last().click()
-      await page.waitForSelector('.g-voiceonly', { timeout: 40_000 })
+      await page.waitForSelector(view === '3d' ? '.w3-bar[data-voice]' : '.g-voiceonly', { timeout: 40_000 })
       await page.waitForTimeout(2500)
-      if ((await page.locator('textarea').count()) > 0) fail(`${tag} голос ${view}: есть поле ввода`)
+      if ((await page.locator('textarea:visible').count()) > 0) fail(`${tag} голос ${view}: есть поле ввода`)
+      if (view === '3d') await sceneCheck(page, vp, `${tag} голос`)
       await shot(`v-${view}-голос`)
       // меню встречи: «голосом / текстом» и пауза
       if (view === '3d') {
@@ -542,6 +600,13 @@ async function voiceRun(page: Page, vp: Vp, dir: string, tag: string) {
         // модальное меню перекрывает встречу нарочно — снимок без проверки налезаний
         await page.screenshot({ path: join(dir, 'v-3d-меню.png') })
         await page.getByRole('button', { name: /Вернуться за стол/ }).click()
+        // «Написать» поверх сцены: поле открывается, крестик возвращает голос
+        await page.getByRole('button', { name: 'Написать' }).click()
+        await page.waitForTimeout(300)
+        if (!(await page.locator('#px-speech').isVisible())) fail(`${tag} голос 3d: «Написать» не открыло поле`)
+        await shot('v-3d-написать')
+        await page.getByRole('button', { name: /Закрыть поле/ }).click()
+        await page.waitForSelector('.w3-bar[data-voice]', { timeout: 5000 }).catch(() => fail(`${tag} голос 3d: крестик не вернул голос`))
       }
     } catch (e) {
       fail(`${tag} голос ${view}: ${why(e)}`)
@@ -614,18 +679,8 @@ async function boardRun(page: Page, vp: Vp, dir: string, tag: string) {
     if (await sure.isVisible().catch(() => false)) await sure.click()
     await waitReply(pp)
     for (let k = 0; k < 8 && !(await pp.locator('.w3-end').isVisible()); k++) {
-      await lookDesk(pp)
-      await hold(pp, 'slip', vp.phone)
-      const accept = pp.locator('.w3-paper--slip').getByRole('button', { name: /Принять|Согласиться/ })
-      if (await accept.isVisible().catch(() => false)) {
-        await accept.click()
-        const again = pp.locator('.w3-paper--slip').getByRole('button', { name: /Всё равно/i })
-        await pp.waitForTimeout(200)
-        if (await again.isVisible().catch(() => false)) await again.click()
-        await waitReply(pp)
-        break
-      }
       await lookFace(pp)
+      if (await acceptByDeal(pp)) break
       await say(pp, TARA[1 + (k % 2)])
     }
     void silent
@@ -678,7 +733,7 @@ async function runVp(bid: string, vp: Vp) {
   ]
   for (const [part, run] of parts) {
     if (!ONLY.has(part) || (landscape && (part === 'static' || part === 'board'))) continue
-    const b = await bt.launch(bt === chromium ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } : {})
+    const b = await bt.launch(bt === chromium ? { args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } : {})
     const ctx = await context(b, vp)
     if (part === 'voice' && bt === chromium) await ctx.grantPermissions(['microphone'], { origin: new globalThis.URL(URL).origin })
     const page = await ctx.newPage()

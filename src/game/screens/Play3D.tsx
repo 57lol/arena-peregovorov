@@ -1,10 +1,11 @@
 // Встреча от первого лица: мы сидим за столом, напротив собеседник и пара коллег.
-// Мир — во весь экран (world3d/*). Реплика собеседника висит под ним, наша — поле ввода поверх экрана.
+// Мир — во весь экран (world3d/*). Над головой собеседника — плашка с именем, его реплика — субтитрами внизу кадра,
+// под ними — узкая панель: стол, «Написать», «Говорить» (голос — основной), «Сделка» (предложить, согласиться, уйти).
 // На столе лежат блокнот (предложение), листок собеседника («Принять») и карточка с делами — всё нажимается
 // прямо на столе. Разбор хода — плашки, которые гаснут сами. Остальное — в меню (Esc).
 // Логика встречи та же, что в классическом виде: useMeeting.
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Vector3 } from 'three'
 import { isComplete, sameOffer, score } from '../../engine/utility'
@@ -13,14 +14,13 @@ import { effectText, type Tip, type TurnFeedback } from '../instant'
 import { mentorLine, useTutorial, type Tutorial, type TutorStep } from '../tutorial'
 import { endText, useMeeting, type Meeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, PixelIcon, SpeechField, Stamp, type IconName } from '../ui'
+import { useVoiceTurn } from '../useVoiceTurn'
 import { attachInput, isTyping } from '../world3d/input'
 import type { Pose } from '../world3d/head'
 import type { PaperId } from '../world3d/papers'
 import { World } from '../world3d/stage'
 import { Margin } from './Margin'
 import { Mentor } from './Mentor'
-import { MicButton } from './Mic'
-import { TextModeNote, VoiceTurn } from './VoiceTurn'
 import { VoiceMenuItems } from './VoiceSettings'
 import { canRecord } from '../speech'
 import { VolumeSlider } from './Volume'
@@ -42,6 +42,8 @@ export default function Play3D(props: Props) {
   const [world, setWorld] = useState<World | null>(null)
   const [pose, setPose] = useState<Pose>('face')
   const [menu, setMenu] = useState(false)
+  // «Сделка» внизу: предложить, согласиться, уйти
+  const [deal, setDeal] = useState(false)
   const [detail, setDetail] = useState(false)
   const [looked, setLooked] = useState(false)
   // лист в руках (телефон): поднят со стола и стоит перед глазами
@@ -217,12 +219,12 @@ export default function Play3D(props: Props) {
 
   // ---------- оверлеи, привязанные к миру ----------
   const lineRef = useRef<HTMLDivElement>(null)
+  const nameRef = useRef<HTMLDivElement>(null)
   const xrayRef = useRef<HTMLDivElement>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!world) return
     const head = new Vector3()
-    const chin = new Vector3()
     const p = { x: 0, y: 0, behind: false }
     let lastPose: Pose = 'face'
     return world.on(() => {
@@ -231,40 +233,61 @@ export default function Play3D(props: Props) {
       const pose = world.head.pose
       if (pose !== lastPose) setPose((lastPose = pose))
       // лист в руках или (на телефоне) взгляд на стол — реплика ждёт, иначе закрывает бумаги
-      box?.classList.toggle('is-hidden', world.desk.heldAmount > 0.3 || (world.portrait && pose === 'desk'))
+      const lineHidden = world.desk.heldAmount > 0.3 || (world.portrait && pose === 'desk')
+      box?.classList.toggle('is-hidden', lineHidden)
       if (!lead) return
       const cw = world.cw
       const ch = world.ch
       const rootBox = rootRef.current!.getBoundingClientRect()
       const trayTop = trayRef.current ? trayRef.current.getBoundingClientRect().top - rootBox.top : ch
+      // телефон стоя: голова собеседника высоко — наставник встаёт внизу, над субтитрами, и лицо остаётся открытым
       const mentorEl = document.querySelector<HTMLElement>('.w3-mentor')
-      const at = !mentorEl ? '' : pose === 'face' ? 'top' : world.portrait ? 'bottom' : 'beside'
-      if (mentorEl) placeMentor(mentorEl, rootBox, cw, trayTop, at)
-      // лист в руках встаёт между кнопкой меню (или наставником сверху) и полем ввода (или наставником снизу)
+      const at = !mentorEl ? '' : world.portrait ? 'bottom' : pose === 'face' ? 'top' : 'beside'
+      const lineTop = box && !lineHidden && !(pose === 'desk' && !world.portrait) ? trayTop - box.offsetHeight - 8 : trayTop
+      if (mentorEl) placeMentor(mentorEl, rootBox, cw, trayTop, at, lineTop)
+      // лист в руках встаёт между кнопкой меню (или наставником сверху) и панелью (или наставником снизу)
       const mentor = mentorEl?.getBoundingClientRect()
       world.desk.freeTop = Math.max(64, mentor && at === 'top' ? mentor.bottom - rootBox.top + 10 : 0) / ch
       world.desk.freeBottom = (Math.min(trayTop, mentor && at === 'bottom' ? mentor.top - rootBox.top : ch) - 8) / ch
+      // плашка с именем — над головой собеседника; голова за кадром — имя переезжает на субтитры
+      world.project(lead.anchor('head', head), p)
+      const plate = nameRef.current
+      let named = false
+      if (plate) {
+        const w = plate.offsetWidth
+        const h = plate.offsetHeight
+        const x = p.x - w / 2
+        let y = p.y - h - 6
+        // плашки разбора хода и «Меню» сверху важнее: имя спускается под них, но не ниже макушки
+        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate', '.w3-top']) {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          if (r && r.width && x < r.right - rootBox.left && x + w > r.left - rootBox.left && y < r.bottom - rootBox.top && y + h > r.top - rootBox.top)
+            y = r.bottom - rootBox.top + 4
+        }
+        named = !p.behind && pose === 'face' && x > 4 && x + w < cw - 4 && y > 4 && y <= p.y + h && y + h < trayTop - 40
+        plate.classList.toggle('is-hidden', !named)
+        plate.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
+      }
       if (box) {
-        world.project(lead.anchor('chest', chin), p)
         const w = box.offsetWidth
         const h = box.offsetHeight
-        const off = p.behind || p.x < -w * 0.3 || p.x > cw + w * 0.3
-        // склонились к столу на ноутбуке — реплика уходит в левый верхний угол, над блокнотом: листок в центре открыт
-        let x = pose === 'desk' && !world.portrait ? 12 : Math.min(Math.max(p.x - w / 2, 12), cw - w - 12)
-        // на телефоне реплика стоит прямо над полем ввода: так лицо собеседника остаётся открытым
-        const y = world.portrait && pose === 'face' ? trayTop - h - 10 : Math.min(Math.max(p.behind ? 12 : p.y, 12), trayTop - h - 10)
-        // наверху слева плашки разбора, справа «Меню» — реплика встаёт между ними, если хватает ширины
-        const root = rootRef.current!.getBoundingClientRect()
-        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate']) {
-          const r = document.querySelector(sel)?.getBoundingClientRect()
-          if (!r || y > r.bottom - root.top || r.left - root.left > cw / 2) continue
-          const right = r.right - root.left + 12
-          if (right + w + 12 <= cw) x = Math.max(x, right)
+        box.dataset.named = named ? '' : '1'
+        box.dataset.off = named ? '' : p.behind ? 'behind' : p.x < 0 ? 'left' : p.x > cw ? 'right' : ''
+        // субтитры: узкая полоса внизу кадра, над панелью — лицо и стол открыты
+        let x = (cw - w) / 2
+        let y = trayTop - h - 8
+        // склонились к столу на ноутбуке — субтитры уходят наверх, над блокнотом: бумаги на столе открыты
+        if (pose === 'desk' && !world.portrait) {
+          x = 12
+          y = 12
+          for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate']) {
+            const r = document.querySelector(sel)?.getBoundingClientRect()
+            if (!r || r.left - rootBox.left > cw / 2) continue
+            const right = r.right - rootBox.left + 12
+            if (right + w + 12 <= cw) x = Math.max(x, right)
+          }
         }
-        const menuBtn = document.querySelector('.w3-top')?.getBoundingClientRect()
-        if (menuBtn && y < menuBtn.bottom - root.top && x + w > menuBtn.left - root.left - 12) x = Math.max(12, menuBtn.left - root.left - 12 - w)
         box.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
-        box.dataset.off = off ? (p.behind ? 'behind' : p.x < cw / 2 ? 'left' : 'right') : ''
       }
       const xr = xrayRef.current
       if (xr) {
@@ -285,11 +308,12 @@ export default function Play3D(props: Props) {
       if (e.key !== 'Escape') return
       if (isTyping(e.target)) return (e.target as HTMLElement).blur()
       if (detail) return setDetail(false)
+      if (deal) return setDeal(false)
       setMenu((o) => !o)
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
-  }, [detail])
+  }, [detail, deal])
 
   // клавиатура телефона: поле ввода поднимаем над ней
   useVisualViewport(rootRef)
@@ -351,7 +375,13 @@ export default function Play3D(props: Props) {
           host.card.host,
         )}
 
-      {/* реплика собеседника — под ним, в мире */}
+      {/* имя — над головой собеседника; говорит — рядом мигает динамик */}
+      <div ref={nameRef} className={`w3-name w3-ui${talking && !pending ? ' is-talking' : ''}`} aria-hidden="true" title={sc.opponent.character.role}>
+        <span>{sc.opponent.character.name}</span>
+        <PixelIcon name="sound" px={2} />
+      </div>
+
+      {/* реплика собеседника — субтитрами внизу кадра */}
       <div ref={lineRef} className="w3-them w3-ui" data-nodrag>
         <DialogBox
           key={m.lineKey}
@@ -423,40 +453,20 @@ export default function Play3D(props: Props) {
         </aside>
       )}
 
-      {/* верх экрана: меню; взгляд — стол/собеседник */}
+      {/* верх экрана: меню, под ним — сколько реплик осталось (часы на стене показывают то же время) */}
       <div className="w3-top w3-ui" data-nodrag>
         <Button variant="paper" icon="menu" className="w3-menu-btn" aria-label="Меню" aria-expanded={menu} onClick={() => setMenu(true)}>
           <span className="w3-menu-label">Меню</span>
         </Button>
-      </div>
-
-      <div ref={trayRef} className="w3-tray w3-ui" data-nodrag>
-        {tut.shows('desk') && (
-        <div className="w3-tray-row">
+        {tut.shows('desk') && !done && (
           <p className="w3-clock-line">
             <PixelIcon name="clock" px={2} />
             <MeetingTime turn={state.turn} limit={sc.turnLimit} clock={meetingClock(sc)} />
           </p>
-          {held ? (
-            <Button variant="ghost" icon="down" className={`w3-look${lit('look')}`} onClick={() => setHeld(null)}>
-              На стол
-            </Button>
-          ) : pose === 'face' ? (
-            <Button variant={newOffer ? 'brass' : 'ghost'} icon="down" className={`w3-look${newOffer ? ' is-new' : ''}${lit('look')}`} onClick={() => lookAt('desk')}>
-              {newOffer ? <>Стол<span className="w3-wide">: новое предложение</span></> : 'Стол'}
-            </Button>
-          ) : (
-            <Button variant="ghost" icon="up" className="w3-look" onClick={() => lookAt('face')}>
-              {name}
-            </Button>
-          )}
-        </div>
         )}
-        {(pending || last) && !done && (
-          <p className="w3-you">
-            <b>Вы:</b> {pending ?? last!.playerText}
-          </p>
-        )}
+      </div>
+
+      <div ref={trayRef} className="w3-tray w3-ui" data-nodrag>
         {done ? (
           <div className="w3-end">
             <p className="w3-end-text">{endText(state, sc, g)}</p>
@@ -470,18 +480,52 @@ export default function Play3D(props: Props) {
             </div>
           </div>
         ) : (
-          <SayForm m={m} paused={menu} />
-        )}
-        {pose === 'desk' && !held && !done && world?.portrait && !tut.on && (
-          <p className="w3-hint w3-hint--desk" aria-hidden="true">
-            Нажмите на лист — возьмёте в руки
-          </p>
-        )}
-        {!looked && !done && history.length === 0 && !tut.on && (
-          <p className="w3-hint" aria-hidden="true">
-            <span className="w3-hint-mouse">Осмотреться — мышью или стрелками, на стол — стрелка вниз</span>
-            <span className="w3-hint-touch">Осмотреться — проведите пальцем по экрану</span>
-          </p>
+          <ControlBar
+            m={m}
+            paused={menu}
+            hint={
+              pose === 'desk' && !held && world?.portrait && !tut.on ? (
+                'Нажмите на лист — возьмёте в руки'
+              ) : !looked && history.length === 0 && !tut.on ? (
+                <>
+                  <span className="w3-hint-mouse">Осмотреться — мышью или стрелками, на стол — стрелка вниз</span>
+                  <span className="w3-hint-touch">Осмотреться — проведите пальцем</span>
+                </>
+              ) : null
+            }
+            look={
+              tut.shows('desk') && (
+                <LookButton
+                  pose={pose}
+                  held={held}
+                  name={name}
+                  lit={lit('look')}
+                  onDesk={() => {
+                    lookAt('desk')
+                    if (world?.portrait && !tut.on) setHeld('notebook')
+                  }}
+                  onFace={() => {
+                    setHeld(null)
+                    lookAt('face')
+                  }}
+                  onPutDown={() => setHeld(null)}
+                />
+              )
+            }
+            deal={
+              <DealMenu
+                m={m}
+                tut={tut}
+                open={deal}
+                setOpen={setDeal}
+                fresh={newOffer}
+                onNotebook={() => {
+                  lookAt('desk')
+                  if (world?.portrait) setHeld('notebook')
+                }}
+              />
+            }
+          />
         )}
       </div>
 
@@ -500,14 +544,14 @@ export default function Play3D(props: Props) {
 }
 
 /**
- * Карточка наставника. Смотрим на собеседника — слева вверху, где потом будут плашки разбора хода.
- * Ноутбук, взгляд на стол — рядом с тем, что подсвечено, как выноска: справа, снизу, слева или сверху, где влезает.
- * Телефон, взгляд на стол — над полем ввода: вверху лежит листок собеседника.
+ * Карточка наставника. Ноутбук: смотрим на собеседника — слева вверху, где потом будут плашки разбора хода;
+ * взгляд на стол — рядом с тем, что подсвечено, как выноска: справа, снизу, слева или сверху, где влезает.
+ * Телефон стоя — внизу: над субтитрами (bottom) или, у стола, над панелью — вверху лицо собеседника или его листок.
  */
-function placeMentor(el: HTMLElement, root: DOMRect, cw: number, trayTop: number, at: string) {
+function placeMentor(el: HTMLElement, root: DOMRect, cw: number, trayTop: number, at: string, bottom = trayTop) {
   el.dataset.at = at
   let x = 12
-  let y = at === 'bottom' ? trayTop - el.offsetHeight - 10 : 12
+  let y = at === 'bottom' ? bottom - el.offsetHeight - 10 : 12
   const t = at === 'beside' ? document.querySelector<HTMLElement>('.is-tutor') : null
   const paper = t?.closest('.w3-paper')
   if (t && (!paper || paper.classList.contains('is-live'))) {
@@ -553,8 +597,264 @@ function MeetingTime({ turn, limit, clock }: { turn: number; limit: number; cloc
   )
 }
 
-/** Поле ввода и «Сказать» — парят над миром. */
-function SayForm({ m, paused }: { m: Meeting; paused: boolean }) {
+type Line = { text: ReactNode; kind?: 'error' | 'you' | 'note' }
+
+interface BarProps {
+  m: Meeting
+  /** меню открыто — микрофон не слушает */
+  paused: boolean
+  /** подсказка, когда сказать больше нечего: «осмотреться», «возьмите лист» */
+  hint: ReactNode
+  look: ReactNode
+  deal: ReactNode
+}
+
+/**
+ * Панель внизу — одна строка кнопок: «Стол», «Написать», «Говорить», «Сделка». Над ней — строка состояния
+ * (ваши слова, ошибка, подсказка), когда есть что сказать, и поле ввода, когда пишем текстом.
+ */
+function ControlBar(p: BarProps) {
+  if (p.m.voiceMode) return <VoiceBar {...p} />
+  const { m } = p
+  const canVoice = m.canMic && canRecord()
+  const status: Line | null = m.error
+    ? { text: m.error, kind: 'error' }
+    : m.voiceNote
+      ? {
+          text: m.voiceNote,
+          kind: 'note',
+        }
+      : null
+  return (
+    <Bar
+      {...p}
+      status={status}
+      talk={
+        canVoice && (
+          <Key
+            icon="mic"
+            label="Говорить"
+            className="w3-talk"
+            aria-label="Говорить голосом"
+            onClick={() => {
+              m.setMicBlocked(null)
+              m.setInputMode('voice')
+            }}
+          />
+        )
+      }
+    />
+  )
+}
+
+/** Голосовой режим: микрофон слушает сам, как только собеседник договорил; пауза в речи отправляет реплику. */
+function VoiceBar(p: BarProps) {
+  const { m } = p
+  const v = useVoiceTurn(m, p.paused)
+  const theirs = !m.pending && !m.done && !v.myTurn && !m.heard
+  let talk: ReactNode
+  if (theirs) talk = <Key icon="mic" label="Перебить" className="w3-talk" aria-label="Перебить и ответить" onClick={v.interrupt} />
+  else if (v.phase === 'speak')
+    talk = <Key icon="mic" label="Готово" className="w3-talk is-rec" aria-label="Готово, отправить реплику" onClick={v.finish} />
+  else if (v.phase === 'failed') talk = <Key icon="mic" label="Ещё раз" className="w3-talk" aria-label="Сказать ещё раз" onClick={v.again} />
+  else {
+    const on = v.phase === 'listen' && v.mic === 'on' && !m.pending
+    talk = (
+      // микрофон и так слушает: это не кнопка, а лампочка
+      <span className={`w3-key w3-talk is-lamp${on ? ' is-on' : ''}`} role="status">
+        <PixelIcon name="mic" px={2} />
+        <span className="w3-key-label">{v.phase === 'busy' ? 'Распознаю' : m.pending ? 'Ждём ответ' : v.mic === 'opening' ? 'Включаю' : 'Говорите'}</span>
+      </span>
+    )
+  }
+  const status: Line | null = m.error
+    ? {
+        kind: 'error',
+        text: (
+          <>
+            {m.error}
+            {v.retryable && (
+              <>
+                {' '}
+                <button type="button" className="g-link" onClick={v.retry}>
+                  Распознать ту же запись
+                </button>
+              </>
+            )}
+          </>
+        ),
+      }
+    : v.partial
+      ? { kind: 'you', text: <><b>Вы:</b> {v.partial}</> }
+      : m.pending
+        ? { kind: 'you', text: <><b>Вы:</b> {m.pending}</> }
+        : v.note
+          ? { kind: 'note', text: v.note }
+          : m.draft && v.phase !== 'speak'
+            ? { text: <>Скажите, например: «{m.draft}»</> }
+            : v.phase === 'failed'
+              ? { kind: 'note', text: 'Не вышло — скажите ещё раз или напишите.' }
+              : m.history.length === 0 && !theirs
+                ? { text: 'Говорите — пауза отправит реплику.' }
+                : null
+  return <Bar {...p} status={status} talk={talk} />
+}
+
+function Bar({ m, hint, look, deal, status, talk }: BarProps & { status: Line | null; talk: ReactNode }) {
+  const line: Line | null = status ?? (hint ? { text: hint } : m.source === 'local' ? { kind: 'note', text: 'Играем офлайн: сервер недоступен' } : null)
+  return (
+    <>
+      {line && (
+        <p className={`w3-status${line.kind ? ` is-${line.kind}` : ''}`} role={line.kind === 'error' ? 'alert' : 'status'}>
+          {line.text}
+        </p>
+      )}
+      <WriteSheet m={m} />
+      <div className="w3-bar" data-voice={m.voiceMode || undefined}>
+        {look}
+        {/* без микрофона поле открыто всегда — кнопка ни к чему */}
+        {(m.voiceMode || (m.canMic && canRecord())) && <Key
+          icon="pen"
+          label="Написать"
+          className={`w3-write-btn${m.voiceMode ? '' : ' is-on'}`}
+          aria-pressed={!m.voiceMode}
+          onClick={() => {
+            if (m.voiceMode) m.setInputMode('text')
+            // фокус — прямо в нажатии: иначе iPhone не откроет клавиатуру
+            document.querySelector('.w3-write')?.removeAttribute('hidden')
+            document.getElementById('px-speech')?.focus()
+          }}
+        />}
+        {talk}
+        {deal}
+      </div>
+    </>
+  )
+}
+
+/** Кнопка панели: значок и короткая подпись под ним (на ноутбуке — рядом). */
+function Key({ icon, label, className = '', ...rest }: { icon: IconName; label: ReactNode } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'>) {
+  return (
+    <button type="button" className={`w3-key ${className}`} {...rest}>
+      <PixelIcon name={icon} px={2} />
+      <span className="w3-key-label">{label}</span>
+    </button>
+  )
+}
+
+/** «Стол»: опустить взгляд к бумагам (на телефоне блокнот сразу в руки); у стола — обратно к собеседнику. */
+function LookButton({ pose, held, name, lit, onDesk, onFace, onPutDown }: {
+  pose: Pose
+  held: PaperId | null
+  name: string
+  lit: string
+  onDesk: () => void
+  onFace: () => void
+  onPutDown: () => void
+}) {
+  if (held) return <Key icon="down" label="На стол" className={`w3-look${lit}`} aria-label="Положить лист на стол" onClick={onPutDown} />
+  if (pose === 'face') return <Key icon="notebook" label="Стол" className={`w3-look${lit}`} aria-label="Стол: блокнот и предложения" onClick={onDesk} />
+  return <Key icon="up" label={name} className={`w3-look${lit}`} aria-label={`Поднять глаза на собеседника: ${name}`} onClick={onFace} />
+}
+
+/** «Сделка»: предложить условия (блокнот), согласиться на условия собеседника, встать и уйти. */
+function DealMenu({ m, tut, open, setOpen, fresh, onNotebook }: {
+  m: Meeting
+  tut: Tutorial
+  open: boolean
+  setOpen: (o: boolean) => void
+  /** собеседник только что положил свои условия */
+  fresh: boolean
+  onNotebook: () => void
+}) {
+  const { name, canAccept, acceptSure, theirsForMe, P, leaving, pending } = m
+  const below = theirsForMe !== null && theirsForMe < P.batna
+  return (
+    <div className="w3-deal">
+      <Key
+        icon="stamp"
+        label="Сделка"
+        className={`w3-deal-btn${fresh ? ' is-new' : ''}${open ? ' is-on' : ''}`}
+        aria-label={fresh ? `Сделка: ${name} предлагает условия` : 'Сделка: предложить, согласиться, уйти'}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen(!open)}
+      />
+      {open && (
+        <>
+          <div className="w3-deal-scrim" onPointerDown={() => setOpen(false)} />
+          <div className="w3-deal-pop" role="menu" aria-label="Сделка">
+            {tut.shows('offer') && (
+              <button
+                type="button"
+                role="menuitem"
+                className="w3-deal-item"
+                onClick={() => {
+                  setOpen(false)
+                  onNotebook()
+                }}
+              >
+                <PixelIcon name="pen" px={2} />
+                <span>
+                  Предложить условия<small>выбрать в блокноте</small>
+                </span>
+              </button>
+            )}
+            {tut.shows('slip') &&
+              (canAccept ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`w3-deal-item${acceptSure ? ' is-sure' : fresh ? ' is-new' : ''}`}
+                  disabled={!!pending}
+                  onClick={() => {
+                    m.accept()
+                    if (!below || acceptSure) setOpen(false)
+                  }}
+                >
+                  <PixelIcon name="check" px={2} />
+                  <span>
+                    {acceptSure ? 'Всё равно согласиться' : `Согласиться на условия: ${name}`}
+                    <small>
+                      {acceptSure ? `меньше, чем без сделки: ${theirsForMe} против ${P.batna}` : `выгода вам ${theirsForMe}, без сделки ${P.batna}`}
+                    </small>
+                  </span>
+                </button>
+              ) : (
+                <button type="button" role="menuitem" className="w3-deal-item is-off" disabled>
+                  <PixelIcon name="check" px={2} />
+                  <span>
+                    Согласиться<small>когда {name} предложит условия</small>
+                  </span>
+                </button>
+              ))}
+            {tut.shows('leave') && (
+              <button
+                type="button"
+                role="menuitem"
+                className={`w3-deal-item is-stamp${leaving ? ' is-sure' : ''}`}
+                disabled={!!pending}
+                onClick={() => {
+                  m.walk()
+                  if (leaving) setOpen(false)
+                }}
+              >
+                <PixelIcon name="leave" px={2} />
+                <span>
+                  {leaving ? 'Точно уйти?' : 'Встать и уйти'}
+                  <small>{leaving ? 'нажмите ещё раз' : `без сделки у вас ${P.batna}`}</small>
+                </span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** «Написать»: компактное поле поверх сцены, над панелью; клавиатура телефона поднимает его над собой. */
+function WriteSheet({ m }: { m: Meeting }) {
   // сказали с клавиатуры — после ответа курсор снова в поле: пишем дальше, не хватаясь за мышь
   const byKey = useRef(false)
   const wasPending = useRef(false)
@@ -562,16 +862,18 @@ function SayForm({ m, paused }: { m: Meeting; paused: boolean }) {
     if (wasPending.current && !m.pending && byKey.current) document.getElementById('px-speech')?.focus()
     wasPending.current = !!m.pending
   }, [m.pending])
+  const canVoice = m.canMic && canRecord()
   return (
     <form
-      className="w3-say"
+      className="w3-say w3-write"
+      hidden={m.voiceMode}
       onSubmit={(e) => {
         e.preventDefault()
         byKey.current = false
         m.send(m.draft)
       }}
     >
-      {m.voiceMode ? <VoiceTurn m={m} paused={paused} /> : <SpeechField
+      <SpeechField
         label={m.pending ? `${m.name} думает…` : 'Ваша реплика'}
         value={m.pending ?? m.draft}
         disabled={!!m.pending}
@@ -586,32 +888,15 @@ function SayForm({ m, paused }: { m: Meeting; paused: boolean }) {
           }
         }}
         onPointerDown={() => (byKey.current = false)}
-      />}
-      <div className="w3-say-row">
-        {!m.voiceMode && <Button variant="brass" icon="send" type="submit" disabled={!!m.pending || !m.draft.trim()}>
-          {m.pending ? 'Слушает…' : 'Сказать'}
-        </Button>}
-        {!m.voiceMode && m.canMic && (
-          <MicButton
-            disabled={!!m.pending}
-            onStart={m.hush}
-            onText={(t) => {
-              m.setError(null)
-              m.setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))
-              document.getElementById('px-speech')?.focus()
-            }}
-            onError={m.setError}
-            onOff={() => m.setMicOff(true)}
-          />
-        )}
-      </div>
-      {m.error && (
-        <p className="w3-error" role="alert">
-          {m.error}
-        </p>
+      />
+      <Button variant="brass" icon="send" type="submit" className="w3-send" aria-label="Сказать" disabled={!!m.pending || !m.draft.trim()}>
+        <span className="w3-send-label">Сказать</span>
+      </Button>
+      {canVoice && (
+        <button type="button" className="w3-write-close" aria-label="Закрыть поле: отвечать голосом" onClick={() => m.setInputMode('voice')}>
+          <PixelIcon name="cross" px={2} />
+        </button>
       )}
-      {!m.voiceMode && <TextModeNote m={m} />}
-      {m.source === 'local' && <p className="w3-source">Играем офлайн: сервер недоступен</p>}
     </form>
   )
 }
