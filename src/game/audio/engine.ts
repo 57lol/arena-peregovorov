@@ -104,6 +104,10 @@ export function setSoundOn(on: boolean) {
 let ctx: AudioContext | null = null
 let musicBus: GainNode | null = null
 let sfxBus: GainNode | null = null
+/** Музыка и фон комнаты — через «приглушку»: пока слушаем игрока, микрофон не должен слышать саму игру из колонок. */
+let musicDuck: GainNode | null = null
+let ambDuck: GainNode | null = null
+let ducked = false
 
 const AC = () =>
   typeof window === 'undefined' ? undefined : window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -126,6 +130,11 @@ function ensure(): AudioContext | null {
   sfxBus = ctx.createGain()
   sfxBus.gain.value = settings.sfx
   sfxBus.connect(ctx.destination)
+  musicDuck = ctx.createGain()
+  musicDuck.connect(musicBus)
+  ambDuck = ctx.createGain()
+  ambDuck.connect(sfxBus)
+  musicDuck.gain.value = ambDuck.gain.value = ducked ? DUCK : 1
   void load('sfx-click')
   return ctx
 }
@@ -244,9 +253,29 @@ class LoopSlot {
   }
 }
 
-const music = new LoopSlot('music', () => musicBus)
+const music = new LoopSlot('music', () => musicDuck)
 // эмбиент — фон, а не звук: заметно тише щелчков
-const amb = new LoopSlot('amb', () => sfxBus, 0.8)
+const amb = new LoopSlot('amb', () => ambDuck, 0.8)
+
+/** Во сколько раз тише фон и музыка, пока слушаем игрока (−20 дБ): гул цеха из колонок микрофон считал речью. */
+export const DUCK = 0.1
+
+/**
+ * Пока игрок говорит, фон комнаты и музыка почти молчат: микрофон без эхоподавления (recording.ts) слышит колонки,
+ * и гул цеха не давал паузе конца реплики наступить (жалоба капитана 19.10, «Тара»). Опускаем быстро, возвращаем плавно.
+ */
+export function duckRoom(on: boolean) {
+  if (ducked === on) return
+  ducked = on
+  if (!ctx) return
+  const t = ctx.currentTime
+  for (const g of [musicDuck, ambDuck]) {
+    if (!g) continue
+    g.gain.cancelScheduledValues(t)
+    g.gain.setValueAtTime(g.gain.value, t)
+    g.gain.setTargetAtTime(on ? DUCK : 1, t, on ? 0.06 : 0.5)
+  }
+}
 
 export const playMusic = (id: MusicId | null) => music.set(id)
 export const playAmbient = (id: AmbId | null) => amb.set(id)

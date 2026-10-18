@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
+import { padToBlocks } from './mp3Pad'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
 import { clientIp, quotaOf, judgeOf, type ClientQuota } from './client'
@@ -879,7 +880,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (from >= size || from > to) return c.body(null, 416, { 'content-range': `bytes */${size}` })
       return c.body(clip.audio.slice(from, to + 1), 206, { ...headers, 'accept-ranges': 'bytes', 'content-range': `bytes ${from}-${to}/${size}`, 'x-audio-ms': String(clip.ms) })
     }
-    const it = j.out.read()
+    // ?pad=1 — Firefox (и Zen): без MediaSource для mp3 он отдаёт декодеру поток только целыми блоками по 32 КБ (mp3Pad.ts)
+    const it = c.req.query('pad') === '1' ? padToBlocks(j.out.read()) : j.out.read()
     const body = new ReadableStream<Uint8Array>({
       async pull(ctl) {
         const { done, value } = await it.next()

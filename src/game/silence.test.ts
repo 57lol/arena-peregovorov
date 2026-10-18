@@ -16,3 +16,16 @@ describe('пауза после речи', () => {
     expect(paused(0.002, 3000)).toBe(true)
   })
 })
+
+describe('шум комнаты', () => {
+  it('порог речи поднимается над ровным шумом и опускается, когда шум стих', async () => {
+    const { noiseFloor, QUIET_LOUD, MAX_LOUD } = await import('./silence')
+    const n = noiseFloor()
+    for (let t = 0; t < 4000; t += 20) n.push(0.01, t)
+    expect(n.loud()).toBeCloseTo(0.03, 3)
+    for (let t = 4000; t < 4100; t += 20) n.push(0.001, t)
+    expect(n.loud()).toBe(QUIET_LOUD)
+    for (let t = 4100; t < 9000; t += 20) n.push(0.5, t)
+    expect(n.loud()).toBe(MAX_LOUD)
+  })
+})

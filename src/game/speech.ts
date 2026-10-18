@@ -581,6 +581,8 @@ export const liveCps = (text: string) => cpsFor(text, text.length / LIVE_CHARS_P
 const MSE = (): typeof MediaSource | undefined =>
   typeof MediaSource !== 'undefined' ? MediaSource : typeof window === 'undefined' ? undefined : (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
 const streamable = () => !!MSE()?.isTypeSupported('audio/mpeg')
+/** Firefox и браузеры на нём (Zen): у них mp3 в MediaSource нет. */
+export const gecko = (ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) => /\bFirefox\//.test(ua)
 let liveStop: AbortController | null = null
 
 /** Скачивать звук по кускам в MediaSource; part — всё пришедшее после каждого куска (губы), в конце — весь звук. */
@@ -686,8 +688,9 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
     guardEnd(a, got.url, got.ms)
     grow = growLip(trackLip(a, envelope(got.all), true))
   } else {
-    // без MediaSource (iPhone) звук играет по ссылке, а губы считаем по второму чтению того же потока, тоже по кускам
-    a.src = src
+    // без MediaSource (iPhone, Firefox) звук играет по ссылке, а губы считаем по второму чтению того же потока, тоже по кускам.
+    // Firefox отдаёт декодеру поток только целыми блоками по 32 КБ: сервер дописывает их нулями, пока синтез молчит (mp3Pad.ts)
+    a.src = gecko() ? `${src}${src.includes('?') ? '&' : '?'}pad=1` : src
     const me = trackLip(a, null, true)
     const grow = growLip(me)
     const stop = (liveStop = new AbortController())

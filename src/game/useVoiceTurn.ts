@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { endOfTurnMs } from './endOfTurn'
 import { createListener, type Listener, type ListenPhase } from './listen'
 import { openMic, type MicStream } from './micStream'
+import { duckRoom } from './audio/engine'
 import { audioState, micError, recognize, speechEndedAt, speechRemainingMs, sttLangNow, SttError } from './speech'
 import { scribeOn } from './sttMode'
 import { voiceTrace as trace } from './trace'
@@ -144,6 +145,11 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
 
   // свой ход: приём с конца звука собеседника; чужой (ушла реплика, пауза, вкладка) — всё закрыть
   const listening = myTurn && micOn
+  // пока слушаем игрока, фон комнаты и музыка почти молчат: микрофон слышит колонки
+  useEffect(() => {
+    duckRoom(listening)
+    return () => duckRoom(false)
+  }, [listening])
   useEffect(() => {
     const l = listener.current
     if (!l) return
