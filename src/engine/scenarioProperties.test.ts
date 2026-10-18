@@ -146,7 +146,7 @@ describe.each(CASES)('$id: свойства движка', (sc) => {
     }
   })
 
-  it.fails('BUG: уход после последнего встречного должен быть walked_away/player, сейчас получается timeout', () => {
+  it('уход после последнего встречного — walked_away игроком, а не тайм-аут', () => {
     const final = step(sc, { ...initialState(sc), turn: sc.turnLimit - 1 }, { behaviors: [], offer: best(sc, 'player') }, dict)
     expect(final.state.lastCall).toBe(true)
     expect(step(sc, final.state, { behaviors: [], walksAway: true }, dict).state).toMatchObject({ status: 'walked_away', endedBy: 'player' })

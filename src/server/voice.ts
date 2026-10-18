@@ -68,7 +68,7 @@ function priorities(sc: Scenario): string {
     .sort((a, b) => b.w - a.w)
     .map(({ i, w }) => {
       if (i.kind === 'compatible')
-        return `- «${i.title}»: тут у тебя свой интерес. Пока о нём нельзя говорить, ничем его не выдавай и сам этот пункт не предлагай.`
+        return `- «${i.title}»: тут у тебя свой интерес, это твоя тайна. Сам этот пункт первым не поднимай и ничем не выдавай, что он тебе нужен: ни причиной, ни условием («только с…», «без … не…»). Что по нему делать, скажет решение хода.`
       const p = opp.points[i.id]
       const best = i.options[bestOption(opp, i.id)]
       const worst = i.options[p.indexOf(Math.min(...p))]
@@ -268,21 +268,38 @@ function mood(sc: Scenario, s: OpponentState): string {
   return `${t}, ${x}${late}`
 }
 
-/** Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте. */
+/**
+ * Игрок сдвинул свою позицию к собеседнику хотя бы в одном пункте — по очкам собеседника, а не по порядку вариантов:
+ * в «Чайнике» с «обмена» на «деньги сегодня» — это не шаг к Ларисе Петровне, а хуже и ей.
+ */
 function steppedToward(sc: Scenario, before: Offer, after: Offer): boolean {
+  const op = sc.opponent.profile.points
   return sc.issues.some((i) => {
     const a = before[i.id], b = after[i.id]
-    const best = bestOption(sc.opponent.profile, i.id)
-    return typeof a === 'number' && typeof b === 'number' && Math.abs(b - best) < Math.abs(a - best)
+    return typeof a === 'number' && typeof b === 'number' && op[i.id][b] > op[i.id][a]
   })
 }
 
-/** Пункты, где новое встречное дальше от позиции игрока, чем прошлое: это размен, его надо назвать. */
+/** Пункты, где новое встречное даёт игроку меньше от того, что он просил, чем прошлое: это размен, его надо назвать. */
 function backSteps(sc: Scenario, next: Offer, prev: Offer, stance: Offer) {
+  const pl = sc.player.profile.points
   return sc.issues.filter((i) => {
     const s = stance[i.id], a = prev[i.id], b = next[i.id]
-    return typeof s === 'number' && typeof a === 'number' && typeof b === 'number' && Math.abs(b - s) > Math.abs(a - s)
+    if (typeof s !== 'number' || typeof a !== 'number' || typeof b !== 'number') return false
+    const short = (x: number) => Math.max(0, pl[i.id][s] - pl[i.id][x])
+    return short(b) > short(a)
   })
+}
+
+/**
+ * Что он «отдаёт» или «принимает», хотя это и так стоит у тебя на листке («соглашусь на акт, если скидка 15%»):
+ * это не уступка с его стороны. Без этой строки модель то зовёт это просьбой, то благодарит за уступку.
+ */
+function echoFree(sc: Scenario, stance: Offer, stanceBefore: Offer, prev: Offer): string {
+  const same = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === prev[i.id] && stanceBefore[i.id] !== stance[i.id])
+  return same.length
+    ? ` ${same.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(', ')} он называет как свой шаг, но это и так было в твоём предложении: соглашаешься по ${same.length > 1 ? 'ним' : 'нему'} коротко, уступкой это не считаешь.`
+    : ''
 }
 
 export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: Offer, stanceBefore: Offer = {}): Frame {
@@ -309,7 +326,10 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
     }
     case 'counter': {
       position = d.offer
-      changed = sc.issues.filter((i) => d.offer[i.id] !== prev[i.id]).map((i) => i.id)
+      // совместимый пункт, о котором он не говорил, ты молча вписываешь в листок в выгодном обоим варианте: вслух его
+      // не называешь — иначе он звучит как твоё условие («только с актом»), а это и ему выгодно
+      const quiet = sc.issues.filter((i) => i.kind === 'compatible' && typeof stance[i.id] !== 'number' && typeof prev[i.id] !== 'number' && !d.feigned?.includes(i.id))
+      changed = sc.issues.filter((i) => d.offer[i.id] !== prev[i.id] && !quiet.includes(i)).map((i) => i.id)
       const show = (ids: IssueId[]) => ids.map((id) => {
         const i = sc.issues.find((x) => x.id === id)!
         return typeof prev[id] === 'number' ? `«${lc(i.title)}»: было ${i.options[prev[id]!]}, теперь ${i.options[d.offer[id]!]}` : `«${lc(i.title)}»: ${i.options[d.offer[id]!]}`
@@ -321,16 +341,22 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const yes = agreed.length ? ` По ${agreed.map((i) => `«${lc(i.title)}»`).join(', ')} ты сходишься с тем, что он просил, — так и скажи, как согласие по этому пункту.` : ''
       // что он просил, а ты не даёшь: самое важное для тебя — коротко отказать, иначе непонятно, что его вариант не прошёл
       const opp = sc.opponent.profile
+      const pl = sc.player.profile.points
+      // он просит себе хуже, чем у тебя на листке, — это не «не принимаешь», а «моё ему же лучше»
+      const selfHarm = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && pl[i.id][stance[i.id]!] < pl[i.id][d.offer[i.id]!])
       const no = sc.issues
-        .filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && !changed.includes(i.id))
+        .filter((i) => typeof stance[i.id] === 'number' && stance[i.id] !== d.offer[i.id] && !changed.includes(i.id) && !selfHarm.includes(i))
         .sort((a, b) => issueWeight(opp, b.id) - issueWeight(opp, a.id))
         .slice(0, 2)
       const refuse = no.length ? ` Его ${no.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} ты не принимаешь — скажи это коротко, своими словами; своё по этому пункту можешь назвать.` : ''
+      const worse = selfHarm.length ? ` Он просит ${selfHarm.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(' и ')} — это хуже для него самого, чем у тебя («${selfHarm.map((i) => i.options[d.offer[i.id]!]).join('», «')}»). Оставляешь своё; не спорь с этим как с его требованием.` : ''
+      const hush = quiet.length ? ` ${quiet.map((i) => `«${lc(i.title)}: ${i.options[d.offer[i.id]!]}»`).join(', ')} — молча в листке, вслух не называй: это и ему выгодно, не выдавай за своё условие.` : ''
       const back = backSteps(sc, d.offer, prev, stance)
       const trade = back.length ? ` По ${back.map((i) => `«${lc(i.title)}»`).join(', ')} ты отходишь от того, что он просил: подай это как размен («раз…, то…»).` : ''
       const feigned = d.feigned?.length ? ` Хитрость: ${d.feigned.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')} подай как свою уступку, будто она тебе чего-то стоит. Что тебе самому так удобно, не признавайся.` : ''
       const fin = d.final ? ' Время встречи кончается: скажи, что это твоё последнее предложение, дальше только да или нет.' : ' Торг не закончен: не называй это последним словом.'
-      text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${refuse}${trade}${feigned}${fin}${reasons}`
+      const free = echoFree(sc, stance, stanceBefore, prev)
+      text = `Делаешь встречное предложение. Целиком оно такое: ${terms(sc, d.offer)}.${what}${yes}${free}${refuse}${worse}${trade}${feigned}${hush}${fin}${reasons}`
       break
     }
     case 'reveal': {
@@ -358,7 +384,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
           const stepped = steppedToward(sc, stanceBefore, stance)
-          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'} Новых цифр не называешь, листок не перечисляешь.${reasons}`
+          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)} Новых цифр не называешь, листок не перечисляешь.${reasons}`
           break
         }
         case 'not_ready_to_reveal':
@@ -446,6 +472,10 @@ function saysYes(line: string): boolean {
     return !contrast.test(s.slice(m.index)) && !contrast.test(all[n + 1] ?? '')
   })
 }
+
+// Когда решение — согласиться, «да» звучит и так: «оформлю», «по рукам», «вот это другой разговор», «ладно, берём»
+const YES_SOFT = /(?<!\p{L})(?:оформ(?:лю|им|ляю|ляем)|оформляйте|беру|берём|берем|идёт|идет|годится|принято|уговорил\p{L}*|так и сделаем|другой разговор|сошлись|решено|ладно|хорошо|lets? do it|let's do it|you've got it|fine by me|works for me|sounds good)(?!\p{L})/iu
+const agreesNow = (line: string) => saysYes(line) || (YES_SOFT.test(line) && !/(?<!\p{L})(?:но|однако|только если|если|but|only if|if)(?!\p{L})/iu.test(line))
 
 // Кто есть кто: закупщик не отправляет искать другого поставщика, у продавца наоборот.
 const SEND_AWAY = (who: string) => new RegExp(`(ищите|найдите|поищите)\\s+(себе\\s+)?(другого|другой|нового|других|новых)\\s+(${who})`, 'iu')
@@ -638,7 +668,7 @@ export function checkLine(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContex
     const it = frame.allowed.find((i) => i.id === d.interestId)
     if (it && !tells(it, line)) hard.push(`ты не рассказал «${it.text}», а решение — рассказать`)
   }
-  if (d.kind === 'accept' && !saysYes(line)) hard.push('не прозвучало согласие на сделку')
+  if (d.kind === 'accept' && !agreesNow(line)) hard.push('не прозвучало согласие на сделку')
   if (missingTerms(sc, frame, line).length) hard.push('не прозвучали изменённые условия')
   const soft = startProblems(sc, line, ctx)
   if (line.split(/\s+/).length > 55) soft.unshift('слишком длинно: скажи короче, как в жизни')
@@ -704,7 +734,11 @@ export function completeLine(sc: Scenario, frame: Frame, text: string): string {
   const d = frame.decision
   const clean = stripTags(unstress(text))
   const en = isEn(sc)
-  if (d.kind === 'accept' && !saysYes(clean)) text += en ? ` It's a deal: ${terms(sc, frame.position)}.` : ` Договорились: ${terms(sc, frame.position)}.`
+  // условия уже прозвучали своими словами — второй раз описью не зачитываем, только «договорились»
+  if (d.kind === 'accept' && !agreesNow(clean)) {
+    const told = sc.issues.every((i) => typeof frame.position[i.id] !== 'number' || optionMarks(sc, i.id, frame.position[i.id]!).some((has) => has(clean)))
+    text += told ? (en ? " It's a deal." : ' Договорились.') : en ? ` It's a deal: ${terms(sc, frame.position)}.` : ` Договорились: ${terms(sc, frame.position)}.`
+  }
   if (d.kind === 'reveal') {
     const it = frame.allowed.find((i) => i.id === d.interestId)
     if (it && !tells(it, clean)) text += en ? ` I'll tell you straight: ${lowerFirst(it.text)}.` : ` Скажу как есть: ${lowerFirst(tame(it.text))}.`

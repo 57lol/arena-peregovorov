@@ -32,3 +32,15 @@ export function micError(e: unknown): string {
   if (e instanceof SttError) return e.message
   return 'Не получилось записать звук. Напишите реплику текстом.'
 }
+
+/**
+ * Что просим у микрофона. Эхоподавление выключено нарочно: в Safari и на iPhone оно приглушает весь звук страницы,
+ * эхо отсекает listen.ts по времени. Firefox на маке (и Zen) любую обработку — даже одно шумоподавление — включает
+ * через системный VoiceProcessingIO (лог cubeb: «prefs VOICE, voice processing true»), а тот приглушает остальной звук
+ * устройства: голосовой режим держит микрофон всю встречу, и собеседника не слышно (партия капитана 18.10, Zen, «Семёрочка»).
+ * Поэтому в Firefox на маке микрофон без обработки — шумоподавление ему всё равно не удаётся (cubeb: «AEC != NS»).
+ */
+export function micAudio(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent): MediaTrackConstraints {
+  const raw = /Macintosh/.test(ua) && /\bFirefox\//.test(ua)
+  return raw ? { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } : { channelCount: 1, echoCancellation: false, noiseSuppression: true }
+}

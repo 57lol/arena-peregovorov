@@ -105,18 +105,20 @@ describe.each(CASES)('$id: стороны сделки по брифу', (sc) =>
       else expect(o[a]).toBeLessThanOrEqual(o[b])
     })
 
-    // BUG/несовпадение контракта: shop.swap допускает взаимную выгоду в обычном
-    // пункте: деньги сегодня (18/0) -> обмен сегодня (24/9). Это согласуется с
-    // историей, но нарушает требование «кроме общего пункта-ловушки».
-    const check = key === 'shop' && issue.id === 'swap' ? it.fails : it
-    check(`${issue.id}: улучшение игроку во всех парах ${issue.kind === 'compatible' ? 'помогает обоим' : 'не повышает очки собеседника'}`, () => {
+    // «Чайник», решение по чайнику — смешанный пункт по задумке и брифу: вернуть деньги магазину хуже всего
+    // («возврат у нас в отчёте идёт против магазина, а обмен — нет», интерес l_swap; урок «спросить, что удобнее
+    // магазину»), а лучше всего ей проверка по регламенту. Поэтому с возврата на обмен выгодно обоим — и только это.
+    const mixed = key === 'shop' && issue.id === 'swap' ? new Set(['деньги сегодня -> обмен сегодня', 'возврат через 10 дней -> обмен сегодня']) : new Set<string>()
+    it(`${issue.id}: улучшение игроку во всех парах ${issue.kind === 'compatible' ? 'помогает обоим' : mixed.size ? 'не повышает очки собеседника, кроме возврата → обмена' : 'не повышает очки собеседника'}`, () => {
       const p = sc.player.profile.points[issue.id], o = sc.opponent.profile.points[issue.id]
+      const both: string[] = []
       for (let a = 0; a < p.length; a++) for (let b = 0; b < p.length; b++) {
         if (p[a] <= p[b]) continue
         const label = `${issue.options[b]} -> ${issue.options[a]}`
         if (issue.kind === 'compatible') expect(o[a], label).toBeGreaterThanOrEqual(o[b])
-        else expect(o[a], label).toBeLessThanOrEqual(o[b])
+        else if (o[a] > o[b]) both.push(label)
       }
+      expect(new Set(both)).toEqual(mixed)
     })
   }
 })

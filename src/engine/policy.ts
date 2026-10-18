@@ -65,13 +65,20 @@ export function openingAnchor(sc: Scenario): Offer {
   return anchor
 }
 
-/** Насколько предложение далеко от позиции игрока (в долях шкалы каждого пункта). */
+/**
+ * Насколько предложение далеко от позиции игрока (в долях шкалы каждого пункта). Считается только недобор: дать игроку
+ * по пункту больше, чем он просил, — не «далеко». Иначе на просьбу, которая хуже для обоих («без акта», «на старых
+ * линиях»), собеседник тянулся к ней и отдаривал игрока в другом пункте сверх того, что тот просил.
+ */
 function distance(sc: Scenario, offer: FullOffer, stance: Offer): number {
   let d = 0
   for (const i of sc.issues) {
     const s = stance[i.id]
     if (typeof s !== 'number') continue
-    d += Math.abs(offer[i.id] - s) / Math.max(1, i.options.length - 1)
+    const pl = sc.player.profile.points[i.id]
+    if (pl[offer[i.id]] >= pl[s]) continue
+    // в долях его же шкалы: порядок вариантов в листке ничего не значит
+    d += (pl[s] - pl[offer[i.id]]) / Math.max(1, Math.max(...pl) - Math.min(...pl))
   }
   return d
 }
@@ -93,8 +100,12 @@ function unevenness(sc: Scenario, offer: FullOffer, stance: Offer): number {
   for (const i of sc.issues) {
     const s = stance[i.id]
     const best = opp.points[i.id].indexOf(Math.max(...opp.points[i.id]))
-    if (typeof s !== 'number' || s === best) continue
-    fr.push(Math.min(1, Math.abs(offer[i.id] - best) / Math.abs(s - best)))
+    const pl = sc.player.profile.points[i.id]
+    const op = opp.points[i.id]
+    // уступка — только шаг к тому, что игроку лучше её варианта; к просьбе «хуже для обоих» не тянутся.
+    // Сколько она уступила — по её очкам, а не по порядку вариантов
+    if (typeof s !== 'number' || s === best || pl[s] <= pl[best] || op[s] >= op[best]) continue
+    fr.push(Math.min(1, Math.max(0, (op[best] - op[offer[i.id]]) / (op[best] - op[s]))))
   }
   if (fr.length < 2) return 0
   const mean = fr.reduce((a, b) => a + b, 0) / fr.length
@@ -132,9 +143,16 @@ export function makeCounter(
   let best: FullOffer | undefined
   let bestD = Infinity
   let bestU = -Infinity
+  // пункт хуже для обоих, чем просил игрок (или чем было у неё самой), не берём: так она «отдавала» лишнее,
+  // чтобы не стать жаднее прошлого, — в общую кассу или в акт, которые нужны и ей
+  const pl = sc.player.profile.points
+  const worseForBoth = (o: FullOffer) => sc.issues.some((i) => {
+    const s = stance[i.id] ?? ref?.[i.id]
+    return typeof s === 'number' && pl[i.id][o[i.id]] < pl[i.id][s] && opp.points[i.id][o[i.id]] < opp.points[i.id][s]
+  })
   for (const p of allDeals(sc)) {
     const u = p.opponent
-    if (u < need || u > prevU || p.player < given) continue
+    if (u < need || u > prevU || p.player < given || worseForBoth(p.offer)) continue
     const d = distance(sc, p.offer, stance) + (guard ? guard * unevenness(sc, p.offer, stance) : 0)
     if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && (u > bestU || (u === bestU && best && lexLess(sc, p.offer, best))))) {
       best = p.offer

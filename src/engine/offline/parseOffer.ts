@@ -8,6 +8,7 @@ const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
 const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|юан|млн|тыс|шт|час|сут|раз|day|week|month|year|hour|euro|doll|perc|thous|milli)/
+const NEGATIONS = new Set(['нет', 'без', 'not', 'witho', 'none'])
 const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также',
   'which', 'would', 'could', 'there', 'their', 'about', 'after', 'befor', 'other', 'these', 'those', 'with', 'from', 'only'])
 
@@ -33,7 +34,8 @@ function issueInfo(sc: Scenario): IssueInfo[] {
     // «без гарантии» = 0 в той же размерности, что и остальные варианты
     const fixed = values.map((v) => (v && v.dim === 'plain' && dim ? (dim === 'time' ? undefined : { value: v.value, dim }) : v))
     const keys = new Set(words(issue.title).map(stem).filter((w) => !STOP.has(w)))
-    for (const w of optStems[n]) if (!optStems.some((o, m) => m !== n && o.has(w)) && !UNIT_WORDS.test(w)) keys.add(w)
+    // «нет», «без» из вариантов («нет», «без помощи») — не примета пункта: иначе любое «нет» — это «учебные дни»
+    for (const w of optStems[n]) if (!optStems.some((o, m) => m !== n && o.has(w)) && !UNIT_WORDS.test(w) && !NEGATIONS.has(w)) keys.add(w)
     return { issue, keys, values: fixed, dim }
   })
   infoCache.set(sc, out)
@@ -111,7 +113,15 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
     return Math.min(...vs.map((v) => Math.abs(v - c.value) / Math.max(1, Math.abs(v))))
   })
   const best = rel.indexOf(Math.min(...rel))
-  return rel[best] <= 0.03 && rel.every((r, n) => n === best || r >= 2 * rel[best]) ? cands[best] : undefined
+  // «давайте 10» при «10%» и «через 10 дней» — ничья, без подсказки не угадываем
+  return rel[best] <= 0.03 && rel.every((r, n) => n === best || (r >= 2 * rel[best] && r > rel[best])) ? cands[best] : undefined
+}
+
+/** Число, как оно написано в варианте: «через 2 недели» — 2, «14 weeks» — 14, «€450,000» — 450000. */
+export function spokenNumber(option: string): number | undefined {
+  const m = option.match(/\d{1,3}(?:[ \u00a0]\d{3})+(?!\d)|\d{1,3}(?:,\d{3})+(?!\d)|\d+(?:[.,]\d+)?/)
+  if (!m) return undefined
+  return Number(/[ \u00a0]|,\d{3}$/.test(m[0]) ? m[0].replace(/[ \u00a0,]/g, '') : m[0].replace(',', '.'))
 }
 
 // Пересказ и вопрос «почему» по-английски: «so you're saying 100% upfront?», «why do you need 16 weeks?»
@@ -158,7 +168,16 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
     if (!cands.length && q.dim === 'plain') {
       for (const info of infos) {
         const vs = info.values.filter((v) => v).map((v) => v!.value)
-        if (!vs.length) continue
+        // голое «23» — не время суток: «тихо с 23» без двоеточия правила не трогают, это решает модель
+        if (!vs.length || info.dim === 'time') continue
+        // как сказано в варианте: «давайте 2» при «через 2 недели», «let's say 12» при «12 weeks»
+        const said = info.issue.options.findIndex((o, n) => spokenNumber(o) === q.value && info.values[n])
+        if (said >= 0) {
+          cands.push({ info, value: info.values[said]!.value })
+          continue
+        }
+        // сроки и частоты голым числом — только как в варианте: «180» — это не «квартира на 6 месяцев»
+        if (info.dim === 'days' || info.dim === 'rate') continue
         const lo = Math.min(...vs) * 0.8, hi = Math.max(...vs) * 1.2
         const k = [1, 1e3, 1e6].find((m) => q.value * m >= lo && q.value * m <= hi && q.value * m > 0)
         if (k) cands.push({ info, value: q.value * k })
@@ -219,22 +238,36 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
   // 2. Текстовые варианты («по факту отгрузки», «квартира», «ведёт запуск») — по словам, которые есть
   //    только у этого варианта. Числовые варианты тут не трогаем, их уже разобрали выше.
   const flat = lower.replace(/ё/g, 'е')
+  const seen = new Set(words(flat).map(stem))
+  const posOf = (w: string) => flat.search(new RegExp(`(?<!\\p{L})${w}`, 'u'))
   for (const info of infos) {
     const optWords = info.issue.options.map((o) => new Set(words(o).map(stem).filter((w) => w.length >= 4)))
+    // слово из вариантов другого пункта («помощь» и в жилье, и в проекте) засчитываем, только если назван сам пункт
+    const named = [...info.keys].some((k) => [...seen].some((w) => w.startsWith(k)))
+    const elsewhere = (w: string) => !named && infos.some((o) => o !== info && o.issue.options.some((x) => words(x).map(stem).includes(w)))
     let found = -1
     let foundAt = -1
     info.issue.options.forEach((opt, n) => {
       const q = optionQuantity(opt)
       if (q && q.dim !== 'plain') return
-      const own = [...optWords[n]].filter((w) => !optWords.some((s, m) => m !== n && s.has(w)) && !STOP.has(w))
-      const hits = own.map((w) => flat.search(new RegExp(`(?<!\\p{L})${w}`, 'u'))).filter((at) => at >= 0)
-      if (!own.length || hits.length < Math.min(2, own.length)) return
+      const own = [...optWords[n]].filter((w) => !optWords.some((s, m) => m !== n && s.has(w)) && !STOP.has(w) && !elsewhere(w))
+      let hits = own.map(posOf).filter((at) => at >= 0)
+      if (!own.length || hits.length < Math.min(2, own.length)) {
+        // «поддержка и помощь на запуске»: своих слов нет, но все слова варианта сказаны — и только у него
+        const all = [...optWords[n]].filter((w) => !STOP.has(w))
+        const full = (k: number) => optWords[k].size > 0 && [...optWords[k]].every((w) => STOP.has(w) || seen.has(w) || [...seen].some((x) => x.startsWith(w)))
+        if (all.length < 2 || !full(n) || info.issue.options.some((_, k) => k !== n && full(k) && optWords[k].size >= all.length)) return
+        hits = all.map(posOf).filter((at) => at >= 0)
+        if (!hits.length) return
+      }
       const at = Math.max(...hits)
       if (echoed(at)) return
       if (at > foundAt) { found = n; foundAt = at }
     })
     const aliases = (info.issue.aliases ?? []).flatMap((list, n) => list.flatMap((alias) => {
-      const at = flat.indexOf(alias.toLowerCase().replace(/ё/g, 'е'))
+      // с начала слова: «акт» — не «факт»; короткое — ещё и целым словом с окончанием: «акта», но не «актуально»
+      const a = alias.toLowerCase().replace(/ё/g, 'е').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const at = flat.search(new RegExp(`(?<!\\p{L})${a}${a.length < 5 ? '(?:а|ом|у|е|ы|ов|ами|ах)?(?!\\p{L})' : ''}`, 'u'))
       return at >= 0 && !echoed(at) ? [{ n, at, end: at + alias.length }] : []
     }))
     // «Эталонный образец» точнее, чем вложенное «образец».

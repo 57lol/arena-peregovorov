@@ -9,7 +9,7 @@ import { buildReport } from '../engine/report'
 import { initialState, step, type StepResult } from '../engine/turn'
 import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecord } from '../engine/types'
 import { checkScenario } from '../engine/validate'
-import { groundedOffline, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
+import { groundedOffline, walkAwayMove, withBareYes, withContext, withFormalOffer } from '../engine/offline'
 import { startAnalysis, type AnalyzeResult, type AnalyzeRun } from './analyze'
 import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
@@ -356,7 +356,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
     /** Разбор → решение движка. Уход по кнопке — служебная реплика: разбор как есть, без контекста. */
     const decide = (found: MoveAnalysis) => {
-      let analysis = body.walkAway ? found : withContext(withFormalOffer(withUpsellReply(sc, body.playerText, found, before), fitOffer(sc, body.offer)), before, history, dict)
+      let analysis = body.walkAway ? found : withContext(withFormalOffer(withBareYes(body.playerText, withUpsellReply(sc, body.playerText, found, before), history), fitOffer(sc, body.offer)), before, history, dict)
       if (body.accept) analysis = { ...analysis, accepts: true }
       return { analysis, r: step(sc, before, analysis, dict, history.map((h) => h.analysis)) }
     }

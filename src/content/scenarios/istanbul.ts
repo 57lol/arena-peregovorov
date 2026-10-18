@@ -51,7 +51,7 @@ export const istanbul: Scenario = {
       'so every week counts. Price: the CFO will see it first. Training: your operators have never worked with powder ' +
       'coating. Suppliers usually charge for every day their engineer spends on site, so expect a push for remote ' +
       'training. A long warranty would be nice, but your maintenance team is strong and the line is built from standard ' +
-      'parts. Payment terms matter least: the budget is approved and the money is there.',
+      'parts. Payment terms matter less: the budget is approved and the money is there.',
     profile: {
       points: {
         price: [0, 8, 16, 24, 32],

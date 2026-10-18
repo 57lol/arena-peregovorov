@@ -85,7 +85,11 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   const offer = parseOffer(sc, extras.main, 'player')
   const toneViolation = RUDE.test(text)
   // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
-  const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
+  // «Я не ухожу», «никуда не ухожу» — наоборот.
+  const walksAway = parts.some((c) => {
+    const m = WALK.exec(c)
+    return !!m && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
+  })
 
   const out: MoveAnalysis = { behaviors, ...(extras.choices.length ? { upsells: extras.choices } : {}) }
   if (!tentative && Object.keys(offer).length) out.offer = offer
@@ -157,6 +161,29 @@ export function withContext(
     (h) => !have.has(h.id) && !(h.id === 'instant_counter' && (engagedBefore || [...have].some((id) => ENGAGES.has(id)))),
   )
   return add.length ? { ...analysis, behaviors: [...analysis.behaviors, ...add] } : analysis
+}
+
+// Короткое согласие целой репликой: «да, давайте», «окей, договорились», «идёт», «по рукам». Одно «окей» или «хорошо» —
+// нет: голосом это часто «слышу вас» перед паузой, и сделка закрылась бы на полуслове.
+const YES_WORD = String.raw`(?:да|ок|окей|ok|okay|хорошо|ладно|ну|ну\s+ладно|ну\s+хорошо|тогда|так)`
+const YES_DEAL = String.raw`(?:давайте\s+так|давай\s+так|договорились|по\s+рукам|идёт|идет|годится|пойд[её]т|согласен|согласна|согласны|принимаю|принимаем|беру|берём|берем|оформляйте|оформляем|так\s+и\s+сделаем|уговорили|deal|agreed|it'?s\s+a\s+deal|sounds\s+good|let'?s\s+do\s+it)`
+const BARE_YES = new RegExp(
+  String.raw`^\s*(?:${YES_WORD}[\s,!.—-]+)*${YES_DEAL}(?:[\s,!.—-]+(?:так|тогда|${YES_DEAL}))*[\s!.]*$|` +
+    // «давайте» — только с «да», «окей», «хорошо» впереди: одно «давайте…» голосом бывает началом новой цифры
+    String.raw`^\s*(?:${YES_WORD}[\s,!.—-]+)+(?:давайте|давай)[\s!.]*$`,
+  'iu',
+)
+
+/**
+ * «Да, давайте», «окей, договорились» сразу после её встречного — согласие на то, что у неё на листке.
+ * Модель такое часто не размечает как согласие («только явное „договорились“»), и собеседник переспрашивал.
+ */
+export function withBareYes(text: string, analysis: MoveAnalysis, history: TurnRecord[]): MoveAnalysis {
+  if (analysis.accepts || analysis.walksAway || analysis.toneViolation || (analysis.offer && Object.keys(analysis.offer).length)) return analysis
+  const d = history[history.length - 1]?.decision
+  const offered = !!d && (d.kind === 'counter' || (d.kind === 'reveal' && !!d.offer) || (d.kind === 'hold' && d.reason === 'no_movement'))
+  if (!offered || !BARE_YES.test(text)) return analysis
+  return { ...analysis, accepts: true }
 }
 
 /** Модерация отдельно: пригодится, чтобы перепроверять ответы LLM. */

@@ -1,6 +1,7 @@
 // Микрофон на всю встречу в голосовом режиме: кадры по 20 мс, 16 кГц, с временем захвата. Сам звук никуда не уходит —
 // что из него реплика игрока, а что эхо собеседника, решает listen.ts.
 import { capturePcm } from './pcmStream'
+import { micAudio } from './recording'
 
 export interface MicStream {
   close: () => void
@@ -10,8 +11,7 @@ const AC = () => window.AudioContext ?? (window as unknown as { webkitAudioConte
 
 /** Открыть микрофон. Ошибки getUserMedia (нет доступа, нет устройства) — наружу как есть. onLost — микрофон пропал. */
 export async function openMic(onFrame: (pcm: Int16Array, t: number) => void, onLost: () => void): Promise<MicStream> {
-  // Эхоподавление выключено нарочно: в Safari и на iPhone оно приглушает весь звук страницы. Эхо отсекает listen.ts по времени.
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: micAudio() })
   let ctx: AudioContext | undefined
   let stop: ((flush?: boolean) => void) | undefined
   let closed = false

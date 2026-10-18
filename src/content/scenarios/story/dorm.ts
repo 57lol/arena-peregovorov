@@ -107,7 +107,7 @@ export const dormCase: StoryCase = {
           wifi: [15, 10, 5, 0],
           quiet: [6, 4, 2, 0],
           cleaning: [4, 2, 0],
-          guests: [0, 4, 12, 18],
+          guests: [0, 4, 16, 18],
           kitty: [0, 4, 10],
         },
         batna: 16,

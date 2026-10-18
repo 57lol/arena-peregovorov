@@ -13,7 +13,7 @@ import { peek, put } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-const PROMPT_VERSION = 'a15'
+const PROMPT_VERSION = 'a16'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -141,7 +141,7 @@ function realQuestion(sc: Scenario, text: string): boolean {
 
 const WHY = /(зачем|почему|отчего|для чего|с чего|из-за чего|в ч[её]м (причина|дело|смысл)|что (для (тебя|вас)|тебе|вам)[^.?!]{0,20}(важн|главн|нужн)|важн|главн|расскаж|объясн|поясн|(?<!\p{L})(?:why|how come|reason|matters?|important|priority|tell me|explain|what for|behind|worr(?:y|ies|ied)|concern)(?!\p{L}))/iu
 
-export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown): MoveAnalysis {
+export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown, said?: string): MoveAnalysis {
   const r = Raw.parse(raw)
   const out: MoveAnalysis = {
     behaviors: r.behaviors
@@ -165,7 +165,7 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   // человеческое: что нашла модель плюс то, что видно правилами (извинение, «ахах», имя)
   const talk = [...new Set([...r.talk.filter((t): t is TalkAct => (TALK_ACTS as string[]).includes(t)), ...talkActs(sc, text)])]
   if (talk.length) out.talk = talk
-  return groundAnalysis(sc, text, out)
+  return groundAnalysis(sc, text, out, said)
 }
 
 /** Служебные реплики интерфейса: «Предлагаю так: …» из блокнота и «Согласен. Принимаю…» с кнопки. */
@@ -223,7 +223,9 @@ export async function startAnalysis(
     text,
     lastOpponentOffer,
   }
-  const post = (value: MoveAnalysis) => groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) })
+  // последняя реплика собеседника: голое число игрока — о том, о чём он только что говорил
+  const said = history.length ? history[history.length - 1].opponentLine : sc.opening
+  const post = (value: MoveAnalysis) => groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }, said)
   const hit = await peek<MoveAnalysis>('analyze', key)
   if (hit) return { ready: { analysis: post(hit), source: 'cache' }, keep: keepNothing }
   const ask = async (m: LLM, timeoutMs: number) =>
@@ -234,7 +236,7 @@ export async function startAnalysis(
       maxTokens: 700,
       timeoutMs,
       schema: schemaFor(sc, dict),
-    }))
+    }), said)
   const done = (value: MoveAnalysis): AnalyzeResult => ({ analysis: post(value), source: 'llm', value })
   // быстрый — тот же запасной (Pro): если основной не ответил, второй раз его не зовём
   const fast = quick && quick.model !== llm.model ? ask(quick, WAIT.analyze()) : undefined

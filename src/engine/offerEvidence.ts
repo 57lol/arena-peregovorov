@@ -1,7 +1,8 @@
 import { detectBehaviors } from './behaviors'
 import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
-import { mentionedIssues, parseOffer, type Mention } from './offline/parseOffer'
+import { mentionedIssues, parseOffer, spokenNumber, type Mention } from './offline/parseOffer'
+import { optionQuantity, quantities } from './offline/numbers'
 import type { MoveAnalysis, Offer, Scenario } from './types'
 
 // Один набор сказуемых для границы высказывания и его отрицания.
@@ -15,6 +16,15 @@ const REFUSAL = new RegExp(
   'iu',
 )
 
+// Отказ без своего сказуемого: «только не X», «а не X», «X — нет», «X не пойдёт», «не по факту». Сравнение — условие:
+// «не позже 30 дней», «не больше 196». И то же по-английски: «not remote training», «not 100% upfront».
+const NOT_COMPARE = String.raw`(?!(?:позже|раньше|позднее|ранее|больше|меньше|более|менее|дороже|дешевле|выше|ниже|длиннее|короче|хуже|лучше|реже|чаще|later|earlier|more|less|longer|shorter|before|after|above|below|over|under|until)(?!\p{L}))`
+const LEAD_NOT = new RegExp(String.raw`^\s*(?:(?:только|лишь|но|ну|и|да|вот|уж|главное|точно|просто|ещё|еще|так|but|and|just|so|well)\s+)*(?:не|not)\s+${NOT_COMPARE}`, 'iu')
+const VETO = /(?<!\p{L})(?:не\s+(?:пойд[её]т|годится|годятся|устраивает|устроит|подходит|подойд[её]т|вариант|катит|прокатит|надо|нужно|нужен|нужна|нужны)|исключено|отпадает|перебор)(?!\p{L})|[—–]\s*(?:нет|не)(?!\p{L})|(?<!\p{L})нет\s*[.!]*\s*$/iu
+// кусок, который сам ничего не предлагает, а только отвергает сказанное перед ним: «…, это не пойдёт», «…, нет», «…, no way»
+const BARE_VETO = /^\s*(?:(?:это|так|такое|вот|ну|да|уж|точно|совсем|вообще|мне|нам|же|а|и|но|that'?s|this|is|it'?s|just|so)\s+)*(?:нет|не(?:\s+(?:пойд[её]т|годится|устраивает|устроит|подходит|подойд[её]т|вариант|катит|прокатит|надо|нужно|согласен|согласна|согласны|хочу|хотим|буду|будем))?|no(?:\s+way)?|nope|not\s+(?:ok|okay|good|acceptable))\s*[.!]*\s*$/iu
+const stem5 = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
+
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
 const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
 const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| propose| pay| suggest)|let's|let us|how about|what about|our (?:offer|proposal|counter))(?!\p{L})/iu
@@ -26,32 +36,121 @@ const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| 
  * пропустила или округлила не туда («Хорошо. 200 ровно, по факту, 48 часов…» — модель цену потеряла,
  * и сделка ушла на прошлые 196, дешевле, чем предложил сам игрок).
  */
-export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Offer {
+/** Куски реплики и какие из них — отказ, а не своё предложение. */
+function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolean[] } {
+  const rejectsAlias = (part: string) => /(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(part) &&
+    sc.issues.some((i) => i.aliases?.some((list) => list.some((a) => !/(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(a) && part.toLowerCase().includes(a.toLowerCase()))))
+  // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
+  // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
+  const parts = text.split(CLAUSE).map((p) => p ?? '')
+  const refused = parts.map((part) =>
+    REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) ||
+    rejectsAlias(part) ||
+    // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
+    (EN_THIRD.test(part) && !EN_OWN.test(part)))
+  // «X, это не пойдёт», «X — нет»: отказ отдельным куском относится к тому, что сказано перед ним
+  for (const [k, part] of parts.entries()) {
+    if (!BARE_VETO.test(part)) continue
+    let j = k - 1
+    while (j >= 0 && !/[\p{L}\d]/u.test(parts[j])) j--
+    if (j >= 0) refused[j] = true
+  }
+  return { parts, refused }
+}
+
+/** Варианты с отрицанием, которые игрок выбрал словами («без учебных дней», «доставать не буду»): для разметки правилами. */
+export function negativeOffer(sc: Scenario, text: string): Offer {
+  const { parts, refused } = clauses(sc, text)
+  return negativeEvidence(sc, parts, refused)
+}
+
+export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, said?: string): Offer {
   const rounded = new Map<string, number>()
   const mentions: Mention[] = []
-  const rejectsAlias = (part: string) => /(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(part) &&
-    sc.issues.some((i) => i.aliases?.some((list) => list.some((a) => part.toLowerCase().includes(a.toLowerCase()))))
-  const positive = text
-    // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
-    // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
-    .split(CLAUSE)
-    // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
-    .map((part) => REFUSAL.test(part) || rejectsAlias(part) || (EN_THIRD.test(part) && !EN_OWN.test(part)) ? '' : part)
-    .join('')
+  const { parts, refused } = clauses(sc, text)
+  const positive = parts.map((part, k) => (refused[k] ? '' : part)).join('')
   const evidence = parseOffer(sc, positive, 'player', rounded, mentions)
+  const negative = negativeEvidence(sc, parts, refused)
   const out: Offer = {}
   for (const [id, option] of Object.entries(offer)) {
-    const e = evidence[id]
-    if (e === undefined || option === undefined) continue
+    if (option === undefined) continue
+    const e = evidence[id] ?? negative[id]
     // Число между двумя вариантами («200» при 204 и 196) модель округляет как придётся, правила — в пользу собеседника.
     // Соседний вариант по числу из слов игрока — это то же условие, берём округление правил.
-    if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id) && rounded.has(id))) out[id] = e
+    if (e !== undefined) {
+      if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id) && rounded.has(id))) out[id] = e
+      continue
+    }
+    // правила пункт не нашли: метку модели подтверждает голое число этого варианта («давайте десять» — 10% или
+    // 10 дней, выбрала модель по разговору) или его слова («поддержка и помощь на запуске»)
+    if (bareNumberOf(sc, positive, mentions, id, option, said) || wordsOf(sc, positive, id, option)) out[id] = option
   }
   // Страховка поверх разметки: последнее число пункта, которое игрок называет как своё условие, — и есть его условие.
   const own = new Map<string, number>()
   for (const m of mentions) if (ownNumber(sc, positive, m)) own.set(m.id, m.option)
   for (const [id, option] of own) out[id] = option
   return out
+}
+
+const NEGATED = /^(?:не|нет|без|no|not|without)(?!\p{L})/iu
+const NEG_WORD = /(?<!\p{L})(?:не|нет|без|no|not|without)(?!\p{L})/iu
+
+/**
+ * В отвергнутом куске годится только вариант с отрицанием: «доставать не буду» — «не доставать», «учебные дни — нет» —
+ * «нет», «карту не надо» — «без карты». Отказ от конкретного варианта («снижение 12% — не пойдёт») ничего не даёт.
+ */
+function negativeEvidence(sc: Scenario, parts: string[], refused: boolean[]): Offer {
+  const out: Offer = {}
+  for (const [k, part] of parts.entries()) {
+    const said = parseOffer(sc, part)
+    // в своём предложении отрицание — только «без …»: «без учебных дней»; в отказе — любое: «учебные дни — нет»
+    const neg = refused[k] ? NEG_WORD.test(part) : /(?<!\p{L})(?:без|without)(?!\p{L})/iu.test(part)
+    for (const i of sc.issues) {
+      const n = i.options.findIndex((o) => NEGATED.test(o))
+      if (n < 0) continue
+      if (refused[k] && said[i.id] === n) out[i.id] = n
+      else if (said[i.id] === undefined && neg && mentionedIssues(sc, part).includes(i.id)) out[i.id] = n
+    }
+  }
+  return out
+}
+
+/** Голое число подходит к варианту так, как его говорят: «10» — «10%» и «через 10 дней», «180» — «180 000 ₽». */
+function fits(o: string, n: number): boolean {
+  const v = optionQuantity(o)
+  if (!v || v.dim === 'plain' || v.dim === 'time') return false
+  return n === spokenNumber(o) || ((v.dim === 'money' || v.dim === 'yuan') && [1, 1e3, 1e6].some((k) => Math.abs(n * k - v.value) <= v.value * 0.001))
+}
+
+/**
+ * Голое число в словах игрока, которое правила ни к чему не отнесли, подтверждает метку модели, если подходит к варианту.
+ * Подходит к нескольким пунктам, а собеседник только что говорил об одном из них («Сорок четыре юаня» — «давайте 40»), —
+ * только к тому, о чём шла речь: так YandexGPT в живой проверке отнёс «40» к сроку доставки и закрыл сделку.
+ */
+function bareNumberOf(sc: Scenario, text: string, used: Mention[], id: string, option: number, said?: string): boolean {
+  const o = sc.issues.find((i) => i.id === id)?.options[option]
+  if (!o) return false
+  const bare = quantities(text).filter((q) => q.dim === 'plain' && !used.some((m) => q.at < m.end && q.end > m.at) && fits(o, q.value))
+  if (!bare.length) return false
+  if (!said) return true
+  const about = new Set([...mentionedIssues(sc, said), ...Object.keys(parseOffer(sc, said))])
+  return bare.some((q) => {
+    const others = sc.issues.filter((i) => i.id !== id && i.options.some((x) => fits(x, q.value)))
+    return !others.length || about.has(id) || !others.some((i) => about.has(i.id))
+  })
+}
+
+/** Слова варианта без числа в словах игрока; слово, которое есть и в другом пункте, — только если назван сам пункт. */
+function wordsOf(sc: Scenario, text: string, id: string, option: number): boolean {
+  const issue = sc.issues.find((i) => i.id === id)
+  const o = issue?.options[option]
+  if (!issue || !o || (optionQuantity(o) && optionQuantity(o)!.dim !== 'plain')) return false
+  const seen = new Set((text.match(/\p{L}{4,}/gu) ?? []).map(stem5))
+  const named = mentionedIssues(sc, text).includes(id)
+  const shared = (w: string) => sc.issues.some((j) => j.id !== id && j.options.some((x) => (x.match(/\p{L}{4,}/gu) ?? []).map(stem5).includes(w)))
+  const own = (o.match(/\p{L}{4,}/gu) ?? []).map(stem5).filter((w) => named || !shared(w))
+  const alias = issue.aliases?.[option]?.some((a) => text.toLowerCase().includes(a.toLowerCase()))
+  return !!alias || own.some((w) => seen.has(w) || [...seen].some((x) => x.startsWith(w)))
 }
 
 const NEG = /(?<!\p{L})(не|нет|ни|not|no|never|n't)(?!\p{L})|n't(?!\p{L})/iu
@@ -112,7 +211,14 @@ const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по �
  * Разбор хода, подтверждённый словами игрока: условия — только названные им (explicitOffer);
  * rest — он сам сказал «остальное как у вас», и недостающие пункты движок берёт с листка собеседника.
  */
-export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis): MoveAnalysis {
+// Согласие — только словами согласия и без условия: модель не может «согласиться» за игрока.
+// «Давайте 40» — предложение, «согласен на 2 года, если цена 188» и «да, но 15%» — условие, а не согласие.
+const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|works\s+for\s+me)(?!\p{L})/iu
+const NOT_AGREE = /(?<!\p{L})(?:не|нет|not|don'?t|do not|can'?t|cannot|won'?t)\s+(?:\p{L}+\s+)?(?:соглас|принима|подходит|устраивает|годится|пойд|agree|accept)/iu
+const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однако|if|provided|as\s+long\s+as|unless|but|however)(?!\p{L})/iu
+
+/** said — последняя реплика собеседника: голое число, которое подходит к нескольким пунктам, — о том, о чём шла речь. */
+export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis, said?: string): MoveAnalysis {
   const extras = parseUpsells(sc, text)
   const { offer, ...other } = analysis
   delete other.upsells
@@ -133,6 +239,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     delete other.upsells
     return other
   }
-  const supported = explicitOffer(sc, text, offer)
+  if (other.accepts && (!AGREE_WORD.test(text) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
+  const supported = explicitOffer(sc, text, offer, said)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

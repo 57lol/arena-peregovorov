@@ -18,7 +18,7 @@ import { cpsFor } from './ui/typing'
 import { scribeOn } from './sttMode'
 import { browserScribe } from './sttStream'
 import { capturePcm } from './pcmStream'
-import { SttError, type Recording } from './recording'
+import { micAudio, SttError, type Recording } from './recording'
 import { ENV_STEP, envelopeOf, growingEnvelope, joinParts, mouthRhythm, mouthStep, mouthWants, type Mouth } from './lips'
 export { SttError, micError, type Recording } from './recording'
 
@@ -816,7 +816,7 @@ export async function startRecording(options?: { onPartial?: (text: string) => v
   // Игрок заговорил — собеседник замолкает и молчит до конца записи, поэтому эхо гасить незачем.
   // А системное эхоподавление (Safari, iPhone) приглушает весь звук страницы: после первой записи собеседник стал бы тише
   stopAudio()
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true } })
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: micAudio() })
   let meter: AudioContext | undefined
   let source: MediaStreamAudioSourceNode | undefined
   let live: ReturnType<typeof browserScribe> | undefined

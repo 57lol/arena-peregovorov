@@ -94,7 +94,7 @@ export function Trend({ title, labels, series, max, min = 0, selected, onSelect,
 
 export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; history: TurnRecord[]; report: Report }) {
   const data = useMemo(() => meetingAnalytics(sc, history, report), [sc, history, report])
-  const feedback = useMemo(() => history.map((h) => turnFeedback(sc, h)), [sc, history])
+  const feedback = useMemo(() => history.map((h, n) => turnFeedback(sc, h, history[n - 1])), [sc, history])
   const [selected, setSelected] = useState(history.length)
   const [offerView, setOfferView] = useState<'table' | 'playerOffer'>('table')
   const point = data.points[selected] ?? data.points[0]

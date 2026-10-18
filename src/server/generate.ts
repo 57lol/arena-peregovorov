@@ -9,6 +9,7 @@ import { checkScenario } from '../engine/validate'
 import type { Difficulty, Issue, Scenario, Tone } from '../engine/types'
 import { looksFemale, pickFace } from '../content/faces'
 import { mentionedIssues, parseOffer } from '../engine/offline'
+import { explicitOffer } from '../engine/offerEvidence'
 import { openingAnchor } from '../engine/policy'
 import { maxScore } from '../engine/utility'
 import { hashOf } from './cache'
@@ -157,8 +158,10 @@ const nameHint = (req: GenerateRequest) => LETTERS[parseInt(hashOf(req).slice(0,
  * называем её в промпте прямо и потом проверяем денежные пункты (sideProblems).
  */
 export type Side = 'payer' | 'payee'
-const PAYEE = /продаж|продав|поставщик|исполнител|подрядчик|арендодател|сда[её]т|собственник|кандидат|соискател|интегратор|производител|студи[яи] разработки/i
-const PAYER = /закуп|снабж|покупател|заказчик|арендатор|снима|нанима|работодател|контрактн|(^|[^\p{L}])hr([^\p{L}]|$)|кадр|рекрутер|менеджер по персоналу/iu
+// «собственник кафе» сам покупает, «видеограф, снимаю свадьбы» и «кадровое агентство» получают деньги: собственник,
+// «снимаю» и «кадры» говорят о стороне только рядом с помещением или отделом кадров
+const PAYEE = /продаж|продав|поставщик|исполнител|подрядчик|арендодател|сда[её]т|собственник\p{L}*\s+(?:помещ|здани|склад|квартир|офис|недвиж|объект|земл|площад)|кандидат|соискател|интегратор|производител|студи[яи] разработки/iu
+const PAYER = /закуп|снабж|покупател|заказчик|арендатор|снима\p{L}*\s+(?:помещ|квартир|офис|склад|жиль|дом|комнат|здани|площад)|нанима|работодател|контрактн|(^|[^\p{L}])hr([^\p{L}]|$)|кадров\p{L}*\s+(?:служб|отдел|менеджер|директор)|отдел\p{L}*\s+кадр|рекрутер|менеджер по персоналу/iu
 const ESTATE_OWNER = /владел\p{L}*\s+(склад|помещ|здани|офис|бизнес-центр|торгов|недвиж)/iu
 function sideOfRole(role: string): Side | undefined {
   const payee = PAYEE.test(role) || ESTATE_OWNER.test(role)
@@ -239,7 +242,9 @@ function moreHelps(title: string, options: string[]): Side | undefined {
   if (/отсрочк/.test(t) && /предоплат|аванс/.test(t)) return undefined
   if (/скидк/.test(t)) return 'payer'
   if (/отсрочк/.test(t)) return 'payer'
-  if (/гаранти/.test(title.toLowerCase())) return 'payer'
+  // депозит и залог (в том числе «гарантийный») — деньги вперёд тому, кто сдаёт или продаёт
+  if (/депозит|залог|обеспечительн|гарантийн\p{L}*\s+(?:платеж|платёж|взнос|сумм)/iu.test(title)) return 'payee'
+  if (/гаранти/.test(title.toLowerCase()) && !/гарантирован/iu.test(title)) return 'payer'
   if (/предоплат|аванс/.test(t)) return 'payee'
   if (/(^|[^\p{L}])(цена|стоимость|ставка|тариф|оклад|зарплата|вознаграждение|гонорар)/iu.test(title)) return 'payee'
   return undefined
@@ -560,6 +565,24 @@ export function storyProblems(raw: z.infer<typeof Raw>): string[] {
     .concat(clerical(raw), longOptions(raw))
 }
 
+/**
+ * Скрытый интерес собеседника по пункту называет выгодный ему вариант. Если модель перепутала стороны и в текстах, а
+ * settle перевернул только очки, при раскрытии собеседник скажет одно, а торговаться будет за другое.
+ */
+export function sideTextProblems(sc: Scenario): string[] {
+  const O = sc.opponent.profile
+  return O.interests.flatMap((it) => {
+    const issue = sc.issues.find((i) => i.id === it.issue)
+    if (!issue || issue.kind === 'compatible') return []
+    const said = explicitOffer(sc, it.text, parseOffer(sc, it.text))[issue.id]
+    if (said === undefined) return []
+    const pts = O.points[issue.id]
+    return pts[said] * 2 < Math.max(...pts) + Math.min(...pts)
+      ? [`интерес «${it.text.slice(0, 60)}» называет «${issue.options[said]}», а собеседнику по условиям это невыгодно — перепутаны стороны, перепиши интерес под его выгоду`]
+      : []
+  })
+}
+
 /** Вариант пункта — это то, что пишут в листок: «1 месяц», «за свой счёт». Больше пяти слов — уже фраза. */
 function longOptions(raw: z.infer<typeof Raw>): string[] {
   const long = raw.issues.flatMap((i) => i.options).filter((o) => o.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length > 5)
@@ -610,7 +633,7 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
         continue
       }
       const r = scenarioProblems(toScenario(raw, req))
-      const soft = r.problems.length ? [] : storyProblems(raw)
+      const soft = r.problems.length ? [] : [...storyProblems(raw), ...sideTextProblems(r.scenario)]
       // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту
       if (!r.problems.length && soft.length < passableSoft) {
         passable = r.scenario

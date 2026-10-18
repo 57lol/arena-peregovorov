@@ -226,13 +226,14 @@ export function step(
   const acceptsTheirs =
     analysis.accepts && !!theirsFull && (!newOffer || sameOffer({ ...theirsFull, ...newOffer }, theirsFull))
 
+  // Уйти можно всегда, и после последнего предложения: это уход игрока, а не «время вышло».
+  if (analysis.walksAway) return end({ kind: 'hold', reason: 'player_left' }, { status: 'walked_away', endedBy: 'player' })
+
   // После последнего предложения оппонента остаётся только принять.
   if (before.lastCall) {
     if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirsFull, tableOffer: theirsFull })
     return end({ kind: 'hold', reason: 'timeout' }, { status: 'timeout' })
   }
-
-  if (analysis.walksAway) return end({ kind: 'hold', reason: 'player_left' }, { status: 'walked_away', endedBy: 'player' })
 
   if (analysis.toneViolation) {
     s.toneStrikes = (s.toneStrikes ?? 0) + 1

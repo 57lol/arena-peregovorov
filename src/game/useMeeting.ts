@@ -216,7 +216,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     unlockAudio()
   }
 
-  const feedback = useMemo(() => (last ? turnFeedback(sc, last) : null), [sc, last])
+  const before = history[history.length - 2]
+  const feedback = useMemo(() => (last ? turnFeedback(sc, last, before) : null), [sc, last, before])
   const tip = useMemo(
     () => (instantOn && !done && !pending ? nextTip(sc, history) : null),
     [instantOn, done, pending, sc, history],
