@@ -41,6 +41,8 @@ const Gallery = lazy(() => import('./game/cutscene/Gallery').then((m) => ({ defa
 /** Откуда открыли дело. «Сюжет» возвращает на титул: карты в нём нет. */
 type Origin = 'story' | 'map' | 'setup' | 'jury'
 const home = (o: Origin): Screen => (o === 'story' ? 'title' : o)
+/** Подпись кнопки «туда, откуда открыли дело» — в брифе и в разборе одна и та же. */
+const backLabelOf = (o: Origin) => (o === 'story' ? 'В меню' : o === 'map' ? 'К карте недели' : o === 'jury' ? 'К жюри' : undefined)
 
 export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films'
 
@@ -528,7 +530,7 @@ export default function App() {
       />
     )
 
-  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} speech={server?.speech} onStart={start} onBack={() => go(home(from))} backLabel={from === 'story' ? 'В меню' : undefined} /></>
+  if (screen === 'brief') return <>{roomError && <p className="g-view-note" role="alert">{roomError}</p>}<Brief game={current} speech={server?.speech} onStart={start} onBack={() => go(home(from))} backLabel={backLabelOf(from)} /></>
 
   if (screen === 'play') {
     const meeting = {
@@ -593,7 +595,7 @@ export default function App() {
           : undefined
       }
       onOther={() => go(home(from))}
-      otherLabel={from === 'story' ? 'В меню' : from === 'map' ? 'К карте недели' : from === 'jury' ? 'К жюри' : undefined}
+      otherLabel={backLabelOf(from)}
       // «Сюжет»: главная кнопка — «Дальше»: катсцена-переход и следующая глава
       onNext={
         from === 'story' && chapterOf(current.scenario.id)
