@@ -49,8 +49,11 @@ function watch(page: Page, label: string) {
     if (r.url().includes('/api/') && r.status() >= 500) fail(`${label}: ${r.status()} ${r.url()}`)
     else if (r.url().includes('/api/') && r.status() >= 400) console.log(`    ! ${label}: ${r.status()} ${r.url()}`)
   })
-  page.on('requestfailed', (r) => {
-    if (r.url().includes('/api/')) fail(`${label}: запрос не прошёл ${r.url()} — ${r.failure()?.errorText}`)
+  page.on('requestfailed', async (r) => {
+    if (!r.url().includes('/api/')) return
+    // ход потоком (ndjson): клиент забирает «done» и бросает остаток тела — это ERR_ABORTED уже после ответа сервера, не сбой
+    if (r.failure()?.errorText === 'net::ERR_ABORTED' && (await r.response().catch(() => null))?.ok()) return
+    fail(`${label}: запрос не прошёл ${r.url()} — ${r.failure()?.errorText}`)
   })
 }
 
