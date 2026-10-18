@@ -19,6 +19,7 @@ import { attachInput, isTyping } from '../world3d/input'
 import type { Pose } from '../world3d/head'
 import type { PaperId } from '../world3d/papers'
 import { World } from '../world3d/stage'
+import { placeBubble, type BubbleSpot, type Rect } from '../world3d/bubble'
 import { Margin } from './Margin'
 import { Mentor } from './Mentor'
 import { VoiceMenuItems } from './VoiceSettings'
@@ -219,7 +220,8 @@ export default function Play3D(props: Props) {
 
   // ---------- оверлеи, привязанные к миру ----------
   const lineRef = useRef<HTMLDivElement>(null)
-  const nameRef = useRef<HTMLDivElement>(null)
+  const lineKeyRef = useRef<unknown>(null)
+  lineKeyRef.current = m.lineKey
   const xrayRef = useRef<HTMLDivElement>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -227,6 +229,8 @@ export default function Play3D(props: Props) {
     const head = new Vector3()
     const p = { x: 0, y: 0, behind: false }
     let lastPose: Pose = 'face'
+    let lastLine: unknown = null
+    let lastTail: BubbleSpot['tail'] = ''
     return world.on(() => {
       const lead = world.company?.lead
       const box = lineRef.current
@@ -236,58 +240,57 @@ export default function Play3D(props: Props) {
       const lineHidden = world.desk.heldAmount > 0.3 || (world.portrait && pose === 'desk')
       box?.classList.toggle('is-hidden', lineHidden)
       if (!lead) return
+      let bubble: Rect | null = null
       const cw = world.cw
       const ch = world.ch
       const rootBox = rootRef.current!.getBoundingClientRect()
       const trayTop = trayRef.current ? trayRef.current.getBoundingClientRect().top - rootBox.top : ch
-      // телефон стоя: голова собеседника высоко — наставник встаёт внизу, над субтитрами, и лицо остаётся открытым
+      // телефон стоя: голова собеседника высоко — наставник встаёт внизу, над панелью, и лицо остаётся открытым
       const mentorEl = document.querySelector<HTMLElement>('.w3-mentor')
       const at = !mentorEl ? '' : world.portrait ? 'bottom' : pose === 'face' ? 'top' : 'beside'
-      const lineTop = box && !lineHidden && !(pose === 'desk' && !world.portrait) ? trayTop - box.offsetHeight - 8 : trayTop
-      if (mentorEl) placeMentor(mentorEl, rootBox, cw, trayTop, at, lineTop)
+      if (mentorEl) placeMentor(mentorEl, rootBox, cw, trayTop, at)
       // лист в руках встаёт между кнопкой меню (или наставником сверху) и панелью (или наставником снизу)
       const mentor = mentorEl?.getBoundingClientRect()
       world.desk.freeTop = Math.max(64, mentor && at === 'top' ? mentor.bottom - rootBox.top + 10 : 0) / ch
       world.desk.freeBottom = (Math.min(trayTop, mentor && at === 'bottom' ? mentor.top - rootBox.top : ch) - 8) / ch
-      // плашка с именем — над головой собеседника; голова за кадром — имя переезжает на субтитры
-      world.project(lead.anchor('head', head), p)
-      const plate = nameRef.current
-      let named = false
-      if (plate) {
-        const w = plate.offsetWidth
-        const h = plate.offsetHeight
-        const x = p.x - w / 2
-        let y = p.y - h - 6
-        // плашки разбора хода и «Меню» сверху важнее: имя спускается под них, но не ниже макушки
-        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate', '.w3-top']) {
+      // реплика — облачком у головы собеседника: над макушкой, сбоку или под подбородком, с хвостиком к нему;
+      // голова за кадром — облачко прижато к краю, стрелка на имени показывает, куда повернуться
+      if (box && !lineHidden) {
+        const narrow = cw < 700
+        const obstacles: Rect[] = []
+        for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-mentor', '.w3-rotate', '.w3-top', ...(narrow ? ['.w3-xray'] : [])]) {
           const r = document.querySelector(sel)?.getBoundingClientRect()
-          if (r && r.width && x < r.right - rootBox.left && x + w > r.left - rootBox.left && y < r.bottom - rootBox.top && y + h > r.top - rootBox.top)
-            y = r.bottom - rootBox.top + 4
+          if (r && r.width) obstacles.push({ l: r.left - rootBox.left, t: r.top - rootBox.top, r: r.right - rootBox.left, b: r.bottom - rootBox.top })
         }
-        named = !p.behind && pose === 'face' && x > 4 && x + w < cw - 4 && y > 4 && y <= p.y + h && y + h < trayTop - 40
-        plate.classList.toggle('is-hidden', !named)
-        plate.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
-      }
-      if (box) {
-        const w = box.offsetWidth
-        const h = box.offsetHeight
-        box.dataset.named = named ? '' : '1'
-        box.dataset.off = named ? '' : p.behind ? 'behind' : p.x < 0 ? 'left' : p.x > cw ? 'right' : ''
-        // субтитры: узкая полоса внизу кадра, над панелью — лицо и стол открыты
-        let x = (cw - w) / 2
-        let y = trayTop - h - 8
-        // склонились к столу на ноутбуке — субтитры уходят наверх, над блокнотом: бумаги на столе открыты
-        if (pose === 'desk' && !world.portrait) {
-          x = 12
-          y = 12
-          for (const sel of ['.w3-toasts', '.w3-toast-chip', '.w3-sheet', '.w3-xray', '.w3-mentor', '.w3-rotate']) {
-            const r = document.querySelector(sel)?.getBoundingClientRect()
-            if (!r || r.left - rootBox.left > cw / 2) continue
-            const right = r.right - rootBox.left + 12
-            if (right + w + 12 <= cw) x = Math.max(x, right)
-          }
+        const proj = (k: 'head' | 'chin' | 'chest') => {
+          const o = { x: 0, y: 0, behind: false }
+          world.project(lead.anchor(k, head), o)
+          return o
         }
-        box.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
+        // ширина — по CSS; суженное между плашками облачко сначала возвращаем к обычной
+        if (box.style.width) box.style.width = ''
+        const spot = placeBubble({
+          cw,
+          trayTop,
+          w: box.offsetWidth,
+          h: box.offsetHeight,
+          head: proj('head'),
+          chin: proj('chin'),
+          // видеозвонок: облачко под экраном, лицо на экране открыто
+          under: world.call ? proj('chest') : undefined,
+          desk: pose === 'desk',
+          obstacles,
+          // пока идёт одна реплика, облачко не перепрыгивает (ушла плашка сверху — остаётся, где было)
+          keep: lineKeyRef.current === lastLine ? lastTail : undefined,
+        })
+        lastLine = lineKeyRef.current
+        lastTail = spot.tail
+        if (spot.w) box.style.width = `${Math.round(spot.w)}px`
+        bubble = { l: spot.x, t: spot.y, r: spot.x + box.offsetWidth, b: spot.y + box.offsetHeight }
+        box.dataset.tail = spot.tail
+        box.dataset.off = spot.off
+        box.style.setProperty('--tail', `${Math.round(spot.tail === 'left' || spot.tail === 'right' ? spot.ty : spot.tx)}px`)
+        box.style.transform = `translate3d(${Math.round(spot.x)}px, ${Math.round(spot.y)}px, 0)`
       }
       const xr = xrayRef.current
       if (xr) {
@@ -296,7 +299,9 @@ export default function Play3D(props: Props) {
         const narrow = cw < 700
         const x = narrow ? 12 : Math.min(Math.max(p.x + 170, 12), cw - w - 12)
         // на телефоне — под карточкой наставника, если она сверху
-        const y = narrow ? (mentor && at === 'top' ? mentor.bottom - rootBox.top + 8 : 12) : Math.max(p.y - 20, 12)
+        let y = narrow ? (mentor && at === 'top' ? mentor.bottom - rootBox.top + 8 : 12) : Math.max(p.y - 20, 12)
+        // на ноутбуке «что чувствует» не наезжает на облачко реплики
+        if (!narrow && bubble && x < bubble.r + 8 && x + w > bubble.l - 8 && y < bubble.b + 8) y = Math.max(y, bubble.b + 8)
         xr.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
       }
     })
@@ -375,14 +380,12 @@ export default function Play3D(props: Props) {
           host.card.host,
         )}
 
-      {/* имя — над головой собеседника; говорит — рядом мигает динамик */}
-      <div ref={nameRef} className={`w3-name w3-ui${talking && !pending ? ' is-talking' : ''}`} aria-hidden="true" title={sc.opponent.character.role}>
-        <span>{sc.opponent.character.name}</span>
-        <PixelIcon name="sound" px={2} />
-      </div>
-
-      {/* реплика собеседника — субтитрами внизу кадра */}
-      <div ref={lineRef} className="w3-them w3-ui" data-nodrag>
+      {/* реплика собеседника — облачком у его головы: имя заголовком, говорит — рядом мигает динамик */}
+      <div ref={lineRef} className={`w3-them w3-ui${talking && !pending ? ' is-talking' : ''}`} data-nodrag>
+        <div className="w3-them-name" aria-hidden="true" title={sc.opponent.character.role}>
+          <span>{sc.opponent.character.name}</span>
+          <PixelIcon name="sound" px={2} />
+        </div>
         <DialogBox
           key={m.lineKey}
           name={sc.opponent.character.name}

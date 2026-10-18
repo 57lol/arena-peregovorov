@@ -4,7 +4,7 @@
 // Встреча — текстом (прогоны Playwright) и голосом (?voiceonly, часть voice: панель микрофона и меню «Сделка»).
 // На каждом экране проверяем: нет горизонтальной прокрутки, ничего не вылезает за край и не обрезано,
 // кнопки не меньше 44 px и не перекрыты липкими панелями, текст не налезает друг на друга, читаемый текст не мельче 14 px.
-// Встреча в 3D (с 18.10): субтитры собеседника не заходят на лицо, имя — над головой, панель внизу узкая.
+// Встреча в 3D (с 18.10): реплика — облачком у головы собеседника, не на лице и не у панели; имя — заголовком облачка; панель внизу узкая.
 // Снимки — в ~/Arena-materials/final/mobile-shots/<метка>/<браузер>-<вьюпорт>/.
 //
 // Запуск: SPEECH=off LLM_PROVIDER=offline npm run dev, потом
@@ -255,7 +255,7 @@ async function context(browser: Browser, vp: Vp) {
       : undefined,
   })
   // программный рендер в прогоне — fps ничего не говорит о живом телефоне: проверку «не тянет 3D» отключаем.
-  // Кадры при этом идут: субтитры, имя над головой и наставник расставляются, как на живом телефоне
+  // Кадры при этом идут: облачко реплики у головы собеседника и наставник расставляются, как на живом телефоне
   await ctx.addInitScript({
     content: `setInterval(() => { const w = window.__world; if (w && !w.__pinned) { Object.defineProperty(w, 'fps', { get: () => 60, set: () => {} }); w.__pinned = true } }, 100)`,
   })
@@ -418,12 +418,13 @@ async function hold(page: Page, id: string, phone: boolean) {
   await page.waitForTimeout(1100)
 }
 
-/** Субтитры не заходят на лицо собеседника, имя висит над головой, панель внизу не выше 72 px. */
+/** Реплика — облачком у головы собеседника: не на лице, над макушкой / сбоку / под подбородком (на звонке — под экраном),
+ * а не внизу у панели; имя — заголовком облачка; панель внизу не выше 72 px. */
 async function sceneCheck(page: Page, vp: Vp, tag: string) {
   const r = await page.evaluate(() => {
     type V = { x: number; y: number; z: number; set: (x: number, y: number, z: number) => V }
     const vec = (): V => ({ x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this } })
-    const w = (window as unknown as { __world?: { head: { pose: string }; company?: { lead?: { anchor: (k: string, v: V) => V } }; project: (v: V, o: { x: number; y: number; behind: boolean }) => unknown } }).__world
+    const w = (window as unknown as { __world?: { call: boolean; head: { pose: string }; company?: { lead?: { anchor: (k: string, v: V) => V } }; project: (v: V, o: { x: number; y: number; behind: boolean }) => unknown } }).__world
     const lead = w?.company?.lead
     if (!w || !lead || w.head.pose !== 'face') return null
     const at = (k: string) => {
@@ -433,16 +434,28 @@ async function sceneCheck(page: Page, vp: Vp, tag: string) {
     }
     const box = (s: string) => {
       const e = document.querySelector(s)
-      if (!e || getComputedStyle(e).opacity === '0' || e.classList.contains('is-hidden')) return null
+      if (!e || getComputedStyle(e).opacity === '0' || e.closest('.is-hidden')) return null
       const b = e.getBoundingClientRect()
       return b.width ? { top: b.top, bottom: b.bottom, left: b.left, right: b.right, height: b.height } : null
     }
-    return { head: at('head'), chin: at('chin'), them: box('.w3-them'), name: box('.w3-name'), bar: box('.w3-bar') }
+    return { call: w.call, head: at('head'), chin: at('chin'), chest: at('chest'), them: box('.w3-them'), name: box('.w3-them-name'), bar: box('.w3-bar') }
   })
   if (!r) return
-  if (r.them && !r.chin.behind && r.them.top < r.chin.y - 2) fail(`${tag}: субтитры заходят на лицо (верх ${Math.round(r.them.top)} < подбородок ${Math.round(r.chin.y)})`)
-  if (r.name && r.name.bottom > r.head.y + r.name.height + 2) fail(`${tag}: имя ниже макушки собеседника`)
   if (vp.phone && r.bar && r.bar.height > 72) fail(`${tag}: панель внизу высотой ${Math.round(r.bar.height)} px`)
+  const { head, chin, them } = r
+  if (!them || head.behind || head.x < 0 || head.x > vp.width || head.y < 0) return
+  if (!r.name || r.name.top < them.top - 1 || r.name.bottom > them.bottom + 1) fail(`${tag}: имя не в заголовке облачка`)
+  const face = chin.y - head.y
+  // лицо: от бровей до подбородка (волосы облачку закрывать можно), по ширине — половина высоты в каждую сторону
+  const f = { top: head.y + face * 0.4, bottom: chin.y, left: head.x - face * 0.45, right: head.x + face * 0.45 }
+  const x = Math.min(them.right, f.right) - Math.max(them.left, f.left)
+  const y = Math.min(them.bottom, f.bottom) - Math.max(them.top, f.top)
+  if (x > 4 && y > 4) fail(`${tag}: облачко заходит на лицо (${Math.round(x)}×${Math.round(y)} px)`)
+  const above = them.bottom <= f.top + 2
+  const under = them.top >= (r.call ? r.chest.y : chin.y) - 2 && them.top <= (r.call ? r.chest.y : chin.y) + 40
+  const beside = them.top < chin.y && them.bottom > head.y && (them.right <= f.left + 2 || them.left >= f.right - 2)
+  if (!above && !under && !beside) fail(`${tag}: облачко не у головы собеседника (верх ${Math.round(them.top)}, макушка ${Math.round(head.y)}, подбородок ${Math.round(chin.y)})`)
+  if (r.bar && !above && them.bottom > r.bar.top - 24) fail(`${tag}: облачко у панели, а не у собеседника`)
 }
 
 /** «Сделка» → «Согласиться», если собеседник положил условия; иначе меню закрываем. */

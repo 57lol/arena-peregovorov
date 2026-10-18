@@ -81,7 +81,7 @@ function mount(component: () => ReactNode) {
     if (!isValidElement<{ ref?: RefObject<unknown>; children?: ReactNode }>(node)) return
     const ref = node.props.ref
     if (ref && !ref.current) {
-      ref.current = { getBoundingClientRect: measurements, classList: { toggle: vi.fn() }, style: {}, dataset: {},
+      ref.current = { getBoundingClientRect: measurements, classList: { toggle: vi.fn() }, style: { setProperty: vi.fn() }, dataset: {},
         offsetWidth: 200, offsetHeight: 100, clientWidth: 390, scrollWidth: 390, children: [] }
       refs.push(ref)
     }

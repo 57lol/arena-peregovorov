@@ -37,43 +37,74 @@
   font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
 }
 
-/* ---------- собеседник: имя над головой, реплика — субтитрами внизу кадра ---------- */
+/* ---------- собеседник: реплика облачком у головы, имя — заголовком облачка ---------- */
 
-.w3-name {
+.w3-them {
+  --tail: 50%;
   left: 0;
   top: 0;
+  width: min(480px, calc(100% - 16px));
+  will-change: transform;
+}
+/* имя — заголовок облачка; говорит — рядом мигает динамик */
+.w3-them-name {
   display: inline-flex;
   align-items: center;
   gap: calc(2 * var(--u));
+  margin: 0 0 var(--u);
   padding: 0 calc(3 * var(--u));
   background: var(--c-brass);
   box-shadow: 0 0 0 var(--u) var(--c-ink);
   color: var(--c-ink);
   font: 700 var(--fs-small) / 22px var(--f-ui);
   white-space: nowrap;
-  pointer-events: none;
-  will-change: transform;
-  transition: opacity 0.15s steps(3);
 }
-.w3-name svg {
+.w3-them-name svg {
   display: none;
 }
-/* говорит — рядом мигает динамик */
-.w3-name.is-talking svg {
+.w3-them.is-talking .w3-them-name svg {
   display: block;
   animation: px-blink 1s steps(1) infinite;
 }
-.w3-name.is-hidden {
-  opacity: 0;
+/* хвостик облачка — пиксельной лесенкой к голове собеседника */
+.w3-them::after {
+  content: '';
+  position: absolute;
+  display: none;
+  width: calc(8 * var(--u));
+  height: calc(6 * var(--u));
+  background: var(--plate);
+  pointer-events: none;
 }
-
-.w3-them {
-  left: 0;
-  top: 0;
-  width: min(720px, calc(100% - 24px));
-  will-change: transform;
+.w3-them[data-tail='down']::after,
+.w3-them[data-tail='up']::after {
+  display: block;
+  left: calc(var(--tail) - 4 * var(--u));
 }
-/* имя и должность — для экранного диктора; видно имя, только когда голова собеседника за кадром */
+.w3-them[data-tail='down']::after {
+  top: calc(100% + var(--u));
+  clip-path: polygon(0 0, 100% 0, 100% 34%, 75% 34%, 75% 67%, 62.5% 67%, 62.5% 100%, 37.5% 100%, 37.5% 67%, 25% 67%, 25% 34%, 0 34%);
+}
+.w3-them[data-tail='up']::after {
+  bottom: calc(100% + var(--u));
+  clip-path: polygon(37.5% 0, 62.5% 0, 62.5% 34%, 75% 34%, 75% 67%, 100% 67%, 100% 100%, 0 100%, 0 67%, 25% 67%, 25% 34%, 37.5% 34%);
+}
+.w3-them[data-tail='left']::after,
+.w3-them[data-tail='right']::after {
+  display: block;
+  top: calc(var(--tail) - 4 * var(--u));
+  width: calc(6 * var(--u));
+  height: calc(8 * var(--u));
+}
+.w3-them[data-tail='left']::after {
+  right: calc(100% + var(--u));
+  clip-path: polygon(100% 0, 100% 100%, 67% 100%, 67% 75%, 34% 75%, 34% 62.5%, 0 62.5%, 0 37.5%, 34% 37.5%, 34% 25%, 67% 25%, 67% 0);
+}
+.w3-them[data-tail='right']::after {
+  left: calc(100% + var(--u));
+  clip-path: polygon(0 0, 33% 0, 33% 25%, 66% 25%, 66% 37.5%, 100% 37.5%, 100% 62.5%, 66% 62.5%, 66% 75%, 33% 75%, 33% 100%, 0 100%);
+}
+/* имя и должность внутри реплики — для экранного диктора; на экране имя в заголовке облачка */
 .w3-them .px-plate {
   position: absolute;
   width: 1px;
@@ -81,19 +112,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-.w3-them[data-named='1'] .px-plate {
-  position: static;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip-path: none;
-  margin: 0 0 var(--u);
-  padding: 0 calc(3 * var(--u));
-  border: 0;
-  background: var(--c-brass);
-  box-shadow: 0 0 0 var(--u) var(--c-ink);
-  font: 700 var(--fs-small) / 22px var(--f-ui);
 }
 .w3-them .px-plate-role {
   display: none;
@@ -139,22 +157,26 @@
   position: absolute;
   inset: -10px -4px;
 }
-/* собеседник за краем экрана: имя на субтитрах подсказывает, куда повернуться */
-.w3-them[data-off='left'] .px-plate::before,
-.w3-them[data-off='right'] .px-plate::after,
-.w3-them[data-off='behind'] .px-plate::after {
+/* собеседник за краем экрана: стрелка у имени подсказывает, куда повернуться */
+.w3-them[data-off='left'] .w3-them-name::before,
+.w3-them[data-off='right'] .w3-them-name::after,
+.w3-them[data-off='up'] .w3-them-name::after {
   content: '';
   align-self: center;
   width: calc(4 * var(--u));
   height: calc(6 * var(--u));
   background: currentColor;
 }
-.w3-them[data-off='left'] .px-plate::before {
+.w3-them[data-off='left'] .w3-them-name::before {
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
 }
-.w3-them[data-off='right'] .px-plate::after,
-.w3-them[data-off='behind'] .px-plate::after {
+.w3-them[data-off='right'] .w3-them-name::after {
   clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.w3-them[data-off='up'] .w3-them-name::after {
+  width: calc(6 * var(--u));
+  height: calc(4 * var(--u));
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
 /* ---------- рентген: рядом с головой собеседника ---------- */
@@ -477,8 +499,7 @@
   .w3-talk {
     font-weight: 700;
   }
-  .w3-name,
-  .w3-them[data-named='1'] .px-plate,
+  .w3-them-name,
   .w3-clock-line {
     font-size: var(--fs-ui);
     line-height: var(--lh-ui);
@@ -1053,9 +1074,8 @@
   .w3-menu-label {
     display: none;
   }
-  /* телефон: субтитры — две строки, дальше листаются сами по ходу речи */
-  .w3-them .px-dialog-text {
-    max-height: calc(2 * var(--lh-read));
+  .w3-them {
+    width: min(400px, calc(100% - 16px));
   }
   .w3-write .px-field-input {
     max-height: 104px;
@@ -1121,6 +1141,13 @@
 @media (prefers-reduced-motion: reduce) {
   .w3-toasts {
     animation-duration: var(--life, 9s) !important;
+  }
+}
+
+/* низкий телефон: облачко в две строки, дальше листается само по ходу речи */
+@media (max-width: 699px) and (max-height: 700px) {
+  .w3-them .px-dialog-text {
+    max-height: calc(2 * var(--lh-read));
   }
 }
 
@@ -1411,9 +1438,9 @@
   .w3-toast .w3-toast-effect {
     display: none;
   }
-  /* лёжа экран низкий: субтитры в две строки, кнопки — значок и подпись в строку */
+  /* лёжа экран низкий: облачко в две строки, кнопки — значок и подпись в строку */
   .w3-them {
-    width: min(620px, calc(100% - 24px));
+    width: min(380px, calc(100% - 16px));
   }
   .w3-them .px-dialog-text {
     max-height: calc(2 * var(--lh-read));

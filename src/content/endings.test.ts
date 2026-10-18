@@ -5,7 +5,7 @@ import { ENDING_IDS, endingFacts, pickEnding, type EndingId } from '../engine/en
 import { playAnalyses } from '../engine/index'
 import { buildReport } from '../engine/report'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../engine/types'
-import { allDeals } from '../engine/utility'
+import { allDeals, paretoFrontier } from '../engine/utility'
 import { endingCatalog, endingOf } from './endings'
 import { client } from './scenarios/client'
 import { offer } from './scenarios/offer'
@@ -25,14 +25,25 @@ const endOf = (sc: Scenario, h: TurnRecord[]) =>
   pickEnding(endingFacts(sc, buildReport(sc, h, BEHAVIOR_DICT), h[h.length - 1]?.stateAfter))
 
 /**
- * Перебор партий: каждая возможная сделка, разные манеры, а ещё — уйти, нагрубить, проговорить всё время.
- * Для каждого финала запоминаем первую партию, которая к нему привела.
+ * Поиск свидетелей достижимости: разные сделки и манеры. Для каждого финала
+ * достаточно одной настоящей партии. После нахождения всех восьми дальше не
+ * перебираем; если чего-то не нашли, проверяем всё пространство, как раньше.
  */
 function explore(sc: Scenario): Map<EndingId, string> {
   const found = new Map<EndingId, string>()
   const note = (id: EndingId, how: string) => found.has(id) || found.set(id, how)
 
-  for (const p of allDeals(sc))
+  // Дешёвые свидетели и граница Парето — первыми. Перебор всех сделок раньше
+  // продолжался даже после нахождения всех исходов и занимал большую часть suite.
+  const talk = Array.from({ length: sc.turnLimit + 1 }, (_, t) => say({ behaviors: hits(t % 2 ? 'summarize' : 'ask_interest') }))
+  note(play(sc, talk).ending, 'только вопросы, без цифр')
+  note(play(sc, [say({ offer: {} }), say({ accepts: true })]).ending, 'приняли первое встречное')
+  note(play(sc, [say({ walksAway: true })]).ending, 'сразу ушли')
+  const rude = say({ toneViolation: true, behaviors: hits('attack') })
+  note(play(sc, [rude, rude, rude]).ending, 'три грубости подряд')
+  const mine: Offer = Object.fromEntries(sc.issues.map((i) => [i.id, best(sc.player.profile.points[i.id])]))
+  const all = allDeals(sc)
+  for (const p of [...paretoFrontier(all), ...all]) {
     for (const [m, behaviors] of MOODS.entries()) {
       // одно и то же предложение до конца встречи
       const same = Array.from({ length: sc.turnLimit }, () => say({ offer: p.offer, behaviors }))
@@ -41,24 +52,17 @@ function explore(sc: Scenario): Map<EndingId, string> {
       // два хода с предложением, потом встать и уйти
       const leave = play(sc, [say({ offer: p.offer, behaviors }), say({ offer: p.offer, behaviors }), say({ walksAway: true })])
       note(leave.ending, `манера ${m}, дважды ${JSON.stringify(p.offer)}, потом ушли`)
+      if (found.size === ENDING_IDS.length) return found
     }
-  // жёсткое начало (нападение и раздражители), потом умный пакет: условия хорошие, отношения — нет
-  const mine: Offer = Object.fromEntries(sc.issues.map((i) => [i.id, best(sc.player.profile.points[i.id])]))
-  for (const first of [['attack'], ['ultimatum', 'irritator'], ['irritator']])
-    for (const hold of [1, 3])
-      for (const p of allDeals(sc)) {
+    // Жёсткое начало, потом умный пакет: условия хорошие, отношения — нет.
+    for (const first of [['attack'], ['ultimatum', 'irritator'], ['irritator']])
+      for (const hold of [1, 3]) {
         const rough = [say({ offer: mine, behaviors: hits(...first) }), ...Array.from({ length: hold }, () => say({ offer: mine }))]
         const push = [say({ offer: p.offer, behaviors: hold > 1 ? hits('irritator') : [] }), say({ offer: p.offer }), say({ offer: p.offer })]
         note(play(sc, [...rough, ...push]).ending, `${first.join('+')}, ${hold} хода на своём, потом ${JSON.stringify(p.offer)}`)
+        if (found.size === ENDING_IDS.length) return found
       }
-  // всю встречу только спрашивали и пересказывали, до цифр не дошли
-  const talk = Array.from({ length: sc.turnLimit + 1 }, (_, t) => say({ behaviors: hits(t % 2 ? 'summarize' : 'ask_interest') }))
-  note(play(sc, talk).ending, 'только вопросы, без цифр')
-  // принять первое же встречное
-  note(play(sc, [say({ offer: {} }), say({ accepts: true })]).ending, 'приняли первое встречное')
-  note(play(sc, [say({ walksAway: true })]).ending, 'сразу ушли')
-  const rude = say({ toneViolation: true, behaviors: hits('attack') })
-  note(play(sc, [rude, rude, rude]).ending, 'три грубости подряд')
+  }
   return found
 }
 
