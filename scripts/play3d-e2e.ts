@@ -89,6 +89,12 @@ async function lookFace(page: Page) {
 /** На телефоне лист берут в руки тапом. */
 async function hold(page: Page, id: string, phone: boolean) {
   if (!phone) return
+  // с 18.10 «Стол» на телефоне сразу даёт блокнот в руки: сначала положить то, что держим
+  const look = page.locator('.w3-look')
+  if ((await look.innerText()).includes('На стол')) {
+    await look.click()
+    await page.waitForTimeout(1100)
+  }
   const p = await paperPoint(page, id)
   if (!p) return fail(`не нашли лист ${id} на столе`)
   await page.mouse.click(p.x, p.y)
@@ -126,9 +132,6 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     deviceScaleFactor: phone ? 2 : 1,
     hasTouch: phone,
   })
-  // программный рендер под нагрузкой даёт мало кадров — проверку «не тянет 3D» (смотрит только видимую вкладку) выключаем,
-  // иначе встреча посреди прогона уходит в классический вид
-  await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
   const page = await ctx.newPage()
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(String(e)))
@@ -147,6 +150,10 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     await page.locator('.g-folder').filter({ hasText: CASES[kase].folder }).getByRole('button', { name: 'Открыть дело' }).click()
     await page.getByRole('button', { name: 'Войти в переговорку' }).click()
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
+    // программный рендер под нагрузкой даёт мало кадров — проверку «не тянет 3D» выключаем, иначе встреча посреди
+    // прогона уходит в классический вид. Подменять document.hidden нельзя: в скрытой вкладке кадры не рисуются (как в exit-e2e)
+    await page.waitForFunction(() => !!(window as unknown as { __world?: unknown }).__world, undefined, { timeout: 30_000 })
+    await page.evaluate("Object.defineProperty(window.__world, 'fps', { get() { return 60 }, set() {} })")
     await page.waitForTimeout(2600)
     await shot(page, `${pre}-01-вход`)
 
@@ -262,7 +269,7 @@ async function play(kase: keyof typeof CASES, phone: boolean) {
     const sw = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
     if (sw > 0) fail(`${tag}: горизонтальная прокрутка ${sw}px`)
   } catch (e) {
-    fail(`${tag}: ${String(e).split('\n')[0]}`)
+    fail(`${tag}: ${String(e).split('\n').slice(0, 4).join(' / ')}`)
     await shot(page, `${pre}-ошибка`).catch(() => {})
   } finally {
     if (errors.length) fail(`${tag}: ошибки в консоли: ${errors.slice(0, 3).join(' | ')}`)
