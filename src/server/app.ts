@@ -216,7 +216,12 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   for (const sc of allScenarios) speech.issue(sc.opening)
 
   // 413 от лимита тела и прочие HTTP-ошибки — как есть, ошибки проверки — 400 по-русски
-  app.onError((e, c) => (e instanceof HTTPException ? (e.res ?? c.json({ error: e.message }, e.status)) : e instanceof z.ZodError ? c.json({ error: zodText(e) }, 400) : c.json({ error: e.message }, 500)))
+  // испорченное тело (не JSON) — ошибка запроса, а не сервера: c.req.json() бросает SyntaxError
+  app.onError((e, c) =>
+    e instanceof HTTPException ? (e.res ?? c.json({ error: e.message }, e.status))
+    : e instanceof z.ZodError ? c.json({ error: zodText(e) }, 400)
+    : e instanceof SyntaxError ? c.json({ error: 'Запрос не разобрался: тело — не JSON' }, 400)
+    : c.json({ error: e.message }, 500))
 
   // только имя модели (у Яндекса в полном id зашит folder id облака) и режим pro/lite/offline — без сумм
   app.get('/api/health', async (c) =>

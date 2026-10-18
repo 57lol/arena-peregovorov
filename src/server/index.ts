@@ -16,6 +16,7 @@ const { makeLLM } = await import('./llm')
 const { makeSpeech } = await import('./speech')
 const { makeSttStream } = await import('./sttStream')
 const { logBudgetHourly } = await import('./budget')
+const { warmRules } = await import('./library')
 
 const { llm, error } = makeLLM()
 const speech = makeSpeech()
@@ -26,6 +27,7 @@ app.route('/', sttStream.app)
 const server = serve({ fetch: app.fetch, port }, () => {
   console.log(`Сервер: http://localhost:${port} · провайдер ${llm.name} (${llm.model})${error ? ` — ${error}, работаю офлайн` : ''}`)
   void speech.prewarm()
+  setTimeout(warmRules, 1500).unref()
 })
 if (llm.name !== 'offline') logBudgetHourly()
 
