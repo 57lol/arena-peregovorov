@@ -19,7 +19,10 @@ const judge = (name: string) => personalJudge(secret, name, keyOf(name))
 const headers = (pass: string) => ({ cookie: `arena_pass=${pass}`, 'content-type': 'application/json' })
 const pass = (name: string) => makePass(secret, Date.now(), judge(name))
 const protectedApp = (app: Hono) => new Hono().use('*', gate({ secret, juryKeys })).route('/', app)
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllEnvs()
+})
 
 it('SpeechKit TTS и STT дают судьям за одним IP отдельные квоты и пишут их расходы', async () => {
   vi.stubEnv('TTS_PROVIDER', 'yandex')
@@ -70,6 +73,9 @@ it('Scribe: личные ключи разделяют лимиты и расх�
 })
 
 it('ходы и лаборатория: отдельные квоты, ход и рубли видны капитану', async () => {
+  // Оба хода одного судьи должны оставаться в одном минутном окне независимо от нагрузки.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-19T12:00:30Z'))
   vi.stubEnv('TURN_SESSION_MINUTE_LIMIT', '1')
   vi.stubEnv('ADMIN_KEY', 'captain')
   const q = budget()
