@@ -194,7 +194,11 @@ export function elevenBody(q: TtsRequest, env = process.env) {
   // живые реплики — v4 Turbo тем же голосом, вступление, фразы-паузы и реакции — v3 с акцентом. ELEVEN_LIVE_V3=on — всё на v3.
   // ELEVEN_OPENER_FAST=on: заход — v4 Turbo (первый байт ~0,25 с против ~0,7 с у v3), остаток реплики — v3 с акцентом
   const fast = q.live && (env.ELEVEN_LIVE_V3 !== 'on' || (q.opener && env.ELEVEN_OPENER_FAST === 'on'))
-  const model = fast && tune.model === 'eleven_v3' ? main : tune.model ?? main
+  // ELEVEN_LIVE_MODEL=eleven_v3_conversational: вся живая реплика (и заход, и остаток) одной моделью — без шва тембра
+  // между быстрым заходом и v3 (жалоба капитана 19.10). Тот же голос и акцент, что у v3, первый байт ~0,3 с против ~0,8 с
+  // (~/Arena-materials/final/voice5/ab). Сильнее ELEVEN_LIVE_V3 и ELEVEN_OPENER_FAST.
+  const own = q.live && tune.model === 'eleven_v3' ? env.ELEVEN_LIVE_MODEL?.trim() : undefined
+  const model = own || (fast && tune.model === 'eleven_v3' ? main : tune.model ?? main)
   const tags = /v[34]/.test(model)
   const prefix = tags ? (tune.prefix ?? '') : ''
   const text = tune.respell ? tune.respell(q.text) : q.text
@@ -274,10 +278,10 @@ export function mp3Ms(b: Uint8Array): number {
 export const MAIN_TTS = ['elevenlabs'] as const
 export type MainTts = (typeof MAIN_TTS)[number]
 
-/** ₽ за 1000 символов ElevenLabs (Turbo и Flash вдвое дешевле полной модели); своё — TTS_PRICE_1K_RUB. */
+/** ₽ за 1000 символов ElevenLabs (Turbo, Flash и v3 conversational вдвое дешевле полной модели); своё — TTS_PRICE_1K_RUB. */
 export function price1k(model: string, env = process.env): number {
   if (env.TTS_PRICE_1K_RUB) return Number(env.TTS_PRICE_1K_RUB)
-  return /turbo|flash/.test(model) ? 8 : 16
+  return /turbo|flash|conversational/.test(model) ? 8 : 16
 }
 
 /** TTS_PROVIDER=elevenlabs и есть воркер (или ключ); иначе игра говорит SpeechKit. */

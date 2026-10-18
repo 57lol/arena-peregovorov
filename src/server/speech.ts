@@ -26,7 +26,7 @@ import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
 import { looksEnglish } from '../engine/lang'
 import { streamConfigured } from './sttStream'
-import { castFor, ELEVEN_FORMAT, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
+import { castFor, ELEVEN_FORMAT, ELEVEN_TUNE, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -862,6 +862,24 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       fallback = r.message
     }
     return sayYandex(c, b, fallback ? { 'x-tts-fallback': encodeURIComponent(fallback) } : {})
+  })
+
+  /**
+   * Модель живой реплики (ELEVEN_LIVE_MODEL) после простоя «холодная»: первый байт 1,6–2,4 с против ~0,3 с
+   * (~/Arena-materials/final/voice5/ab). В начале встречи будим её коротким синтезом мимо кэша (1–2 кредита),
+   * не чаще раза в 5 минут на голос.
+   */
+  const warmAt = new Map<string, number>()
+  app.post('/api/tts/warm', bodyLimit({ maxSize: 1024 }), async (c) => {
+    const b = TtsBody.omit({ text: true }).safeParse(await c.req.json().catch(() => null))
+    const who = b.success ? b.data.who : undefined
+    if (!b.success || !who || ELEVEN_TUNE[who]?.model !== 'eleven_v3' || !env.ELEVEN_LIVE_MODEL?.trim() || !elevenOn()) return c.json({ ok: false })
+    const voice = castFor(who, b.data.voice, env)
+    if (Date.now() - (warmAt.get(voice) ?? 0) < 5 * 60_000) return c.json({ ok: true })
+    warmAt.set(voice, Date.now())
+    const text = who === 'china' ? 'Хм.' : 'Hmm.'
+    void elevenRequest({ text, voice, who, live: true }, f, env).then((r) => r.arrayBuffer()).catch(() => undefined)
+    return c.json({ ok: true })
   })
 
   /**

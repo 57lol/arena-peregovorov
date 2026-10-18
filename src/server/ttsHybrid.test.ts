@@ -119,3 +119,25 @@ describe('экран, запись хода и реальный запрос с�
     })
   }
 })
+
+describe('прогрев модели живой реплики (ELEVEN_LIVE_MODEL)', () => {
+  it('в начале встречи у лица с акцентом — один короткий синтез мимо кэша этой моделью, не чаще раза в 5 минут; без настройки и у других лиц — ничего', async () => {
+    const env = { SPEECH: 'on', TTS_PROVIDER: 'elevenlabs', ELEVEN_RELAY_URL: 'https://relay.test', ELEVEN_RELAY_SECRET: 'test', ELEVENLABS_MODEL: 'eleven_v4_turbo', ELEVEN_LIVE_V3: 'on' }
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v)
+    const requests: { text: string; model_id: string; voice_id: string }[] = []
+    const transport = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'GET') return new Response('', { status: 401 })
+      requests.push(JSON.parse(String(init?.body)))
+      return new Response(mp3)
+    })
+    const app = createApp(offline, undefined, makeSpeech({ key: '', fetch: transport, stressAsk: null }))
+    const warm = async (who: string) => (await app.request('/api/tts/warm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ who, voice: 'john' }) })).json()
+    expect(await warm('lagos')).toEqual({ ok: false })
+    vi.stubEnv('ELEVEN_LIVE_MODEL', 'eleven_v3_conversational')
+    expect(await warm('lagos')).toEqual({ ok: true })
+    expect(await warm('lagos')).toEqual({ ok: true })
+    expect(await warm('sosed')).toEqual({ ok: false })
+    await vi.waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).toMatchObject({ text: 'Hmm.', model_id: 'eleven_v3_conversational', voice_id: CAST.lagos })
+  })
+})

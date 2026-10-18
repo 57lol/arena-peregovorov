@@ -801,7 +801,11 @@ function fillerDir(voice: string): string | false {
 export function warmFillers(voice: string, casual: boolean) {
   const dir = typeof window === 'undefined' ? false : fillerDir(voice)
   if (!dir) return
-  if (elevenOn()) warmReactions(speaker.id)
+  if (elevenOn()) {
+    warmReactions(speaker.id)
+    // модель живой реплики у лиц с акцентом после простоя отвечает медленно — сервер будит её в начале встречи
+    void fetch('/api/tts/warm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ttsVoice(voice)) }).catch(() => {})
+  }
   for (const id of fillerIds(casual)) {
     const src = new URL(`${dir}${id}.mp3`, location.href).href
     void envelopeAt(src).then((e) => e && fillerSec.set(src, e.length * ENV_STEP))
