@@ -7,6 +7,7 @@ import { YANDEX_VOICES, type VoiceInfo } from '../content/voices'
 import { WAIT } from './timeouts'
 import { looksEnglish } from '../engine/lang'
 import { zhAccent } from './zhAccent'
+import { sayNumbers } from './numWords'
 
 export { YANDEX_VOICES, type VoiceInfo }
 
@@ -142,8 +143,9 @@ export interface ElevenTune {
   respell?: (text: string) => string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
-  // Ли Вэй: китайский акцент v3 сам почти не даёт (судья 0–2 из 5) — текст для голоса переписан под акцент (zhAccent.ts)
-  china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, respell: (t) => zhAccent(t) },
+  // Ли Вэй: китайский акцент v3 сам почти не даёт (судья 0–2 из 5) — текст для голоса переписан под акцент (zhAccent.ts),
+  // числа — словами (numWords.ts), чтобы акцент не пропадал на ценах и сроках
+  china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, respell: (t) => zhAccent(sayNumbers(t)) },
   // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
   // постоянная подача акцента в начале каждой реплики (~/Arena-materials/final/emre-voice, 18.10: судья 5 и 4 из 5 по турецкому)
   emre: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, prefix: '[strong Turkish accent] ' },
