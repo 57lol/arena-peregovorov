@@ -352,17 +352,21 @@ function whoGives(sc: Scenario, ids: IssueId[], prev: Offer, next: Offer, stance
   )
 }
 
-/** Сделка, на которую собеседник соглашается: что он в ней уступил, а что получил от игрока. */
-function dealSides(sc: Scenario, deal: Offer): string {
+/**
+ * Сделка, на которую собеседник соглашается: что он уступил против своего листка и в чём игрок сдвинулся к нему.
+ * Игрок принял его листок как есть — это его выигрыш, а не повод перечислять свои прошлые уступки.
+ */
+function dealSides(sc: Scenario, deal: Offer, prev: Offer, before: Offer): string {
   const O = (id: IssueId) => sc.opponent.profile.points[id]
-  const P = (id: IssueId) => sc.player.profile.points[id]
   const at = (i: Issue) => deal[i.id]!
-  const gave = sc.issues.filter((i) => typeof deal[i.id] === 'number' && i.kind !== 'compatible' && O(i.id)[at(i)] < Math.max(...O(i.id)))
-  const got = sc.issues.filter((i) => typeof deal[i.id] === 'number' && i.kind !== 'compatible' && O(i.id)[at(i)] >= Math.max(...O(i.id)) && P(i.id)[at(i)] < Math.max(...P(i.id)))
+  const has = (i: Issue) => typeof deal[i.id] === 'number' && i.kind !== 'compatible'
+  const gave = sc.issues.filter((i) => has(i) && typeof prev[i.id] === 'number' && O(i.id)[at(i)] < O(i.id)[prev[i.id]!])
+  const got = sc.issues.filter((i) => has(i) && typeof before[i.id] === 'number' && O(i.id)[at(i)] > O(i.id)[before[i.id]!])
   const list = (xs: Issue[]) => xs.map((i) => `«${lc(i.title)}: ${i.options[at(i)]}»`).join(', ')
+  if (!gave.length && sc.issues.every((i) => !has(i) || deal[i.id] === prev[i.id])) return ' Он принял твоё предложение как есть — этим можешь быть доволен.'
   return (
-    (gave.length ? ` Тут ты уступил: ${list(gave)} — о ${gave.length > 1 ? 'них' : 'нём'} без радости («ладно, пусть так»).` : '') +
-    (got.length ? ` Он тебе отдал: ${list(got)} — этим можешь быть доволен.` : '')
+    (gave.length ? ` Против своего листка ты тут уступил: ${list(gave)} — о ${gave.length > 1 ? 'них' : 'нём'} без радости («ладно, пусть так»).` : '') +
+    (got.length ? ` Он к тебе сдвинулся: ${list(got)} — этим можешь быть доволен.` : '')
   )
 }
 
@@ -392,7 +396,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
       const filled = said.length
         ? ` Пункт ${said.map((i) => `«${lc(i.title)}»`).join(', ')} он не назвал — считаешь как у тебя на листке (${said.map((i) => i.options[deal[i.id]!]).join(', ')}); можно мимоходом это уточнить.`
         : ''
-      text = `Соглашаешься. Сделка: ${terms(sc, deal)}. Скажи, что согласен, коротко и в характере. Весь список зачитывать не нужно: назови главное, о чём спорили.${dealSides(sc, deal)} Если он назвал цифру, которой нет среди вариантов, сделка — по условиям выше: так и скажи.${filled}`
+      text = `Соглашаешься. Сделка: ${terms(sc, deal)}. Скажи, что согласен, коротко и в характере. Весь список зачитывать не нужно: назови главное, о чём спорили.${dealSides(sc, deal, prev, stanceBefore)} Если он назвал цифру, которой нет среди вариантов, сделка — по условиям выше: так и скажи.${filled}`
       break
     }
     case 'counter': {
@@ -713,7 +717,7 @@ const THANKS = /(?<!\p{L})(спасибо|благодар\p{L}*|thanks?)(?!\p{L
 
 /**
  * Он радуется тому, что ему невыгодно: своей уступке или требованию игрока в пользу игрока («восемь недель — беру»,
- * «Eight weeks, I take it»). Невыгодное — хуже его листка до хода (при согласии — хуже его лучшего), кроме шага игрока
+ * «Eight weeks, I take it»). Невыгодное — хуже его листка до хода, кроме шага игрока
  * к нему. Фраза, где рядом и невыгодное, и выгодное ему, — не в счёт: радость может быть про выгодное.
  */
 const glad = (line: string) =>
@@ -731,7 +735,7 @@ export function wrongJoy(sc: Scenario, frame: Frame, line: string): boolean {
   let bad = false
   for (const i of sc.issues) {
     if (i.kind === 'compatible') continue
-    const ref = d.kind === 'accept' || typeof frame.prev[i.id] !== 'number' ? Math.max(...O(i.id)) : O(i.id)[frame.prev[i.id]!]
+    const ref = typeof frame.prev[i.id] !== 'number' ? Math.max(...O(i.id)) : O(i.id)[frame.prev[i.id]!]
     const stepped = typeof stance[i.id] === 'number' && typeof before[i.id] === 'number' && O(i.id)[stance[i.id]!] > O(i.id)[before[i.id]!]
     for (const [x] of i.options.entries()) {
       if (!mentions(sc, i.id, x, line)) continue

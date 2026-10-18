@@ -47,16 +47,25 @@ describe('рамка: кто кому уступает — по очкам, на
       }
     })
 
-    it(`${sc.id}: согласие на сделку подписывает, что в ней его уступка, а что ему отдал игрок`, () => {
+    it(`${sc.id}: согласие на сделку подписывает, что он уступил против листка и в чём игрок сдвинулся к нему`, () => {
       for (const i of deal(sc)) for (const x of i.options.keys()) {
-        const d = { ...sheet(sc), [i.id]: x }
-        const f = frameFor(sc, { kind: 'accept' }, { ...initialState(sc), status: 'deal', deal: d, tableOffer: d, playerStance: d }, d, d)
+        const prev = sheet(sc)
+        const d = { ...prev, [i.id]: x }
+        const before = { [i.id]: bestOption(sc.player.profile, i.id) }
+        const f = frameFor(sc, { kind: 'accept' }, { ...initialState(sc), status: 'deal', deal: d, tableOffer: d, playerStance: d }, prev, before)
         const item = `«${i.title.toLowerCase()}: ${i.options[x]}»`
-        const gave = /Тут ты уступил: (.*?) — о (нём|них)/.exec(f.text)?.[1] ?? ''
-        const got = /Он тебе отдал: (.*?) — этим/.exec(f.text)?.[1] ?? ''
-        expect(gave.includes(item), `${sc.id}/${i.id}=${i.options[x]} уступил`).toBe(O(sc, i.id)[x] < Math.max(...O(sc, i.id)))
-        expect(got.includes(item), `${sc.id}/${i.id}=${i.options[x]} отдал`).toBe(O(sc, i.id)[x] >= Math.max(...O(sc, i.id)) && P(sc, i.id)[x] < Math.max(...P(sc, i.id)))
+        const gave = /ты тут уступил: (.*?) — о (нём|них)/.exec(f.text)?.[1] ?? ''
+        const got = /Он к тебе сдвинулся: (.*?) — этим/.exec(f.text)?.[1] ?? ''
+        const at = `${sc.id}/${i.id}=${i.options[x]}`
+        if (x === prev[i.id]) { expect(f.text, at).toContain('Он принял твоё предложение как есть'); continue }
+        expect(gave.includes(item), `${at} уступил`).toBe(O(sc, i.id)[x] < O(sc, i.id)[prev[i.id]!])
+        expect(got.includes(item), `${at} сдвинулся`).toBe(O(sc, i.id)[x] > O(sc, i.id)[before[i.id]!])
       }
+      // принял его листок как есть — без перечня «уступил»
+      const prev = sheet(sc)
+      const f = frameFor(sc, { kind: 'accept' }, { ...initialState(sc), status: 'deal', deal: prev, tableOffer: prev, playerStance: prev }, prev, {})
+      expect(f.text).toContain('Он принял твоё предложение как есть')
+      expect(f.text).not.toContain('уступил')
     })
 
     it(`${sc.id}: проверка реплики — радость своей уступке вырезается, радость шагу игрока — нет`, () => {
