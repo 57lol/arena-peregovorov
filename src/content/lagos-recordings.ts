@@ -2,7 +2,7 @@ import { LAGOS_FILLERS } from './fillers'
 import { REACTION_RECORDINGS } from './reactions'
 import { lagos } from './scenarios/lagos'
 
-/** План записи: файлов пока нет. После подбора CAST.lagos записать и проверить на слух все 21 клип. */
+/** Заготовки Адебайо: 21 клип голосом CAST.lagos (eleven_v4), каждый проверен whisper и судьёй (~/Arena-materials/final/lagos-voice). */
 export const LAGOS_RECORDINGS = [
   { id: 'opening-lagos', text: lagos.opening, file: 'assets/voice-eleven/lagos/opening-lagos.mp3' },
   ...Object.entries(LAGOS_FILLERS).map(([id, text]) => ({ id: `filler-${id}`, text, file: `assets/voice-fillers/eleven/lagos/${id}.mp3` })),

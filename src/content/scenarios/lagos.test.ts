@@ -49,7 +49,7 @@ describe('Лагос: финальная командировка', () => {
     for (const c of cards) expect(c.epilogue).toMatch(/[а-яё]/iu)
     expect(endingCatalog(harder(sc))).toEqual(cards)
   })
-  it('план записи: вступление, 6 пауз, 14 реакций, без поддельных готовых файлов', () => {
+  it('заготовки голоса: вступление, 6 пауз, 14 реакций — английские тексты', () => {
     expect(LAGOS_RECORDINGS).toHaveLength(21)
     expect(Object.keys(LAGOS_FILLERS)).toEqual(['c1', 'c2', 'c3', 'v1', 'v2', 'v3'])
     expect(Object.values(REACTIONS.lagos).flat()).toHaveLength(14)

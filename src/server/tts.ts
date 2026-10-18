@@ -139,7 +139,8 @@ export interface ElevenTune {
   prefix?: string
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
-  // TODO(lagos voice casting): подтвердить модель и настройки на выбранном голосе; акцент не имитируем тегом.
+  // Адебайо: носитель нигерийского английского (Ugochukwu из библиотеки) — язык голоса совпадает с языком текста, v4 Turbo
+  // акцент не выпрямляет, тег не нужен (~/Arena-materials/final/lagos-voice, 18.10: судья — нигерийский 5 из 5, через воркер тоже)
   lagos: { stability: 0.5, similarity: 0.8 },
   china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
@@ -277,11 +278,12 @@ export function mainTts(env = process.env): MainTts | undefined {
  * Эмре (дело на английском) — дизайн-голос «Arena Эмре · дизайн d1A» (Voice Design, eleven_ttv_v3: стамбулец за 40, густой
  * турецкий акцент в английском), звучит на eleven_v3 с тегом акцента (ELEVEN_TUNE.emre). Подбор 18.10 из 22 библиотечных
  * голосов с турецким акцентом и 2 дизайнов (~/Arena-materials/final/emre-voice): прежний Emre Anduv на v4 Turbo — акцент едва слышен.
+ * Адебайо — см. LAGOS_VOICE_ID.
  */
-// TODO(lagos voice casting): выбрать и прослушать мужской голос ~45 лет из ElevenLabs Voice Library,
-// native Nigerian English. Заменить пустую строку реальным voice_id или задать TTS_CAST="lagos:<id>".
-// До подбора castFor использует обычный английский запасной голос; это НЕ выбранный нигерийский голос.
-export const LAGOS_VOICE_ID = ''
+// Адебайо (дело на английском, Лагос) — библиотечный «Ugochukwu - Engaging and Warm» (en-NG, middle-aged, носитель),
+// звучит на v4 Turbo без тега. Подбор 18.10 из 8 нигерийских голосов библиотеки (~/Arena-materials/final/lagos-voice):
+// запасные — Joje (глубже, старше) и Frank (естественнее всего на v3, но v3 медленнее и роняет фразы).
+export const LAGOS_VOICE_ID = 'nw6EIXCsQ89uJMjytYb8'
 export const CAST: Record<string, string> = {
   lagos: LAGOS_VOICE_ID,
   china: 'qEUg56UIsvkup7EM8Ovt',

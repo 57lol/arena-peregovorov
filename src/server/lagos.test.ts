@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
@@ -31,11 +31,11 @@ describe('Лагос на сервере', () => {
     const line = { line: 'Здравствуйте.', emotion: 'neutral', terms: [], agrees: false, reveals: [] }
     expect(checkLine(sc, f, line, { said: sc.opening, heard: '', mine: [] }).hard).toContain('говори только по-английски')
   })
-  it('голос явно не выбран; env override работает, все тексты получают английское произношение', () => {
-    expect(LAGOS_VOICE_ID).toBe('')
+  it('голос — носитель нигерийского английского из библиотеки; env override работает, все тексты получают английское произношение', () => {
+    expect(LAGOS_VOICE_ID).toBe('nw6EIXCsQ89uJMjytYb8')
     expect(CAST.lagos).toBe(LAGOS_VOICE_ID)
     expect(PERSONAS.lagos.voice).toBe('john')
-    expect(castFor('lagos', 'john', {})).not.toBe('')
+    expect(castFor('lagos', 'john', {})).toBe(LAGOS_VOICE_ID)
     expect(castFor('lagos', 'john', { TTS_CAST: 'lagos:test-native-voice' })).toBe('test-native-voice')
     for (const r of LAGOS_RECORDINGS) {
       const b = elevenBody({ voice: 'test-native-voice', who: 'lagos', text: forEnglish(r.text, 'eleven') }, { ELEVENLABS_MODEL: 'eleven_v4' })
@@ -43,6 +43,7 @@ describe('Лагос на сервере', () => {
       expect(b.voice_settings.stability).toBe(0.5)
     }
     expect(knownTexts().filter((k) => k.src.startsWith('lagos:'))).toEqual([])
+    for (const r of LAGOS_RECORDINGS) expect(existsSync(`public/${r.file}`), r.file).toBe(true)
   })
   it('TTS запрос выбирает English (fetch подменён, внешних запросов нет)', async () => {
     const f = vi.fn(async () => new Response(new Uint8Array(1000)))

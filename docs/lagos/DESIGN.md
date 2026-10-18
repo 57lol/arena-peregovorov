@@ -58,9 +58,9 @@ colors:
 
 Генераторы обновляют `public/assets/portraits/lagos.png`, `public/assets/world/lagos_*.png`, `src/game/world3d/rooms/lagos.gen.ts` и `public/assets/scenes/lagos*.png`; превью складываются в `tools/art/out/`.
 
-**Передача озвучки.** Нужен естественный native Nigerian English мужской голос примерно 45 лет: спокойный, уверенный деловой собеседник. В `src/server/tts.ts` значение `LAGOS_VOICE_ID`, используемое `CAST.lagos`, пока пустое намеренно; обычный английский fallback не означает завершённый кастинг. Подобрать библиотечный голос ElevenLabs, прослушать, затем задать ID или `TTS_CAST="lagos:<id>"`; настройки модели также требуют проверки. Не имитировать акцент тегом.
+**Озвучка.** Голос Адебайо — библиотечный носитель Nigerian English «Ugochukwu - Engaging and Warm» (`nw6EIXCsQ89uJMjytYb8`, `LAGOS_VOICE_ID` в `src/server/tts.ts`), живые реплики на eleven_v4_turbo без тега акцента (язык голоса совпадает с языком текста, акцент сохраняется; stability 0,5, similarity 0,8). Подбор 18.10 из 8 нигерийских голосов: судья gemini — нигерийский 5 из 5, деловой тон 4; через воркер тоже. Прослушка и данные — `~/Arena-materials/final/lagos-voice/`.
 
-`src/content/lagos-recordings.ts` задаёт 21 будущую запись: вступление, 6 fillers и 14 реакций. После кастинга нужно создать файлы по указанным путям и прослушать каждый; здесь голос и готовность записей не подтверждаются.
+`src/content/lagos-recordings.ts` — 21 записанный клип (вступление, 6 fillers, 14 реакций; eleven_v4), каждый проверен whisper и судьёй.
 
 **Границы проверки.** Тесты описывают размеры PNG и листа кадров, ссылки на ассеты, сборку комнаты без WebGL-рендера и выход. Внешний вид проверен глазами 18.10.2026 в работающем приложении: 3D на 1440×900 и 390×844, 2D, уход Адебайо в дверь (`scripts/exit-e2e.ts --case lagos`, в том числе `--phone`), карточка в хабе жюри; снимки в `~/Arena-materials/final/lagos-voice/shots/`.
 

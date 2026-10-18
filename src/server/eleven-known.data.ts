@@ -59,5 +59,11 @@ export const ELEVEN_KNOWN: KnownLine[] = [
     voice: 'ezjpFmpyFJhaCJxPZlXg',
     text: 'Welcome to Istanbul! Sit, sit, the tea is fresh, and try the baklava, it\'s from the shop downstairs. So. Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
     file: 'assets/voice-eleven/emre/opening-istanbul.mp3'
+  },
+  {
+    who: 'lagos',
+    voice: 'nw6EIXCsQ89uJMjytYb8',
+    text: 'You are welcome to Lagos. Please, have a seat. I have set aside this hour for the pilot order. For the 100 units, I propose $360,000 for the batch, shipment in 8 weeks, 10% upfront and the balance under the confirmed USD letter of credit. I would also like West Africa exclusivity, on the one-year terms in the brief. Shipment means handover to the sea carrier; we must plan the transit to Apapa separately. Where would you like to begin?',
+    file: 'assets/voice-eleven/lagos/opening-lagos.mp3'
   }
 ]
