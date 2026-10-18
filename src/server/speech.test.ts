@@ -8,7 +8,7 @@ process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'arena-tts-'))
 const { createApp } = await import('./app')
 const { makeLLM } = await import('./llm')
 const { makeSpeech, tidyTranscript } = await import('./speech')
-const { elevenSeed, styleFor } = await import('./tts')
+const { CAST, ELEVEN_FORMAT, elevenBody, elevenRequest, elevenSeed, styleFor } = await import('./tts')
 
 const offline = makeLLM('offline').llm
 // ответ SpeechKit: v3 — строка JSON с куском mp3 в base64, v1 — сразу mp3
@@ -268,6 +268,21 @@ describe('внешний голос (TTS_PROVIDER)', () => {
       expect(fb.headers.get('x-tts-fallback')).toBeTruthy()
       // лаборатория с явным api — всегда SpeechKit
       expect((await tts(app, { text: `Ещё ${Math.random()}`, voice: 'sergey', api: 'v3' })).headers.get('x-tts-voice')).toBe('sergey')
+    })
+  })
+
+  it('новые голоса из кастинга (18.10): свой голос и настройки дублей кастинга при любом ELEVEN_STABILITY; mp3 128 кбит/с', async () => {
+    await withEnv({ ...relay, ELEVEN_STABILITY: '0.45', ELEVEN_SIMILARITY: '0.5' }, async () => {
+      const cast = { sosed: 'oW7TMKNYKHRJq1pltXn4', palych: 'zQzMRXieet72bdZKfX9V', admin: 'NUa5MQrfzgHxj4sfEk7V', buyer: 'I7awGfosdGeHXOCnsK9G', olga: 'pS0Vm2TDyApKkwL0YIqj' }
+      for (const [who, id] of Object.entries(cast)) {
+        expect(CAST[who]).toBe(id)
+        expect(elevenBody({ text: 'Так.', voice: id, who }).voice_settings).toEqual({ stability: 0.6, similarity_boost: 0.8, use_speaker_boost: true })
+      }
+      expect(CAST.gopnik).toBe('o7PE01v4XYHJP2sq6EFk')
+      expect(ELEVEN_FORMAT).toBe('mp3_44100_128')
+      const f = vi.fn(async (_url: string | URL | Request) => new Response(mp3Frames, { status: 200 }))
+      await elevenRequest({ text: 'Так.', voice: cast.palych, who: 'palych' }, f as typeof fetch, { ELEVENLABS_API_KEY: 'k' })
+      expect(String(f.mock.calls[0][0])).toContain('output_format=mp3_44100_128')
     })
   })
 

@@ -139,7 +139,20 @@ export interface ElevenTune {
 }
 const ELEVEN_TUNE: Record<string, ElevenTune> = {
   gopnik: { stability: 0.3, similarity: 1 },
+  // Голоса из кастинга под портреты (утверждены капитаном 18.10): настройки дублей, которые он слушал
+  // (~/Arena-materials/final/voice-casting, opening_body: eleven_v4, stability 0,6, similarity 0,8, speaker boost, seed лица)
+  sosed: { stability: 0.6, similarity: 0.8 },
+  palych: { stability: 0.6, similarity: 0.8 },
+  admin: { stability: 0.6, similarity: 0.8 },
+  buyer: { stability: 0.6, similarity: 0.8 },
+  olga: { stability: 0.6, similarity: 0.8 },
 }
+/**
+ * Формат звука ElevenLabs: mp3 128 кбит/с (воркер просит тот же). Входит в ключ кэша — файлы прежних 64 кбит/с не подтянутся.
+ * 192 для речи на слух не отличить, а поток на телефоне в 1,5 раза тяжелее.
+ */
+export const ELEVEN_FORMAT = 'mp3_44100_128'
+
 /** Свой seed у каждого лица: одна и та же реплика звучит одинаково, разные — в одной манере. */
 export function elevenSeed(who: string | undefined): number {
   let h = 2166136261
@@ -176,7 +189,7 @@ export function elevenBody(q: TtsRequest, env = process.env) {
 /**
  * Запрос к ElevenLabs. Из России он закрыт: сервер ходит через свой воркер Cloudflare (ключ живёт только там),
  * воркер отдаёт настоящий код ошибки ElevenLabs (429 — «занято», 401/402 — ключ или деньги). Без воркера
- * (ELEVEN_RELAY_URL) — напрямую с ключом: только для проверки с мака. Ответ — поток mp3 64 кбит/с.
+ * (ELEVEN_RELAY_URL) — напрямую с ключом: только для проверки с мака. Ответ — поток mp3 128 кбит/с (ELEVEN_FORMAT).
  */
 export function elevenRequest(q: TtsRequest, f: Fetch = fetch, env = process.env): Promise<Response> {
   const body = elevenBody(q, env)
@@ -188,7 +201,7 @@ export function elevenRequest(q: TtsRequest, f: Fetch = fetch, env = process.env
         body: JSON.stringify({ ...body, voice_id: q.voice }),
         signal,
       })
-    : f(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=mp3_44100_64`, {
+    : f(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(q.voice)}/stream?output_format=${ELEVEN_FORMAT}`, {
         method: 'POST',
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY ?? '', 'content-type': 'application/json', accept: 'audio/mpeg' },
         body: JSON.stringify({ ...body, language_code: looksEnglish(stripTags(body.text)) ? 'en' : 'ru' }),
@@ -251,12 +264,14 @@ export function mainTts(env = process.env): MainTts | undefined {
 
 /**
  * Кто кем говорит у ElevenLabs: лицо (PERSONAS) → голос из библиотеки (Voice Library), подбор на слух 17.10.2026
- * (~/Arena-materials/final/VOICE_FIX_REPORT.md). Своё — TTS_CAST="sosed:<id>,gopnik:<id>" в .env.
+ * (~/Arena-materials/final/VOICE_FIX_REPORT.md). Тимур, Палыч, Лариса Петровна, Роза и Дарина — дизайн-голоса из кастинга
+ * под портреты, утверждены капитаном 18.10 (~/Arena-materials/final/voice-casting: a_bright_2, b_kazakh_2, c_sharp_2,
+ * b_steel_3, a_soft_2). Своё — TTS_CAST="sosed:<id>,gopnik:<id>" в .env.
  * Эмре (дело на английском) — Emre Anduv: стамбулец 37 лет, английский с лёгким акцентом, живая интонация; подбор 18.10
  * из 5 голосов с турецким акцентом (whisper, тон, описание): он и Harun читали «€» по-английски даже с language_code "ru".
  */
 export const CAST: Record<string, string> = {
-  sosed: 'kwajW3Xh5svCeKU5ky2S', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'd60rsXo2p0OwikDR5bS7', olga: 'tOo2BJ74frmnPadsDNIi', buyer: 'FZGeNF7bE3syeQOynDKC', palych: 'pM78bgjPVk0JXtaEnFoj', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'TcOBSQQ3Mm1U95izQTyI', narrator: 'Vl27Cllkuw8BhyPqus2n',
+  sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'TcOBSQQ3Mm1U95izQTyI', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 
 /** Голос ElevenLabs для лица; нового лица в таблице нет — стоковый голос его пола, всегда один и тот же. */

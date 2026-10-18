@@ -24,7 +24,7 @@ import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
 import { looksEnglish } from '../engine/lang'
 import { streamConfigured } from './sttStream'
-import { castFor, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
+import { castFor, ELEVEN_FORMAT, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -337,7 +337,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   /** Кусок реплики голосом ElevenLabs потоком: звук отдаём по мере прихода (onChunk), «занято» (429) — один повтор. */
   async function elevenPiece(q: TtsRequest, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void): Promise<void> {
     const body = elevenBody(q, env)
-    const file = fileOf({ p: 'elevenlabs', voice: q.voice, body })
+    const file = fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice: q.voice, body })
     const cached = await read(file)
     if (cached) { onChunk(cached); return }
     if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
@@ -451,7 +451,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         let complete = false
         try {
           // Подготовка и кэш тоже могут отказать — запасной голос подхватит весь текст.
-          const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(start), env) }))
+          const ready = piece ? undefined : await read(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(await prep(start), env) }))
           if (ready) {
             setHead({ api: 'elevenlabs', voice })
             out.push(ready)
@@ -481,7 +481,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
               if (!piece) return
               const tail = w.text.startsWith(start) ? w.text.slice(start.length).trim() : ''
               const q = await prep(start)
-              const initial = await read(fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) }))
+              const initial = await read(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(q, env) }))
               if (!initial) return
               const chunks: Uint8Array[] = [initial]
               if (stripTags(tail)) {
@@ -489,7 +489,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
                 await elevenPiece(await prep(tail), (u) => rest.push(u), Date.now() + WAIT.eleven(), charge)
                 chunks.push(noId3(glue(rest)))
               }
-              if (w.text.startsWith(start)) await keep(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(w.text), env) }), glue(chunks))
+              if (w.text.startsWith(start)) await keep(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(await prep(w.text), env) }), glue(chunks))
             }).catch((e: Error) => console.warn(`[speech] поздний звук: ${e.message}`))
             const settled = await Promise.race([p1, Promise.resolve(undefined)])
             throw settled?.error ?? new Refusal('ElevenLabs не успел', 503)
@@ -536,7 +536,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       out.end()
       const audio = glue(out.chunks)
       const w = await whole
-      if (!reason) await keep(fileOf({ p: 'elevenlabs', voice, body: elevenBody(await prep(w.text), env) }), audio)
+      if (!reason) await keep(fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(await prep(w.text), env) }), audio)
       return { audio, ms: mp3Ms(audio), cache: 'miss' }
     }
     const sound: LiveSound = { out, head, done: play().catch((e: Error) => {
@@ -595,7 +595,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const said = unstress(spokenOf(b.text))
     const spoken = english(said) ? forEnglish(said, 'eleven') : render(spellOut(await speakable(forEleven(said), roomy)), 'eleven')
     const q = { text: spoken.replace(/[«»"]/g, ''), voice, ...(lab ? {} : { who: b.who }) }
-    const file = fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) })
+    const file = fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(q, env) })
     let job = elevenJobs.get(file)
     const joined = !!job
     if (!job) {
@@ -772,7 +772,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (seen.has(voice)) continue
       seen.add(voice)
       const q = { text: english(text) ? 'Okay.' : 'Так.', voice, who }
-      const job = elevenJob(q, fileOf({ p: 'elevenlabs', voice, body: elevenBody(q, env) }), Date.now() + WAIT.eleven(), () => {})
+      const job = elevenJob(q, fileOf({ p: 'elevenlabs', fmt: ELEVEN_FORMAT, voice, body: elevenBody(q, env) }), Date.now() + WAIT.eleven(), () => {})
       const clip = await job.done.catch((e: Error) => console.warn(`[speech] прогрев ${who}: ${e.message}`))
       if (clip?.cache === 'miss') console.log(`[speech] прогрет голос ${who}`)
     }

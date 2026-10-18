@@ -433,7 +433,7 @@ async function downloadLine(text: string, voice: string, emotion: string | undef
     const env = typeof window === 'undefined' ? undefined : envelope(blob.arrayBuffer())
     const header = Number(r.headers.get('x-audio-ms')) / 1000
     // голос ElevenLabs уже в своём темпе и тоне — плеер его не замедляет (темп лица — только для livetts)
-    if (r.headers.get('x-tts-api') === 'elevenlabs') return { url, duration: header > 0 ? header : (await metaDuration(url)) || (blob.size * 8) / 64000, env }
+    if (r.headers.get('x-tts-api') === 'elevenlabs') return { url, duration: header > 0 ? header : (await metaDuration(url)) || (blob.size * 8) / 128000, env }
     // SpeechKit отдаёт mp3 64 кбит/с: длительность по размеру, если заголовка нет
     const raw = header > 0 ? header : (blob.size * 8) / 64000
     // плеер играет в темпе лица — печать текста идёт в тот же такт
