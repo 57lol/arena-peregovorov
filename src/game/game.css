@@ -14,7 +14,7 @@ body {
 .g-desk {
   min-height: 100svh;
   box-sizing: border-box;
-  padding: calc(6 * var(--u)) 16px calc(20 * var(--u));
+  padding: max(calc(6 * var(--u)), env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(calc(20 * var(--u)), env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 .g-page a {
   color: inherit;
@@ -2577,5 +2577,43 @@ body {
   .g-voiceonly-hint {
     flex: 1 1 180px;
     margin: 0;
+  }
+}
+
+/* Общий экран загрузки доступен ещё до 3D-чанка. */
+.g-loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--c-ink);
+  color: var(--c-paper);
+  font: 18px/1.4 var(--f-ui);
+}
+html, body { overflow-x: clip; }
+.g-page { overflow-wrap: anywhere; }
+.g-bar { gap: 8px; flex-wrap: wrap; }
+
+@media (pointer: coarse) {
+  /* Минимум для пальца действует и на компактные кнопки внутри листов. */
+  .px-root :is(button, a[href], summary, [role='button'], select, input:not([type='checkbox']):not([type='radio'])) {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+  .px-root :is(input, textarea, select) { font-size: max(16px, 1em); }
+  .px-root label:has(> input:is([type='checkbox'], [type='radio'])) {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

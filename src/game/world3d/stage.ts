@@ -1,6 +1,9 @@
 // Сцена встречи: рендер в низком разрешении, голова игрока, комната, люди, бумаги на столе (DOM в 3D).
 // React сюда не заходит: World живёт сам по себе, экран встречи только передаёт ему состояние и слушает кадры.
 
+import { startFrameLoop } from '../frameLoop'
+import { recordRenderFrame } from '../perf'
+import { renderSize } from './renderBudget'
 import { DefaultLoadingManager, MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3 } from 'three'
 import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
 import type { PortraitId } from '../ui/assets'
@@ -59,8 +62,8 @@ export class World {
   /** время встречи, минуты от полуночи — стрелки часов доезжают до него плавно */
   clockTarget = 10 * 60
   private clockNow = 10 * 60
-  private raf = 0
-  private last = 0
+  private stopLoop?: () => void
+  private reducedMotion = false
   private t = 0
   private listeners = new Set<(f: Frame) => void>()
   private ro: ResizeObserver
@@ -78,6 +81,7 @@ export class World {
 
   constructor(el: HTMLElement, o: WorldOptions) {
     this.el = el
+    this.reducedMotion = !!o.reducedMotion
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'w3-canvas'
     el.appendChild(this.canvas)
@@ -121,11 +125,8 @@ export class World {
     this.cw = cw
     this.ch = ch
     // целый масштаб: на ноутбуке ~225 точек по высоте, на телефоне ~130 по ширине (собеседник крупнее); на слабом железе — крупнее
-    const base = cw >= ch ? Math.max(2, Math.round(ch / 230)) : Math.max(2, Math.round(cw / 130))
-    const px = Math.max(2, Math.round(base / this.quality))
+    const { base, px, w, h } = renderSize(cw, ch, this.quality)
     this.px = px
-    const w = Math.ceil(cw / px)
-    const h = Math.ceil(ch / px)
     this.pipe.setSize(w, h)
     const sw = w * px
     const sh = h * px
@@ -154,19 +155,17 @@ export class World {
   }
 
   start() {
-    const loop = (now: number) => {
-      this.raf = requestAnimationFrame(loop)
-      const dt = Math.min(0.1, this.last ? (now - this.last) / 1000 : 0.016)
-      this.last = now
-      this.frame(dt)
-    }
-    this.raf = requestAnimationFrame(loop)
+    this.stop()
+    this.stopLoop = startFrameLoop((dt) => this.frame(dt), () => {
+      const lead = this.company?.lead
+      const active = !this.head.still || !!this.head.spin || lead?.talking || (lead?.leaving && !lead.exited) || this.fade > 0
+      return !this.reducedMotion && active ? 60 : 30
+    })
   }
 
   stop() {
-    cancelAnimationFrame(this.raf)
-    this.raf = 0
-    this.last = 0
+    this.stopLoop?.()
+    this.stopLoop = undefined
   }
 
   private frame(dt: number) {
@@ -187,7 +186,7 @@ export class World {
     const lean = h.lean
     // склоняемся над бумагами: вперёд и чуть вверх; и еле заметно дышим
     // над бумагами не дышим: кнопки на листах должны стоять на месте
-    const breathe = Math.sin(this.t * 1.3) * 0.003 * (1 - Math.min(1, lean * 4))
+    const breathe = (this.reducedMotion ? 0 : Math.sin(this.t * 1.3)) * 0.003 * (1 - Math.min(1, lean * 4))
     this.stand += (this.standTarget - this.stand) * (1 - Math.exp(-dt * 1.8))
     const cam = this.camera
     cam.position.set(EYE.x - Math.sin(h.yaw) * 0.03, EYE.y + lean * 0.1 + breathe + this.stand * 0.42, EYE.z - lean * 0.3 + this.stand * 0.25)
@@ -209,6 +208,7 @@ export class World {
     for (const fn of this.listeners) fn({ t: this.t, dt, moved })
     this.pipe.render(this.scene, cam, { xray: this.xray, fade: this.fade, dim: this.desk.heldAmount * 0.45 })
     this.css.render(this.scene, cam)
+    recordRenderFrame('3d', this.pipe.w, this.pipe.h)
   }
 
   look(p: Pose) {
@@ -261,6 +261,7 @@ export class World {
   dispose() {
     this.stop()
     this.ro.disconnect()
+    this.listeners.clear()
     this.company?.dispose()
     this.desk.dispose()
     this.room.dispose?.()

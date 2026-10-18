@@ -93,8 +93,8 @@
 /* ---------- верх: меню ---------- */
 
 .w3-top {
-  top: 12px;
-  right: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
 }
 .w3-menu-btn {
   margin: 0;
@@ -104,7 +104,7 @@
 
 .w3-tray {
   left: 50%;
-  bottom: calc(12px + var(--kb, 0px));
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--kb, 0px));
   box-sizing: border-box;
   width: min(780px, calc(100% - 24px));
   transform: translateX(-50%);
@@ -244,8 +244,8 @@
 /* ---------- разбор хода: плашки гаснут сами ---------- */
 
 .w3-toasts {
-  top: 12px;
-  left: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   width: min(400px, calc(100% - 96px));
   display: flex;
   flex-direction: column;
@@ -355,8 +355,8 @@
   }
 }
 .w3-toast-chip {
-  top: 12px;
-  left: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   display: inline-flex;
   align-items: center;
   gap: calc(4 * var(--u));
@@ -376,8 +376,8 @@
 
 /* разбор хода целиком — лист «на полях» слева */
 .w3-sheet {
-  top: 12px;
-  left: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   width: min(420px, calc(100% - 24px));
   max-height: calc(100% - 240px);
   overflow-y: auto;
@@ -675,7 +675,8 @@
   z-index: 4;
   display: grid;
   place-items: center;
-  padding: 16px;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: rgb(16 20 31 / 0.72);
   animation: w3-in 0.16s steps(2) both;
 }
@@ -836,7 +837,7 @@
     gap: var(--u);
     min-height: 0;
     padding: calc(1 * var(--u));
-    font-size: 12px;
+    font-size: 14px;
     line-height: 16px;
     text-align: center;
   }
@@ -984,7 +985,7 @@
     max-height: 40%;
   }
   .w3-xray .g-xray-title {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 16px;
   }
   .w3-toast--verdict > span:not(.w3-stamp-mini) {
@@ -1137,7 +1138,7 @@
   }
   .w3-tray {
     width: min(640px, calc(100% - 24px));
-    bottom: calc(6px + var(--kb, 0px));
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--kb, 0px));
   }
   .w3-you,
   .w3-hint,

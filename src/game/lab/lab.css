@@ -274,7 +274,7 @@ body:has(.vx) {
   padding: 0 calc(2 * var(--u));
   background: var(--c-brass);
   color: var(--c-ink);
-  font: 700 13px var(--f-ui);
+  font: 700 14px var(--f-ui);
 }
 
 .vx-need {

@@ -77,7 +77,7 @@
   --fs-ui-big: 27px;    /* Pixeloid x3 */
   --fs-ui-huge: 36px;   /* Pixeloid x4 */
   --fs-read: 24px;      /* Ark x2 */
-  --fs-small: 12px;     /* Ark x1 — только цифры и подписи */
+  --fs-small: 14px;     /* подписи читаются и на телефоне */
   --lh-read: 32px;
   --lh-ui: 24px;
 }

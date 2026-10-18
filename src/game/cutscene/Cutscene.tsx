@@ -2,6 +2,8 @@
 // Клик, пробел или → — следующий план; Esc или «Пропустить» — сразу дальше по игре.
 // ?cutscene=<id>&t=<секунды> в адресе останавливает кадр — для снимков и проверки глазами.
 
+import { startFrameLoop } from '../frameLoop'
+
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PORTRAITS } from '../ui/assets'
 import { H, PHONE } from './art'
@@ -134,9 +136,11 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
     painter.current = p
     const all = script.shots.flatMap(imagesOf)
     let live = true
-    Promise.race([p.load(all), new Promise((r) => setTimeout(r, 3000))]).then(() => live && setReady(true))
+    let timer: ReturnType<typeof setTimeout> | undefined
+    Promise.race([p.load(all), new Promise((r) => { timer = setTimeout(r, 3000) })]).then(() => { clearTimeout(timer); if (live) setReady(true) })
     return () => {
       live = false
+      clearTimeout(timer)
     }
   }, [script])
 
@@ -148,12 +152,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
     if (!ready) return
     const p = painter.current!
     p.setWidth(size.vw)
-    let raf = 0
-    let last = 0
-    const loop = (now: number) => {
-      raf = requestAnimationFrame(loop)
-      const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
-      last = now
+    const loop = (dt: number) => {
       if (at === undefined) T.current += dt
       // телефон-памятка: план стоит, пока игрок не долистает, а мир за телефоном живёт своим временем
       {
@@ -194,8 +193,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
         u.i === i && u.line === l && u.card === c && sameRect(u.phone, info.phone) ? u : { i, line: l, card: c, phone: info.phone },
       )
     }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
+    return startFrameLoop(loop)
   }, [ready, size.vw, size.s, script, starts_, total_, at, finish])
 
   const shot = script.shots[ui.i]

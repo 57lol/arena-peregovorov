@@ -1,6 +1,9 @@
 // Голос в браузере: озвучка собеседника и запись реплики игрока.
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
+import { mediaEvent } from './mediaEvent'
+import { ResourceCache } from './resourceCache'
+
 import { decodeAudio } from './audio/decode'
 import type { Emotion, Scenario } from '../engine/types'
 import { langOf, type Lang } from '../engine/lang'
@@ -213,7 +216,7 @@ export interface Prepared {
 
 // ---------- губы по звуку ----------
 
-const envCache = new Map<string, Promise<Float32Array | null>>()
+const envCache = new ResourceCache<string, Promise<Float32Array | null>>(96)
 
 /** Огибающая громкости записи (lips.ts). Считаем по тем же байтам, что играет <audio>, — сам плеер через Web Audio не пускаем, звук не рискуем. */
 async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null> {
@@ -245,8 +248,13 @@ export function gainFor(power: Float32Array): number {
 
 /** Множитель громкости записи, если огибающая готова не дольше чем за ms (иначе 1): громкость известна до первого звука. */
 async function levelOf(env: Promise<Float32Array | null>, ms = 200): Promise<number> {
-  const e = await Promise.race([env, new Promise<null>((r) => setTimeout(() => r(null), ms))])
-  return (e && gains.get(e)) || 1
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const e = await Promise.race([env, new Promise<null>((r) => { timer = setTimeout(() => r(null), ms) })])
+    return (e && gains.get(e)) || 1
+  } finally {
+    clearTimeout(timer)
+  }
 }
 const setGain = (g: number) => {
   gain = g
@@ -488,42 +496,43 @@ let liveStop: AbortController | null = null
 /** Скачивать звук по кускам в MediaSource; part — всё пришедшее после каждого куска (губы), в конце — весь звук. */
 function feed(src: string, stop: AbortSignal, part: (bytes: Uint8Array) => void): { url: string; all: Promise<ArrayBuffer>; ms: MediaSource } {
   const ms = new MediaSource()
-  const all = new Promise<ArrayBuffer>((resolve, reject) => {
-    ms.addEventListener('sourceopen', async () => {
-      let sb: SourceBuffer | undefined
-      // endOfStream при updating бросает, и MediaSource остаётся «open»: <audio> ждёт данных вечно, не приходит ни ended,
-      // ни пауза — speechPlaying() навсегда true, и в ?voiceonly микрофон больше не включается (живая катка 17.10).
-      const close = async (error?: 'network') => {
-        try {
-          if (sb?.updating) await new Promise((ok) => sb!.addEventListener('updateend', ok, { once: true }))
-          if (ms.readyState === 'open') ms.endOfStream(error)
-        } catch { /* уже закрыт или отсоединён */ }
-      }
+  const all = (async () => {
+    await mediaEvent(ms, 'sourceopen', stop)
+    let sb: SourceBuffer | undefined
+    const close = async (error?: 'network') => {
       try {
-        const buf = ms.addSourceBuffer('audio/mpeg')
-        sb = buf
-        const r = await fetch(src, { signal: stop })
-        if (!r.ok || !r.body) throw new Error(`звук: ${r.status}`)
-        noteVoice({ api: r.headers.get('x-tts-api') ?? '', ...(r.headers.has('x-tts-fallback') ? { fallback: '1' } : {}) })
-        const parts: Uint8Array[] = []
-        const reader = r.body.getReader()
-        for (;;) {
-          const { value, done } = await reader.read()
-          if (done) break
-          parts.push(value)
-          if (buf.updating) await new Promise((ok) => buf.addEventListener('updateend', ok, { once: true }))
-          buf.appendBuffer(value)
-          part(joinParts(parts))
-        }
-        await close()
-        resolve(joinParts(parts).buffer as ArrayBuffer)
-      } catch (e) {
-        // поток оборвался не по нашей воле — доиграть то, что пришло, и закончить обычным ended
-        await close(stop.aborted || !sb?.buffered.length ? 'network' : undefined)
-        reject(e)
+        if (sb?.updating) await mediaEvent(sb, 'updateend', stop)
+        if (ms.readyState === 'open') ms.endOfStream(error)
+      } catch { /* уже закрыт или отсоединён */ }
+    }
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    try {
+      const buf = ms.addSourceBuffer('audio/mpeg')
+      sb = buf
+      const r = await fetch(src, { signal: stop })
+      if (!r.ok || !r.body) throw new Error(`звук: ${r.status}`)
+      noteVoice({ api: r.headers.get('x-tts-api') ?? '', ...(r.headers.has('x-tts-fallback') ? { fallback: '1' } : {}) })
+      const parts: Uint8Array[] = []
+      reader = r.body.getReader()
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        parts.push(value)
+        if (buf.updating) await mediaEvent(buf, 'updateend', stop)
+        if (stop.aborted) throw stop.reason
+        buf.appendBuffer(value as Uint8Array<ArrayBuffer>)
+        part(joinParts(parts))
       }
-    }, { once: true })
-  })
+      await close()
+      return joinParts(parts).buffer as ArrayBuffer
+    } catch (e) {
+      await close(stop.aborted || !sb?.buffered.length ? 'network' : undefined)
+      throw e
+    } finally {
+      if (stop.aborted) void reader?.cancel().catch(() => {})
+      reader?.releaseLock()
+    }
+  })()
   return { url: URL.createObjectURL(ms), all, ms }
 }
 

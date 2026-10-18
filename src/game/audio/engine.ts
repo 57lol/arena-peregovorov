@@ -3,6 +3,7 @@
 // Браузеры не дают звучать до первого клика: до него только запоминаем, что играть, и стартуем в первом жесте.
 // Под Playwright (navigator.webdriver) звук по умолчанию выключен — прогоны идут молча.
 
+import { ResourceCache } from '../resourceCache'
 import { loadVolume, setVolume as setVoiceVolume } from '../speech'
 import { decodeAudio } from './decode'
 import { GUARD, LOOPS } from './loops.gen'
@@ -125,7 +126,7 @@ function ensure(): AudioContext | null {
   sfxBus = ctx.createGain()
   sfxBus.gain.value = settings.sfx
   sfxBus.connect(ctx.destination)
-  for (const names of Object.values(VARIANTS)) names.forEach((n) => load(`sfx-${n}`))
+  void load('sfx-click')
   return ctx
 }
 
@@ -149,6 +150,7 @@ function unlock() {
   const b = ctx.createBuffer(1, 1, 22050)
   const s = ctx.createBufferSource()
   s.buffer = b
+  s.onended = () => s.disconnect()
   s.connect(ctx.destination)
   s.start(0)
   wake()
@@ -161,7 +163,7 @@ function wake() {
   amb.apply()
 }
 
-const buffers = new Map<string, Promise<AudioBuffer | null>>()
+const buffers = new ResourceCache<string, Promise<AudioBuffer | null>>(12, 24 * 1024 * 1024)
 function load(name: string): Promise<AudioBuffer | null> {
   let p = buffers.get(name)
   if (!p) {
@@ -173,7 +175,11 @@ function load(name: string): Promise<AudioBuffer | null> {
         buffers.delete(name)
         return null
       })
-    buffers.set(name, p)
+    buffers.set(name, p, 0)
+    const pending = p
+    void pending.then((buf) => {
+      if (buf && buffers.get(name) === pending) buffers.set(name, pending, buf.length * buf.numberOfChannels * 4)
+    })
   }
   return p
 }
@@ -206,7 +212,7 @@ class LoopSlot {
     const file = `${this.prefix}-${name}`
     load(file).then((buf) => {
       const out = this.bus()
-      if (!buf || !ctx || !out || this.want !== name || this.cur?.name === name) return
+      if (!buf || !ctx || !out || !settings.on || document.hidden || this.want !== name || this.cur?.name === name) return
       const src = ctx.createBufferSource()
       src.buffer = buf
       const per = LOOPS[file]
@@ -219,6 +225,7 @@ class LoopSlot {
       const t = ctx.currentTime
       gain.gain.setValueAtTime(0, t)
       gain.gain.linearRampToValueAtTime(this.level, t + FADE)
+      src.onended = () => { src.disconnect(); gain.disconnect() }
       src.connect(gain).connect(out)
       src.start(t, per ? GUARD : 0)
       this.cur = { name, src, gain }
@@ -263,6 +270,7 @@ export function sfx(id: SfxId, o: { gain?: number; rate?: number } = {}) {
     src.playbackRate.value = o.rate ?? 0.94 + Math.random() * 0.12
     const g = ctx.createGain()
     g.gain.value = o.gain ?? 1
+    src.onended = () => { src.disconnect(); g.disconnect() }
     src.connect(g).connect(sfxBus)
     src.start()
   })

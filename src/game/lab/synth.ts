@@ -21,9 +21,15 @@ export interface SynthResult {
 
 let audio: HTMLAudioElement | null = null
 let url = ''
+let generation = 0
+let pending: AbortController | null = null
 
 export function stop() {
+  generation++
+  pending?.abort()
+  pending = null
   audio?.pause()
+  if (audio) { audio.onended = null; audio.removeAttribute('src'); audio.load() }
   if (url) URL.revokeObjectURL(url)
   url = ''
 }
@@ -31,30 +37,40 @@ export function stop() {
 export async function say(q: SynthReq, onEnd?: () => void): Promise<SynthResult> {
   unlockAudio() // iOS: первый play() — внутри клика
   stop()
+  const token = generation
+  const request = new AbortController()
+  pending = request
+  const timer = setTimeout(() => request.abort(), 30_000)
   let r: Response
   try {
     r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ provider: 'yandex', ...q }),
-      signal: AbortSignal.timeout(30_000),
+      signal: request.signal,
     })
   } catch {
-    return { ok: false, note: 'нет связи с сервером' }
+    return { ok: false, note: request.signal.aborted ? 'остановлено' : 'нет связи с сервером' }
+  } finally {
+    clearTimeout(timer)
+    if (pending === request) pending = null
   }
+  if (token !== generation) return { ok: false, note: 'остановлено' }
   if (!r.ok || !r.headers.get('content-type')?.startsWith('audio/')) {
     const j = (await r.json().catch(() => ({}))) as { error?: string }
     return { ok: false, note: j.error ?? `сервер ответил ${r.status}` }
   }
   const blob = await r.blob()
+  if (token !== generation) return { ok: false, note: 'остановлено' }
   url = URL.createObjectURL(blob)
   audio ??= new Audio()
   audio.volume = 0.7
   audio.src = url
-  audio.onended = () => onEnd?.()
+  audio.onended = () => { stop(); onEnd?.() }
   try {
     await audio.play()
   } catch {
+    if (token === generation) stop()
     return { ok: false, note: 'браузер не дал включить звук — нажмите ещё раз' }
   }
   const ms = Number(r.headers.get('x-audio-ms'))

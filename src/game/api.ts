@@ -1,9 +1,6 @@
 // Тонкий клиент к серверу игры. Если сервер недоступен, ход считается прямо в браузере
 // офлайн-разметчиком и шаблонами: игра проходится и без сети.
 
-import { BEHAVIOR_DICT } from '../engine/behaviors'
-import { groundedOffline, templateLine, walkAwayMove, withContext, withFormalOffer } from '../engine/offline'
-import { stateAfter, step } from '../engine/turn'
 import type { Difficulty, Offer, Scenario, Tone, TurnRecord } from '../engine/types'
 import { loadLab } from './lab/config'
 
@@ -167,20 +164,9 @@ export async function playTurn(t: TurnInput, onLine?: (l: TurnLine) => void): Pr
     // Ошибку хода, истёкший вход и лимит показываем. Сеть, 5xx, 404/405 статического хостинга без API —
     // играем локально, чтобы игра проходилась и там, где сервера нет вовсе.
     if (shownError(e)) throw e
+    const { localTurn } = await import('./localTurn')
     return { record: localTurn(t), source: 'local' }
   }
-}
-
-function localTurn(t: TurnInput): TurnRecord {
-  const dict = BEHAVIOR_DICT
-  const before = stateAfter(t.scenario, t.history, dict)
-  let analysis = t.walkAway
-    ? walkAwayMove()
-    : withContext(withFormalOffer(groundedOffline(t.scenario, t.text, dict), t.offer), before, t.history, dict)
-  if (t.accept) analysis = { ...analysis, accepts: true }
-  const r = step(t.scenario, before, analysis, dict, t.history.map((h) => h.analysis))
-  const { line, emotion } = templateLine(t.scenario, r.decision, r.state, before.lastOpponentOffer)
-  return { turn: r.state.turn, playerText: t.text, analysis, deltas: r.deltas, decision: r.decision, opponentLine: line, emotion, stateAfter: r.state }
 }
 
 export interface Health {

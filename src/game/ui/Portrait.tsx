@@ -16,6 +16,7 @@ interface Props {
 
 /** Портрет из листа 3x6: кадры по горизонтали, эмоции по вертикали. */
 export function Portrait({ id, emotion, talking = false, lip = false, scale, className }: Props) {
+  const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   const [frame, setFrame] = useState<PortraitFrame>('idle')
   const [jolt, setJolt] = useState(false)
   const prevEmotion = useRef(emotion)
@@ -34,6 +35,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
     let flip = 0
     let voiced = false
     const t = setInterval(() => {
+      if (document.hidden) return
       const s = lip ? lipState() : 'off'
       if (s !== 'off') {
         voiced = true
@@ -58,7 +60,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
 
   // моргание в случайные моменты, когда молчит
   useEffect(() => {
-    if (talking) return
+    if (talking || still) return
     let alive = true
     let timer: ReturnType<typeof setTimeout>
     const loop = () => {
@@ -79,7 +81,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
       alive = false
       clearTimeout(timer)
     }
-  }, [talking, lip])
+  }, [talking, lip, still])
 
   // смена эмоции — короткий подскок на один пиксель
   useEffect(() => {
@@ -104,7 +106,7 @@ export function Portrait({ id, emotion, talking = false, lip = false, scale, cla
         backgroundImage: `url(${PORTRAITS[id].sheet})`,
         backgroundSize: `${s * 3}px ${s * EMOTIONS.length}px`,
         backgroundPosition: `${-col * s}px ${-row * s}px`,
-        transform: `translateY(${jolt ? -scale : 0}px) rotate(${emotionTilt(emotion)}deg)`,
+        transform: `translateY(${!still && jolt ? -scale : 0}px) rotate(${emotionTilt(emotion)}deg)`,
       }}
     />
   )

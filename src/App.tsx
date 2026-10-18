@@ -4,7 +4,6 @@ import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
 import { BudgetNote } from './game/BudgetNote'
 import { loadProgress, setStoryChapter, type Progress } from './game/progress'
-import { nextCase } from './game/career'
 import { tutorialAllowed } from './game/tutorial'
 import { clearLink, readLink } from './game/share'
 import { newAttemptId, nextPulseSeq, sendPulse, loadPlayer, readBoardParam, readRoomParam, roomInfo, RoomError, savePlayerName, type RoomRef } from './game/rooms'
@@ -14,17 +13,8 @@ import { useSoundScene } from './game/audio/scene'
 import { initialState } from './engine/turn'
 import { useRoomPulse } from './game/useRoomPulse'
 import { Title } from './game/screens/Title'
-import { Setup } from './game/screens/Setup'
 import { Brief } from './game/screens/Brief'
-import { Play } from './game/screens/Play'
 import { loadView, type View } from './game/view'
-import { Debrief } from './game/screens/Debrief'
-import { Coach } from './game/screens/Coach'
-import { Board } from './game/screens/Board'
-import { RoomReceipt } from './game/screens/RoomReceipt'
-import { Career } from './game/screens/Career'
-import { MapScreen } from './game/screens/Map'
-import { nextStory } from './game/story'
 import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscenes, storyAfter, storyStart, type Next, type Step } from './game/story/flow'
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
@@ -32,8 +22,16 @@ import { chapterOf, CHAPTERS } from './content/story'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
-import './game/coach.css'
-import './game/career.css'
+
+// Экраны загружаются при переходе; титул остаётся в основном бандле.
+const Setup = Object.assign(lazy(() => import('./game/screens/Setup').then((m) => ({ default: m.Setup }))), { displayName: 'Setup' })
+const Play = Object.assign(lazy(() => import('./game/screens/Play').then((m) => ({ default: m.Play }))), { displayName: 'Play' })
+const Debrief = Object.assign(lazy(() => import('./game/screens/Debrief').then((m) => ({ default: m.Debrief }))), { displayName: 'Debrief' })
+const Coach = Object.assign(lazy(() => import('./game/screens/Coach').then((m) => ({ default: m.Coach }))), { displayName: 'Coach' })
+const Board = Object.assign(lazy(() => import('./game/screens/Board').then((m) => ({ default: m.Board }))), { displayName: 'Board' })
+const RoomReceipt = Object.assign(lazy(() => import('./game/screens/RoomReceipt').then((m) => ({ default: m.RoomReceipt }))), { displayName: 'RoomReceipt' })
+const Career = Object.assign(lazy(() => import('./game/screens/Career').then((m) => ({ default: m.Career }))), { displayName: 'Career' })
+const MapScreen = Object.assign(lazy(() => import('./game/screens/Map').then((m) => ({ default: m.MapScreen }))), { displayName: 'MapScreen' })
 
 // 3D-встреча тянет three.js — грузим её отдельно; пока игрок читает бриф, код уже качается
 const Play3D = lazy(() => import('./game/screens/Play3D'))
@@ -153,18 +151,19 @@ export default function App() {
     // /api/health под нагрузкой бывает дольше таймаута: не ответил — переспрашиваем, иначе голос и распознавание
     // пропадут на всю вкладку
     let alive = true
+    let retry: ReturnType<typeof setTimeout> | undefined
     const ask = (n: number) =>
       health().then((h) => {
         if (!alive) return
         if (h?.speech?.eleven) setElevenMain(true)
         if (h) setServerScribe(!!h.speech?.scribe)
         if (h || n >= 4) return setServer(h)
-        setTimeout(() => ask(n + 1), 2000)
+        retry = setTimeout(() => ask(n + 1), 2000)
       })
     ask(0)
     const fromLink = () =>
       readLink().then((l) => {
-        if (!l) return
+        if (!alive || !l) return
         if ('error' in l) return setNotice(l.error)
         const lib = 'id' in l ? getScenario(l.id) : undefined
         const sc = lib ?? l.scenario
@@ -199,6 +198,7 @@ export default function App() {
     window.addEventListener('hashchange', fromLink)
     return () => {
       alive = false
+      clearTimeout(retry)
       window.removeEventListener('hashchange', fromLink)
     }
   }, [])
@@ -374,7 +374,7 @@ export default function App() {
   if (screen === 'cutscene') {
     const cs = film && cutsceneById(film.id)
     return cs ? (
-      <Suspense fallback={<div className="cs-root" />}>
+      <Suspense fallback={<div className="g-loading" role="status">Загружаем сцену…</div>}>
         <CutscenePlayer key={film.id} script={cs} at={film.at} onDone={film.then} />
       </Suspense>
     ) : null
@@ -382,14 +382,14 @@ export default function App() {
 
   if (screen === 'films')
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
         <Gallery back={filmsBack === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(filmsBack)} onPlay={(id) => watch(id, 'films')} />
       </Suspense>
     )
 
   if (screen === 'jury')
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
         <BudgetNote />
         <Jury
           progress={progress}
@@ -469,7 +469,6 @@ export default function App() {
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
         onFilms={() => films('title')}
-        next={nextStory(progress) ?? nextCase(progress)}
         // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {
           setNotice(null)

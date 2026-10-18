@@ -1,5 +1,6 @@
 // Что звучит на каком экране. Экран → музыка и фон комнаты; катсцена → свой разбор по времени; встреча → штамп и бумаги.
 
+import { startFrameLoop } from '../frameLoop'
 import { useEffect, useRef } from 'react'
 import type { Scenario } from '../../engine/types'
 import { sceneFor } from '../cast'
@@ -77,10 +78,8 @@ export function cutsceneCue(cs: Cutscene, T0: number, T1: number): CutsceneCue {
  */
 function followCutscene(cs: Cutscene): () => void {
   const len = total(cs)
-  let raf = 0
   let T0 = -1
   const tick = () => {
-    raf = requestAnimationFrame(tick)
     const b = document.querySelector<HTMLElement>('.cs-bar b')
     const m = b && /scaleX\(([\d.e-]+)\)/.exec(b.style.transform)
     if (!m) return
@@ -92,9 +91,9 @@ function followCutscene(cs: Cutscene): () => void {
     if (cue.page) sfx('page', { gain: 0.7 })
     T0 = T
   }
-  raf = requestAnimationFrame(tick)
+  const stop = startFrameLoop(tick)
   return () => {
-    cancelAnimationFrame(raf)
+    stop()
     playAmbient(null)
   }
 }

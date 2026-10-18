@@ -215,6 +215,7 @@ export function Play(props: Props) {
                   value={pending ?? draft}
                   disabled={!!pending}
                   maxLength={1500}
+                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'instant' })}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
