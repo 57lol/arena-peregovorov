@@ -153,6 +153,14 @@ describe('условие сказано словами — без приписк
       expect(completeLine(sc, f, line), id).toBe(line)
     }
   })
+  it('«Ну что ж, тогда по рукам» — согласие, без второй описи «Договорились: …» (Дарина в прогоне «до»)', () => {
+    const sc = CASES.find((s) => s.id === 'offer')!
+    const deal = { salary: 2, start: 2, housing: 3, study: 2, project: 2 }
+    const f = frameFor(sc, { kind: 'accept' }, { ...initialState(sc), status: 'deal', deal, tableOffer: deal, playerStance: deal }, deal, deal)
+    const line = 'Хм… интересно… Ну что ж, тогда по рукам. Сто восемьдесят, выход через шесть недель, квартира на год.'
+    expect(completeLine(sc, f, line)).toBe(line)
+  })
+
   it('на «вы» — «Давайте так», на «ты» — «Давай так»', () => {
     const a = frame('offer', { salary: 3, start: 3, housing: 3, study: 2, project: 2 }, { salary: 1, start: 3, housing: 3, study: 2, project: 2 })
     expect(completeLine(a.sc, a.f, 'Нет, так не пойдёт.')).toContain('Давайте так: оклад — 165 000 ₽.')

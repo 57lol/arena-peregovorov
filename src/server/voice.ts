@@ -543,7 +543,7 @@ const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L
  * Предложение в реплике похоже на согласие на всю сделку. Не согласие: «давай так — и по рукам?», «если…, то по рукам»,
  * «по срокам договорились, но цена…» — это предложение или согласие по одному пункту.
  */
-const LEAD_THEN = /^\s*(?:(?:good|great|fine|right|well|ok(?:ay)?|хорошо|ладно|отлично|что ж)[,!]?\s+)?(?:then|тогда)[,!]?\s*$/iu
+const LEAD_THEN = /^\s*(?:(?:ну|good|great|fine|right|well|ok(?:ay)?|хорошо|ладно|отлично|что ж)[,!]?\s+){0,2}(?:then|тогда)[,!]?\s*$/iu
 
 function saysYes(line: string): boolean {
   const contrast = /(?<!\p{L})(но|однако|а вот|только|but|however|only)(?!\p{L})/iu
