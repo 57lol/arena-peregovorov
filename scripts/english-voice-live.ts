@@ -26,7 +26,9 @@ await ctx.addInitScript(`
   localStorage.setItem('peregovorka.progress.v2', JSON.stringify({ tutorialDone: true }))
   window.ev = []; const log = (k, s) => window.ev.push([Math.round(performance.now()), k, String(s).slice(0, 300)])
   let said = 0
-  const listening = () => /Говорите/.test(document.querySelector('.g-voiceonly-hint')?.textContent ?? '')
+  // 2D — подсказка «Говорите» под микрофоном; 3D — горящая лампа-микрофон в панели .w3-bar[data-voice]
+  const hintText = () => document.querySelector('.g-voiceonly-hint')?.textContent ?? [document.querySelector('.w3-bar[data-voice] .w3-talk')?.textContent, document.querySelector('.w3-status')?.textContent].filter(Boolean).join(' | ')
+  const listening = () => /Говорите/.test(document.querySelector('.g-voiceonly-hint')?.textContent ?? '') || !!document.querySelector('.w3-bar[data-voice] .w3-talk.is-on')
   navigator.mediaDevices.getUserMedia = async () => {
     const ctx = new AudioContext(); await ctx.resume()
     const dest = ctx.createMediaStreamDestination()
@@ -51,7 +53,7 @@ await ctx.addInitScript(`
   const eos = MediaSource.prototype.endOfStream
   MediaSource.prototype.endOfStream = function (e) { log('mse', 'endOfStream ' + (e || 'ok')); return eos.call(this, e) }
   let lastHint = ''
-  setInterval(() => { const h = document.querySelector('.g-voiceonly-hint')?.textContent ?? ''; if (h !== lastHint) { lastHint = h; log('hint', h) } }, 100)
+  setInterval(() => { const h = hintText(); if (h !== lastHint) { lastHint = h; log('hint', h) } }, 100)
   window.__turns = []
   const f = window.fetch
   window.fetch = async (u, o) => {

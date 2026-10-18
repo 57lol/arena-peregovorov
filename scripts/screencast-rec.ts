@@ -298,6 +298,8 @@ async function typeIn(p: Page, l: Locator, text: string, delay = 35) {
   await wait(250)
 }
 
+/** панель голосового хода: 2D — .g-voiceonly, 3D — нижняя панель встречи в голосовом режиме */
+const VOICE_PANEL = '.g-voiceonly, .w3-bar[data-voice]'
 type W = { __playingNow: boolean; __ev: { type: string; src: string; t: number }[] }
 const evCount = (p: Page) => p.evaluate(() => (window as unknown as W).__ev.length)
 const ended = (p: Page) => p.getByRole('button', { name: 'Разбор встречи' }).isVisible().catch(() => false)
@@ -311,7 +313,8 @@ async function waitQuiet(p: Page, ms = 1000, timeout = 120_000) {
       const v = document.querySelector('.g-voiceonly') as HTMLElement | null
       return {
         playing: (window as unknown as W).__playingNow,
-        ready: !!v && v.dataset.phase === 'listen' && !!document.querySelector('.g-voice-state.is-on'),
+        // 2D — фаза панели и лампа «Слушаю»; 3D — лампа-микрофон в панели .w3-bar[data-voice]
+        ready: (!!v && v.dataset.phase === 'listen' && !!document.querySelector('.g-voice-state.is-on')) || !!document.querySelector('.w3-bar[data-voice] .w3-talk.is-on'),
         typed: !!document.querySelector('#px-speech') && !document.querySelector('#px-speech')!.hasAttribute('disabled'),
         ended: [...document.querySelectorAll('button')].some((b) => /Разбор встречи/.test(b.textContent ?? '')),
       }
@@ -432,7 +435,7 @@ async function partTara() {
   await wait(1500)
   await click(p, p.getByRole('button', { name: 'Войти в переговорку', exact: true }).first())
   r.mark('enter')
-  await p.waitForSelector('.g-voiceonly', { timeout: 60_000 })
+  await p.waitForSelector(VOICE_PANEL, { timeout: 60_000 })
   await cursor(p, false)
   if (!process.argv.includes('--strong-only')) {
     // слабый ход (ультиматум) → «Переиграть с этого хода»
@@ -591,7 +594,7 @@ async function partCase(name: 'english' | 'china') {
   await wait(4000)
   await click(p, p.getByRole('button', { name: 'Войти в переговорку', exact: true }).first())
   r.mark('enter')
-  await p.waitForSelector('.g-voiceonly', { timeout: 60_000 })
+  await p.waitForSelector(VOICE_PANEL, { timeout: 60_000 })
   await cursor(p, false)
   await waitListen(r)
   await say(r, name === 'english' ? 'e1' : 'c1')

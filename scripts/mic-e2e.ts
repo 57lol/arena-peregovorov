@@ -113,7 +113,7 @@ async function meeting(view: 'classic' | '3d', o: { stt?: (r: Route, n: number) 
   await page.goto(`${URL}/?case=dorm&view=${view}${o.voiceonly ? '&voiceonly' : o.voice ? '' : '&text'}`)
   await page.locator('button.g-big').first().click()
   await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
-  await page.locator(o.voiceonly || o.voice ? '.g-voiceonly, #px-speech' : '.g-mic').first().waitFor({ timeout: 30_000 })
+  await page.locator(o.voiceonly || o.voice ? '.g-voiceonly, .w3-bar[data-voice], #px-speech' : '.g-mic').first().waitFor({ timeout: 30_000 })
   return { page, stt, close: () => browser.close() }
 }
 

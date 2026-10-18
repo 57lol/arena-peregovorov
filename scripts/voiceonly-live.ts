@@ -120,6 +120,9 @@ if (key) await page.goto(`${base}/?key=${key}`)
 await page.goto(`${base}/?case=${caseId}${view ? `&view=${view}` : ''}`)
 await page.locator('button.g-big').first().click()
 await page.locator('button.g-big:visible, button.g-bar-go:visible').first().click()
+// голосовая панель встречи: 2D — .g-voiceonly, 3D — .w3-bar[data-voice]; без неё ход голосом не пойдёт
+await page.locator('.g-voiceonly, .w3-bar[data-voice]').first().waitFor({ timeout: 60_000 })
+console.log('панель голоса:', await page.locator('.w3-bar[data-voice]').count() ? '3D .w3-bar[data-voice]' : '2D .g-voiceonly')
 const turns = () => page.evaluate(() => (window as unknown as { ev: Ev[] }).ev.filter((e) => e[1] === 'turn').length)
 const t0 = Date.now()
 let seen = 0
