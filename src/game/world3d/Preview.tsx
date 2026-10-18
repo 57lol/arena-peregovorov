@@ -1,4 +1,4 @@
-// Витрина 3D-комнаты для разработки: /?world=factory, office, dorm, street, shop, bytovka.
+// Витрина 3D-комнаты для разработки: /?world=factory, office, dorm, street, shop, bytovka, inei, istanbul.
 // Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1, &face=rinat, &case=tara.
 // Управление: перетаскивание, стрелки ←→, ↓ стол, ↑ собеседник.
 
@@ -17,6 +17,7 @@ const STORY_ROOM_CASE: Partial<Record<WorldKind, { caseId: string; face: string 
   shop: { caseId: 'shop', face: 'admin' },
   bytovka: { caseId: 'launch', face: 'palych' },
   inei: { caseId: 'client', face: 'buyer' },
+  istanbul: { caseId: 'istanbul', face: 'emre' },
 }
 
 export default function Preview() {

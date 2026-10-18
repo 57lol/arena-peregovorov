@@ -4,6 +4,7 @@
 // встреча в 3D текстом → сделка → разбор. ПЛАТНО: разметка и реплика на моделях, голос ElevenLabs.
 // Снимки и стенограмма — в ~/Arena-materials/final/english-shots/.
 // Запуск: ~/Arena-materials/final/english-run/run.sh (порт 8794), потом npx tsx scripts/english-live.ts [--url http://127.0.0.1:8794]
+//   [--key ключ_жюри] [--turns 3] [--out папка] — на проде: --url https://arena-peregovorov.ru --key …
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -29,7 +30,7 @@ const LINES = [
 interface Turn { n: number; player: string; opponent?: string; decision?: string; analysis?: unknown; trust?: number; tension?: number; sources?: unknown; ms?: number }
 const turns: Turn[] = []
 
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
 // как живой игрок: не webdriver (звук и 3D), обучение пройдено; проверка «не тянет 3D» выключена (программный рендер)
 await ctx.addInitScript(`
@@ -72,12 +73,14 @@ async function waitReply(p: Page) {
   await p.waitForTimeout(900)
 }
 
+const key = opt('key', '')
+if (key) await page.goto(`${base}/?key=${key}`)
 await page.goto(`${base}/?jury&text&view=3d&reset`)
 await page.waitForTimeout(1500)
 await shot('01-хаб-жюри', true)
-await page.locator('.jr-en').scrollIntoViewIfNeeded()
-await page.locator('.jr-en').screenshot({ path: join(out, '02-карточка-english.png') })
-await page.locator('.jr-en').click()
+await page.locator('.jr-en').first().scrollIntoViewIfNeeded()
+await page.locator('.jr-en').first().screenshot({ path: join(out, '02-карточка-english.png') })
+await page.locator('.jr-en').first().click()
 await page.waitForSelector('.g-dossier')
 await shot('03-бриф', true)
 await page.getByRole('button', { name: 'Войти в переговорку' }).first().click()
@@ -88,7 +91,7 @@ await page.waitForTimeout(2500)
 const opening = await page.locator('.px-dialog-box').first().innerText().catch(() => '')
 await shot('04-вступление')
 
-for (const [i, line] of LINES.entries()) {
+for (const [i, line] of LINES.slice(0, Number(opt('turns', '8'))).entries()) {
   if (await page.evaluate(ended)) break
   turns.push({ n: i + 1, player: line })
   await page.locator(INPUT).first().fill(line)
@@ -111,6 +114,12 @@ for (const [i, line] of LINES.entries()) {
 }
 await page.waitForTimeout(1500)
 await shot('06-финал-встречи')
+if (!(await page.evaluate(ended))) {
+  writeFileSync(join(out, 'transcript.json'), JSON.stringify({ opening, turns, errors }, null, 1))
+  console.log(`\nошибок в консоли: ${errors.length}`)
+  await browser.close()
+  process.exit(0)
+}
 await page.getByRole('button', { name: 'Разбор встречи' }).click()
 await page.waitForTimeout(2500)
 await shot('07-разбор', true)

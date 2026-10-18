@@ -140,6 +140,9 @@ export interface ElevenTune {
 }
 export const ELEVEN_TUNE: Record<string, ElevenTune> = {
   china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
+  // Эмре: турецкий акцент в английском держит только v3 (v4 и v4 Turbo его «выпрямляют» в чистый английский), тег —
+  // постоянная подача акцента в начале каждой реплики (~/Arena-materials/final/emre-voice, 18.10: судья 5 и 4 из 5 по турецкому)
+  emre: { model: 'eleven_v3', stability: 0.5, similarity: 0.8, prefix: '[strong Turkish accent] ' },
   gopnik: { stability: 0.3, similarity: 1 },
   // Голоса из кастинга под портреты (утверждены капитаном 18.10): настройки дублей, которые он слушал
   // (~/Arena-materials/final/voice-casting, opening_body: eleven_v4, stability 0,6, similarity 0,8, speaker boost, seed лица)
@@ -269,12 +272,13 @@ export function mainTts(env = process.env): MainTts | undefined {
  * (~/Arena-materials/final/VOICE_FIX_REPORT.md). Тимур, Палыч, Лариса Петровна, Роза и Дарина — дизайн-голоса из кастинга
  * под портреты, утверждены капитаном 18.10 (~/Arena-materials/final/voice-casting: a_bright_2, b_kazakh_2, c_sharp_2,
  * b_steel_3, a_soft_2). Своё — TTS_CAST="sosed:<id>,gopnik:<id>" в .env.
- * Эмре (дело на английском) — Emre Anduv: стамбулец 37 лет, английский с лёгким акцентом, живая интонация; подбор 18.10
- * из 5 голосов с турецким акцентом (whisper, тон, описание): он и Harun читали «€» по-английски даже с language_code "ru".
+ * Эмре (дело на английском) — дизайн-голос «Arena Эмре · дизайн d1A» (Voice Design, eleven_ttv_v3: стамбулец за 40, густой
+ * турецкий акцент в английском), звучит на eleven_v3 с тегом акцента (ELEVEN_TUNE.emre). Подбор 18.10 из 22 библиотечных
+ * голосов с турецким акцентом и 2 дизайнов (~/Arena-materials/final/emre-voice): прежний Emre Anduv на v4 Turbo — акцент едва слышен.
  */
 export const CAST: Record<string, string> = {
   china: 'qEUg56UIsvkup7EM8Ovt',
-  sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'TcOBSQQ3Mm1U95izQTyI', narrator: 'Vl27Cllkuw8BhyPqus2n',
+  sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'ezjpFmpyFJhaCJxPZlXg', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 
 /** Голос ElevenLabs для лица; нового лица в таблице нет — стоковый голос его пола, всегда один и тот же. */

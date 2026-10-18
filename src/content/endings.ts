@@ -161,7 +161,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     slammed: {
       title: TITLE.slammed,
       epilogue:
-        'Emre closed his laptop and left the lokum on the table. The line now comes from Qingdao. ' +
+        'Emre closed his laptop, and the tea went cold on the table. You flew home without a contract; the line now comes from Qingdao. ' +
         'Half a year later another Turkish supplier told you he had "heard about that meeting".',
     },
     timeout: {

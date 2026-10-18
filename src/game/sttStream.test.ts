@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CONNECT_MS, createScribe, type StreamSocket } from './sttStream'
+import { CONNECT_MS, createScribe, wrongScript, type StreamSocket } from './sttStream'
 import { pcmResampler } from './pcmStream'
 
 class Socket implements StreamSocket {
@@ -119,4 +119,13 @@ it('текст до ready не считается распознанной ре�
   expect(await s.finish()).toBeNull()
   expect(partial).not.toHaveBeenCalledWith('По рукам')
   expect(vi.getTimerCount()).toBe(0)
+})
+
+describe('Scribe в деле на английском', () => {
+  it('кириллица вместо английского — не текст игрока (переводит русский акцент), русскому делу кириллица — норма', () => {
+    expect(wrongScript('450 000 Евро, 2 недели обучения на месте, и у нас сделка.', 'en')).toBe(true)
+    expect(wrongScript('450,000 Euros, two weeks of training on site, and we have a deal.', 'en')).toBe(false)
+    expect(wrongScript('Давайте договоримся.', 'ru')).toBe(false)
+    expect(wrongScript(null, 'en')).toBe(false)
+  })
 })

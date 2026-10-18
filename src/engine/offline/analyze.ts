@@ -104,7 +104,7 @@ const PERSONAL = new RegExp(
   `${L}(меня зовут|будем знакомы|приятно познакомиться|(тебя|вас) как (звать|зовут)|как (тебя|вас) (звать|зовут|по имени)|` +
     `(сам|сама|сами)-то|как (сам|дела|жизнь)|откуда (ты|вы)${R}|жиза|сочувствую|тоже первый|` +
     `my name is|call me${R}|nice to meet|pleasure to meet|how are you|how'?s (?:it going|business|life|the family|istanbul)|` +
-    `how was (?:your|the) (?:flight|trip|weekend)|where are you from|do you have (?:kids|children)|thank you for the lokum|thanks for the lokum)`,
+    `how was (?:your|the) (?:flight|trip|weekend)|where are you from|do you have (?:kids|children)|thanks? (?:you )?for the (?:lokum|tea|baklava|invitation))`,
   'iu',
 )
 // «Идёт?», «по рукам?», «deal?» — это про сделку, а не вопрос человеку

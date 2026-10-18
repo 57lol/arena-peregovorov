@@ -11,7 +11,7 @@ import { playAmbient, playMusic, sfx, type AmbId, type MusicId } from './engine'
 
 /** Фон комнаты по месту встречи. */
 export function ambFor(kind: string): AmbId | null {
-  if (kind === 'office' || kind === 'inei') return 'office'
+  if (kind === 'office' || kind === 'inei' || kind === 'istanbul') return 'office'
   if (kind === 'factory' || kind === 'bytovka') return 'factory'
   if (kind === 'shop' || kind === 'street' || kind === 'dorm') return kind
   return null

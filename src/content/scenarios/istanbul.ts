@@ -16,7 +16,7 @@ export const istanbul: Scenario = {
   sphere: 'Закупки · English',
   difficulty: 2,
   turnLimit: 12,
-  blurb: 'Переговоры на английском: поставщик линии покраски из Стамбула. Разбор и подсказки — по-русски.',
+  blurb: 'Командировка в Стамбул: торг на английском с поставщиком линии покраски, за чаем с видом на Босфор. Разбор и подсказки — по-русски.',
   // В брифе — навыки, без ответов (по-русски: это подсказки для сотрудника, а не слова за столом).
   goals: [
     'Вести торг на английском: называть цифры и условия так, чтобы их поняли однозначно',
@@ -44,8 +44,9 @@ export const istanbul: Scenario = {
       'In spring Vodogrey opens a new shop: the plant will paint its own water heater casings instead of buying them ' +
       'painted. The shop needs a powder coating line: a pre-treatment tunnel, a spray booth, a curing oven and an ' +
       'overhead conveyor. Three suppliers sent bids. Your engineers liked Marmara Coating Systems from Istanbul best: ' +
-      'solid welding, good references, a sensible oven. Today you meet their export sales manager, Emre Kaya. ' +
-      'The meeting is in English.\n\n' +
+      'solid welding, good references, a sensible oven. So the plant sent you to Istanbul to close the deal. ' +
+      'Yesterday you saw their workshop in Tuzla. Today their export sales manager, Emre Kaya, meets you at the sales ' +
+      'office in Üsküdar, with the Bosphorus outside the window. Tea comes first, numbers later. The meeting is in English.\n\n' +
       'What matters to you. Delivery: until the line is running, the plant keeps buying painted casings at a markup, ' +
       'so every week counts. Price: the CFO will see it first. Training: your operators have never worked with powder ' +
       'coating. Suppliers usually charge for every day their engineer spends on site, so expect a push for remote ' +
@@ -81,8 +82,8 @@ export const istanbul: Scenario = {
       bio:
         'Forty-two. Grew up in his father\'s sheet-metal workshop in Tuzla and still knows which weld will crack before ' +
         'the customer does. Fifteen years in export sales: Romania, Egypt, Kazakhstan, now Tatarstan. Warm and quick, ' +
-        'likes people and a good story, remembers the names of everybody\'s kids, and always brings a box of lokum to a ' +
-        'first meeting. Under the jokes he counts carefully and never gives anything away just because he likes you. ' +
+        'likes people and a good story, remembers the names of everybody\'s kids, and never lets a guest leave without tea, baklava and a ' +
+        'box of lokum. Under the jokes he counts carefully and never gives anything away just because he likes you. ' +
         'Hates being rushed, and hates bluffing about a competitor\'s price: he usually knows it.',
       speech:
         'Lively spoken English, fluent but not native: short sentences, sometimes a slightly unusual word order, ' +
@@ -165,7 +166,8 @@ export const istanbul: Scenario = {
   },
   // Совпадает с тем, что движок кладёт на стол первым ходом: максимум Эмре по всем пунктам, кроме совместимого.
   opening:
-    'Hello, hello! Emre Kaya, Marmara Coating. I brought lokum from Istanbul, it\'s for your team. So. Your engineers saw ' +
-    'the line: the tunnel, the booth, the oven. I think they liked it. Our price is four hundred eighty thousand euros, ' +
-    'a hundred percent upfront. Delivery in sixteen weeks, one year warranty. Where do we start?',
+    'Welcome to Istanbul! Sit, sit, the tea is fresh, and try the baklava, it\'s from the shop downstairs. So. ' +
+    'Yesterday you saw our workshop in Tuzla: the tunnel, the booth, the oven. I think you liked it. Our price is ' +
+    'four hundred eighty thousand euros, a hundred percent upfront. Delivery in sixteen weeks, one year warranty. ' +
+    'Where do we start?',
 }

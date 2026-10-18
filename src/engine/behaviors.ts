@@ -910,7 +910,7 @@ const EN_MARKERS: Partial<Record<BehaviorId, RegExp[]>> = {
     re('‹(?:sorry|apologi[sz]e\\p{L}*|my bad|excuse me)›'),
     re('‹(?:my name is|nice to meet|pleasure to meet|call me)›'),
     re("‹(?:how are you|how(?:'s| is) (?:it going|business|life|istanbul|your family)|how was (?:your|the) (?:flight|trip|weekend))›"),
-    re('‹(?:haha\\p{L}*|lol|thanks? (?:you )?for the lokum)›'),
+    re('‹(?:haha\\p{L}*|lol|thanks? (?:you )?for the (?:lokum|tea|baklava|invitation))›'),
   ],
   signpost: [
     re('‹(?:can|could|may) I (?:ask|suggest|propose|make|add|clarify|check)›'),

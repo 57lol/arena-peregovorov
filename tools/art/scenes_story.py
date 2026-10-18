@@ -1,5 +1,5 @@
 """2D-сцены кампании «Новенький» для классического вида встречи: комната в общаге, столик у ларька,
-касса «Семёрочки», бытовка нового цеха. Формат как в scenes.py: фон 192×108 и отдельный слой стола,
+касса «Семёрочки», бытовка нового цеха; офис в Стамбуле для английского дела. Формат как в scenes.py: фон 192×108 и отдельный слой стола,
 между ними встаёт портрет собеседника (96×96 по центру, низом на 8 точек выше края).
 
 Запуск: ~/Arena-materials/.venv/bin/python tools/art/scenes_story.py
@@ -796,7 +796,213 @@ def inei():
     return bg, fg
 
 
-SCENES = {'dorm': (dorm, 'sosed'), 'street': (street, 'gopnik'), 'shop': (shop, 'admin'), 'bytovka': (bytovka, 'foreman'), 'inei': (inei, 'buyer')}
+# ---------------------------------------------------------------------------------------------------
+# 6. Английское дело «The Istanbul Line»: офис Marmara Coating Systems в Ускюдаре, утро. За окном Босфор —
+#    Девичья башня, паром, на том берегу купола и минареты, мост; справа вывеска и изникская плитка.
+#    На столе — пахлава, чай в стаканчиках-тюльпанах, чайданлык и лукум. Как в 3D (room_istanbul.py).
+# ---------------------------------------------------------------------------------------------------
+
+LATIN = {'M': ['#...#', '##.##', '#.#.#', '#...#', '#...#'], 'A': ['.#.', '#.#', '###', '#.#', '#.#'],
+         'R': ['##.', '#.#', '##.', '#.#', '#.#'], 'C': ['.##', '#..', '#..', '#..', '.##'], 'O': ['###', '#.#', '#.#', '#.#', '###'],
+         'T': ['###', '.#.', '.#.', '.#.', '.#.'], 'I': ['###', '.#.', '.#.', '.#.', '###'], 'N': ['#..#', '##.#', '#.##', '#..#', '#..#'],
+         'G': ['.##', '#..', '#.#', '#.#', '.##'], 'F': ['###', '#..', '##.', '#..', '#..'], 'E': ['###', '#..', '##.', '#..', '###']}
+
+
+def tulip_glass(t, x, y):
+    """Стаканчик-тюльпан 5×8 на блюдце 9×2: светлая кромка, талия, тёмный чай."""
+    for dy, (a, b) in enumerate(((0, 4), (0, 4), (1, 3), (1, 3), (0, 4), (0, 4), (0, 4), (1, 3))):
+        t.rect(x + a, y + dy, x + b, y + dy, 45 if dy == 0 else 26)
+        if dy:
+            t.px(x + a, y + dy, 21)
+    t.rect(x - 2, y + 8, x + 6, y + 8, 45)
+    t.rect(x - 2, y + 9, x + 6, y + 9, 27)
+
+
+def istanbul():
+    from font import GLYPHS
+    for k, v in LATIN.items():
+        GLYPHS.setdefault(k, v)
+    r = np.random.default_rng(1453)
+    bg = canvas()
+    bg.rect(0, 0, W - 1, H - 1, 45)
+    bg.noise(0, 0, W - 1, H - 1, 44, 0.03)
+    bg.rect(0, 0, W - 1, 1, 44)
+    # окно на Босфор
+    wx0, wy0, wx1, wy1 = 4, 6, 150, 76
+    bg.rect(wx0, wy0, wx1, wy0 + 14, 4)
+    bg.rect(wx0, wy0 + 15, wx1, wy1, 5)
+    dither_band(bg, wx0, wy0 + 12, wx1, wy0 + 15, 5)
+    for (cx, cy, rx) in ((26, 14, 9), (100, 11, 12), (134, 20, 6)):     # облака
+        bg.rect(cx - rx, cy, cx + rx, cy + 1, 45)
+        bg.rect(cx - rx // 2, cy - 1, cx + rx // 2, cy - 1, 45)
+    shore = 46
+    for x in range(wx0, wx1 + 1):                                       # холмы того берега
+        top = shore - 5 - int(2.5 * np.sin(x * 0.07 + 1) + 1.5 * np.sin(x * 0.19)) - (3 if x > 120 else 0)
+        bg.rect(x, top, x, shore, 41)
+        bg.px(x, top, 42)
+    for x in range(wx0, wx1 + 1):                                       # склон в дымке темнее у воды
+        bg.rect(x, shore - 3, x, shore, 40)
+    for _ in range(420):                                                 # дома с красными крышами
+        x = int(r.integers(wx0, wx1 - 2))
+        y = int(r.integers(shore - 8, shore))
+        if bg.a[y - 1, x] not in (40, 41, 42):
+            continue
+        c = (44, 43, 17, 45)[int(r.integers(0, 4))]
+        bg.rect(x, y - 1, x + 1, y, c)
+        if r.random() < 0.5:
+            bg.px(x, y - 1, 28)
+
+    def mosque(cx, base, minarets):
+        bg.rect(cx - 5, base - 3, cx + 5, base, 42)
+        bg.rect(cx - 3, base - 5, cx + 3, base - 3, 42)
+        bg.rect(cx - 2, base - 6, cx + 2, base - 6, 42)
+        bg.px(cx, base - 7, 41)
+        for mx in minarets:
+            bg.rect(cx + mx, base - 12, cx + mx, base, 43)
+            bg.px(cx + mx, base - 13, 41)
+    mosque(18, shore - 4, (-7, 7, -9, 9))
+    mosque(42, shore - 3, (-6, 6))
+    bg.rect(96, shore - 13, 98, shore - 3, 16)                           # Галата
+    bg.rect(95, shore - 14, 99, shore - 14, 44)
+    bg.rect(96, shore - 16, 98, shore - 15, 40)
+    bg.px(97, shore - 17, 40)
+    for (bx, bh) in ((116, 12), (119, 15), (122, 10)):                   # высотки Левента
+        bg.rect(bx, shore - 4 - bh, bx + 2, shore - 4, 42)
+    deck = shore - 4                                                     # мост вправо за раму
+    for px_ in (132, 152):
+        bg.rect(px_, deck - 14, px_ + 1, shore, 40)
+    for x in range(124, wx1 + 1):
+        u = (x - 132) / 20
+        cy = deck - 14 + 13 * 4 * u * (1 - u) if 0 <= u <= 1 else deck - 14 + (132 - x) * -0.0 + (132 - x) * 0.9
+        if wy0 < cy < deck:
+            bg.px(x, int(cy), 39)
+    bg.rect(124, deck, wx1, deck, 39)
+    # вода: синяя, рябь и блики
+    bg.rect(wx0, shore + 1, wx1, wy1, 3)
+    bg.rect(wx0, shore + 1, wx1, shore + 1, 4)
+    for _ in range(220):
+        x, y = int(r.integers(wx0, wx1 - 2)), int(r.integers(shore + 3, wy1))
+        bg.rect(x, y, x + int(r.integers(1, 4)), y, 4 if r.random() < 0.7 else 2)
+    for _ in range(25):
+        bg.px(int(r.integers(wx0, wx1)), int(r.integers(shore + 2, wy1)), 45)
+    # Девичья башня на островке
+    tx, tb = 30, 64
+    bg.rect(tx - 7, tb, tx + 7, tb + 1, 39)
+    bg.rect(tx - 5, tb - 4, tx + 5, tb, 44)
+    bg.rect(tx + 3, tb - 4, tx + 5, tb, 42)
+    bg.rect(tx - 2, tb - 12, tx + 1, tb - 4, 45)
+    bg.rect(tx + 1, tb - 12, tx + 1, tb - 4, 43)
+    bg.rect(tx - 2, tb - 13, tx + 1, tb - 13, 41)
+    bg.px(tx - 1, tb - 15, 41)
+    bg.rect(tx - 2, tb - 14, tx + 1, tb - 14, 41)
+    bg.px(tx - 1, tb - 9, 2)
+    # паром-вапур
+    fx, fy = 120, 62
+    bg.rect(fx, fy + 2, fx + 18, fy + 3, 0)
+    bg.rect(fx + 1, fy, fx + 17, fy + 1, 45)
+    bg.rect(fx + 3, fy - 1, fx + 14, fy - 1, 45)
+    for x in range(fx + 2, fx + 17, 2):
+        bg.px(x, fy + 1, 2)
+    bg.rect(fx + 8, fy - 3, fx + 9, fy - 2, 22)
+    bg.rect(fx - 6, fy + 3, fx - 1, fy + 3, 45)
+    # чайки
+    for (gx, gy) in ((60, 24), (68, 20), (140, 30)):
+        bg.px(gx, gy, 45)
+        bg.px(gx + 1, gy + 1, 45)
+        bg.px(gx + 2, gy, 45)
+    # рама: белая, импосты, подоконник
+    bg.frame(wx0 - 1, wy0 - 1, wx1 + 1, wy1 + 1, 43)
+    bg.frame(wx0 - 2, wy0 - 2, wx1 + 2, wy1 + 2, 44)
+    for x in (52, 102):
+        bg.rect(x, wy0, x + 1, wy1, 44)
+        bg.rect(x + 1, wy0, x + 1, wy1, 42)
+    bg.rect(wx0, wy0 + 22, wx1, wy0 + 22, 44)
+    bg.rect(wx0 - 3, wy1 + 2, wx1 + 3, wy1 + 3, 45)
+    bg.rect(wx0 - 3, wy1 + 4, wx1 + 3, wy1 + 4, 42)
+    # вывеска компании справа
+    sx0, sy0, sx1, sy1 = 154, 8, 190, 30
+    bg.rect(sx0, sy0, sx1, sy1, 0)
+    bg.frame(sx0, sy0, sx1, sy1, 1)
+    text(bg, sx0 + 3, sy0 + 3, 'MARMARA', 45)  # 31 точка: вывеска 36
+    text(bg, sx0 + 3, sy0 + 10, 'COATING', 4)
+    for k, c in ((0, 4), (2, 2)):                                        # знак-волна
+        for x in range(sx0 + 3, sx1 - 2):
+            bg.px(x, sy0 + 17 + k + int(round(np.sin(x * 0.8))), c)
+    bg.shade(sx0 + 1, sy1 + 1, sx1 + 1, sy1 + 2, 1)
+    # изникская плитка под ней: белое поле, кобальтовые розетки, красные тюльпаны
+    ix0, iy0, ix1, iy1 = 158, 36, 188, 80
+    bg.rect(ix0, iy0, ix1, iy1, 1)
+    bg.rect(ix0 + 1, iy0 + 1, ix1 - 1, iy1 - 1, 45)
+    for y in range(iy0 + 1, iy1, 7):
+        for x in range(ix0 + 1, ix1, 7):
+            bg.rect(x - 1, y - 1, x + 1, y + 1, 1)
+            bg.px(x, y, 4)
+            if x + 3 < ix1 and y + 3 < iy1:
+                bg.rect(x + 3, y + 3, x + 4, y + 4, 27)
+                bg.px(x + 3, y + 5, 9)
+    bg.frame(ix0, iy0, ix1, iy1, 1)
+    # плинтус
+    bg.rect(0, 100, W - 1, H - 1, 13)
+    bg.rect(0, 100, W - 1, 100, 14)
+
+    # --- стол тёмного ореха: пахлава, чай, чайданлык, лукум, коммерческое предложение ---
+    fg = canvas()
+    fg.rect(0, 91, W - 1, H - 1, 13)
+    fg.rect(0, 91, W - 1, 91, 14)
+    fg.rect(0, 94, W - 1, 94, 12)
+    fg.rect(0, 102, W - 1, H - 1, 12)
+    for x in range(4, W, 23):
+        fg.rect(x, 97, x + 9, 97, 14)
+    # противень пахлавы: ряды золотистых квадратиков с фисташкой
+    fg.rect(6, 84, 46, 93, 41)
+    fg.frame(6, 84, 46, 93, 43)
+    for x in range(8, 44, 4):
+        for y in (86, 89):
+            fg.rect(x, y, x + 2, y + 2, 22)
+            fg.px(x, y, 23)
+            fg.px(x + 1, y + 1, 9)
+    fg.rect(6, 93, 46, 93, 40)
+    # чай: у Эмре и у нас
+    tulip_glass(fg, 54, 82)
+    tulip_glass(fg, 128, 82)
+    # чайданлык на медном подносе
+    cx = 158
+    fg.rect(cx - 12, 92, cx + 12, 93, 21)
+    fg.rect(cx - 12, 92, cx + 12, 92, 22)
+    fg.rect(cx - 7, 80, cx + 7, 91, 43)
+    fg.rect(cx - 6, 79, cx + 6, 79, 43)
+    fg.rect(cx - 5, 80, cx - 4, 90, 45)
+    fg.rect(cx + 4, 80, cx + 7, 91, 41)
+    fg.rect(cx - 4, 77, cx + 4, 78, 44)
+    fg.rect(cx - 4, 70, cx + 4, 76, 43)
+    fg.rect(cx - 3, 71, cx - 3, 75, 45)
+    fg.rect(cx + 2, 70, cx + 4, 76, 41)
+    fg.rect(cx - 2, 68, cx + 2, 69, 42)
+    fg.px(cx, 67, 37)
+    fg.line([(cx - 8, 84), (cx - 11, 80)], 43)                          # носики
+    fg.line([(cx - 5, 73), (cx - 8, 70)], 44)
+    fg.line([(cx + 8, 81), (cx + 10, 84), (cx + 8, 88)], 37)            # ручки
+    fg.line([(cx + 5, 71), (cx + 7, 73), (cx + 5, 75)], 37)
+    # лукум: красная коробка, кубики в сахарной пудре
+    fg.rect(173, 86, 190, 93, 27)
+    fg.rect(174, 87, 189, 89, 44)
+    for i, x in enumerate(range(175, 189, 3)):
+        fg.rect(x, 87, x + 1, 88, (45, 35, 45, 11, 35)[i % 5])
+    fg.rect(173, 93, 190, 93, 26)
+    # коммерческое предложение с логотипом
+    lx0, lx1 = 84, 116
+    fg.rect(lx0, 94, lx1, 106, 45)
+    fg.rect(lx0, 94, lx1, 95, 1)
+    fg.rect(lx0, 106, lx1, 106, 43)
+    for y in range(98, 104, 2):
+        fg.rect(lx0 + 3, y, lx0 + 18, y, 42)
+    fg.rect(lx1 - 10, 101, lx1 - 3, 103, 27)
+    return bg, fg
+
+
+
+SCENES = {'dorm': (dorm, 'sosed'), 'street': (street, 'gopnik'), 'shop': (shop, 'admin'), 'bytovka': (bytovka, 'foreman'), 'inei': (inei, 'buyer'),
+          'istanbul': (istanbul, 'emre')}
 
 
 def main():
