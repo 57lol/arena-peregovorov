@@ -200,13 +200,28 @@ export function spokenTail(whole: string, start: string): string {
   while (k < said.length && k < words.length && words[k].w === said[k]) k++
   if (k === words.length) return ''
   if (k === said.length) return whole.slice(words[k - 1].end).trim()
-  if (k < Math.max(2, said.length * 0.6)) return whole
+  // начало переписано целиком: озвучиваем новое, но не фразы, которые уже прозвучали (живая катка капитана 19.10, Ли Вэй:
+  // «Эй, друг, чего ты… Всё, я предупреждал.» прозвучало трижды — остаток считался всей репликой, и дважды)
+  if (k < Math.max(2, said.length * 0.6)) return unsaid(whole, said)
   // хвост начала переписан: пропускаем до конца фразы, на которой кончилось сказанное
   const after = words[Math.min(said.length, words.length) - 1].end
   const stop = /[.!?…]+/gu
   stop.lastIndex = after - 1
   const m = stop.exec(whole)
   return m ? whole.slice(m.index + m[0].length).trim() : ''
+}
+/** Фразы whole, которых ещё не было в сказанном (said — слова после norm), по порядку. */
+function unsaid(whole: string, said: string[]): string {
+  const norm = (w: string) => w.toLowerCase().replaceAll('ё', 'е').replace(/[^\p{L}\p{N}]+/gu, '')
+  const heard = ` ${said.join(' ')} `
+  return whole
+    .split(/(?<=[.!?…])\s+/u)
+    .filter((p) => {
+      const w = stripTags(unstress(p)).split(/\s+/).map(norm).filter(Boolean)
+      return !w.length || !heard.includes(` ${w.join(' ')} `)
+    })
+    .join(' ')
+    .trim()
 }
 /** Пометки [..] — пробелами той же длины: позиции слов совпадают с исходной строкой. */
 const stripTagsKeep = (t: string) => t.replace(/(?<![<[])\[[^[\]<>\n]{1,40}\](?!\])/gu, (m) => ' '.repeat(m.length))
