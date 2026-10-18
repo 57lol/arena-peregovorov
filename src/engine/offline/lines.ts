@@ -1,3 +1,4 @@
+import { upsellLine } from '../upsells'
 // Шаблонные реплики оппонента: озвучивают решение движка в характере персонажа.
 // Вариант выбирается по номеру хода — без случайности, чтобы повтор давал тот же текст.
 
@@ -192,7 +193,7 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
     line = d.again ? `${say.again}${lowerFirst(it?.text ?? '')}.` : line.replace('{interest}', lowerFirst(it?.text ?? ''))
     if (d.offer) line += `${say.so}${changesOnly(sc, d.offer, prev)}.`
   }
-  return { line, emotion: emotionFor(d, state) }
+  return { line: [line, upsellLine(sc, state)].filter(Boolean).join(' '), emotion: emotionFor(d, state) }
 }
 
 function changesOnly(sc: Scenario, offer: Offer, prev: Offer | undefined): string {

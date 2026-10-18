@@ -6,6 +6,7 @@ export type IssueId = string
 export interface Issue {
   id: IssueId
   title: string            // «Отсрочка платежа»
+  aliases?: string[][]
   options: string[]        // ["0 дней", "30 дней", "60 дней", "90 дней"]
   // Тип пункта известен только движку и разбору, игроку не показывается:
   // distributive — интересы противоположны, integrative — важность разная (можно разменять),
@@ -50,7 +51,20 @@ export interface Character {
 export type LineKey = Decision['kind'] | 'final' | HoldReason
 export type CharacterLines = Partial<Record<LineKey, string[]>>
 
+export interface Upsell {
+  id: string
+  title: string
+  keywords: string[]
+  cost: string
+  penalty: number
+  pitch: string
+  accepted: string
+  refused: string
+}
+export interface UpsellChoice { id: string; choice: 'accepted' | 'refused'; polite?: boolean }
+
 export interface Scenario {
+  upsells?: Upsell[]
   id: string
   /** язык разговора: 'en' — дело на английском (реплики, бриф, голос); интерфейс и разбор остаются русскими */
   lang?: 'ru' | 'en'
@@ -75,6 +89,7 @@ export type Offer = Partial<Record<IssueId, number>>  // issueId -> индекс
 export interface BehaviorHit { id: string; quote: string }
 
 export interface MoveAnalysis {
+  upsells?: UpsellChoice[]
   behaviors: BehaviorHit[]
   offer?: Offer            // что игрок предложил в этой реплике
   accepts?: boolean        // игрок принимает то, что лежит на столе
@@ -94,6 +109,8 @@ export type TalkAct = 'apology' | 'joke' | 'personal' | 'question' | 'offtopic'
 export const TALK_ACTS: TalkAct[] = ['apology', 'joke', 'personal', 'question', 'offtopic']
 
 export interface OpponentState {
+  upsells?: Record<string, 'accepted' | 'refused'>
+  upsellChanges?: UpsellChoice[]
   trust: number            // 0..100
   tension: number          // 0..100
   revealed: string[]       // id раскрытых интересов

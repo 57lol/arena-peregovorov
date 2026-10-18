@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ALL_SCENARIOS } from '../content/scenarios'
+import { CHINA_RECORDINGS } from '../content/china-recordings'
 import { FILLERS } from '../content/fillers'
 import { openingAnchor } from '../engine/policy'
 import { formatOffer } from '../engine/utility'
@@ -42,6 +43,10 @@ export function knownTexts(cutscenes: KnownText[] = []): KnownText[] {
   for (const l of literals('src/engine/offline/lines.ts'))
     out.push({ src: 'engine:lines', text: fill(l, sampleOffer, sample.opponent.profile.interests[0]?.text ?? '', sampleOffer.split(', ')[0]) })
   for (const g of Object.values(FILLERS)) for (const t of Object.values(g)) out.push({ src: 'fillers', text: t })
+  for (const r of CHINA_RECORDINGS) out.push({ src: `china:${r.id}`, text: r.text })
+  for (const sc of ALL_SCENARIOS) for (const u of sc.upsells ?? []) {
+    for (const text of [u.pitch, u.accepted, u.refused]) out.push({ src: `${sc.id}:upsell`, text })
+  }
   out.push(...cutscenes)
   const seen = new Set<string>()
   return out.filter((k) => k.text.trim() && !seen.has(k.text) && seen.add(k.text))

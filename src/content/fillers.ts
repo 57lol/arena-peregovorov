@@ -14,7 +14,7 @@ export const FILLER_VOICES = ['denis', 'sergey', 'vasily', 'sofia', 'vera', 'iri
  * Те же фразы голосами ElevenLabs — у лиц из кампании и дел (scripts/eleven-known.ts, eleven_v4):
  * /assets/voice-fillers/eleven/<лицо>/<id>.mp3. Играют, когда сервер говорит ElevenLabs.
  */
-export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych', 'emre'] as const
+export const ELEVEN_FILLERS = ['sosed', 'gopnik', 'rinat', 'admin', 'olga', 'buyer', 'palych', 'emre', 'china'] as const
 
 /**
  * Лица дел на английском: их фразы-паузы — по-английски, с теми же id, что на «вы» (c1–c3, v1–v3). Звучат только
@@ -25,3 +25,10 @@ export const ENGLISH_FACES: readonly string[] = ['emre']
 
 /** id фраз под обращение собеседника: на «ты» — бытовые главы, на «вы» — деловые. */
 export const fillerIds = (informal: boolean): string[] => [...Object.keys(FILLERS.common), ...Object.keys(informal ? FILLERS.ty : FILLERS.vy)]
+
+/** Тексты для будущей записи, ключи совпадают с общими паузами. */
+export const CHINA_FILLERS = {
+  c1: 'Секунду, друг.', c2: 'Считаем, считаем.', c3: 'Сейчас в телефон посмотрю.',
+  v1: 'Так, дайте посчитать.', v2: 'Смотрите, какой вопрос…', v3: 'Минутку, склад проверю.',
+  t1: 'Так, дай посчитать.', t2: 'Смотри, сейчас проверим.', t3: 'Погоди, цифры запишу.',
+} as const

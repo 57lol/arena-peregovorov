@@ -91,17 +91,18 @@ describe('что дальше', () => {
     expect(nextCase(P({}))?.scenario.id).toBe('offer')
     expect(nextCase(P({ cases: { offer: rec(3) } }))?.scenario.id).toBe('tara')
     expect(nextCase(P({ cases: { offer: rec(3), tara: rec(0, null) } }))?.scenario.id).toBe('tara')
-    const lib = { offer: rec(3), tara: rec(2), client: rec(1) }
+    const lib = { offer: rec(3), tara: rec(2), client: rec(1), china: rec(3) }
     expect(nextCase(P({ cases: lib }))?.scenario.id).toBe('client')
-    const done = { offer: rec(3), tara: rec(3), client: rec(2) }
+    const done = { offer: rec(3), tara: rec(3), client: rec(2), china: rec(3) }
+    expect(nextCase(P({ cases: { ...done, china: rec(0, null) } }))?.scenario.id).toBe('china')
     expect(nextCase(P({ cases: done }))?.scenario.id).toBe('offer-hard')
   })
 
   it('всё взято и все финалы открыты — советовать нечего', () => {
-    const cases = Object.fromEntries(['offer', 'tara', 'client'].flatMap((id) => [[id, rec(3)], [`${id}-hard`, rec(3)]]))
+    const cases = Object.fromEntries(['offer', 'tara', 'client', 'china'].flatMap((id) => [[id, rec(3)], [`${id}-hard`, rec(3)]]))
     const e = ['legend', 'cold_win', 'middling', 'lose_lose', 'short', 'walked', 'slammed', 'timeout'] as EndingId[]
-    expect(nextCase(P({ cases, endings: { offer: e, tara: e } }))?.scenario.id).toBe('client')
-    expect(nextCase(P({ cases, endings: { offer: e, tara: e, client: e } }))).toBeNull()
+    expect(nextCase(P({ cases, endings: { offer: e, tara: e, china: e } }))?.scenario.id).toBe('client')
+    expect(nextCase(P({ cases, endings: { offer: e, tara: e, client: e, china: e } }))).toBeNull()
   })
 })
 

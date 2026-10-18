@@ -1,6 +1,7 @@
 // Финал партии: какой из восьми исходов получился. Чистая функция от итога — одинаковая партия, одинаковый финал.
 // Тексты финалов живут в src/content/endings.ts, здесь только правила.
 
+import { upsellPenalty } from './upsells'
 import type { Report } from './report'
 import type { OpponentState, Scenario } from './types'
 import { isComplete, score } from './utility'
@@ -45,7 +46,7 @@ export function endingFacts(sc: Scenario, report: Report, state?: OpponentState)
     efficiency: o.paretoEfficiency,
     trust: o.relationship,
     trapMissed: o.status === 'deal' && report.traps.some((t) => !t.avoided),
-    onTable: isComplete(sc, last) ? score(sc.player.profile, last) : undefined,
+    onTable: isComplete(sc, last) ? score(sc.player.profile, last) - upsellPenalty(sc, state) : undefined,
   }
 }
 

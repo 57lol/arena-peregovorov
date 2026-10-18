@@ -7,7 +7,7 @@ import { isNumberWord, optionQuantity, quantities, type Dim } from './numbers'
 const stem = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
-const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|млн|тыс|шт|час|сут|раз|day|week|month|year|hour|euro|doll|perc|thous|milli)/
+const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|юан|млн|тыс|шт|час|сут|раз|day|week|month|year|hour|euro|doll|perc|thous|milli)/
 const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также',
   'which', 'would', 'could', 'there', 'their', 'about', 'after', 'befor', 'other', 'these', 'those', 'with', 'from', 'only'])
 
@@ -42,6 +42,10 @@ function issueInfo(sc: Scenario): IssueInfo[] {
 
 /** Дополнительные слова-подсказки для частых пунктов. */
 const SYNONYMS: [RegExp, string[]][] = [
+  [/цен/i, ['юан', 'cny', 'rmb']],
+  [/moq|минимальная партия/i, ['moq', 'миним', 'парти', 'штук']],
+  [/образц|качество/i, ['образ', 'этало', 'качес', 'специ', 'повто']],
+  [/оплат/i, ['alipay', 'аккре', 'аванс', 'предо']],
   [/цен|стоим|сумм|бюджет|оплат[аы] за/i, ['цена', 'стоим', 'сумма', 'бюдже', 'руб', 'млн', 'тысяч', 'денег', 'деньг', 'зарпл', 'оклад', 'аренд', 'ставк']],
   [/отсроч|оплат|платеж/i, ['отсро', 'оплат', 'плате', 'предо', 'рассро']],
   [/срок|постав|достав|отгруз/i, ['срок', 'поста', 'доста', 'отгру', 'привез']],
@@ -210,6 +214,14 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
       if (echoed(at)) return
       if (at > foundAt) { found = n; foundAt = at }
     })
+    const aliases = (info.issue.aliases ?? []).flatMap((list, n) => list.flatMap((alias) => {
+      const at = flat.indexOf(alias.toLowerCase().replace(/ё/g, 'е'))
+      return at >= 0 && !echoed(at) ? [{ n, at, end: at + alias.length }] : []
+    }))
+    // «Эталонный образец» точнее, чем вложенное «образец».
+    const alias = aliases.filter((a) => !aliases.some((b) => b !== a && b.at <= a.at && b.end >= a.end && b.end - b.at > a.end - a.at))
+      .sort((a, b) => b.at - a.at)[0]
+    if (alias) found = alias.n
     if (found >= 0 && offer[info.issue.id] === undefined) offer[info.issue.id] = found
   }
   return offer

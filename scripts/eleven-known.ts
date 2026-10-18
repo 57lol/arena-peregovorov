@@ -5,7 +5,7 @@
 // Синтез дублей и выбор лучшего (whisper + судья) — ~/Arena-materials/final/voice-fix/scripts/known.py.
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { FILLERS, ELEVEN_FILLERS, EN_FILLERS, ENGLISH_FACES } from '../src/content/fillers'
+import { FILLERS, ELEVEN_FILLERS, EN_FILLERS, ENGLISH_FACES, CHINA_FILLERS } from '../src/content/fillers'
 import { looksEnglish } from '../src/engine/lang'
 import { ELEVEN_KNOWN } from '../src/server/eleven-known.data'
 import { ALL_SCENARIOS } from '../src/content/scenarios'
@@ -33,7 +33,7 @@ function items(): Item[] {
   for (const sc of ALL_SCENARIOS) add(sc.opponent.character.portrait, `opening-${sc.id}`, sc.opening, `assets/voice-eleven/${sc.opponent.character.portrait}/opening-${sc.id}.mp3`)
   const phrases = { ...FILLERS.common, ...FILLERS.vy, ...FILLERS.ty }
   for (const who of ELEVEN_FILLERS)
-    for (const [id, text] of Object.entries(ENGLISH_FACES.includes(who) ? EN_FILLERS : phrases)) add(who, `filler-${id}`, text, `assets/voice-fillers/eleven/${who}/${id}.mp3`)
+    for (const [id, text] of Object.entries(who === 'china' ? CHINA_FILLERS : ENGLISH_FACES.includes(who) ? EN_FILLERS : phrases)) add(who, `filler-${id}`, text, `assets/voice-fillers/eleven/${who}/${id}.mp3`)
   return out
 }
 

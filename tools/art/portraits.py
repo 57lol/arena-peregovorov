@@ -283,8 +283,9 @@ def build_olga(emotion, frame):
 from people import PEOPLE  # noqa: E402
 import darina  # noqa: E402
 import marat  # noqa: E402
+import china  # noqa: E402
 
-CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, **PEOPLE}
+CHARACTERS = {'rinat': build_rinat, 'olga': build_olga, 'china': china.build, **PEOPLE}
 
 
 def make_sheet(fn):

@@ -133,11 +133,13 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
  * говорок держит сам дизайн-голос при низкой стабильности, пометка акцента его не давала.
  */
 export interface ElevenTune {
+  model?: string
   stability?: number
   similarity?: number
   prefix?: string
 }
-const ELEVEN_TUNE: Record<string, ElevenTune> = {
+export const ELEVEN_TUNE: Record<string, ElevenTune> = {
+  china: { model: 'eleven_v3', stability: 0.5, similarity: 0.8 },
   gopnik: { stability: 0.3, similarity: 1 },
   // Голоса из кастинга под портреты (утверждены капитаном 18.10): настройки дублей, которые он слушал
   // (~/Arena-materials/final/voice-casting, opening_body: eleven_v4, stability 0,6, similarity 0,8, speaker boost, seed лица)
@@ -170,8 +172,8 @@ function cutAt(text: string, max: number): string {
 
 /** Тело запроса ElevenLabs — одно для воркера и для прямого вызова (локальная проверка). */
 export function elevenBody(q: TtsRequest, env = process.env) {
-  const model = env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
   const tune = (q.who && ELEVEN_TUNE[q.who]) || {}
+  const model = tune.model ?? env.ELEVENLABS_MODEL ?? 'eleven_v4_turbo'
   const tags = /v[34]/.test(model)
   const prefix = tags ? (tune.prefix ?? '') : ''
   return {
@@ -271,6 +273,7 @@ export function mainTts(env = process.env): MainTts | undefined {
  * из 5 голосов с турецким акцентом (whisper, тон, описание): он и Harun читали «€» по-английски даже с language_code "ru".
  */
 export const CAST: Record<string, string> = {
+  china: 'qEUg56UIsvkup7EM8Ovt',
   sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'TcOBSQQ3Mm1U95izQTyI', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 
