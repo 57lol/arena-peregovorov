@@ -307,7 +307,10 @@ function backSteps(sc: Scenario, next: Offer, prev: Offer, stance: Offer) {
  * это не уступка с его стороны. Без этой строки модель то зовёт это просьбой, то благодарит за уступку.
  */
 function echoFree(sc: Scenario, stance: Offer, stanceBefore: Offer, prev: Offer): string {
-  const same = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === prev[i.id] && stanceBefore[i.id] !== stance[i.id])
+  const op = sc.opponent.profile.points
+  // он вернулся к твоему листку, а раньше давал тебе больше (2000 → 1500 при твоих 1500) — это шаг назад, не подарок
+  const back = (i: Issue) => typeof stanceBefore[i.id] === 'number' && op[i.id][stanceBefore[i.id]!] > op[i.id][stance[i.id]!]
+  const same = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === prev[i.id] && stanceBefore[i.id] !== stance[i.id] && !back(i))
   // Ничего ему не стоит только то, что и для него лучшее (акт в «Чайнике»). «Извинюсь при пацанах» Серому — это
   // уступка игрока ему: так и было в его требованиях, и это его выигрыш, а не «не подарок».
   const pl = sc.player.profile.points

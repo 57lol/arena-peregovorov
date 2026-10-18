@@ -97,6 +97,19 @@ describe('рамка: кто кому уступает — по очкам, на
     expect(checkPiece(sc, f, 'Eight weeks… okay, tamam. Eight weeks I can do, but it costs me.', ctx).hard).toEqual([])
   })
 
+  it('игрок вернулся к его листку, а раньше давал больше, — это шаг назад, а не «твоё требование, он согласился»', () => {
+    for (const sc of CASES) for (const i of deal(sc)) {
+      const o = O(sc, i.id)
+      const best = bestOption(sc.opponent.profile, i.id)
+      const mid = i.options.findIndex((_, n) => o[n] < o[best] && P(sc, i.id)[n] < Math.max(...P(sc, i.id)))
+      if (mid < 0) continue
+      const prev = { ...sheet(sc), [i.id]: mid }
+      const f = frameFor(sc, { kind: 'hold', reason: 'no_movement' }, { ...initialState(sc), playerStance: { [i.id]: mid }, lastOpponentOffer: prev }, prev, { [i.id]: best })
+      expect(f.text, `${sc.id}/${i.id}`).not.toContain('и он на него согласился')
+      expect(f.text, `${sc.id}/${i.id}`).toContain('Он ничего не дал взамен')
+    }
+  })
+
   it('вежливый отказ, «беру на себя», «рад бы, но», «спасибо за честность» — не радость своей уступке', () => {
     const ist = CASES.find((s) => s.id === 'istanbul')!
     const f = counterFrame(ist, ist.issues.find((x) => x.id === 'delivery')!, 2, 4, { delivery: 4 })
