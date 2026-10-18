@@ -184,6 +184,7 @@
 }
 .g-report-more > summary::before {
   content: '';
+  flex: none;
   width: calc(4 * var(--u));
   height: calc(4 * var(--u));
   background: var(--c-brass);

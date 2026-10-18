@@ -34,6 +34,13 @@ describe('графики разбора', () => {
     expect(html).not.toMatch(/NaN|Infinity/)
   })
 
+  it('дробные доли — с запятой, как принято по-русски: «62,5 % ходов», а не «62.5»', () => {
+    const two = [...history, offlineTurn(sc, history, 'Предлагаю 190 рублей за короб.', BEHAVIOR_DICT)]
+    const html = renderToStaticMarkup(<BehaviorProfile rows={buildReport(sc, two, BEHAVIOR_DICT).benchmark} history={two} tips={[]} />)
+    expect(html).toContain('сильные: 21,3')
+    expect(html).not.toMatch(/(Вы|сильные): \d+\.\d/)
+  })
+
   it('не скрывает неиспользованные приёмы и показывает все доказательства', () => {
     const html = renderToStaticMarkup(<BehaviorProfile rows={report.benchmark} history={history} tips={nextPractice(report)} />)
     expect(html.match(/<details/g)).toHaveLength(22)

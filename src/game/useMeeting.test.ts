@@ -259,6 +259,30 @@ describe('реплики в настоящем useMeeting', () => {
     expect(meeting.lineWaiting).toBe(false)
   })
 
+  it('BUG: запоздавший запуск захода ошибочного хода не подменяет следующий ход', async () => {
+    render(); await advance(); resolveAudio(prepared); await advance()
+    let release!: () => void, allowed!: () => boolean, reject!: (e: Error) => void
+    speech.live.mockImplementationOnce((_src, canPlay) => {
+      allowed = canPlay
+      return new Promise((r) => { release = () => r(canPlay()) })
+    })
+    api.turn.mockImplementationOnce((_t: unknown, onLine: (l: { text: string; audio: string }) => void) => {
+      onLine({ text: 'Старый заход…', audio: '/live/old-opener' })
+      return new Promise((_r, no) => { reject = no })
+    })
+    const old = meeting.send('Старый ход'); render(); await advance()
+    reject(new ApiError('Поток оборвался', 409)); await old; await advance()
+    let answer!: (r: unknown) => void
+    api.turn.mockImplementationOnce(() => new Promise((r) => { answer = r }))
+    const next = meeting.send('Новый ход'); render()
+    release(); await advance()
+    expect(allowed()).toBe(false)
+    expect(meeting.line).not.toBe('Старый заход…')
+    answer({ source: 'llm', record: { turn: 1, playerText: 'Новый ход', opponentLine: 'Новый ответ', emotion: 'neutral',
+      analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(props.game.scenario) } })
+    await next; await advance()
+  })
+
   it('быстрая ошибка без промежуточного рендера не глушит явную перемотку после следующего хода', async () => {
     render(); await advance(); resolveAudio(prepared); await advance()
     api.turn.mockRejectedValueOnce(new ApiError('Лимит', 429))
@@ -390,6 +414,26 @@ describe('ход потоком: начало реплики звучит ран
   const record: TurnRecord = { turn: 1, playerText: 'привет', opponentLine: 'О, сосед, привет. Давай по делу: вай-фай шестьсот.', emotion: 'neutral',
     analysis: { behaviors: [] } as unknown as TurnRecord['analysis'], deltas: [], decision: { kind: 'hold' } as TurnRecord['decision'],
     stateAfter: { ...initialState(getScenario('dorm')!), turn: 1 } }
+
+  it.each([false, true])('BUG: продолжение после захода обновляет текст до done (звук задержан: %s)', async (delayed) => {
+    render(); resolveAudio(prepared); await advance()
+    let onLine!: (l: { text: string; audio: string }) => void
+    let answer!: (r: unknown) => void
+    let soundReady!: (ok: boolean) => void
+    if (delayed) speech.live.mockImplementationOnce(() => new Promise((r) => { soundReady = r }))
+    api.turn.mockImplementationOnce((_t: unknown, cb: typeof onLine) => {
+      onLine = cb
+      return new Promise((r) => { answer = r })
+    })
+    const sent = meeting.send('привет'); render()
+    onLine({ text: 'О, сосед…', audio: '/api/tts/live/x' }); await advance()
+    onLine({ text: 'О, сосед… Давай обсудим спокойно.', audio: '/api/tts/live/x' }); await advance()
+    if (delayed) { soundReady(true); await advance() }
+    expect(meeting.line).toBe('О, сосед… Давай обсудим спокойно.')
+    expect(meeting.pending).toBe('привет')
+    expect(speech.live).toHaveBeenCalledOnce()
+    answer({ record, source: 'llm' }); await sent; await advance()
+  })
 
   it('звук пошёл — начало печатается вместе с ним; ход целиком не перезапускает звук и не качает его заново', async () => {
     render(); resolveAudio(prepared); await advance()
