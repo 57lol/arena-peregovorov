@@ -112,3 +112,78 @@ describe('lipState — рот по звуку плеера', () => {
     expect(speech.lipState()).toBe('off')
   })
 })
+
+describe('ошибки декодирования и целый поток', () => {
+  it('404 не отдаётся декодеру как звук', async () => {
+    const decodeAudioData = vi.fn()
+    vi.stubGlobal('window', { OfflineAudioContext: class { decodeAudioData = decodeAudioData } })
+    body = async () => new Response('<html>Нет файла</html>', { status: 404 })
+    await startLine()
+    expect(decodeAudioData).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('неполный mp3 отклоняется двумя путями, полная запись возвращает огибающую (MediaSource=%s)', async (mse) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const pcm = syllables()
+    let fullAttempts = 0
+    const decodeAudioData = vi.fn((buf: ArrayBuffer, ok: (b: unknown) => void, fail: (e: Error) => void) => {
+      // Даже последний префикс может не разобрать MP3: нужна повторная попытка по целому файлу.
+      if (buf.byteLength < pcm.byteLength || ++fullAttempts === 1) {
+        const e = new Error('Unable to decode audio data')
+        fail(e)
+        return Promise.reject(e)
+      }
+      const b = { sampleRate: RATE, getChannelData: () => new Float32Array(buf) }
+      ok(b)
+      return Promise.resolve(b)
+    })
+    vi.stubGlobal('window', { OfflineAudioContext: class { decodeAudioData = decodeAudioData } })
+    const plays: FakeAudio[] = []
+    vi.spyOn(FakeAudio.prototype, 'play').mockImplementation(function (this: FakeAudio) {
+      this.paused = false
+      plays.push(this)
+      queueMicrotask(() => this.dispatchEvent(new Event('playing')))
+      return Promise.resolve()
+    })
+    class FakeMediaSource extends EventTarget {
+      static isTypeSupported() { return true }
+      readyState = 'open'
+      addSourceBuffer() { return { updating: false, buffered: { length: 1 }, appendBuffer() {} } }
+      endOfStream() { this.readyState = 'ended' }
+    }
+    vi.stubGlobal('MediaSource', mse ? FakeMediaSource : undefined)
+    if (mse) vi.spyOn(URL, 'createObjectURL').mockImplementation((value) => {
+      queueMicrotask(() => (value as unknown as FakeMediaSource).dispatchEvent(new Event('sourceopen')))
+      return 'blob:stream'
+    })
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    body = async () => new Response(new ReadableStream({ start(c) { controller = c } }), { headers: { 'content-type': 'audio/mpeg' } })
+    const settle = async () => { for (let i = 0; i < 40; i++) await Promise.resolve() }
+    try {
+      const started = speech.playLive('/api/tts/live/test', () => true)
+      await settle()
+      expect(await started).toBe(true)
+      const a = plays.at(-1)!
+      const bytes = new Uint8Array(pcm.buffer)
+      controller.enqueue(bytes.slice(0, 1000))
+      await settle()
+      controller.enqueue(bytes.slice(1000))
+      await settle()
+      controller.close()
+      await settle()
+      expect(fullAttempts).toBeGreaterThanOrEqual(2)
+      expect(decodeAudioData).toHaveBeenCalled()
+      // В ритме-заглушке на 1000 мс рот открыт, но в файле на 170 мс — пауза.
+      a.currentTime = 0.17
+      now = 1000
+      expect(speech.lipState()).toBe('closed')
+      a.currentTime = 0.02
+      now = 1200
+      expect(speech.lipState()).toBe('open')
+    } finally {
+      speech.stopAudio()
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+})

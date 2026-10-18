@@ -4,6 +4,7 @@
 // Под Playwright (navigator.webdriver) звук по умолчанию выключен — прогоны идут молча.
 
 import { loadVolume, setVolume as setVoiceVolume } from '../speech'
+import { decodeAudio } from './decode'
 import { GUARD, LOOPS } from './loops.gen'
 
 export type Channel = 'music' | 'sfx' | 'voice'
@@ -167,8 +168,7 @@ function load(name: string): Promise<AudioBuffer | null> {
     const c = ctx!
     p = fetch(`${BASE}${name}.mp3`)
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-      // колбэк-форма: старый Safari не возвращает промис
-      .then((data) => new Promise<AudioBuffer>((res, rej) => c.decodeAudioData(data, res, rej)))
+      .then((data) => decodeAudio(c, data))
       .catch(() => {
         buffers.delete(name)
         return null

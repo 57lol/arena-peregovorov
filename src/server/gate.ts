@@ -10,6 +10,7 @@ import { getCookie, setCookie } from 'hono/cookie'
 import { clientIp, PASS_COOKIE as COOKIE } from './client'
 import { makePass, passValid } from './pass'
 export { makePass, passValid } from './pass'
+import { votePath } from './votes'
 import { GATE_SCENE_JS } from './gate-scene'
 
 const TTL = 30 * 24 * 3600
@@ -17,7 +18,7 @@ const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^
 const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
 
-export type GateConfig = { secret: string; juryKey?: string; login?: string; passwordHash?: string }
+export type GateConfig = { secret: string; juryKey?: string; login?: string; passwordHash?: string; voteKey?: string }
 
 export function hashPassword(password: string, salt = randomBytes(16).toString('hex')) {
   return `scrypt:${salt}:${scryptSync(password, salt, 32).toString('hex')}`
@@ -61,6 +62,8 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     const url = new URL(c.req.url)
     const path = url.pathname
     const ip = clientIp(c)
+
+    if (votePath(path, cfg.voteKey) !== null) return next()
 
     if (path === '/auth/login' && c.req.method === 'POST') {
       const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>)

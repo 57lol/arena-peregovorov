@@ -23,6 +23,7 @@ import { unstress } from './stress'
 import { makeSpeech, type Speech } from './speech'
 import { completeLine, frameKey, voice, voicePrompt } from './voice'
 import { stripTags } from './tags'
+import { votesApp } from './votes'
 import { roomsApi } from './rooms'
 
 const SAVED = join(CACHE_DIR, 'scenarios')
@@ -166,8 +167,9 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
   return out
 }
 
-export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS) {
+export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS, votesRoot = './public') {
   const app = new Hono()
+  app.route('/', votesApp({ root: votesRoot }))
   const count = limiter()
   // вступления дел — тексты сервера: их можно озвучивать голосом ElevenLabs
   for (const sc of allScenarios) speech.issue(sc.opening)

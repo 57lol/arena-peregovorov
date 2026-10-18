@@ -1,6 +1,7 @@
 // Голос в браузере: озвучка собеседника и запись реплики игрока.
 // Всё необязательное: нет сервера, нет микрофона, сбой SpeechKit — игра идёт молча и текстом.
 
+import { decodeAudio } from './audio/decode'
 import type { Emotion, Scenario } from '../engine/types'
 import { langOf, type Lang } from '../engine/lang'
 import { isFemale, portraitFor } from './cast'
@@ -223,7 +224,7 @@ async function envelope(data: Promise<ArrayBuffer>): Promise<Float32Array | null
     const buf = await data
     if (!Off) return null
     const ctx = new Off(1, 1, 44100)
-    const ab = await new Promise<AudioBuffer>((res, rej) => ctx.decodeAudioData(buf, res, rej))
+    const ab = await decodeAudio(ctx, buf)
     const { env, power } = envelopeOf(ab.getChannelData(0), ab.sampleRate)
     gains.set(env, gainFor(power))
     return env
@@ -255,7 +256,10 @@ const setGain = (g: number) => {
 function envelopeAt(src: string): Promise<Float32Array | null> {
   let p = envCache.get(src)
   if (!p) {
-    p = envelope(fetch(src).then((r) => r.arrayBuffer()))
+    p = envelope(fetch(src).then((r) => {
+      if (!r.ok) throw new Error(`звук: ${r.status}`)
+      return r.arrayBuffer()
+    }))
     envCache.set(src, p)
   }
   return p
@@ -583,7 +587,8 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
   } else {
     // без MediaSource (iPhone) звук играет по ссылке, а губы считаем по второму чтению того же потока, тоже по кускам
     a.src = src
-    const grow = growLip(trackLip(a, null, true))
+    const me = trackLip(a, null, true)
+    const grow = growLip(me)
     const stop = (liveStop = new AbortController())
     void fetch(src, { signal: stop.signal }).then(async (r) => {
       if (!r.ok || !r.body) return
@@ -595,6 +600,9 @@ export function playLive(src: string, allowed: () => boolean, ms = 3000): Promis
         parts.push(value)
         grow(joinParts(parts))
       }
+      // Последний префикс мог не декодироваться: целый файл пробуем отдельно.
+      const e = await envelope(Promise.resolve(joinParts(parts).buffer as ArrayBuffer))
+      if (e && (!me.env || e.length >= me.env.length)) me.env = e
     }).catch(() => {})
   }
   pace(a, '')
@@ -868,8 +876,7 @@ export async function toPcm16k(blob: Blob): Promise<ArrayBuffer> {
   const data = await blob.arrayBuffer()
   let buf: AudioBuffer
   try {
-    // колбэк-форма: старый Safari не возвращает промис
-    buf = await new Promise<AudioBuffer>((res, rej) => ctx.decodeAudioData(data, res, rej))
+    buf = await decodeAudio(ctx, data)
   } finally {
     ctx.close().catch(() => {})
   }
