@@ -122,6 +122,26 @@ describe('реплика потоком', () => {
     expect(v.source).toBe('template')
     expect(backup.json).not.toHaveBeenCalled()
   })
+
+  it('принятый до отмены кусок потока не отправляет устаревшее начало в голос', async () => {
+    const ac = new AbortController()
+    const onFirst = vi.fn()
+    const backup: LLM = { name: 'yandex', model: 'backup', json: vi.fn() }
+    const m: LLM = {
+      name: 'aitunnel', model: 'буфер-после-отмены', json: vi.fn(),
+      async *stream(_req, signal) {
+        // Заголовок принят; при следующем чтении рамку отменили, но SSE ещё отдаёт свой буфер.
+        yield '{"agrees":false,"terms":[],"reveals":[],"line":"'
+        ac.abort()
+        expect(signal?.aborted).toBe(true)
+        yield 'Слушай, ну так дела не делаются. Жду шаг от тебя, сосед.","emotion":"neutral"}'
+      },
+    }
+    const v = await voice(m, dorm, [], `Ну что ${uniq()}?`, { kind: 'hold', reason: 'no_movement' }, initialState(dorm), { signal: ac.signal, onFirst, fallback: backup })
+    expect(v.source).toBe('template')
+    expect(backup.json).not.toHaveBeenCalled()
+    expect(onFirst).not.toHaveBeenCalled()
+  })
 })
 
 describe('ход потоком и спекуляция', () => {

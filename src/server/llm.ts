@@ -110,6 +110,7 @@ async function* sse(url: string, headers: Record<string, string>, body: object, 
         if (typeof d === 'string' && d) {
           chars += d.length
           yield d
+          if (ac.signal.aborted) return
         }
       }
     }

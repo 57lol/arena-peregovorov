@@ -904,7 +904,7 @@ async function streamed(m: LLM, req: JsonRequest, sc: Scenario, frame: Frame, ct
           if (c.hard.length || c.soft.length) return halt(c, piece)
           r.first = said = piece
           r.firstAt = Date.now() - t0
-          speak(piece)
+          if (!signal?.aborted) speak(piece)
           continue
         }
         const piece = cleanPiece(raw, true, tagCount(said))

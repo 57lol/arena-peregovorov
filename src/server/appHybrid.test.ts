@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,8 +42,11 @@ function harness(blockFirst = false, delayFirst = false) {
       }
     },
   }
-  const app = createApp({ ...backup, analyzer: primary, voice: speaker }, undefined, makeSpeech({ key: '', fetch: network, stressAsk: null }))
-  return { app, main, quick, primary, backup, streams, speaking, voiceReady }
+  const sound = { url: '/api/tts/live/тест', voice: undefined, connect: vi.fn(), first: vi.fn(), finish: vi.fn() }
+  const speech = makeSpeech({ key: '', fetch: network, stressAsk: null })
+  speech.live = () => sound
+  const app = createApp({ ...backup, analyzer: primary, voice: speaker }, undefined, speech)
+  return { app, main, quick, primary, backup, streams, speaking, voiceReady, sound }
 }
 type Event = {
   t: string; text: string; opponentLine: string; analysis: MoveAnalysis; record: TurnRecord; state: OpponentState;
@@ -157,9 +160,12 @@ describe('гибридный ход: управляемый порядок от�
   })
 
   it('совпавший с правилами quick побеждает конфликтующий main и до готовности первой фразы', async () => {
-    const h = harness(false, true), output = await stream(h.app)
+    const h = harness(false, true), output = await stream(h.app, { tts: { voice: 'ermil' } })
     await h.speaking.promise
     h.quick.resolve(raw)
+    // Quick уже открыл заготовку, но принятый кусок потока ещё не разобран.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(h.sound.first).not.toHaveBeenCalled()
     h.main.resolve({ ...raw, toneViolation: true })
     await new Promise<void>((resolve) => setImmediate(resolve))
     h.voiceReady.resolve()
@@ -168,6 +174,9 @@ describe('гибридный ход: управляемый порядок от�
     expect(result.analysis.toneViolation).not.toBe(true)
     expect(result.record.decision).toEqual((await output.first).record.decision)
     expect(h.streams).toHaveBeenCalledTimes(1)
+    expect(h.streams.mock.calls[0][0].aborted).toBe(false)
+    expect(h.sound.first).toHaveBeenCalledExactlyOnceWith((await output.first).text)
+    expect(h.sound.finish.mock.calls[0][0].startsWith(h.sound.first.mock.calls[0][0])).toBe(true)
   })
 
   it('ошибка quick не блокирует основной, промах отменяет прежнюю рамку', async () => {
@@ -259,21 +268,36 @@ describe('заготовка во время паузы', () => {
     expect(h.streams).toHaveBeenCalledTimes(1)
   })
 
-  it('изменённый текст останавливает заготовку, завершает новый ход и не кладёт старый разбор в кэш', async () => {
-    const h = harness(true)
+  it.each(['до quick', 'после quick'] as const)('отмена заготовки %s сохраняет оплаченный разбор для повтора', async (when) => {
+    const h = harness(true, true)
     expect((await post(h.app, '/api/prepare')).status).toBe(202)
     await h.speaking.promise
-    const output = await stream(h.app, { playerText: 'Обсудим условия и график.' })
+    if (when === 'после quick') {
+      h.quick.resolve(raw)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    const output = await stream(h.app, { playerText: 'Обсудим условия и график.', tts: { voice: 'ermil' } })
+    expect(h.streams.mock.calls[0][0].aborted).toBe(true)
+    // Как принятый буфер SSE: кусок старой реплики всё равно приходит после abort.
+    h.voiceReady.resolve()
     h.quick.resolve(raw)
-    h.main.resolve(raw)
+    h.main.resolve({ ...raw, toneViolation: true })
     const result = finished(await output.done)
     expect(result.record.playerText).toBe('Обсудим условия и график.')
-    expect(h.streams.mock.calls[0][0].aborted).toBe(true)
     expect(h.primary.json).toHaveBeenCalledTimes(2)
     expect(h.backup.json).toHaveBeenCalledTimes(2)
-    finished(await (await stream(h.app)).done)
-    expect(h.primary.json).toHaveBeenCalledTimes(3)
-    expect(h.backup.json).toHaveBeenCalledTimes(3)
+    expect(h.sound.first).toHaveBeenCalledTimes(1)
+    // Записи двух заданий независимы: ждём завершения обеих, прежде чем повторять старый вход.
+    await vi.waitFor(() => {
+      const files = readdirSync(join(root, 'analyze'))
+      expect(files).toHaveLength(2)
+      for (const file of files) expect(JSON.parse(readFileSync(join(root, 'analyze', file), 'utf8'))).toHaveProperty('behaviors')
+    })
+    const cached = finished(await (await stream(h.app)).done)
+    expect(cached.sources.analysis).toBe('cache')
+    expect(cached.analysis.toneViolation).not.toBe(true)
+    expect(h.primary.json).toHaveBeenCalledTimes(2)
+    expect(h.backup.json).toHaveBeenCalledTimes(2)
   })
 
   it('PREPARE=off и кнопка ухода не запускают лишнюю разметку', async () => {

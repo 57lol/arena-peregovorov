@@ -9,6 +9,24 @@ import { aitunnel, aitunnelFlags, llmFromSpec, makeLLM, type LLM } from './llm'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('AITunnel: модель реплики', () => {
+  it('после отмены SSE не дочитывает следующие события из уже принятого буфера', async () => {
+    const ac = new AbortController()
+    const packet = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+    // Оба события пришли одним сетевым куском; отмена fetch не удаляет локальный буфер sse().
+    const fetch = vi.fn(async () => new Response(packet('Заголовок') + packet('Устаревшее начало')))
+    vi.stubGlobal('fetch', fetch)
+    const env = { AITUNNEL_API_KEY: 'тест' }
+    const b = makeBudget(mkdtempSync(join(tmpdir(), 'ait-abort-')), env)
+    const m = aitunnel('claude-sonnet-5.5', b, env)
+    const chunks: string[] = []
+    for await (const chunk of m.stream!({ system: 'тест', user: 'тест', temperature: 0 }, ac.signal)) {
+      chunks.push(chunk)
+      ac.abort()
+    }
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(chunks).toEqual(['Заголовок'])
+  })
+
   it('рассуждение выключено по модели, у Claude кэш промпта, цена хода — из ответа в общий бюджет', async () => {
     expect(aitunnelFlags('gpt-6.1-sol', {})).toEqual({ reasoning_effort: 'minimal' })
     expect(aitunnelFlags('claude-sonnet-5.5', {})).toEqual({ reasoning_effort: 'minimal' })

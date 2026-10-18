@@ -369,7 +369,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       let confirmed: { analysis: MoveAnalysis; source: string } | undefined
       let sent = false
       const release = () => {
-        if (sent || stopped || !confirmed || piece === undefined) return
+        if (sent || stopped || ac.signal.aborted || !confirmed || piece === undefined) return
         sent = true
         ms.first = Date.now() - t0
         const rr = decide(confirmed.analysis).r
@@ -419,11 +419,14 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       if (!final) {
         // Спекуляция: пока модели размечают ход, реплику уже пишет модель — по разбору правил. Рамка та же, что по
         // настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — по модели.
-        const rulesKey = spec ? frame({ analysis: groundedOffline(sc, body.playerText, dict), source: 'offline' }, 'rules').key : undefined
+        const rules: AnalyzeResult | undefined = spec ? { analysis: groundedOffline(sc, body.playerText, dict), source: 'offline' } : undefined
+        const rulesKey = rules && keyOf(decide(rules.analysis).r)
+        if (rules && !stopped) frame(rules, 'rules')
         let quickA: AnalyzeResult | undefined
         const quickSeen = ar.quick?.then((q) => {
-          if (!q || final || stopped || cur?.sent) return
+          if (!q || final) return
           quickA = q
+          if (stopped || cur?.sent) return
           ms.quick = Date.now() - t0
           // Pro и правила сошлись — начало можно озвучить сразу: при конфликте эта рамка важнее Sonnet.
           // Не сошлись — реплика по Pro, а звучит она, когда подтвердит Sonnet.
@@ -433,9 +436,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         ms.main = Date.now() - t0
         // Выбор зависит от разборов, а не от порядка ответов или готовности первой фразы.
         await quickSeen
-        if (stopped) throw new Error('Ход больше не нужен')
         if (main.source === 'offline' && quickA) main = quickA
-        final = quickA && cur?.key === rulesKey && keyOf(decide(main.analysis).r) !== rulesKey ? quickA : main
+        final = quickA && keyOf(decide(quickA.analysis).r) === rulesKey && keyOf(decide(main.analysis).r) !== rulesKey ? quickA : main
+        // Оплаченный разбор сохраняем и у отменённой заготовки; повтор не должен снова звать модели.
+        await ar.keep(final)
+        if (stopped) throw new Error('Ход больше не нужен')
         if (cur || spec) frame(final, final === quickA ? 'quick' : 'main').open(final.analysis, final.source)
         if (final === quickA && main !== quickA) ms.record = 'quick'
         if (spec) ms.spec = cur!.basis === 'rules' ? 'hit' : 'miss'
@@ -443,7 +448,6 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       ms.analyze = Date.now() - t0
       analyzed()
       if (!cur) frame(final, 'main').open(final.analysis, final.source)
-      await ar.keep(final)
       const said = await cur!.said
       gotFirst(undefined)
       const { analysis, r } = decide(final.analysis)
