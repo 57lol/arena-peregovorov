@@ -843,8 +843,12 @@ function optionMarks(sc: Scenario, id: IssueId, option: number): Mark[] {
   if (!i) return []
   const o = i.options[option]
   const q = optionQuantity(o)
-  // число узнаём и цифрами, и словами («двести четыре», «ста девяноста шести»)
-  if (q && q.dim !== 'plain') return [(t) => quantities(t).some((x) => Math.abs(x.value - q.value) <= Math.abs(q.value) * 0.01 + 1e-9)]
+  // число узнаём и цифрами, и словами («двести четыре», «ста девяноста шести»), и как его говорят: «сто восемьдесят»
+  // про 180 000 ₽, «four sixty-five» про €465,000, «с одиннадцати» про 23:00 — иначе код дописывал «Давай так: …»
+  const near = (a: number, b: number) => Math.abs(a - b) <= Math.abs(b) * 0.01 + 1e-9
+  if (q && q.dim !== 'plain') return [(t) => quantities(t).some((x) => near(x.value, q.value) || (x.dim === 'plain' && (
+    ((q.dim === 'money' || q.dim === 'yuan') && q.value >= 1000 && near(x.value * 1000, q.value)) ||
+    (q.dim === 'time' && x.value >= 1 && x.value <= 12 && Number.isInteger(x.value) && (near(x.value * 60, q.value) || near((x.value + 12) * 60, q.value))))))]
   const own = (o.toLowerCase().match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 5))
     .filter((w) => !i.options.some((x, n) => n !== option && x.toLowerCase().includes(w)))
   return own.map((w) => (t) => new RegExp(`(?<!\\p{L})${w}`, 'iu').test(t))
@@ -892,7 +896,9 @@ export function completeLine(sc: Scenario, frame: Frame, text: string): string {
     if (it && !tells(it, clean)) text += en ? ` I'll tell you straight: ${lowerFirst(it.text)}.` : ` Скажу как есть: ${lowerFirst(tame(it.text))}.`
   }
   const missing = missingTerms(sc, frame, clean)
-  if (missing.length) text += `${en ? ' So: ' : ' Давай так: '}${terms(sc, Object.fromEntries(missing.map((id) => [id, frame.position[id]])))}.`
+  // на «вы» — «Давайте так»: Дарина и Лариса Петровна не тыкают
+  const polite = /(?<!\p{L})(?:вы|вам|вас|ваш\p{L}*)(?!\p{L})/iu.test(`${sc.opening} ${(sc.opponent.character.voiceExamples ?? []).join(' ')}`)
+  if (missing.length) text += `${en ? ' So: ' : polite ? ' Давайте так: ' : ' Давай так: '}${terms(sc, Object.fromEntries(missing.map((id) => [id, frame.position[id]])))}.`
   return text.trim()
 }
 

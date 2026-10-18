@@ -7,7 +7,7 @@ import { initialState } from '../engine/turn'
 import type { Decision, Issue, Offer, Scenario } from '../engine/types'
 import { bestOption } from '../engine/utility'
 import { checkOpener, openerPrompt } from './opener'
-import { checkPiece, frameFor, system, wrongJoy } from './voice'
+import { checkPiece, completeLine, frameFor, system, wrongJoy } from './voice'
 
 // «Кто чему рад» (SIDES5, 19.10): по очкам движка — его уступка, его выигрыш, шаг игрока. Капитан: «персонажи постоянно
 // радуются тому, что им не выгодно». Эмре: «Delivery in eight weeks, I take it, we agree here. For this I move the price».
@@ -135,6 +135,29 @@ describe('рамка: кто кому уступает — по очкам, на
 
   it('в промпте правило «радуешься только выгодному» по-русски и по-английски', () => {
     for (const sc of CASES) expect(system(sc)).toMatch(/Радуешься, хвалишь и благодаришь только за то, что выгодно тебе|You are glad, praise or thank only for what is good for you/)
+  })
+})
+
+describe('условие сказано словами — без приписки «Давай так: …» (прод 19.10: «Сто восемьдесят… Давай так: оклад — 180 000 ₽»)', () => {
+  const frame = (id: string, prev: Offer, next: Offer) => {
+    const sc = CASES.find((s) => s.id === id)!
+    return { sc, f: frameFor(sc, { kind: 'counter', offer: next }, { ...initialState(sc), playerStance: {}, lastOpponentOffer: prev }, prev, {}) }
+  }
+  it('тысячи словами, «four sixty-five», «с одиннадцати» про 23:00', () => {
+    for (const [id, prev, next, line] of [
+      ['offer', { salary: 3, start: 3, housing: 3, study: 2, project: 2 }, { salary: 2, start: 3, housing: 2, study: 2, project: 2 }, 'На шесть месяцев квартиру — ладно. Сто восемьдесят, и это уже движение с моей стороны.'],
+      ['dorm', { wifi: 1, quiet: 1, cleaning: 0, guests: 3, kitty: 2 }, { wifi: 2, quiet: 3, cleaning: 0, guests: 3, kitty: 2 }, 'Ладно, вай-фай 300 и тихо с одиннадцати — так и быть.'],
+      ['istanbul', { price: 0, payment: 0, delivery: 0, warranty: 0, training: 2 }, { price: 1, payment: 0, delivery: 2, warranty: 0, training: 2 }, 'I can do twelve weeks, and price four sixty-five.'],
+    ] as const) {
+      const { sc, f } = frame(id, prev, next)
+      expect(completeLine(sc, f, line), id).toBe(line)
+    }
+  })
+  it('на «вы» — «Давайте так», на «ты» — «Давай так»', () => {
+    const a = frame('offer', { salary: 3, start: 3, housing: 3, study: 2, project: 2 }, { salary: 1, start: 3, housing: 3, study: 2, project: 2 })
+    expect(completeLine(a.sc, a.f, 'Нет, так не пойдёт.')).toContain('Давайте так: оклад — 165 000 ₽.')
+    const b = frame('dorm', { wifi: 1, quiet: 1, cleaning: 0, guests: 3, kitty: 2 }, { wifi: 2, quiet: 1, cleaning: 0, guests: 3, kitty: 2 })
+    expect(completeLine(b.sc, b.f, 'Не, братан.')).toContain('Давай так: доля за вай-фай — 300 ₽.')
   })
 })
 
