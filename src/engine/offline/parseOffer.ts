@@ -246,8 +246,9 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
       if (at > foundAt) { found = n; foundAt = at }
     })
     const aliases = (info.issue.aliases ?? []).flatMap((list, n) => list.flatMap((alias) => {
-      // с начала слова: «акт» — не «факт»
-      const at = flat.search(new RegExp(`(?<!\\p{L})${alias.toLowerCase().replace(/ё/g, 'е').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'u'))
+      // с начала слова: «акт» — не «факт»; короткое — ещё и целым словом с окончанием: «акта», но не «актуально»
+      const a = alias.toLowerCase().replace(/ё/g, 'е').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const at = flat.search(new RegExp(`(?<!\\p{L})${a}${a.length < 5 ? '(?:а|ом|у|е|ы|ов|ами|ах)?(?!\\p{L})' : ''}`, 'u'))
       return at >= 0 && !echoed(at) ? [{ n, at, end: at + alias.length }] : []
     }))
     // «Эталонный образец» точнее, чем вложенное «образец».
