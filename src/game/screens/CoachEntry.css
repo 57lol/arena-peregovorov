@@ -1,0 +1,40 @@
+/* ---------- записка «для руководителя» ---------- */
+
+.g-coach-note {
+  position: relative;
+  margin: calc(10 * var(--u)) 0 0;
+  padding: calc(11 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u));
+  background: var(--c-paper-2);
+  color: var(--c-ink);
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    0 calc(2 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.g-coach-note-tab {
+  position: absolute;
+  top: calc(-4 * var(--u));
+  left: calc(6 * var(--u));
+  margin: 0;
+  padding: 0 calc(3 * var(--u));
+  background: var(--c-denim);
+  color: var(--c-paper);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  box-shadow: 0 0 0 var(--u) var(--c-ink-2);
+}
+.g-coach-note-title {
+  margin: 0 0 calc(2 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+}
+.g-coach-note-text {
+  max-width: 60ch;
+  margin: 0 0 calc(4 * var(--u));
+  color: var(--c-steel-2);
+  text-wrap: pretty;
+}
+.g-coach-slot {
+  max-width: 1240px;
+  margin: calc(4 * var(--u)) auto 0;
+}
+.g-coach-slot .g-coach-note {
+  max-width: 560px;
+}

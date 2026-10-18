@@ -11,6 +11,8 @@ import { VOTE_CAST } from './voteCatalog'
 it('совмещает личные квоты, админку, публичный бланк и пятый аргумент с корнем prod-ресурсов', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'night-merge-'))
   const root = join(dir, 'dist')
+  // Два запроса должны попасть в одно окно лимита, даже на границе реальной минуты.
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now())
   try {
     vi.stubEnv('VOTE_KEY', 'vote-link')
     vi.stubEnv('VOTE_ADMIN_KEY', 'vote-captain')
@@ -48,6 +50,7 @@ it('совмещает личные квоты, админку, публичны
     expect(prod).toContain('juryKeys: process.env.JURY_KEYS')
     expect(prod).toContain('voteKey: process.env.VOTE_KEY')
   } finally {
+    clock.mockRestore()
     vi.unstubAllEnvs()
     await rm(dir, { recursive: true, force: true })
   }

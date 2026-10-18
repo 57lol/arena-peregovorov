@@ -30,8 +30,7 @@ function checkPassword(password: string, stored: string) {
 }
 
 export function gate(cfg: GateConfig): MiddlewareHandler {
-  const judges = parseJuryKeys(cfg.juryKeys)
-  if (judges.some((j) => j.key === cfg.juryKey)) throw new Error('JURY_KEYS: личный ключ совпал с общим')
+  const judges = parseJuryKeys(cfg.juryKeys, { sharedKey: cfg.juryKey, onInvalid: (message) => console.warn(message) })
   const fails = new Map<string, { n: number; until: number }>()
   const blocked = (ip: string) => {
     const f = fails.get(ip)
@@ -97,7 +96,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     }
 
     const pass = getCookie(c, COOKIE)
-    const judge = verifyPass(cfg.secret, pass, cfg.juryKeys)
+    const judge = verifyPass(cfg.secret, pass, judges)
     if (judge) {
       c.set('verifiedPass', pass)
       c.set('verifiedJudge', judge)

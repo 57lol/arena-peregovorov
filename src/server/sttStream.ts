@@ -61,7 +61,7 @@ export function makeSttStream(quota: Budget = budget(), env = process.env) {
       const fail = (code: number) => { socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`) }
       if (url.pathname !== '/api/stt/stream' || env.STT_STREAM_VIA === 'worker') return fail(404)
       const cookie = req.headers.cookie?.split(';').map((x) => x.trim()).find((x) => x.startsWith(`${PASS_COOKIE}=`))?.slice(PASS_COOKIE.length + 1)
-      if (env.GATE_SECRET && !verifyPass(env.GATE_SECRET, cookie, env.JURY_KEYS)) return fail(401)
+      if (env.GATE_SECRET && !verifyPass(env.GATE_SECRET, cookie, env.JURY_KEYS, Date.now(), env.JURY_KEY)) return fail(401)
       const ip = remoteIp(req.socket.remoteAddress, String(req.headers['x-forwarded-for'] ?? ''), env)
       const session = clientSession(cookie, ip, env)
       const id = url.searchParams.get('ticket') ?? ''

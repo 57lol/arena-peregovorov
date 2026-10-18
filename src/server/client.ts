@@ -26,13 +26,13 @@ export function clientIp(c: Context, env = process.env): string {
 }
 
 export const clientSession = (cookie: string | undefined, ip: string, env = process.env) => {
-  const judge = env.GATE_SECRET ? verifyPass(env.GATE_SECRET, cookie, env.JURY_KEYS) : undefined
+  const judge = env.GATE_SECRET ? verifyPass(env.GATE_SECRET, cookie, env.JURY_KEYS, Date.now(), env.JURY_KEY) : undefined
   return judge ? (judge.kind === 'personal' ? `jury:${judge.id}` : cookie!) : `ip:${ip}`
 }
 
 /** Только проверенное имя; произвольные cookie и заголовки не годятся. */
 export const judgeOf = (c: Context, env = process.env): Judge | undefined =>
-  c.get('verifiedJudge') as Judge | undefined ?? (env.GATE_SECRET ? verifyPass(env.GATE_SECRET, getCookie(c, PASS_COOKIE), env.JURY_KEYS) : undefined)
+  c.get('verifiedJudge') as Judge | undefined ?? (env.GATE_SECRET ? verifyPass(env.GATE_SECRET, getCookie(c, PASS_COOKIE), env.JURY_KEYS, Date.now(), env.JURY_KEY) : undefined)
 
 export const sessionOf = (c: Context, env = process.env) => {
   const judge = judgeOf(c, env)
