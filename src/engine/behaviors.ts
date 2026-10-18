@@ -956,6 +956,7 @@ const EN_MARKERS: Partial<Record<BehaviorId, RegExp[]>> = {
   ultimatum: [
     re('‹(?:final|last|best and final) (?:offer|price|word)›'),
     re('‹take it or leave it›'),
+    re("‹if you (?:refuse|won't|will not|don't|do not)›§{0,50}‹(?:I|we)(?:'m|'re| am| are| will|'ll) (?:walking away|leaving|walk away|leave)›"),
     re("‹(?:or|otherwise|or else) (?:we|I)(?:'ll| will)? (?:go|walk|leave|sign with|go with)›"),
     re('‹this is (?:my|our) (?:limit|maximum|ceiling)›'),
     re('‹not (?:a )?(?:single )?(?:cent|euro|dollar|day) (?:more|less)›'),

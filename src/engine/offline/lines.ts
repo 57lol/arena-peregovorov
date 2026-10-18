@@ -180,19 +180,25 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
     : d.kind === 'accept' ? state.deal ?? state.tableOffer
     : state.lastOpponentOffer ?? {}
   const text = d.kind === 'counter' && !d.final ? changesOnly(sc, offer, prev) : formatOffer(sc, offer)
-  const say = en ? EN_SAY : RU_SAY
+  const say = en ? sc.opponent.character.nativeEnglish ? EN_NATIVE_SAY : EN_SAY : RU_SAY
   line = line.replace('{offer}', text).replace('{main}', mainTerm(sc, offer))
-  if (d.kind === 'counter' && d.feigned?.length) {
-    const what = d.feigned
-      .map((id) => sc.issues.find((i) => i.id === id)!)
-      .map((i) => `${i.title.toLowerCase()} — ${i.options[d.offer[i.id]!]}`)
-      .join(', ')
-    line += say.feigned(what)
-  }
   if (d.kind === 'reveal') {
     const it = sc.opponent.profile.interests.find((i) => i.id === d.interestId)
     line = d.again ? `${say.again}${lowerFirst(it?.text ?? '')}.` : line.replace('{interest}', lowerFirst(it?.text ?? ''))
-    if (d.offer) line += `${say.so}${changesOnly(sc, d.offer, prev)}.`
+    if (d.offer) {
+      if (d.final) {
+        const final = sc.opponent.character.lines?.final ?? table.final.any
+        line += ` ${final[state.turn % final.length].replace('{offer}', formatOffer(sc, d.offer))}`
+      } else line += `${say.so}${changesOnly(sc, d.offer, prev)}.`
+    }
+  }
+  if ((d.kind === 'counter' || d.kind === 'reveal') && d.offer && d.feigned?.length) {
+    const offer = d.offer
+    const what = d.feigned
+      .map((id) => sc.issues.find((i) => i.id === id)!)
+      .map((i) => `${i.title.toLowerCase()} — ${i.options[offer[i.id]!]}`)
+      .join(', ')
+    line += say.feigned(what)
   }
   return { line: [line, upsellLine(sc, state)].filter(Boolean).join(' '), emotion: emotionFor(d, state) }
 }
@@ -226,4 +232,9 @@ const EN_SAY: typeof RU_SAY = {
   so: ' So I can do this: ',
   rest: ', the rest as before',
   mine: 'my offer',
+}
+const EN_NATIVE_SAY: typeof RU_SAY = {
+  ...EN_SAY,
+  feigned: (what: string) => ` Please note this concession: ${what}.`,
+  again: 'As I mentioned earlier: ',
 }

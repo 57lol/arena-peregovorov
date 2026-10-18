@@ -49,7 +49,7 @@ export function difficultyRu(sc: Scenario): string {
 }
 
 /** «Марат» из «Марат Гимадиев» — для коротких подписей. */
-export const firstName = (sc: Scenario) => sc.opponent.character.name.split(/\s+/)[0]
+export const firstName = (sc: Scenario) => sc.opponent.character.short ?? sc.opponent.character.name.split(/\s+/)[0]
 
 export function plural(n: number, one: string, few: string, many: string) {
   const m10 = Math.abs(n) % 10

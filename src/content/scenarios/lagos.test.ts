@@ -39,7 +39,9 @@ describe('Лагос: финальная командировка', () => {
     expect(sc.goals!.join()).not.toMatch(/депозит|раннюю|обучен|инженер|предоплат|сервис/i)
   })
   it('переговоры только на английском, разбор и восемь отдельных эпилогов по-русски', () => {
-    for (const text of [sc.opening, JSON.stringify(sc.issues), JSON.stringify(sc.opponent), JSON.stringify(sc.player)]) expect(text).not.toMatch(/[а-яё]/iu)
+    const { short, ...character } = sc.opponent.character
+    expect(short).toBe('Адебайо')
+    for (const text of [sc.opening, JSON.stringify(sc.issues), JSON.stringify({ ...sc.opponent, character }), JSON.stringify(sc.player)]) expect(text).not.toMatch(/[а-яё]/iu)
     expect(sc.opponent.character.speech).toContain('Native, grammatical Nigerian English')
     expect(sc.player.brief).toContain(LAGOS_TERMS)
     expect(sc.opponent.brief).toContain(LAGOS_TERMS)

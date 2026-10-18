@@ -74,6 +74,7 @@ export const istanbul: Scenario = {
   opponent: {
     character: {
       name: 'Emre Kaya',
+      short: 'Эмре',
       role: 'export sales manager',
       company: 'Marmara Coating Systems, Istanbul',
       // тёплый по натуре, но на переговорах — деловой: доверие с нуля зарабатывают и у него
@@ -110,7 +111,7 @@ export const istanbul: Scenario = {
         final: ['We are out of time. My last offer: {offer}. Yes or no?'],
         reveal: ['Okay, I tell you honestly: {interest}.', 'Since you ask directly: {interest}.'],
         no_offer: ['Nice words. And the numbers?', 'I\'m listening. But there is nothing to answer yet.'],
-        no_movement: ['We already walked this road. My offer stays, it\'s on the paper in front of you.', 'One more step and I can\'t explain it in Istanbul. We stay at {main}.'],
+        no_movement: ['We already walked this road. My offer stays, it\'s on the paper in front of you.', 'One more step and I can\'t explain it in Istanbul. The terms stay: {main}.'],
         not_ready_to_reveal: ['That\'s our kitchen, my friend.', 'Too early to look in our books. First let\'s see if we work together at all.'],
         warn_tone: ['Hey. Not like this, please.', 'One more time in this tone and I close my laptop.'],
         walk_away: ['Okay. I think we are done. Good luck with Qingdao.', 'That\'s it for me. This was not a conversation.'],

@@ -36,6 +36,8 @@ export type Difficulty = 1 | 2 | 3
 
 export interface Character {
   name: string
+  short?: string           // короткое имя в русском интерфейсе
+  nativeEnglish?: boolean  // грамотные английские связки в офлайн-репликах
   role: string             // «директор по закупкам»
   company: string
   tone: Tone
@@ -48,7 +50,7 @@ export interface Character {
 }
 
 // Ключи совпадают с видами решений движка и причинами hold; {offer} — подставить предложение.
-export type LineKey = Decision['kind'] | 'final' | HoldReason
+export type LineKey = Decision['kind'] | 'final' | 'no_news' | HoldReason
 export type CharacterLines = Partial<Record<LineKey, string[]>>
 
 export interface Upsell {
@@ -131,7 +133,7 @@ export type Decision =
   | { kind: 'counter'; offer: Offer; final?: boolean; feigned?: IssueId[] } // feigned: совместимые пункты, выданные за уступку
   // again: про этот пункт уже всё рассказано, собеседник напоминает сказанное, а не выдаёт постороннее;
   // general: спросили «зачем тебе всё это» в общем; offTopic: про спрошенный пункт рассказать нечего
-  | { kind: 'reveal'; interestId: string; offer?: Offer; again?: true; general?: true; offTopic?: IssueId[] }
+  | { kind: 'reveal'; interestId: string; offer?: Offer; final?: boolean; feigned?: IssueId[]; again?: true; general?: true; offTopic?: IssueId[] }
   | { kind: 'hold'; reason?: HoldReason }
   // ответить человеку: на шутку, вопрос, извинение, личное — сделка не двигается; back: потом вернуть разговор к делу
   | { kind: 'respond'; to: TalkAct[]; back?: true }

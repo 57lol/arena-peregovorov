@@ -269,7 +269,11 @@ export function step(
       const how = { ...(ready ? {} : { again: true as const }), ...(general ? { general: true as const } : {}), ...(offTopic ? { offTopic } : {}) }
       if (newOffer) {
         const offer = counterNow()
-        return end({ kind: 'reveal', interestId: it.id, offer, ...how }, { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast })
+        const feigned = feignedConcessions(sc, offer, prevCounter)
+        return end(
+          { kind: 'reveal', interestId: it.id, offer, ...how, ...(isLast ? { final: true } : {}), ...(feigned.length ? { feigned } : {}) },
+          { tableOffer: offer, lastOpponentOffer: offer, lastCall: isLast },
+        )
       }
       return end({ kind: 'reveal', interestId: it.id, ...how }, { lastCall: isLast && !!prevCounter })
     }

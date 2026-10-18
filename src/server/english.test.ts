@@ -72,6 +72,16 @@ describe('реплика собеседника на английском', () =
   const state = initialState(sc)
   const hold = { kind: 'hold', reason: 'no_movement' } as const
 
+  it('reveal+offer передаёт финальность и ложную уступку в озвучку', () => {
+    const d: Decision = { kind: 'reveal', interestId: sc.opponent.profile.interests[0].id,
+      offer: { price: 2, payment: 1, delivery: 3, warranty: 2, training: 2 }, final: true, feigned: ['training'] }
+    const frame = frameFor(sc, d, state, state.lastOpponentOffer ?? {})
+    expect(frame.final).toBe(true)
+    expect(frame.text).toContain('последнее предложение')
+    expect(frame.text).toContain('подай как свою уступку')
+    expect(check(d, state, 'My final offer is on the table.').hard.join()).not.toMatch(/последнее слово/)
+  })
+
   it('промпт — по-английски, со своим стиль-гайдом и без русского характера', () => {
     const sys = system(sc)
     expect(sys).toMatch(/you speak only English/)

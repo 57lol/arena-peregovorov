@@ -7,11 +7,8 @@ import { buildReport } from '../engine/report'
 import type { MoveAnalysis, Offer, Scenario, TurnRecord } from '../engine/types'
 import { allDeals, paretoFrontier } from '../engine/utility'
 import { endingCatalog, endingOf } from './endings'
-import { client } from './scenarios/client'
-import { offer } from './scenarios/offer'
 import { tara } from './scenarios/tara'
-import { lagos } from './scenarios/lagos'
-import { istanbul } from './scenarios/istanbul'
+import { SCENARIOS, harder } from './scenarios'
 
 const say = (analysis: Partial<MoveAnalysis>) => ({ text: '', analysis: { behaviors: [], ...analysis } as MoveAnalysis })
 const hits = (...ids: string[]) => ids.map((id) => ({ id, quote: id }))
@@ -43,6 +40,13 @@ function explore(sc: Scenario): Map<EndingId, string> {
   const rude = say({ toneViolation: true, behaviors: hits('attack') })
   note(play(sc, [rude, rude, rude]).ending, 'три грубости подряд')
   const mine: Offer = Object.fromEntries(sc.issues.map((i) => [i.id, best(sc.player.profile.points[i.id])]))
+  // Уступки последнего хода можно принять резко: пакет сохраняется, отношения портятся.
+  const late = [
+    ...Array.from({ length: sc.turnLimit - 1 }, () => say({})),
+    say({ offer: mine, behaviors: hits('attack') }),
+    say({ accepts: true, behaviors: hits('attack', 'ultimatum') }),
+  ]
+  note(play(sc, late).ending, 'свой максимум в последний ход, резкое принятие встречного')
   const all = allDeals(sc)
   for (const p of [...paretoFrontier(all), ...all]) {
     for (const [m, behaviors] of MOODS.entries()) {
@@ -79,7 +83,7 @@ function explore(sc: Scenario): Map<EndingId, string> {
 
 const best = (p: number[]) => p.indexOf(Math.max(...p))
 
-const CASES: [string, Scenario][] = [['tara', tara], ['offer', offer], ['client', client], ['istanbul', istanbul], ['lagos', lagos], ['своё дело', testScenario]]
+const CASES: [string, Scenario][] = [...SCENARIOS.flatMap((s) => [s, harder(s)]).map((s): [string, Scenario] => [s.id, s]), ['своё дело', testScenario]]
 
 describe('финалы', () => {
   for (const [label, sc] of CASES) {
@@ -130,7 +134,7 @@ describe('финалы', () => {
   })
 
   it('пороги: ушли от предложения ровно на уровне запасного — это «вовремя», выше — «себе дороже»', () => {
-    const base = { status: 'walked_away' as const, endedBy: 'player' as const, playerPoints: 30, batna: 30, maxPoints: 100, efficiency: 0, trust: 50, trapMissed: false }
+    const base = { status: 'walked_away' as const, endedBy: 'player' as const, playerPoints: 30, batna: 30, maxPoints: 100, efficiency: 0, trust: 50, trapMissed: false, extras: false }
     expect(pickEnding({ ...base, onTable: 30 })).toBe('walked')
     expect(pickEnding({ ...base, onTable: 31 })).toBe('short')
     expect(pickEnding({ ...base })).toBe('walked')

@@ -9,7 +9,7 @@ import type { MoveAnalysis, Offer, Scenario } from './types'
 // Один набор сказуемых для границы высказывания и его отрицания.
 const PREDICATE = String.raw`(?:предлага\p{L}*|отда\p{L}*|даю|дам|дадим|плачу|платим|заплачу|соглас\p{L}*|готов\p{L}*|буду|будем|хочу|хотим|могу|можем)(?!\p{L})`
 // то же по-английски: «we can pay», «I won't accept», «we don't need»
-const EN_PREDICATE = String.raw`(?:offer|propose|give|pay|accept|agree|take|sign|do|go|need|want|can|could|will|would)(?!\p{L})`
+const EN_PREDICATE = String.raw`(?:offer|propose|give|pay|accept|agree|take|sign|do|go(?!\s+(?:below|above|lower|higher)(?!\p{L}))|need|want|can|could|will|would)(?!\p{L})`
 const CLAUSE = new RegExp(String.raw`([!?;\n]+|(?<!\d)[,.]|[,.](?!\d)|\s+(?:а|но|but)\s+|\s+и\s+(?=(?:я\s+)?(?:не\s+)?${PREDICATE})|\s+and\s+(?=(?:I|we)\s+(?:don't|do not|can't|cannot|won't|will not)?\s*${EN_PREDICATE}))`, 'giu')
 const REFUSAL = new RegExp(
   String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отказыва\p{L}*|отверга\p{L}*|не\s+(?:на\s+)?\d|` +
@@ -230,7 +230,7 @@ const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по �
  */
 // Согласие — только словами согласия и без условия: модель не может «согласиться» за игрока.
 // «Давайте 40» — предложение, «согласен на 2 года, если цена 188» и «да, но 15%» — условие, а не согласие.
-const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|works\s+for\s+me)(?!\p{L})/iu
+const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|works\s+for\s+(?:me|us))(?!\p{L})/iu
 const NOT_AGREE = /(?<!\p{L})(?:не|нет|not|don'?t|do not|can'?t|cannot|won'?t)\s+(?:\p{L}+\s+)?(?:соглас|принима|подходит|устраивает|годится|пойд|agree|accept)/iu
 const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однако|if|provided|as\s+long\s+as|unless|but|however)(?!\p{L})/iu
 

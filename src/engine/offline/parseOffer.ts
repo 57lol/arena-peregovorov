@@ -119,9 +119,9 @@ function closeOnly<T extends { info: IssueInfo; value: number }>(cands: T[]): T 
 
 /** Число, как оно написано в варианте: «через 2 недели» — 2, «14 weeks» — 14, «€450,000» — 450000. */
 export function spokenNumber(option: string): number | undefined {
-  const m = option.match(/\d{1,3}(?:[ \u00a0]\d{3})+(?!\d)|\d{1,3}(?:,\d{3})+(?!\d)|\d+(?:[.,]\d+)?/)
+  const m = option.match(/\d{1,3}(?:[ \u00a0]\d{3})+(?!\d)|\d{1,3}(?:[.,]\d{3})+(?!\d)|\d+(?:[.,]\d+)?/)
   if (!m) return undefined
-  return Number(/[ \u00a0]|,\d{3}$/.test(m[0]) ? m[0].replace(/[ \u00a0,]/g, '') : m[0].replace(',', '.'))
+  return Number(/[ \u00a0]|[.,]\d{3}$/.test(m[0]) ? m[0].replace(/[ \u00a0,.]/g, '') : m[0].replace(',', '.'))
 }
 
 // Пересказ и вопрос «почему» по-английски: «so you're saying 100% upfront?», «why do you need 16 weeks?»
@@ -148,18 +148,19 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
     if (/(правильно|верно)[^.!?]{0,12}понима|то есть|вы (сказали|говорите|упомянули)|если я (верно|правильно)|(?<!\p{L})(почему|зачем|отчего|для чего)(?!\s+бы)(?!\p{L})/iu.test(m[0]) || EN_ECHO.test(m[0]))
       echo.push([m.index!, m.index! + m[0].length])
   const echoed = (at: number) => echo.some(([a, b]) => at >= a && at < b)
+  const advanceOnly = infos.some((i) => i.dim === 'percent') && infos.filter((i) => i.dim === 'percent')
+    .every((i) => i.issue.options.every((o) => /upfront|advance|prepay/i.test(o)))
 
   // 1. Числа с единицами → пункт той же размерности (если таких несколько — по ближайшему ключевому слову).
   for (const q of quantities(text)) {
     if (echoed(q.at)) continue
     const before = text.slice(Math.max(0, q.at - 35), q.at)
     const after = text.slice(q.end, q.end + 90)
-    // A credit-funded balance is not an advance: "70% upfront and 30% by letter of credit".
-    // Only applies when the scenario's percentages actually describe upfront payment.
-    const advanceOnly = infos.filter((i) => i.dim === 'percent').every((i) => i.issue.options.every((o) => /upfront|advance|prepay/i.test(o)))
-    if (q.dim === 'percent' && advanceOnly &&
-      (/\b(?:remaining|balance|rest)(?:\s+(?:is|of|the|at))?\s*$/i.test(before) ||
-       /^\s*(?:(?:payable|paid|covered)\s+)?(?:(?:by|under|via|through)\s+)?(?:the\s+)?(?:confirmed\s+)?(?:irrevocable\s+)?(?:USD\s+)?(?:letter of credit|L\/C|LC|balance|on shipment|on delivery)\b/i.test(after))) continue
+    // Остаток платежа — не аванс, даже без слова percent: «seventy now, thirty after commissioning».
+    if ((q.dim === 'percent' || q.dim === 'plain') && advanceOnly &&
+      (/\b(?:remaining|balance|rest)(?:\s+(?:is|of|the|at))?\s*:?\s*$/i.test(before) ||
+       /\bafter(?:\s+(?:the|delivery|shipment|commissioning|inspection))*\s*$/i.test(before) ||
+       /^\s*(?:(?:payable|paid|covered)\s+)?(?:(?:by|under|via|through)\s+)?(?:the\s+)?(?:confirmed\s+)?(?:irrevocable\s+)?(?:USD\s+)?(?:letter of credit|L\/C|LC|balance|after|on shipment|on delivery)\b/i.test(after))) continue
     // «5% discount», «скидка 3%» в деле, где проценты — это предоплата, — не условие оплаты
     if (q.dim === 'percent' && DISCOUNT.test(text.slice(Math.max(0, q.at - 14), q.end + 14)) && infos.every((i) => i.dim !== 'percent' || PREPAY.test(`${i.issue.title} ${i.issue.options.join(' ')}`))) continue
     // Кандидаты: пункты той же размерности. Число без единиц («1,1», «210 000», «два») подходит к пункту,
