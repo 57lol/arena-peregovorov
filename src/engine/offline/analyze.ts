@@ -1,6 +1,7 @@
 // Офлайн-разметчик: русские правила вместо LLM (и минимум английских — для дел на английском).
 // Грубее, но играбельно и полностью воспроизводимо.
 
+import { parseUpsells } from '../upsells'
 import { BEHAVIOR_DICT, detectBehaviors } from '../behaviors'
 import type { BehaviorDict } from '../dictionary'
 import type { BehaviorHit, MoveAnalysis, OpponentState, Scenario, TalkAct, TurnRecord } from '../types'
@@ -68,7 +69,8 @@ function quoteAround(text: string, at: number, len: number): string {
 export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): MoveAnalysis {
   const behaviors: BehaviorHit[] = dict === BEHAVIOR_DICT ? detectBehaviors(text) : markerHits(text, dict)
 
-  const parts = clauses(text)
+  const extras = parseUpsells(sc, text)
+  const parts = clauses(extras.main)
   const asksAbout = new Set<string>()
   let accepts = false
   for (const c of parts) {
@@ -78,12 +80,12 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
     if (a && !c.endsWith('?') && !NEG.test(c.slice(0, a.index))) accepts = true
   }
 
-  const offer = parseOffer(sc, text, 'player')
+  const offer = parseOffer(sc, extras.main, 'player')
   const toneViolation = RUDE.test(text)
   // «Не нравится — до свидания» — это ультиматум, а не уход: уходом считаем только безусловное прощание.
   const walksAway = parts.some((c) => WALK.test(c) && !CONDITIONAL.test(c))
 
-  const out: MoveAnalysis = { behaviors }
+  const out: MoveAnalysis = { behaviors, ...(extras.choices.length ? { upsells: extras.choices } : {}) }
   if (Object.keys(offer).length) out.offer = offer
   if (accepts) out.accepts = true
   if (walksAway) out.walksAway = true

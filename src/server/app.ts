@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { parseUpsells, withUpsellReply } from '../engine/upsells'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
@@ -52,6 +53,7 @@ const ScenarioInput = z.object({
     id: Id,
     title: str(200),
     options: z.array(str(200)).min(2).max(6),
+    aliases: z.array(z.array(str(100)).max(8)).max(6).optional(),
     kind: z.enum(['distributive', 'integrative', 'compatible']),
     preferences: z.object({ player: z.number().int(), opponent: z.number().int() }).optional(),
   })).min(3).max(6),
@@ -66,12 +68,17 @@ const ScenarioInput = z.object({
     brief: str(3000),
     profile: Profile,
   }),
+  upsells: z.array(z.object({
+    id: Id, title: str(200), keywords: z.array(str(80)).max(8), cost: str(100), penalty: z.number().min(0).max(100),
+    pitch: str(500), accepted: str(500), refused: str(500),
+  })).max(6).optional(),
   opening: str(1500),
   blurb: str(500).optional(),
   goals: z.array(str(500)).max(10).optional(),
   lessons: z.array(str(500)).max(10).optional(),
 })
 const Analysis = z.object({
+  upsells: z.array(z.object({ id: Id, choice: z.enum(['accepted', 'refused']), polite: z.boolean().optional() })).max(6).optional(),
   behaviors: z.array(z.object({ id: str(40), quote: str(300) })).max(20).default([]),
   offer: z.record(Id, z.number().int().min(0).max(5)).optional(),
   accepts: z.boolean().optional(),
@@ -150,7 +157,11 @@ function normalizeHistory(sc: Scenario, raw: unknown[]): TurnRecord[] {
     if (!x?.analysis || state.status !== 'open') break
     const { offer: asked, ...rest } = x.analysis
     const offer = fitOffer(sc, asked)
-    const analysis: MoveAnalysis = { ...rest, behaviors: rest.behaviors ?? [], ...(offer ? { offer } : {}) }
+    let analysis: MoveAnalysis = { ...rest, behaviors: rest.behaviors ?? [], ...(offer ? { offer } : {}) }
+    if (sc.upsells?.length) {
+      analysis.upsells = parseUpsells(sc, String(x.playerText ?? '')).choices
+      analysis = withUpsellReply(sc, String(x.playerText ?? ''), analysis, state)
+    }
     const r = step(sc, state, analysis, dict, out.map((h) => h.analysis))
     out.push({
       turn: r.state.turn,
@@ -288,7 +299,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
 
     /** Разбор → решение движка. Уход по кнопке — служебная реплика: разбор как есть, без контекста. */
     const decide = (found: MoveAnalysis) => {
-      let analysis = body.walkAway ? found : withContext(withFormalOffer(found, fitOffer(sc, body.offer)), before, history, dict)
+      let analysis = body.walkAway ? found : withContext(withFormalOffer(withUpsellReply(sc, body.playerText, found, before), fitOffer(sc, body.offer)), before, history, dict)
       if (body.accept) analysis = { ...analysis, accepts: true }
       return { analysis, r: step(sc, before, analysis, dict, history.map((h) => h.analysis)) }
     }

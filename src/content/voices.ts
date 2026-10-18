@@ -1,3 +1,5 @@
+import { CHINA_SPEECH, china } from './scenarios/china'
+
 // Каталог голосов SpeechKit: его читают и сервер (роли под эмоцию, проверка голоса), и игра (кто кем говорит).
 
 export interface VoiceInfo {
@@ -69,6 +71,7 @@ export interface Persona {
 }
 
 export const PERSONAS: Record<string, Persona> = {
+  china: { voice: 'denis', role: 'sales', style: CHINA_SPEECH + ' Примеры: ' + china.opponent.character.voiceExamples!.join(' / ') },
   // кампания «Новенький», по порядку глав
   sosed: { voice: 'vasily', style: 'парень 19 лет, студент: весело, по-свойски, с подколкой, молодёжный говорок' },
   gopnik: { voice: 'sergey', role: 'sales', rate: 1.03, style: 'парень 21 года с района: напористо, с понтами, уличный говор, но без злобы, сам на нервах' },

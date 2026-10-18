@@ -17,6 +17,7 @@ export const PORTRAIT_SIZE = 96
 
 /** id портрета = Character.portrait в сценарии. Первые два — герои дел из папки, остальные — пул для своих дел (src/content/faces.ts). */
 export const PORTRAITS = {
+  china: { sheet: '/assets/portraits/china.png', label: 'Ли Вэй, торговец из Иу', female: false },
   rinat: { sheet: '/assets/portraits/rinat.png', label: 'Марат Гимадиев', female: false },
   olga: { sheet: '/assets/portraits/olga.png', label: 'Дарина Лукманова', female: true },
   foreman: { sheet: '/assets/portraits/foreman.png', label: 'Прораб, 50', female: false },

@@ -1,3 +1,4 @@
+import { parseUpsells } from './upsells'
 import { mentionedIssues, parseOffer, type Mention } from './offline/parseOffer'
 import type { MoveAnalysis, Offer, Scenario } from './types'
 
@@ -26,12 +27,14 @@ const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| 
 export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}): Offer {
   const rounded = new Map<string, number>()
   const mentions: Mention[] = []
+  const rejectsAlias = (part: string) => /(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(part) &&
+    sc.issues.some((i) => i.aliases?.some((list) => list.some((a) => part.toLowerCase().includes(a.toLowerCase()))))
   const positive = text
     // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
     // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
     .split(CLAUSE)
     // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
-    .map((part) => REFUSAL.test(part) || (EN_THIRD.test(part) && !EN_OWN.test(part)) ? '' : part)
+    .map((part) => REFUSAL.test(part) || rejectsAlias(part) || (EN_THIRD.test(part) && !EN_OWN.test(part)) ? '' : part)
     .join('')
   const evidence = parseOffer(sc, positive, 'player', rounded, mentions)
   const out: Offer = {}
@@ -108,7 +111,14 @@ const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по �
  * rest — он сам сказал «остальное как у вас», и недостающие пункты движок берёт с листка собеседника.
  */
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis): MoveAnalysis {
+  const extras = parseUpsells(sc, text)
   const { offer, ...other } = analysis
+  delete other.upsells
+  if (extras.mentioned) {
+    text = extras.main
+    other.accepts = !!analysis.accepts && /соглас|принима|договорились|бер[её]м|беру|по рукам/iu.test(text) && !/не (?:соглас|принима|бер)/iu.test(text)
+  }
+  if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
   const supported = explicitOffer(sc, text, offer)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }

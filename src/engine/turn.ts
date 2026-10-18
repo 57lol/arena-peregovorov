@@ -197,6 +197,15 @@ export function step(
     playerStance: { ...before.playerStance },
     lastCall: false,
   }
+  if (sc.upsells?.length) {
+    s.upsells = { ...before.upsells }
+    s.upsellChanges = []
+    for (const x of analysis.upsells ?? []) {
+      if (!sc.upsells.some((u) => u.id === x.id) || !['accepted', 'refused'].includes(x.choice)) continue
+      if (s.upsells[x.id] !== x.choice) s.upsellChanges.push(x)
+      s.upsells[x.id] = x.choice
+    }
+  }
   for (const d of deltas) s[d.field] = clamp(s[d.field] + d.by)
 
   const newOffer = analysis.offer && Object.keys(analysis.offer).length ? analysis.offer : undefined

@@ -50,6 +50,7 @@ const PROVIDER: Record<string, string> = { yandex: 'YandexGPT', anthropic: 'Clau
 export function Jury(p: Props) {
   const demo = getScenario(DEMO)!
   const english = getScenario(ENGLISH)!
+  const chinese = getScenario('china')!
   const lib = (sc: Scenario) => ({ scenario: sc, fromLibrary: true })
   return (
     <div className="px-root g-page" data-desk="factory">
@@ -115,6 +116,12 @@ export function Jury(p: Props) {
             переговоры на английском с экспорт-менеджером {english.opponent.character.name}, {english.turnLimit} реплик; разбор и подсказки —
             по-русски
           </span>
+        </button>
+
+        <button type="button" className="jr-step jr-en" onClick={() => p.onOpen(lib(chinese))}>
+          <Face sc={chinese} />
+          <span className="jr-step-name">🇨🇳 Поставщик из Иу</span>
+          <span className="jr-step-note">Ли Вэй: датчики для завода, торг в юанях и лишние товары в комплекте</span>
         </button>
 
         <div className="jr-grid">

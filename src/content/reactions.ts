@@ -5,6 +5,15 @@ export type ReactionFace = (typeof ELEVEN_FILLERS)[number]
 export const REACTION_TYPES = ['anger', 'hurt', 'chuckle', 'warmth', 'surprise', 'suspicion', 'thoughtful'] as const
 export type ReactionType = (typeof REACTION_TYPES)[number]
 export const REACTIONS = {
+  china: {
+    anger: ['Друг, зачем так громко?', 'Спокойно, мы дело обсуждаем.'],
+    hurt: ['Эх, неприятно слышать.', 'Друг, это обидные слова.'],
+    chuckle: ['Ха, мой склад тоже смеётся!', 'О, шутить вы умеете!'],
+    warmth: ['Спасибо, друг, приятно.', 'Вот, друг друга понимаем.'],
+    surprise: ['Ого, ещё раз цифру скажите.', 'Вот это поворот, да…'],
+    suspicion: ['Друг, куда так торопимся?', 'Подождите, здесь какой смысл?'],
+    thoughtful: ['Считаем, считаем…', 'Сейчас телефон спрошу…'],
+  },
   sosed: {
     anger: ['Э, ты чего сейчас?', 'Ты чего так завёлся?'],
     hurt: ['Блин, обидно сейчас было.', 'Эх, ну ты чего…'],

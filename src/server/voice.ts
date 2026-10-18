@@ -4,6 +4,7 @@
 // страховка на новые цифры и выданные секреты. Не прошло — одна переписка с подсказкой, потом безопасный вариант:
 // та же реплика без лишнего предложения, и только в крайнем случае заготовка.
 
+import { upsellLine } from '../engine/upsells'
 import { z } from 'zod'
 import { isRude, quantities, templateLine } from '../engine/offline'
 import { optionQuantity, type Dim, type Quantity } from '../engine/offline/numbers'
@@ -399,6 +400,7 @@ ${sheet}${his}
 Сейчас ${mood(sc, state)}.
 
 Твоё решение на этот ход: ${frame.text}
+${sc.upsells?.length ? 'Доптовары оформляет отдельная строка заказа. Не озвучивай допродажи сам и не меняй их состав.' : ''}
 ${can}${last.length ? `\nТвои прошлые реплики начинались так: ${last.join(', ')} — начни по-другому.` : ''}${isEn(sc) ? '\nSpeak English only: the line is natural spoken English, never Russian, never a translation of the decision.' : ''}`
 }
 
@@ -518,8 +520,8 @@ function issuesFor(sc: Scenario, q: Quantity): Issue[] {
     const dim = vs[0].dim
     const lo = Math.min(...vs.map((v) => v.value)), hi = Math.max(...vs.map((v) => v.value))
     const inRange = q.value >= lo / 2 && q.value <= hi * 2
-    if (q.dim === 'plain') return (dim === 'money' || dim === 'percent') && inRange
-    return q.dim === dim && (dim === 'money' || inRange)
+    if (q.dim === 'plain') return (dim === 'money' || dim === 'yuan' || dim === 'percent') && inRange
+    return q.dim === dim && (dim === 'money' || dim === 'yuan' || inRange)
   })
 }
 
@@ -1062,6 +1064,7 @@ export async function voice(
     const { kind, problems, attempts, ...v } = value
     return {
       ...v,
+      line: kind === 'template' ? v.line : [v.line, upsellLine(sc, state)].filter(Boolean).join(' '),
       source: hit ? ('cache' as const) : kind,
       model: m.model.split('/').pop(),
       ...(problems?.length ? { problems } : {}),

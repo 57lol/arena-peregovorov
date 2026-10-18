@@ -2,7 +2,7 @@
 // «двести двенадцать рублей», «раз в две недели». И в английском — для дел на английском: «$200», «200 dollars»,
 // «four hundred eighty thousand», «10%», «two weeks», «fifty-fifty», «net 30».
 
-export type Dim = 'money' | 'days' | 'percent' | 'count' | 'rate' | 'time' | 'plain'
+export type Dim = 'yuan' | 'money' | 'days' | 'percent' | 'count' | 'rate' | 'time' | 'plain'
 
 export interface Quantity {
   value: number
@@ -49,6 +49,7 @@ type Unit = { re: string; dim: Dim; k: number }
 // Английские единицы — целым словом: «days», но не «daylight»; «k» — «480k».
 const W = '(?!\\p{L})'
 const UNITS: Unit[] = [
+  { re: 'юан\\p{L}*|cny' + W + '|rmb' + W + '|yuan' + W + '|¥|￥', dim: 'yuan', k: 1 },
   { re: 'млрд|миллиард\\p{L}*|billions?' + W, dim: 'money', k: 1e9 },
   { re: 'млн|миллион\\p{L}*|лям\\p{L}*|millions?' + W + '|mln' + W, dim: 'money', k: 1e6 },
   { re: 'тыс\\p{L}*|тыщ\\p{L}*|к(?![\\p{L}])|thousands?' + W + '|grand' + W + '|k(?![\\p{L}])', dim: 'money', k: 1e3 },

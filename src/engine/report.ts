@@ -1,5 +1,6 @@
 // Итог и разбор. Всё считается из сценария и истории — никакой оценки «на глаз».
 
+import { upsellPenalty } from './upsells'
 import { axisScores, behaviorProfile, type Axis, type ProfileRow } from './behaviors'
 import type { BehaviorDict } from './dictionary'
 import type { Decision, IssueId, Outcome, Scenario, TurnRecord } from './types'
@@ -76,7 +77,8 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
   const all = allDeals(sc)
   const frontier = paretoFrontier(all)
 
-  const playerPoints = deal ? all.find((p) => sameFull(p.offer, deal))!.player : P.batna
+  const penalty = deal ? upsellPenalty(sc, state) : 0
+  const playerPoints = deal ? all.find((p) => sameFull(p.offer, deal))!.player - penalty : P.batna
   const opponentPoints = deal ? all.find((p) => sameFull(p.offer, deal))!.opponent : O.batna
   const joint = playerPoints + opponentPoints
   const minJoint = all.reduce((m, p) => Math.min(m, p.player + p.opponent), Infinity)
@@ -118,7 +120,7 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
     playerPoints,
     opponentPoints,
     maxPlayerPoints: maxScore(P, sc.issues),
-    paretoEfficiency: round2(efficiency),
+    paretoEfficiency: round2(Math.max(0, efficiency)),
     relationship: state?.trust ?? 0,
     behaviorCounts: counts,
   }
@@ -171,6 +173,11 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
         }
       : undefined
 
+  if (deal && betterDeal) for (const u of sc.upsells ?? []) {
+    if (state?.upsells?.[u.id] === 'accepted') betterDeal.changes.push({
+      issue: `extra-${u.id}`, title: u.title, from: u.cost, to: 'исключить из заказа', player: u.penalty, opponent: 0,
+    })
+  }
   const keyMoments = pickMoments(sc, history)
 
   const seenPts = new Map<string, { player: number; opponent: number; pareto: boolean }>()
@@ -198,6 +205,11 @@ export function buildReport(sc: Scenario, history: TurnRecord[], dict: BehaviorD
     explanation: [],
   }
   report.explanation = explain(sc, history, report, dict)
+  for (const u of sc.upsells ?? []) {
+    if (deal && state?.upsells?.[u.id] === 'accepted') report.explanation.push(`Лишняя покупка: ${u.title}, ${u.cost}. Ваша выгода снижена на ${u.penalty} очков. Можно было отказаться, сохранив основные условия.`)
+    if (state?.upsells?.[u.id] === 'refused' && history.some((h) => h.analysis.upsells?.some((x) => x.id === u.id && x.choice === 'refused' && x.polite)))
+      report.explanation.push(`Навык: вежливый отказ от «${u.title}». Вы отделили потребность завода от допродажи.`)
+  }
   return report
 }
 
@@ -264,7 +276,7 @@ function explain(sc: Scenario, history: TurnRecord[], r: Report, dict: BehaviorD
     out.push(`Собеседник ушёл: напряжение дошло до ${fmt(state.tension)}.${hot.length ? ' Больше всего накалило: ' + hot.join('; ') + '.' : ''}`)
   } else if (o.status === 'walked_away') {
     const last = state?.lastOpponentOffer
-    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) : null
+    const onTable = isComplete(sc, last) ? score(sc.player.profile, last) - upsellPenalty(sc, state) : null
     const verdict =
       onTable === null ? ''
       : onTable < r.batna.player ? ` Собеседник предлагал вам ${fmt(onTable)} — меньше, чем без сделки, так что уйти было правильно.`
