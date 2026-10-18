@@ -14,7 +14,7 @@ import { firstName, isVideoCall, portraitFor } from './cast'
 import { worseWithout } from '../content/scenarios/story'
 import { loadInstantOn, nextTip, saveInstantOn, turnFeedback } from './instant'
 import { markTutorialDone } from './progress'
-import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, PREPARED_REACTION_MS, reactionText, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
+import { canRecord, informal, liveCps, liveIs, liveNow, loadVoiceOn, noteVoice, onSpeechEnd, playLive, playPrepared, prepareLine, reactionText, saveVoiceOn, setCallVoice, setSttLang, startReaction, speechPlaying, stopAudio, takeLive, ttsVoice, unlockAudio, voiceFor, warmFillers, type Filler, type SpeechCaps } from './speech'
 import { useMeetingSounds } from './audio/scene'
 import { LINE_WAIT_MS, startLinePlayback } from './linePlayback'
 import { cpsFor, toPortraitEmotion } from './ui'
@@ -263,11 +263,13 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // клик или Enter — ещё в жесте пользователя: прогреваем звук, пока ждём ответа
     const withVoice = voiceOn && canVoice
     if (withVoice) unlockAudio()
-    // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее — реплика близко: запись
-    // только если реплики нет и через PREPARED_REACTION_MS (иначе реплика ждала бы конца записи).
-    const ahead = prepared.current?.text === t && performance.now() - prepared.current.at >= 150
+    // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее (голосом) — реплика придёт
+    // через 1,5–2 с, а запись длится 1,6–2,9 с и реплика ждёт её конца (живой прогон 18.10: звук реплики на 2 с позже,
+    // чем она пришла). Тогда записи нет: реагирует лицо, а первым звучит сам ответ. Текст реакции модели — тот же.
+    const ahead = prepared.current?.text === t
     prepared.current = null
-    const f = withVoice ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction, ahead ? PREPARED_REACTION_MS : undefined) : null
+    const said = withVoice ? reactionText(reaction) : undefined
+    const f = withVoice && !ahead ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction) : null
     filler.current = f
     const g = gen.current
     // Начало реплики приходит раньше хода целиком: звук — с первых байт (фраза-пауза договаривает), текст печатается,
@@ -285,7 +287,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       })()
     }
     try {
-      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(f?.text ? { reaction: f.text } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
+      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(said ? { reaction: said } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
       if (g !== gen.current) return
       setReactionEmotion(toPortraitEmotion(r.record.emotion))
       noteVoice(r.audioVoice)

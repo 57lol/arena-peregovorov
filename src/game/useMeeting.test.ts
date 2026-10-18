@@ -50,7 +50,7 @@ vi.mock('./speech', () => ({
   playLive: speech.live, takeLive: speech.take, liveIs: (t: string) => void (speech.heard = t), liveNow: () => !!speech.heard,
   liveCps: () => 13, noteVoice: vi.fn(), warmFillers: vi.fn(), setSttLang: vi.fn(), setCallVoice: vi.fn(),
   speechPlaying: () => speech.playing, canRecord: () => true, onSpeechEnd: () => () => {},
-  reactionText: (r?: { text: string }) => r?.text, PREPARED_REACTION_MS: 1200,
+  reactionText: (r?: { text: string }) => r?.text,
 }))
 const api = vi.hoisted(() => ({ turn: vi.fn(), prepare: vi.fn() }))
 vi.mock('./api', () => ({ ApiError: class extends Error {}, playTurn: api.turn, prepareTurn: api.prepare }))
@@ -372,7 +372,7 @@ describe('мгновенная реакция в useMeeting', () => {
     expect(props.history).toHaveLength(1)
   })
 
-  it('ход заранее: тот же текст и та же реакция уходят серверу; реплика близко — запись реакции откладывается', async () => {
+  it('ход заранее: тот же текст и та же реакция уходят серверу; реплика близко — записи реакции нет, лицо меняется', async () => {
     render(); resolveAudio(prepared); await advance()
     api.prepare.mockClear()
     api.turn.mockImplementation(() => new Promise(() => {}))
@@ -381,8 +381,10 @@ describe('мгновенная реакция в useMeeting', () => {
     expect(api.prepare).toHaveBeenCalledOnce()
     expect(api.prepare.mock.calls[0][0]).toMatchObject({ text: 'давай 1000', history: [], reaction: expect.any(String) })
     await advance(300)
+    speech.reaction.mockClear()
     void meeting.send('давай 1000'); render()
-    expect(speech.reaction.mock.calls.at(-1)?.[4]).toBe(1200)
+    expect(speech.reaction).not.toHaveBeenCalled()
+    expect(meeting.emotion).toBe('surprised')
     expect(api.turn.mock.calls.at(-1)?.[0].reaction).toBe(api.prepare.mock.calls[0][0].reaction)
   })
 
@@ -391,8 +393,9 @@ describe('мгновенная реакция в useMeeting', () => {
     api.turn.mockImplementation(() => new Promise(() => {}))
     meeting.prepare('давай 1000')
     await advance(300)
+    speech.reaction.mockClear()
     void meeting.send('давай 1000, и уборку беру'); render()
-    expect(speech.reaction.mock.calls.at(-1)?.[4]).toBeUndefined()
+    expect(speech.reaction).toHaveBeenCalledOnce()
   })
 })
 

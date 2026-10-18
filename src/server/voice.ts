@@ -792,8 +792,8 @@ function readySentences(line: string, from: number, closed: boolean): { list: st
 }
 
 const wordsOf = (t: string) => stripTags(unstress(t)).split(/\s+/).filter(Boolean).length
-/** Начало реплики, которое уходит в голос отдельно: не короче стольких слов («Ха!» одно звучит обрывком). */
-const FIRST_WORDS = 4
+/** Начало реплики, которое уходит в голос отдельно: не короче стольких слов («Ха!» одно звучит обрывком, а «Ха, Дима, приятно.» — нет). */
+const FIRST_WORDS = 3
 
 /** Кусок реплики — как clean(), но пометки по месту куска в реплике: только начало может задать подачу. */
 const cleanPiece = (t: string, mid: boolean, tags: number) =>

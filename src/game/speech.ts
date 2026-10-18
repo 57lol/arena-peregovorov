@@ -727,17 +727,11 @@ function warmReactions(face: string) {
 /** Текст реакции, который уйдёт модели реплики вместе с ходом: есть, только когда реакция звучит голосом ElevenLabs. */
 export const reactionText = (reaction?: Reaction) => (elevenOn() && reaction ? reaction.text : undefined)
 
-/**
- * Ход заготовлен заранее (голосом, ранний commit): реплика придёт быстро, а реакция длится 1,6–2,9 с и реплика ждёт её
- * конца — такая реакция только отодвинула бы ответ. Тогда фраза — лишь если реплики нет и через столько мс.
- */
-export const PREPARED_REACTION_MS = 1200
-
-/** Без ElevenLabs остаются прежние фразы-паузы. delay — свой срок до фразы (ход заготовлен заранее). */
-export function startReaction(voice: string, casual: boolean, allowed: () => boolean, reaction?: Reaction, delay?: number): Filler & { text?: string } {
-  if (!reactionText(reaction)) return startFiller(voice, casual, allowed, delay)
+/** Без ElevenLabs остаются прежние фразы-паузы. */
+export function startReaction(voice: string, casual: boolean, allowed: () => boolean, reaction?: Reaction): Filler & { text?: string } {
+  if (!reactionText(reaction)) return startFiller(voice, casual, allowed)
   warmReactions(reaction!.face)
-  return { ...startFiller(voice, casual, allowed, delay ?? 320, reaction!.path), text: reaction!.text }
+  return { ...startFiller(voice, casual, allowed, 320, reaction!.path), text: reaction!.text }
 }
 
 export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY, reactionPath?: string): Filler {
