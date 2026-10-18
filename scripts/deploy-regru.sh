@@ -41,7 +41,7 @@ rsync -az --delete --exclude .env "$OUT/" "$HOST:arena-app/"
 rsync -az "$TMP/deploy/regru/app.js" "$HOST:www/app.js"
 # старый процесс гасим сразу: если старый и новый живут вместе, хостинг упирается в лимит потоков
 # (pthread_create: Resource temporarily unavailable), и Passenger застревает на странице ошибки
-ssh "$HOST" 'chmod 600 ~/arena-app/.env && { pkill -u "$(whoami)" -f "Passenger NodeApp" || true; } && touch ~/www/tmp/restart.txt'
+ssh "$HOST" 'chmod 600 ~/arena-app/.env && { pkill -u "$(whoami)" -f "[P]assenger NodeApp" || true; } && touch ~/www/tmp/restart.txt'
 
 echo "== проверка (Passenger замечает restart.txt не сразу)"
 sleep 12
