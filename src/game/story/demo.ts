@@ -1,12 +1,14 @@
 // «Готовый разбор» для жюри: встреча, которую за секунду в браузере сыграл вдумчивый переговорщик.
 // Сначала спрашивает, зачем собеседнику каждый пункт, и пересказывает услышанное, потом кладёт обмен из того,
-// что узнал, и по шагу двигает цену. Ходы считает тот же движок и офлайн-разметчик, что и в игре, поэтому разбор
+// что узнал, и по шагу двигает цену. По дороге — приёмы из книг: ярлык и зеркало, когда собеседник закрылся,
+// и вопрос «как?» к своему предложению (Восс). Ходы считает тот же движок и офлайн-разметчик, что и в игре, поэтому разбор
 // настоящий и каждый раз одинаковый (стиль «исследователь» из scripts/players.ts).
 
 import { BEHAVIOR_DICT } from '../../engine/behaviors'
 import { offlineTurn } from '../../engine/offline'
 import type { Offer, Scenario, TurnRecord } from '../../engine/types'
 import { bestOption, formatOffer, isComplete, score, type FullOffer } from '../../engine/utility'
+import { mirrorOf } from '../mirror'
 
 function explorer(sc: Scenario, h: TurnRecord[]): string {
   const P = sc.player.profile
@@ -28,6 +30,11 @@ function explorer(sc: Scenario, h: TurnRecord[]): string {
   const n = h.length
   if (n === 0) return 'Добрый день! Прежде чем торговаться, хочу понять вашу ситуацию. Что для вас в этой сделке главное и почему?'
   const last = h[n - 1]
+  // приёмы из книг, чтобы в готовом разборе их было видно: ярлык и зеркало, когда собеседник закрылся (Восс)
+  const did = (id: string) => h.some((r) => r.analysis.behaviors.some((b) => b.id === id))
+  const closed = last.decision.kind === 'hold' && last.decision.reason === 'not_ready_to_reveal'
+  const mirror = closed && did('label') && !did('mirror') ? mirrorOf(last.opponentLine) : null
+  if (mirror) return mirror
   // пересказ своими словами: интерес собеседника записан от его лица («у нас склад…»), дословно его не повторяем
   const now = last.decision.kind === 'reveal' ? O.interests.find((i) => i.id === (last.decision as { interestId: string }).interestId) : undefined
   const topic = now?.issue ? sc.issues.find((i) => i.id === now.issue)?.title.toLowerCase() : undefined
@@ -35,7 +42,9 @@ function explorer(sc: Scenario, h: TurnRecord[]): string {
     ? topic
       ? `Правильно понимаю, что «${topic}» для вас — вопрос не мелкий? Спасибо, это важно. `
       : 'Правильно понимаю, что без нас у вас тоже не всё гладко? Спасибо, что сказали. '
-    : 'Понимаю. '
+    : closed && !did('label')
+      ? 'Похоже, вас беспокоит, что мы полезем в ваши внутренние дела. Это понятно. '
+      : 'Понимаю. '
   if (n <= asks.length) return heard + asks[n - 1]
 
   const revealed = new Set(last.stateAfter.revealed)
@@ -62,7 +71,7 @@ function explorer(sc: Scenario, h: TurnRecord[]): string {
   const theirs = last.stateAfter.lastOpponentOffer
   if (tries > 0 && isComplete(sc, theirs) && score(P, theirs) >= score(P, pkg as FullOffer) - 5) return 'Отлично, так нам обоим хорошо. Договорились.'
   return tries === 0
-    ? `Смотрите, что предлагаю с учётом того, что вы рассказали: ${formatOffer(sc, pkg)}. Вы получаете то, что важно вам, мы — то, что важно нам.`
+    ? `Смотрите, что предлагаю с учётом того, что вы рассказали: ${formatOffer(sc, pkg)}. Вы получаете то, что важно вам, мы — то, что важно нам. Как нам сделать так, чтобы это сработало и для вас, и для нас?`
     : `Хорошо, иду навстречу по деньгам: ${formatOffer(sc, pkg)}.`
 }
 
