@@ -54,21 +54,18 @@ export function Brief({ game, onStart, onBack, backLabel = 'К делам', spee
             {sc.blurb && <p className="g-brief-blurb">{sc.blurb}</p>}
           </header>
 
-          {/* главное — пять строк: кто вы, кто напротив, чего хотите, что будет без сделки, одна подсказка */}
+          {/* главное — четыре строки: кто есть кто, чего хотите, что будет без сделки, одна подсказка */}
           <div className="g-brief-main">
             <div className="g-photo" aria-hidden="true">
               <Portrait id={portraitFor(sc)} emotion="neutral" scale={1} />
               <span className="g-photo-clip" />
             </div>
             <dl className="g-brief-lines">
+              {/* «Вы» и «Напротив» — одной строкой: на телефоне пять полей подряд путали («оч много полей») */}
               <div>
-                <dt>Вы</dt>
-                <dd>{sc.player.role}</dd>
-              </div>
-              <div>
-                <dt>Напротив</dt>
+                <dt>Кто есть кто</dt>
                 <dd>
-                  {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
+                  <b>Вы:</b> {lowerFirst(sc.player.role).replace(/([^.!?…])$/u, '$1.')} <b>Напротив:</b> {c.name}, {c.role}. Характер: {TONE_RU[c.tone]}, {difficultyRu(sc)}.
                   {sc.harder ? (
                     <>
                       {' '}

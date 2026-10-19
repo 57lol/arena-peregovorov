@@ -769,7 +769,17 @@
   overflow-y: auto;
   scrollbar-color: var(--pen) transparent;
   scrollbar-width: thin;
-  touch-action: pan-y;
+  /* палец листает вручную (input.ts): родная прокрутка внутри 3D-листа на iPhone не работает */
+  touch-action: none;
+}
+/* ниже есть ещё пункты — край тает, внизу стрелка «ещё» */
+.w3-note-body.is-more {
+  mask-image: linear-gradient(180deg, #000 calc(100% - 10 * var(--u)), transparent);
+}
+.w3-note-more {
+  margin: 0;
+  color: var(--pen);
+  text-align: center;
 }
 .w3-note .px-issue {
   padding: var(--u) 0 calc(2 * var(--u));

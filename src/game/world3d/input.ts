@@ -25,6 +25,9 @@ export interface InputHooks {
 export function attachInput(world: World, root: HTMLElement, hooks: InputHooks = {}) {
   const h = world.head
   let drag: { id: number; x: number; y: number; moved: number } | null = null
+  // палец листает длинный лист сам: родная прокрутка внутри CSS3D-листа на iPhone не срабатывает («График отгрузки
+  // не скроллится»), поэтому двигаем scrollTop вручную. Мышь листает колёсиком как обычно
+  let scroll: { id: number; el: HTMLElement; y: number; k: number } | null = null
   const fine = window.matchMedia?.('(pointer: fine)').matches ?? true
 
   const down = (e: PointerEvent) => {
@@ -32,7 +35,14 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
     if (drag || t.closest?.(NO_DRAG)) return
     // лист, который прокручивается (длинный блокнот), листаем, а не крутим голову
     const sc = t.closest?.('[data-scroll]') as HTMLElement | null
-    if (sc && sc.scrollHeight > sc.clientHeight + 2) return
+    if (sc && sc.scrollHeight > sc.clientHeight + 2) {
+      if (e.pointerType !== 'mouse' && !scroll) {
+        // лист в 3D отмасштабирован: сдвиг пальца на экране переводим в пиксели самого листа
+        const k = sc.clientHeight / Math.max(1, sc.getBoundingClientRect().height)
+        scroll = { id: e.pointerId, el: sc, y: e.clientY, k }
+      }
+      return
+    }
     if (e.button !== 0 && e.pointerType === 'mouse') return
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 }
     root.setPointerCapture?.(e.pointerId)
@@ -41,6 +51,11 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
     if (isTyping(document.activeElement) && e.pointerType !== 'mouse') (document.activeElement as HTMLElement).blur()
   }
   const move = (e: PointerEvent) => {
+    if (scroll && e.pointerId === scroll.id) {
+      scroll.el.scrollTop -= (e.clientY - scroll.y) * scroll.k
+      scroll.y = e.clientY
+      return
+    }
     if (drag && e.pointerId === drag.id) {
       const dx = e.clientX - drag.x
       const dy = e.clientY - drag.y
@@ -62,6 +77,7 @@ export function attachInput(world: World, root: HTMLElement, hooks: InputHooks =
     }
   }
   const up = (e: PointerEvent) => {
+    if (scroll && e.pointerId === scroll.id) scroll = null
     if (!drag || e.pointerId !== drag.id) return
     if (drag.moved < 8 && e.type === 'pointerup') {
       const r = root.getBoundingClientRect()

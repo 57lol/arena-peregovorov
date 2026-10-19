@@ -607,14 +607,19 @@ function placeMentor(el: HTMLElement, root: DOMRect, cw: number, trayTop: number
   el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`
 }
 
-/** «10:15, ещё 9 реплик» — то же время, что показывают часы на стене. */
+/**
+ * «на часах 10:15 · осталось 9 реплик» — то же время, что показывают часы на стене. «10:05, ещё 11» читали как
+ * секундомер, который почему-то растёт: теперь видно, что это время встречи, а считаются реплики.
+ */
 function MeetingTime({ turn, limit, clock }: { turn: number; limit: number; clock: { start: number; minutes: number } }) {
   const left = Math.max(0, limit - turn)
   const now = clock.start + (clock.minutes * Math.min(turn, limit)) / limit
   const t = `${Math.floor(now / 60)}:${String(Math.floor(now % 60)).padStart(2, '0')}`
+  const tail = left === 0 ? 'время вышло' : `осталось ${left} ${plural(left, 'реплика', 'реплики', 'реплик')}`
   return (
-    <span className={left <= 2 ? 'is-late' : undefined}>
-      {t}, {left === 0 ? 'время вышло' : <>ещё {left}<span className="w3-wide"> {plural(left, 'реплика', 'реплики', 'реплик')}</span></>}
+    <span className={left <= 2 ? 'is-late' : undefined} title={`Время на часах встречи — ${t}. Каждая реплика — несколько минут; ${tail}.`}>
+      <span className="w3-wide">на часах </span>
+      {t} · {tail}
     </span>
   )
 }
@@ -924,6 +929,15 @@ function WriteSheet({ m }: { m: Meeting }) {
 /** Мой блокнот на столе: условия договора, сколько каждое вам даёт, и «Предложить эти условия». */
 export function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutorial; lit: string; litOffer: string }) {
   const { sc, P, state, picks, myTotal, lowSure, done, pending, name, revealedNow } = m
+  // ниже есть ещё пункты, которые не влезли (телефон, пять условий): подсказываем, что лист листается
+  const body = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState(false)
+  const check = () => {
+    const b = body.current
+    if (b) setMore(b.scrollTop + b.clientHeight < b.scrollHeight - 4)
+  }
+  // содержимое меняется с каждым ходом (заметки, раскрытые условия) — сверяем после каждой отрисовки
+  useEffect(check)
   return (
     <div className={`w3-note${lit}`}>
       <div className="w3-note-head">
@@ -935,7 +949,7 @@ export function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutor
       <p className="w3-note-legend" aria-hidden="true">
         выгода
       </p>
-      <div className="w3-note-body" data-scroll>
+      <div className={`w3-note-body${more ? ' is-more' : ''}`} data-scroll ref={body} onScroll={check}>
         <Notes sc={sc} state={state} issue={undefined} fresh={revealedNow} name={name} />
         {sc.issues.map((i) => (
           <div key={i.id} className="w3-issue">
@@ -959,6 +973,11 @@ export function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutor
           </button>
         )}
       </div>
+      {more && (
+        <p className="w3-note-more" aria-hidden="true">
+          ▼ ещё условия — листайте
+        </p>
+      )}
       {!done && lowSure && (
         <p className="w3-low" role="alert">
           Выгода {myTotal} — меньше, чем без сделки ({P.batna}). Если {name} согласится, вы проиграете.
