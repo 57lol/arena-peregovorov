@@ -41,7 +41,7 @@ export function offlineTurn(
   const before = stateAfter(sc, history, dict)
   const analysis = withContext(withFormalOffer(withBareYes(playerText, withUpsellReply(sc, playerText, groundedOffline(sc, playerText, dict), before), history), formalOffer), before, history, dict)
   const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
-  const { line, emotion } = templateLine(sc, r.decision, r.state, before.lastOpponentOffer)
+  const { line, emotion } = templateLine(sc, r.decision, r.state, before.lastOpponentOffer, before.playerStance)
   return {
     turn: r.state.turn,
     playerText,

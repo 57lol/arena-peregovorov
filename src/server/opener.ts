@@ -39,16 +39,18 @@ export function openerPrompt(sc: Scenario, history: TurnRecord[], playerText: st
   if (isEn(sc)) {
     return {
       system: `You are ${c.name}, ${c.role}. Character: ${TONE_EN[c.tone] ?? TONE_EN.neutral}.${c.speech ? ` How you speak: ${c.speech}` : ''}${examples.length ? `\nYou sound like: ${examples.map((e) => `"${e}"`).join(' ')}` : ''}
-A negotiation is going on: "${sc.title}". The other side has just finished speaking. Say out loud only the very first words of your answer: 2–5 words, a live reaction to what they said — surprise, a short laugh, thinking aloud, their name, or their word with a question, whatever fits the moment and your character. No opinion, no position and no answer to their question yet — only the reaction. You will continue the answer yourself right after, separately.
-Never: numbers, prices, dates; agreeing or refusing ("yes", "no", "deal", "okay", "fine"); naming terms; a question about the deal; "absolutely", "of course", "great question", "I understand". No quotes, brackets or emojis.
+A negotiation is going on: "${sc.title}". The other side has just finished speaking. Say out loud only the very first words of your answer: 2–5 words, a live reaction to what they said — surprise, a short laugh, thinking aloud, their name, or their word with a question, whatever fits the moment and your character. No position and no answer to their question yet — only the reaction. You will continue the answer yourself right after, separately.
+You haven't decided yet whether what they said is good for you, so no judgement: don't be glad, don't praise, don't thank and don't be outraged ("now we're talking", "great", "thanks", "no problem", "interesting proposal", "are you kidding?").
+Never: your own numbers, prices, dates; their number only as an echo question or musing ("Forty yuan?..", "Eight weeks…"), never as a statement ("The price is forty yuan."); agreeing, accepting or refusing ("yes", "no", "deal", "okay", "fine", "I accept", "let's sign"); naming terms; a question about the deal; "absolutely", "of course", "great question", "I understand". No quotes, brackets or emojis.
 Answer JSON {"say": "words"}; the words end with ".", "!", "?" or "…".`,
       user: `You said before: "${said}"\nThey: "${playerText}"${rude ? '\nThey were rude.' : ''}\n${moodOf(state, true)}${starts.length ? `\nYour earlier lines began: ${starts.map((x) => `"${x}…"`).join(', ')} — start differently.` : ''}`,
     }
   }
   return {
     system: `Ты — ${c.name}, ${c.role}. Характер: ${TONE[c.tone] ?? TONE.neutral}.${c.speech ? ` Как говоришь: ${c.speech}` : ''}${examples.length ? `\nТак ты звучишь: ${examples.map((e) => `«${e}»`).join(' ')}` : ''}
-Идут переговоры «${sc.title}». Собеседник только что договорил. Скажи вслух только первые слова своего ответа: 2–5 слов живого отклика на то, что он сказал, — удивление, усмешка, раздумье вслух, обращение по имени или его слово с вопросом: что подходит к моменту и к характеру. Без оценки, без своей позиции и без ответа на его вопрос — только отклик. Дальше ты договоришь сам, отдельно.
-Нельзя: цифры, суммы, сроки; соглашаться или отказываться («да», «нет», «ладно», «идёт», «договорились»); называть условия; вопрос по делу; «конечно», «отличный вопрос», «понимаю». Без кавычек, скобок и смайликов.
+Идут переговоры «${sc.title}». Собеседник только что договорил. Скажи вслух только первые слова своего ответа: 2–5 слов живого отклика на то, что он сказал, — удивление, усмешка, раздумье вслух, обращение по имени или его слово с вопросом: что подходит к моменту и к характеру. Без своей позиции и без ответа на его вопрос — только отклик. Дальше ты договоришь сам, отдельно.
+Ты ещё не решил, выгодно ли тебе то, что он сказал: поэтому без оценки — не радуйся, не хвали, не благодари и не возмущайся («вот это разговор», «отлично», «спасибо», «без проблем», «интересное предложение», «издеваешься?»).
+Нельзя: свои цифры, суммы, сроки; его число — только переспросом или раздумьем («Сорок юаней?..», «Восемь недель…»), а не утверждением («Цена сорок юаней.»); соглашаться, принимать или отказываться («да», «нет», «ладно», «идёт», «договорились», «принимаю», «оформляем»); называть условия; вопрос по делу; «конечно», «отличный вопрос», «понимаю». Без кавычек, скобок и смайликов.
 Ответ — JSON {"say": "слова"}; слова кончаются на «.», «!», «?» или «…».`,
     user: `Ты до этого сказал: «${said}»\nОн: «${playerText}»${rude ? '\nОн нагрубил.' : ''}\n${moodOf(state, false)}${starts.length ? `\nТвои прошлые реплики начинались так: ${starts.map((x) => `«${x}…»`).join(', ')} — начни по-другому.` : ''}`,
   }
@@ -62,7 +64,12 @@ const SCHEMA = {
 // обязательства: да/нет по сделке, «ладно», «идёт», «давай», «конечно» — начало звучит до решения движка.
 // «…, да?» — переспрос, а не согласие.
 const COMMIT = /(?<![\p{L}-])(да(?!\s*[?!]*\?)|нет|неа|ладно|хорошо|идёт|идет|давай|давайте|договорились|по рукам|согласен|согласна|согласны|конечно|ок|окей|норм|нормально|го|лады|годится|принято|ни за что|не пойдёт|не пойдет|не выйдет|не годится|не получится|не могу|не можем|нельзя|невозможно|исключено|отказ\p{L}*|беру|берём|can['’]?t|cannot|won['’]?t|impossible|yes|yeah|yep|no|nope|deal|okay|ok|fine|sure|agreed|of course|absolutely|certainly|never|no way)(?![\p{L}-])/iu
+// закрыть или оформить сделку: «Оформляем сделку», «I accept your offer», «Let's sign» — это решение, а не отклик
+const SEAL = /(?<![\p{L}-])(принима\p{L}*|приму|оформ\p{L}*|подпис\p{L}*|заключ\p{L}*|сделк\p{L}*|сошлись|уговорил\p{L}*|accept\p{L}*|agree\p{L}*|sign\p{L}*|shake\p{L}*|take it|it['’]?s a deal|done)(?![\p{L}-])/iu
 const ASSISTANT = /(отличный вопрос|хороший вопрос|понимаю|great question|good question|i understand|i hear you|i appreciate)/iu
+// оценка его слов: заход звучит до решения движка, а выгодно ли это собеседнику, решает движок. «Вот это разговор!» на
+// требование игрока в его пользу — радость невыгодному; «издеваешься?» на уступку игрока — наоборот.
+const EVAL = /(?<![\p{L}-])(отличн\p{L}*|прекрасн\p{L}*|замечательн\p{L}*|чудесн\p{L}*|супер|класс\p{L}*|кайф|красот\p{L}*|красав\p{L}*|молод(?:ец|цы)|спасибо|благодар\p{L}*|рад|рада|приятно|нравит\p{L}*|по душе|вот это|другое дело|уже лучше|уже кое-что|уже разговор|наконец-то|без проблем|интересн\p{L}* (?:предложени\p{L}*|вариант\p{L}*|иде\p{L}*)|(?:предложени\p{L}*|вариант\p{L}*|иде\p{L}*) интересн\p{L}*|разумно|справедливо|щедро|уважаю|обидно|жаль|ужас\p{L}*|кошмар|бред|наглост\p{L}*|грабёж|грабеж|издева\p{L}*|смешно|glad|thanks?|great|nice|perfect|excellent|wonderful|lovely|love|happy|fair|generous|reasonable|interesting (?:proposal|offer|idea)|now we['’]?re talking|that['’]?s better|finally|no problem|terrible|awful|ridiculous|insult\p{L}*|robbery|crazy|joking|kidding)(?![\p{L}-])/iu
 
 /**
  * Отклик годится, если он короткий и в нём нет обязательств; цифры — только те, что сказал сам игрок («Сорок восемь
@@ -73,15 +80,18 @@ export function checkOpener(raw: string, playerText = ''): string | undefined {
   if (!/\p{L}/u.test(t)) return undefined
   const words = t.split(' ').filter((w) => /\p{L}/u.test(w))
   if (words.length < 1 || words.length > 8) return undefined
-  if (COMMIT.test(t) || ASSISTANT.test(t)) return undefined
+  if (COMMIT.test(t) || SEAL.test(t) || ASSISTANT.test(t) || EVAL.test(t)) return undefined
   const his = quantities(playerText).map((q) => `${q.dim}:${q.value}`)
-  if (quantities(t).some((q) => !his.includes(`${q.dim}:${q.value}`))) return undefined
-  if (/\d/.test(t) && !quantities(t).length) return undefined
+  const nums = quantities(t)
+  if (nums.some((q) => !his.includes(`${q.dim}:${q.value}`))) return undefined
+  if (/\d/.test(t) && !nums.length) return undefined
   if (!/[.!?…]$/u.test(t)) t = `${t.replace(/[,;:—–-]+$/u, '')}…`
+  // его число — только переспросом или раздумьем («Сорок юаней?..», «Eight weeks…»); «Цена сорок юаней.» — уже условие
+  if (nums.length && !/(?:\?|…|\.\.\.)[.!]*$|\?\.\.$/u.test(t)) return undefined
   return t
 }
 
-const OPENER_VERSION = 'o7'
+const OPENER_VERSION = 'o8'
 
 /**
  * Отклик быстрой моделью (до двух попыток в отведённое время); не вышло или не прошёл проверку — undefined. Удачный

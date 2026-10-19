@@ -64,6 +64,18 @@ export function isWalkAway(text: string): boolean {
   })
 }
 
+// Уход своими словами, которых нет в словаре правил: «We are ending these negotiations», «на этом закончим»
+const LEAVE = /(?<!\p{L})(?:end(?:ing|s)?|terminat\p{L}*|finish\p{L}*|stop(?:ping)?|leav\p{L}*|walk(?:ing)?\s+(?:away|out)|quit\p{L}*|break(?:ing)?\s+off|call(?:ing)?\s+(?:it|this)\s+off|заверш\p{L}*|законч\p{L}*|заканчива\p{L}*|прекраща\p{L}*|прекрат\p{L}*|ухож\p{L}*|уход\p{L}*|уйд\p{L}*|пош[её]л|пошли|хватит|прощайте)(?!\p{L})/iu
+const NOT_LEAVE = /(?<!\p{L})(?:не|not|never|no)\s+(?:\p{L}+\s+){0,2}?(?:end|terminat|finish|stop|leav|walk|quit|break|заверш|законч|заканчива|прекраща|прекрат|ухож|уход|уйд|пош)|n't\s+(?:\p{L}+\s+){0,2}?(?:end|stop|leav|walk|quit)/iu
+
+/**
+ * Модель поставила уход, а словарь правил его не узнал: уход остаётся, если в словах игрока он есть («We are ending
+ * these negotiations»), без условия, отрицания и вопроса. «Если откажете — ухожу», «я не ухожу», «уходите?» — не уход.
+ */
+export function confirmsWalkAway(text: string): boolean {
+  return clauses(text).some((c) => LEAVE.test(c) && !CONDITIONAL.test(c) && !/(?<!\p{L})(?:без|without)(?!\p{L})/iu.test(c) && !NOT_LEAVE.test(c) && !c.trim().endsWith('?'))
+}
+
 /** Цитата — предложение, в котором нашёлся маркер (не длиннее 90 символов). */
 function quoteAround(text: string, at: number, len: number): string {
   const before = text.slice(0, at)
