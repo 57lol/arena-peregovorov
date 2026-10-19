@@ -111,3 +111,51 @@
 .g-mentor--play {
   margin: calc(3 * var(--u)) 0;
 }
+
+/* ---------- «Как играть»: знакомство с экраном встречи (Tour.tsx) ---------- */
+
+.g-tour {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+}
+/* подсветка — рамка вокруг настоящей кнопки, всё остальное притемнено тенью рамки */
+.g-tour-ring {
+  position: fixed;
+  box-sizing: border-box;
+  border: calc(2 * var(--u)) solid var(--c-brass-hi);
+  box-shadow: 0 0 0 200vmax rgb(8 10 20 / 0.62);
+  pointer-events: none;
+  transition:
+    left 0.2s steps(4),
+    top 0.2s steps(4),
+    width 0.2s steps(4),
+    height 0.2s steps(4);
+  animation: g-tour-pulse 1.2s steps(2) infinite;
+}
+.g-tour-dim {
+  position: fixed;
+  inset: 0;
+  background: rgb(8 10 20 / 0.62);
+}
+@keyframes g-tour-pulse {
+  50% {
+    border-color: var(--c-paper);
+  }
+}
+.g-tour-card {
+  position: fixed;
+  left: 50%;
+  width: min(440px, calc(100vw - 32px));
+  margin-left: max(-220px, calc(16px - 50vw));
+}
+@media (prefers-reduced-motion: reduce) {
+  .g-tour-ring {
+    transition: none;
+    animation: none;
+  }
+}
+/* пока идёт знакомство, пошаговый наставник ждёт: две карточки сразу путают */
+html.is-touring .g-mentor:not(.g-tour-card) {
+  visibility: hidden;
+}

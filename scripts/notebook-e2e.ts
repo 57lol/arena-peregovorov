@@ -57,6 +57,9 @@ async function check(phone: boolean, view: '3d' | 'classic', tutorial: boolean) 
     if (view === '3d') {
       await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
       await page.waitForTimeout(2500)
+      // знакомство «Как играть» — не про блокнот, пропускаем
+      const skip = page.locator('.g-tour').getByRole('button', { name: 'Пропустить' })
+      if (await skip.isVisible().catch(() => false)) await skip.click()
       const look = page.locator('.w3-look')
       if (!(await look.isVisible())) fail('нет кнопки «Стол»')
       else {

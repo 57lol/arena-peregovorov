@@ -35,6 +35,8 @@ type Props = MeetingProps & {
   v: ReturnType<typeof useVoiceTurn>
   tut: Tutorial
   onVoicePause: (paused: boolean) => void
+  /** «Как играть» из меню: знакомство с экраном встречи */
+  onHowTo?: () => void
   /** в запасной 2D-вид: WebGL отвалился или устройство не тянет (сам игрок вид не выбирает) */
   onClassic: (why: 'slow') => void
 }
@@ -42,7 +44,7 @@ type Props = MeetingProps & {
 const reduced = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 export default function Play3D(props: Props) {
-  const { history, onFinish, onQuit, onClassic, m, v, tut, onVoicePause } = props
+  const { history, onFinish, onQuit, onClassic, m, v, tut, onVoicePause, onHowTo } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const [world, setWorld] = useState<World | null>(null)
   const [pose, setPose] = useState<Pose>('face')
@@ -559,6 +561,13 @@ export default function Play3D(props: Props) {
           onClose={() => setMenu(false)}
           onQuit={onQuit}
           onXray={toggleXray}
+          onHowTo={
+            onHowTo &&
+            (() => {
+              setMenu(false)
+              onHowTo()
+            })
+          }
         />
       )}
     </div>
@@ -1162,7 +1171,7 @@ function TurnToasts({ fb, tip, dim, onMore, onExample }: { fb: TurnFeedback | nu
 }
 
 /** Меню по Esc: протокол с перемоткой, настройки, выход. */
-function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void; onQuit: () => void; onXray: () => void }) {
+function Menu({ m, onClose, onQuit, onXray, onHowTo }: { m: Meeting; onClose: () => void; onQuit: () => void; onXray: () => void; onHowTo?: () => void }) {
   const [quit, setQuit] = useState(false)
   const card = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => card.current?.querySelector('button')?.focus(), [])
@@ -1201,6 +1210,13 @@ function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void;
             </li>
           )}
           {m.canMic && canRecord() && <VoiceMenuItems />}
+          {onHowTo && (
+            <li>
+              <button type="button" className="w3-menu-item" onClick={onHowTo}>
+                <PixelIcon name="notebook" px={2} /> Как играть
+              </button>
+            </li>
+          )}
           <li>
             <button type="button" className={`w3-menu-item is-stamp${quit ? ' is-sure' : ''}`} onClick={() => (quit ? onQuit() : setQuit(true))}>
               <PixelIcon name="leave" px={2} /> {quit ? 'Точно? Встреча не сохранится' : 'Выйти к папке дел'}

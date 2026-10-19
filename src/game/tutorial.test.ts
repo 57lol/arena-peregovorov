@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getScenario } from '../content/scenarios'
-import { mentorLine, shows, tutorStep, type TutorFacts } from './tutorial'
+import { introSteps, mentorLine, shows, tutorStep, type TutorFacts } from './tutorial'
 
 const base: TutorFacts = { turns: 0, offered: false, picked: false, felt: false, ended: false, acked: [] }
 const at = (f: Partial<TutorFacts>) => tutorStep({ ...base, ...f })
@@ -65,5 +65,26 @@ describe('обучающая встреча', () => {
       expect(t).not.toMatch(/BATNA|Парето|рентген|запасн|положи(ть)? на стол|(^|\s)очк/i)
       expect(t.length).toBeLessThan(170)
     }
+  })
+})
+
+describe('«Как играть»', () => {
+  const sc = getScenario('client')!
+  it('3D — пять шагов: интересы, голос или текст, листок и блокнот, осмотреться, сделка и разбор', () => {
+    const s = introSteps({ sc, view: '3d', phone: true, voice: true, mic: true })
+    expect(s.map((x) => x.title)).toEqual(['Переговоры', 'Говори или пиши', 'Листок и блокнот', 'Осмотрись', 'Сделка и разбор'])
+    expect(s[0].text).toContain('свои интересы')
+    expect(s[1].text).toMatch(/вслух.*«Написать»/)
+    expect(s[2].text).toMatch(/листке.*условия.*Блокнот — твоё предложение/)
+    expect(s[3].text).toContain('пальцем')
+    expect(s[4].text).toMatch(/уйти.*разбор/)
+  })
+  it('классический вид — без «осмотрись», на ноутбуке — мышь и стрелки', () => {
+    expect(introSteps({ sc, view: 'classic', phone: false, voice: false, mic: false }).map((x) => x.title)).not.toContain('Осмотрись')
+    expect(introSteps({ sc, view: '3d', phone: false, voice: false, mic: true })[3].text).toMatch(/мышью.*стрелки/)
+  })
+  it('шаги короткие: карточка помещается на телефоне', () => {
+    for (const view of ['3d', 'classic'] as const)
+      for (const s of introSteps({ sc, view, phone: true, voice: true, mic: true })) expect(s.text.length).toBeLessThanOrEqual(170)
   })
 })

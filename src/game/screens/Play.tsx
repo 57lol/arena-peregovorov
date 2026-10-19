@@ -4,7 +4,8 @@ import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { canRecord, stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
-import { mentorLine, useTutorial } from '../tutorial'
+import { introSeen, introSteps, markIntroSeen, mentorLine, tutorialAllowed, useTutorial } from '../tutorial'
+import { Tour } from './Tour'
 import { MicButton } from './Mic'
 import { TextModeNote, VoiceTurn } from './VoiceTurn'
 import { VoiceSettings2D } from './VoiceSettings'
@@ -33,7 +34,14 @@ export function Play(props: Props) {
     },
   })
   const [voicePaused, setVoicePaused] = useState(false)
-  const v = useVoiceTurn(m, !m.voiceMode || (props.view === '3d' && voicePaused))
+  // «Как играть»: само — перед первой встречей в этом браузере, потом — из меню встречи
+  const [tour, setTour] = useState(() => history.length === 0 && tutorialAllowed() && !introSeen())
+  useEffect(() => {
+    document.documentElement.classList.toggle('is-touring', tour)
+    return () => document.documentElement.classList.remove('is-touring')
+  }, [tour])
+  // пока идёт знакомство, микрофон не включается сам
+  const v = useVoiceTurn(m, !m.voiceMode || tour || (props.view === '3d' && voicePaused))
   const {
     sc, P, last, state, done, name, draft, setDraft, picks, pending, error, setError, talking, setTalking,
     xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, lineWaiting, lineCps, lineGrowing, lineKey, setMicOff,
@@ -98,9 +106,26 @@ export function Play(props: Props) {
     </Button>
   )
 
+  const tourEl = tour && (
+    <Tour
+      steps={introSteps({
+        sc,
+        view: props.view,
+        phone: !!window.matchMedia?.('(pointer: coarse)').matches,
+        voice: m.voiceMode,
+        mic: canMic && canRecord(),
+      })}
+      onClose={() => {
+        markIntroSeen()
+        setTour(false)
+      }}
+    />
+  )
+
   if (props.view === '3d') return (
     <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
-      <Play3D {...props} m={m} v={v} tut={tut} onVoicePause={setVoicePaused} />
+      <Play3D {...props} m={m} v={v} tut={tut} onVoicePause={setVoicePaused} onHowTo={() => setTour(true)} />
+      {tourEl}
     </Suspense>
   )
 
@@ -118,6 +143,9 @@ export function Play(props: Props) {
               <div className="g-hud-actions">
                 {m.soundBlocked && <Button variant="brass" icon="sound" disabled={!!pending} onClick={m.enableSound}>Включить звук</Button>}
                 {voiceBtn}
+                <Button className="g-howto-btn" variant="paper" icon="notebook" aria-label="Как играть" onClick={() => setTour(true)}>
+                  <span className="g-voice-btn-label">Как играть</span>
+                </Button>
                 {tut.shows('feel') && (
                 <Button
                   className={`g-xray-btn${lit('feel')}`}
@@ -364,6 +392,7 @@ export function Play(props: Props) {
           </aside>
         </div>
       </main>
+      {tourEl}
     </div>
   )
 }

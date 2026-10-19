@@ -40,7 +40,8 @@ async function waitReply(page: Page) {
   })
   await page.waitForTimeout(400)
   const box = page.locator('.w3-them .px-dialog-box')
-  if (await box.isVisible()) await box.click()
+  // реплику целиком — если её не закрыла карточка наставника «Встреча окончена»
+  if (await box.isVisible()) await box.click({ timeout: 3000 }).catch(() => {})
   await page.waitForTimeout(900)
 }
 
@@ -95,6 +96,16 @@ async function run(phone: boolean) {
     await page.getByRole('button', { name: /^(Войти в переговорку|Начать разговор)$/ }).filter({ visible: true }).first().click()
     await page.waitForSelector('.w3-canvas', { timeout: 30_000 })
     await page.waitForTimeout(2600)
+    // сначала знакомство «Как играть»: новичок жмёт «Дальше», пока не кончится
+    if (!(await visible(page, '.g-tour'))) fail(`${tag}: нет знакомства «Как играть» перед первой встречей`)
+    for (let k = 0; k < 8 && (await visible(page, '.g-tour')); k++) {
+      const title = await page.locator('.g-tour-card .g-mentor-who').innerText()
+      await shot(page, tag, `как-играть-${k + 1}`)
+      console.log(`     ${title.replace(/\s+/g, ' ')}`)
+      if (!(await page.locator('.g-tour-ring').count()) && !/Осмотрись|Сделка/.test(title)) fail(`${tag}: шаг «${title}» без подсветки`)
+      await page.locator('.g-tour-next').click()
+      await page.waitForTimeout(500)
+    }
     await shot(page, tag, 'встреча-начало')
 
     const seen = new Set<string>()
@@ -213,6 +224,7 @@ async function run(phone: boolean) {
     if (sw > 0) fail(`${tag}: горизонтальная прокрутка ${sw}px`)
   } catch (e) {
     fail(`${tag}: ${String(e).split('\n')[0]}`)
+    console.log(String(e).split('\n').filter((l) => /locator|intercepts/.test(l)).slice(0, 4).join('\n'))
     await shot(page, tag, 'ошибка').catch(() => {})
   } finally {
     if (errors.length) fail(`${tag}: ошибки в консоли: ${errors.slice(0, 3).join(' | ')}`)
