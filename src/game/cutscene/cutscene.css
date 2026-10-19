@@ -144,6 +144,17 @@
   color: var(--c-steel-3);
 }
 
+/* откуда приём — мелко внизу экрана */
+.cs-memo-src {
+  margin: calc(var(--s) * 3px) 0 0;
+  padding-top: calc(var(--s) * 2px);
+  border-top: max(1px, calc(var(--s) * 0.5px)) solid var(--c-paper-2);
+  font-family: var(--f-read);
+  font-size: max(14px, calc(var(--s) * 5px));
+  line-height: max(18px, calc(var(--s) * 6.5px));
+  color: var(--c-steel-2);
+}
+
 .cs-chat-head {
   display: flex;
   align-items: center;
@@ -624,6 +635,11 @@
   margin: 0;
   font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   color: var(--c-ink);
+}
+.cs-guide-src {
+  margin: 0;
+  font: 400 var(--fs-small) / 18px var(--f-read);
+  color: var(--c-steel-2);
 }
 .cs-guide-when {
   margin: 4px 0 auto;

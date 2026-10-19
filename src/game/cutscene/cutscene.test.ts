@@ -5,7 +5,7 @@ import { RGB_OF } from '../world3d/palette'
 import { SPOTS } from './art'
 import { lut, nearest } from './mood'
 import { pathLength, pointAt, routeBetween } from './render'
-import { BRIDGES, chapterCard, CUTSCENES, PROLOGUE } from './scripts'
+import { BRIDGES, chapterCard, CUTSCENES, PROLOGUE, WELCOME } from './scripts'
 import { clockOf, GUIDE_AT, lineAt, locate, phoneAt, sample, starts, total, travelled, walkFrame } from './timeline'
 
 describe('катсцены: одна мысль за раз и не дольше 40 секунд', () => {
@@ -30,6 +30,8 @@ describe('катсцены: одна мысль за раз и не дольше
         if (c.kind === 'memo') {
           expect(c.title.length).toBeLessThanOrEqual(28)
           expect(c.text.length).toBeLessThanOrEqual(48)
+          // подпись книги — коротко: автор, глава и, если влезает, название приёма в книге
+          if (c.src) expect(c.src.length).toBeLessThanOrEqual(52)
         } else expect(c.text.length).toBeLessThanOrEqual(120)
       }
       // на каждую карточку телефона — хотя бы 3,5 секунды
@@ -49,6 +51,13 @@ describe('катсцены: одна мысль за раз и не дольше
     }
     // заканчивается титром
     expect(cs.shots[cs.shots.length - 1].set).toBe('black')
+  })
+
+  it('наставник называет книгу: у каждого совета Гульнары и приёма дня есть подпись источника', () => {
+    for (const t of WELCOME.tips) expect(t.src, t.title).toMatch(/^(Фишер|Юри|Восс|Рэкхем|Стоун).*, (гл\.|шаг|ч\.) \d/)
+    const memos = CUTSCENES.flatMap((c) => c.shots.flatMap((s) => s.phone ?? [])).filter((c) => c.kind === 'memo' && c.n === 'приём дня')
+    expect(memos.length).toBeGreaterThan(0)
+    for (const m of memos) expect(m.kind === 'memo' && m.src, m.kind === 'memo' ? m.title : '').toBeTruthy()
   })
 
   it('пролог ведёт в первую главу, переход — в следующую', () => {

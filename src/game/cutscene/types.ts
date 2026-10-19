@@ -45,7 +45,7 @@ export interface Line {
  * Держится до следующей карточки.
  */
 export type PhoneCard =
-  | { at: number; kind: 'memo'; title: string; text: string; n?: string }
+  | { at: number; kind: 'memo'; title: string; text: string; n?: string; /** откуда приём: «Юри, шаг 1, «…»» */ src?: string }
   | { at: number; kind: 'chat'; from: string; face: PortraitId; text: string }
 
 /**
@@ -62,7 +62,7 @@ export interface Guide {
   hello: string[]
   /** надпись на кнопке первого экрана */
   open: string
-  tips: { title: string; text: string; /** где пригодится на неделе */ when: string }[]
+  tips: { title: string; text: string; /** где пригодится на неделе */ when: string; /** откуда приём — книга и глава */ src?: string }[]
   /** надпись на кнопке последнего приёма */
   done: string
 }
