@@ -185,3 +185,21 @@ describe('движок: собеседник отвечает на приёмы 
     expect(['reveal', 'hold']).toContain(mirror.decision.kind)
   })
 })
+
+describe('собеседник откликается на приёмы', () => {
+  it('офлайн-заготовка: на ярлык теплеет, на нажим сроком упирается, на согласие — без отклика', async () => {
+    const { templateLine } = await import('./offline/lines')
+    const sc = getScenario('tara')!
+    const st = offlineTurn(sc, [], 'Здравствуйте.', BEHAVIOR_DICT).stateAfter
+    expect(templateLine(sc, { kind: 'hold', reason: 'no_offer' }, st, {}, {}, ['label']).line).toMatch(/^Есть такое\. /)
+    expect(templateLine(sc, { kind: 'hold', reason: 'no_offer' }, st, {}, {}, ['deadline', 'label']).line).toMatch(/^Не торопите меня\. /)
+    expect(templateLine(sc, { kind: 'accept' }, { ...st, deal: st.tableOffer }, {}, {}, ['label']).line).not.toMatch(/^Есть такое/)
+    expect(templateLine(sc, { kind: 'hold', reason: 'no_offer' }, st, {}, {}, []).line).not.toMatch(/^Есть такое/)
+  })
+
+  it('офлайн-ход передаёт приёмы в заготовку', () => {
+    const sc = getScenario('tara')!
+    const t = offlineTurn(sc, [], 'Похоже, вас беспокоит, что новую линию будет нечем загрузить.', BEHAVIOR_DICT)
+    expect(t.opponentLine).toMatch(/^Есть такое\./)
+  })
+})
