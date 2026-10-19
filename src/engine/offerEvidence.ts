@@ -363,8 +363,11 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   }
   const extras = parseUpsells(sc, text)
   const { offer, ...other } = merged
-  // Модель часто называет все пункты сразу: вопрос подтверждает только упомянутые.
-  other.asksAbout = rules.asksAbout
+  // Словарь восполняет пустую разметку, но отсутствие слова в нём не опровергает смысл модели.
+  // Перечисление всех пунктов без разбора — ложная конкретизация общего/узкого вопроса.
+  const modelTopics = [...new Set((analysis.asksAbout ?? []).filter((id) => sc.issues.some((i) => i.id === id)))]
+  const allTopics = modelTopics.length > 1 && modelTopics.length === sc.issues.length
+  other.asksAbout = modelTopics.length && !allTopics ? modelTopics : rules.asksAbout
   if (!other.asksAbout) delete other.asksAbout
   delete other.upsells
   if (extras.mentioned) {
