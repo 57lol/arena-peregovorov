@@ -315,13 +315,13 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
           <Row label={diff >= 0 ? 'Сделка лучше, чем без неё, на' : 'Сделка хуже, чем без неё, на'} value={diff >= 0 ? `+${diff}` : -diff} tone={diff >= 0 ? 'good' : 'bad'} />
           <Row label={`Выгода: ${name}`} value={o.opponentPoints} />
           <Row label="Упустили вдвоём: можно было лучше обоим" value={report.leftOnTable} tone={report.leftOnTable > 0 ? 'bad' : 'good'} />
-          <Row label={<>Насколько сделка выгодна обоим <Term>эффективность по Парето</Term></>} value={`${Math.round(o.paretoEfficiency * 100)}%`} />
+          <Row label={<>Насколько сделка выгодна обоим <Term>эффективность по Парето</Term></>} value={`${Math.round(o.paretoEfficiency * 100)} %`} />
           <Row label="Доверие в конце" value={`${o.relationship} из 100`} tone={o.relationship >= 60 ? 'good' : o.relationship < 35 ? 'bad' : undefined} />
         </dl>
       ) : (
         <dl className="g-ledger-rows">
           <Row label={<>Ваша выгода без сделки <Term>BATNA</Term></>} value={o.playerPoints} strong />
-          {could && <Row label="Могли бы взять, никого не обидев" value={could.player} tone="bad" />}
+          {could && <Row label="Могли бы получить без потерь для другой стороны" value={could.player} tone="bad" />}
           <Row label={`${name}: без сделки`} value={o.opponentPoints} />
           {could && <Row label={`А ${g(sc, 'ему', 'ей')} можно было дать`} value={could.opponent} />}
           <Row label="Вариантов, устраивавших обоих" value={report.zopa} />
@@ -437,7 +437,7 @@ function UnderTable({ sc, report, state }: { sc: Scenario; report: Report; state
           Что было под столом
         </h2>
         <p className="g-under-teaser">
-          У {g(sc, 'него', 'неё')} была своя таблица очков и {sc.opponent.profile.interests.length} {plural(sc.opponent.profile.interests.length, 'причина', 'причины', 'причин')}, о которых {g(sc, 'он', 'она')} молчал{g(sc, '', 'а')}.
+          У {g(sc, 'него', 'неё')} была своя таблица очков и {sc.opponent.profile.interests.length} {plural(sc.opponent.profile.interests.length, 'скрытая причина', 'скрытые причины', 'скрытых причин')}.
           Вы узнали {told}. Переверните листок — там всё.
         </p>
         <Button variant="brass" icon="eye" onClick={() => setOpen(true)}>

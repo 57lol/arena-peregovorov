@@ -74,7 +74,7 @@ describe('доптовары: одна и та же выгода в подска
     const r = buildReport(china, h, dict)
     expect(endingOf(china, r, h.at(-1)!.stateAfter).id).toBe('walked')
     expect(r.explanation[0]).toContain('уйти было правильно')
-    expect(summarize(china, r, h).result).toContain('в тот момент верно')
+    expect(summarize(china, r, h).result).toContain('в тот момент это было верно')
   })
 })
 

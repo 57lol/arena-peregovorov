@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
         <div className="px-slip" role="alert" style={{ maxWidth: '28em' }}>
           <p className="px-slip-from">Переговорка</p>
           <p>Игра споткнулась. Обновите страницу — вернётесь туда, где были.</p>
-          <p>Не помогает — начните заново с титула: пройденные дела сохранятся.</p>
+          <p>Если не помогло, вернитесь на главный экран: пройденные дела сохранятся.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
             <Button variant="brass" onClick={() => location.reload()}>
               Обновить

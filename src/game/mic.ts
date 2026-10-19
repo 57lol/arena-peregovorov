@@ -97,7 +97,7 @@ export function createMic(io: MicIO) {
       pcm = null
       set('idle')
       if (text) io.onText(text)
-      else io.onError('Не расслышал. Нажмите микрофон и скажите реплику ещё раз, чуть ближе к микрофону.')
+      else io.onError('Не удалось распознать речь. Нажмите кнопку микрофона и скажите реплику ещё раз, чуть ближе к микрофону.')
     } catch (e) {
       if (job !== ctl) return
       const keep = e instanceof SttError && e.retry

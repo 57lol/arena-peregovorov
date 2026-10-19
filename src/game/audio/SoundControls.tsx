@@ -18,7 +18,7 @@ export function ChannelSlider({ ch, className = 'snd-row' }: { ch: Channel; clas
         max={1}
         step={0.05}
         value={v}
-        aria-valuetext={`${Math.round(v * 100)}%`}
+        aria-valuetext={`${Math.round(v * 100)} %`}
         onChange={(e) => {
           const x = Number(e.target.value)
           setV(x)

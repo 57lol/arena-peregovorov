@@ -164,7 +164,7 @@ function Journal({ data, sc, updated, error, secret, onShare, closing, onClose }
       <h1 className="g-h1">Журнал тренировки{data.name ? ` «${data.name}»` : ''}</h1>
       <p className="g-sub">
         <span>
-          Дело «{sc.title}», открыта {day}. Завершили: {players.length} {plural(players.length, 'участник', 'участника', 'участников')},{' '}
+          Дело «{sc.title}». Тренировка открыта {day}. Результаты: {players.length} {plural(players.length, 'участник', 'участника', 'участников')},{' '}
           {tries} {plural(tries, 'попытка', 'попытки', 'попыток')}
           {updated ? `. Обновлено в ${updated.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}.
         </span>
@@ -230,7 +230,7 @@ function Journal({ data, sc, updated, error, secret, onShare, closing, onClose }
 }
 
 const PHASE: Record<LiveRow['phase'], string> = {
-  brief: 'Читает бриф', playing: 'За столом', left: 'Ушёл со встречи', finished: 'Закончил встречу',
+  brief: 'Читает условия дела', playing: 'За столом', left: 'Ушёл со встречи', finished: 'Закончил встречу',
 }
 
 function LivePlayers({ rows, closed }: { rows: LiveRow[]; closed: boolean }) {
@@ -238,7 +238,7 @@ function LivePlayers({ rows, closed }: { rows: LiveRow[]; closed: boolean }) {
     <section className="g-sheet g-live" aria-labelledby="live-h">
       <h2 id="live-h" className="g-sheet-title">Играют сейчас · {rows.length}</h2>
       <p className="g-muted">{rows.length ? 'Ход встречи без текста реплик. Обновляется каждые 4 секунды.'
-        : closed ? 'Начатых встреч нет.' : 'Когда участник откроет бриф по ссылке команды, он появится здесь.'}</p>
+        : closed ? 'Начатых встреч нет.' : 'Когда участник откроет условия дела по ссылке команды, он появится здесь.'}</p>
       {!!rows.length && <ul className="g-live-list">
         {rows.map((p) => (
           <li key={p.pid} className={p.needsHelp ? 'is-help' : undefined}>
@@ -266,7 +266,7 @@ function LiveMeter({ label, value, tension }: { label: string; value: number; te
   </label>
 }
 
-const pct = (x: number) => `${Math.round(x * 100)}%`
+const pct = (x: number) => `${Math.round(x * 100)} %`
 const num = (x: number) => (Math.round(x * 10) / 10).toString().replace('.', ',')
 const time = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
 
@@ -468,7 +468,7 @@ function Mistakes({ sum }: { sum: ReturnType<typeof summarize> }) {
                 {t.missed} из {sum.n}
               </span>
             </p>
-            <p className="g-beh-advice">Тут обе стороны хотели одного и того же, но не спросили и не договорились об этом. Такой пункт можно было отдать друг другу даром.</p>
+            <p className="g-beh-advice">Тут обе стороны хотели одного и того же, но не спросили и не договорились об этом. По этому пункту можно было договориться без уступок.</p>
           </li>
         ))}
         {slips.map((s) => {
@@ -513,7 +513,7 @@ function Profile({ sum }: { sum: ReturnType<typeof summarize> }) {
               <h3 className="g-h3">
                 {a.title} <span className={a.avg > 0 ? 'is-good' : a.avg < 0 ? 'is-bad' : ''}>{a.avg > 0 ? '+' : a.avg < 0 ? '−' : ''}{num(Math.abs(a.avg))}</span>
               </h3>
-              {!rows.length && <p className="g-muted">Для приёмов этой оси у Rackham нет эталона частоты, их видно в разборе каждого.</p>}
+              {!rows.length && <p className="g-muted">Для приёмов этой оси у Rackham нет эталона частоты, они видны в разборе каждого.</p>}
               {rows.map((r) => {
                 const b = BEHAVIORS.find((x) => x.id === r.id)!
                 const row: ProfileRow = { id: b.id, title: b.title, polarity: b.polarity, count: 0, value: Math.round(r.avg * 10) / 10, benchmark: b.benchmark }

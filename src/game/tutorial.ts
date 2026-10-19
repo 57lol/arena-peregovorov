@@ -101,7 +101,7 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
   // нужная бумага лежит на столе, а мы смотрим на собеседника или (телефон) ещё не взяли лист в руки
   const reach = (paper: 'notebook' | 'slip' | 'card', what: string): MentorLine | null => {
     if (c.pose === 'face') return { text: `${what} Опусти взгляд на стол: кнопка «Стол» внизу${c.phone ? '' : ' или стрелка ↓'}.`, target: 'look' }
-    if (c.phone && c.held && c.held !== paper) return { text: `${what} Положи лист — кнопка «На стол» внизу.`, target: 'look' }
+    if (c.phone && c.held && c.held !== paper) return { text: `${what} Положи листок — кнопка «На стол» внизу.`, target: 'look' }
     if (c.phone && c.held !== paper) return { text: `${what} Нажми на ${PAPER_RU[paper]}, чтобы взять в руки.`, target: 'hold' }
     return null
   }
@@ -109,7 +109,7 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
     case 'talk':
       return {
         text: c.voice
-          ? `Напротив — ${n}. Просто ответь ${him} вслух, как в жизни: когда ${n} замолчит, микрофон слушает сам. Для начала спроси, что для ${his} главное.`
+          ? `Напротив — ${n}. Просто ответь ${him} вслух, как в жизни: когда ${n} замолчит, запись включится сама. Для начала спроси, что для ${his} главное.`
           : `Напротив — ${n}. Просто ответь ${him}, как в жизни. Для начала спроси, что для ${his} главное.`,
         // в бытовых главах кампании на «ты», в деловых делах — на «вы»
         example:
@@ -120,7 +120,7 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
     case 'notebook':
       return (
         reach('notebook', 'Разговор пошёл! Теперь загляни в блокнот.') ?? {
-          text: 'Это твой блокнот — условия договора. Число справа — насколько тебе выгоден вариант. Покрути стрелки.',
+          text: 'Это твой блокнот с условиями договора. Число справа — насколько тебе выгоден вариант. Меняй варианты стрелками.',
           target: 'notebook',
           ack: true,
         }
@@ -137,7 +137,7 @@ export function mentorLine(step: TutorStep, c: MentorCtx): MentorLine | null {
         reach('slip', c.theirs ? `${n} ${g(c.sc, 'ответил', 'ответила')} своими условиями.` : 'Твоё предложение лежит на столе.') ?? {
           text: c.theirs
             ? `На листке — что предлагает ${n}. Внизу — сколько это даёт тебе. Устраивает — жми «Согласиться», нет — торгуйся дальше.`
-            : `Когда ${n} ответит своими условиями, они появятся на этом листке, а с ними кнопка «Согласиться».`,
+            : `Когда ${n} ответит своими условиями, они появятся на этом листке, а с ними — кнопка «Согласиться».`,
           target: 'slip',
           ack: true,
         }

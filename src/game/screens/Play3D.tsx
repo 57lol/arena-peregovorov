@@ -344,7 +344,7 @@ export default function Play3D(props: Props) {
   const mentor = tut.on
     ? mentorLine(tut.step, { sc, pose, phone: !!world?.portrait, held, theirs: m.theirsOnTable, batna: m.P.batna, voice: m.voiceMode })
     : props.tutorial && done && history.length > 0
-      ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
+      ? { text: 'Встреча окончена. Нажмите «Разбор встречи»: там коротко о том, что получилось и что попробовать в следующий раз.' }
       : null
   const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
 
@@ -493,7 +493,7 @@ export default function Play3D(props: Props) {
             v={v}
             hint={
               pose === 'desk' && !held && world?.portrait && !tut.on ? (
-                'Нажмите на лист — возьмёте в руки'
+                'Нажмите на листок — возьмёте его в руки'
               ) : !looked && history.length === 0 && !tut.on ? (
                 <>
                   <span className="w3-hint-mouse">Осмотреться — мышью или стрелками, на стол — стрелка вниз</span>
@@ -669,7 +669,7 @@ function VoiceBar(p: BarProps) {
       // микрофон и так слушает: это не кнопка, а лампочка
       <span className={`w3-key w3-talk is-lamp${on ? ' is-on' : ''}`} role="status">
         <PixelIcon name="mic" px={2} />
-        <span className="w3-key-label">{v.phase === 'busy' ? 'Распознаю' : m.pending ? 'Ждём ответ' : v.mic === 'opening' ? 'Включаю' : 'Говорите'}</span>
+        <span className="w3-key-label">{v.phase === 'busy' ? 'Распознаю' : m.pending ? 'Ждём ответа' : v.mic === 'opening' ? 'Включаю' : 'Говорите'}</span>
       </span>
     )
   }
@@ -758,9 +758,9 @@ function LookButton({ pose, held, name, lit, onDesk, onFace, onPutDown }: {
   onFace: () => void
   onPutDown: () => void
 }) {
-  if (held) return <Key icon="down" label="На стол" className={`w3-look${lit}`} aria-label="Положить лист на стол" onClick={onPutDown} />
+  if (held) return <Key icon="down" label="На стол" className={`w3-look${lit}`} aria-label="Положить листок на стол" onClick={onPutDown} />
   if (pose === 'face') return <Key icon="notebook" label="Стол" className={`w3-look${lit}`} aria-label="Стол: блокнот и предложения" onClick={onDesk} />
-  return <Key icon="up" label={name} className={`w3-look${lit}`} aria-label={`Поднять глаза на собеседника: ${name}`} onClick={onFace} />
+  return <Key icon="up" label={name} className={`w3-look${lit}`} aria-label={`Посмотреть вперёд: ${name}`} onClick={onFace} />
 }
 
 /** «Сделка»: предложить условия (блокнот), согласиться на условия собеседника, встать и уйти. */
@@ -914,7 +914,7 @@ export function NotebookPage({ m, tut, lit, litOffer }: { m: Meeting; tut: Tutor
     <div className={`w3-note${lit}`}>
       <div className="w3-note-head">
         <h2 className="w3-note-title">Мой блокнот</h2>
-        <p className="w3-note-batna" title="Столько вам даст «не договориться»: меньше брать нет смысла">
+        <p className="w3-note-batna" title="Ваша выгода без сделки: меньше брать нет смысла">
           без сделки <b>{P.batna}</b>
         </p>
       </div>
@@ -996,7 +996,7 @@ export function SlipPage({ m, lit }: { m: Meeting; lit: string }) {
         <p>
           {mine !== null ? (
             <>
-              Выгода вам <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, без сделки {P.batna}
+              Ваша выгода <b className={mine < P.batna ? 'is-low' : undefined}>{mine}</b>, без сделки {P.batna}
             </>
           ) : (
             <>Про {silent.map((i) => `«${i.title.toLowerCase()}»`).join(', ')} пока ни слова</>
@@ -1036,7 +1036,7 @@ function ActionCard({
   const extras = tut.shows('extras')
   const items: { icon: IconName; label: ReactNode; on?: boolean; tone?: 'stamp'; click: () => void; show?: boolean; lit?: string }[] = [
     { icon: 'eye', label: 'Что чувствует', on: m.xray, click: onXray, lit: lit('feel') },
-    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? 'Голос вкл' : 'Голос выкл', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
+    { icon: m.voiceOn ? 'sound' : 'mute', label: m.voiceOn ? 'Голос: вкл.' : 'Голос: выкл.', on: m.voiceOn, click: m.toggleVoice, show: m.canVoice },
     { icon: 'pen', label: 'Подсказки', on: m.instantOn, click: () => m.switchInstant(!m.instantOn), show: extras },
     { icon: 'rewind', label: 'Запись разговора', click: onProtocol, show: m.history.length > 0 && extras },
     { icon: 'menu', label: 'Меню', click: onMenu, show: extras },
@@ -1158,7 +1158,7 @@ function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void;
           {m.canVoice && (
             <li>
               <button type="button" className="w3-menu-item" aria-pressed={m.voiceOn} onClick={m.toggleVoice}>
-                <PixelIcon name={m.voiceOn ? 'sound' : 'mute'} px={2} /> Голос собеседника: {m.voiceOn ? 'вкл' : 'выкл'}
+                <PixelIcon name={m.voiceOn ? 'sound' : 'mute'} px={2} /> Голос {g(m.sc, 'собеседника', 'собеседницы')}: {m.voiceOn ? 'вкл' : 'выкл'}
               </button>
             </li>
           )}
@@ -1205,7 +1205,7 @@ function Menu({ m, onClose, onQuit, onXray }: { m: Meeting; onClose: () => void;
           </details>
         )}
         <p className="w3-menu-keys">
-          Осмотреться — перетащить мышью или пальцем, стрелки ← →. Стол — ↓, собеседник — ↑. Меню — Esc.
+          Осмотреться — перетащить мышью или пальцем, стрелки ← →. Стол — ↓, взгляд вперёд — ↑. Меню — Esc.
         </p>
       </div>
     </div>

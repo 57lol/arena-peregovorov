@@ -25,7 +25,7 @@ export const RANKS: Rank[] = [
   { at: 3, title: 'Младший менеджер', note: 'Уже пускают в переговорку одного. Дверь, правда, оставляют открытой.' },
   { at: 7, title: 'Менеджер', note: 'Отличает скидку от уступки и не путает, кто кому что должен.' },
   { at: 12, title: 'Старший менеджер', note: 'Поставщики узнают по голосу и заранее вздыхают.' },
-  { at: 18, title: 'Руководитель направления', note: 'Коллеги приносят свои договоры: «глянь одним глазком».' },
+  { at: 18, title: 'Руководитель направления', note: 'Коллеги приносят свои договоры: «Глянь одним глазком».' },
   { at: 26, title: 'Зовут на сложные встречи', note: 'Когда всё горит, звонят вам. Даже в отпуск.' },
 ]
 
@@ -62,10 +62,10 @@ export const SKILLS: Axis[] = ['create', 'claim', 'relate', 'process']
 /** Короткие имена осей для игрока и форма «+2 к …». */
 export const SKILL_RU: Record<Axis, { name: string; to: string; grows: string }> = {
   // простыми словами; в скобках на экране навыков — термины Lax & Sebenius для знатоков
-  create: { name: 'Выгода для обоих', to: 'к выгоде для обоих', grows: 'вопросы, что важно другому и во что ему обходится проблема, обмен, варианты' },
-  claim: { name: 'Своя выгода', to: 'к своей выгоде', grows: 'первая цифра, внешняя мерка, помнить, что будет без сделки' },
+  create: { name: 'Выгода для обоих', to: 'к выгоде для обоих', grows: 'вопросы о том, что важно другой стороне и во что ей обходится проблема, обмен, варианты' },
+  claim: { name: 'Своя выгода', to: 'к своей выгоде', grows: 'первое предложение, объективные ориентиры, сравнение с запасным вариантом' },
   relate: { name: 'Отношения', to: 'к отношениям', grows: 'названные вслух чувства, общая задача, извинение и шутка к месту' },
-  process: { name: 'Ход разговора', to: 'к ходу разговора', grows: 'проверка понимания, итоги по ходу, объявленный шаг, подпись до гонга' },
+  process: { name: 'Ход разговора', to: 'к ходу разговора', grows: 'проверка понимания, промежуточные итоги, объявленный шаг, сделка до конца встречи' },
 }
 
 /** Что сделал игрок — для строки «+1 к Процессу: вы резюмировали 3 раза». */
@@ -74,13 +74,13 @@ const DID: Record<string, (n: number) => string> = {
   check: (n) => `${n > 1 ? times(n) + ' ' : ''}проверили, так ли поняли`,
   summarize: (n) => (n === 1 ? 'подвели итог' : `подводили итог ${times(n)}`),
   priority: (n) => `${n > 1 ? times(n) + ' ' : ''}сказали, что вам важнее`,
-  package: (n) => (n === 1 ? 'предложили обмен «если… то…»' : `предлагали обмен ${times(n)}`),
+  package: (n) => (n === 1 ? 'предложили обмен «если…, то…»' : `предлагали обмен ${times(n)}`),
   meso: () => 'предложили несколько вариантов сразу',
   label: (n) => `${n > 1 ? times(n) + ' ' : ''}назвали вслух чувства собеседника`,
   signpost: (n) => `объявляли свой ход ${times(n)}`,
   rapport: (n) => (n === 1 ? 'поговорили с собеседником как с человеком' : `говорили с собеседником как с человеком ${times(n)}`),
   anchor: () => 'первыми назвали цифру',
-  alternative: () => 'напомнили, что у вас есть выход и без сделки',
+  alternative: () => 'напомнили, что у вас есть запасной вариант',
   criteria: (n) => `${n > 1 ? times(n) + ' ' : ''}опирались на внешнюю мерку: рынок, индекс, прошлый договор`,
   implication: (n) => `${n > 1 ? times(n) + ' ' : ''}спросили, во что обходится проблема`,
   need_payoff: (n) => `${n > 1 ? times(n) + ' ' : ''}спросили, что даст решение`,
@@ -110,11 +110,11 @@ export function runGain(run: RunLog): Record<Axis, Gain> {
     else if (b.polarity === 'weak') minus = { ...minus, [b.axis]: minus[b.axis] + n }
   }
   const deal = run.status === 'deal'
-  if (run.stars.deal) parts.claim.push({ v: 1, why: 'заключили сделку выгоднее, чем без неё' })
-  if (run.fair) parts.claim.push({ v: 1, why: 'взяли не меньше собеседника' })
+  if (run.stars.deal) parts.claim.push({ v: 1, why: 'заключили сделку не хуже запасного варианта' })
+  if (run.fair) parts.claim.push({ v: 1, why: 'получили не меньше другой стороны' })
   if (run.stars.value) parts.create.push({ v: 1, why: 'почти не упустили выгоду для обоих' })
-  if (run.stars.trust) parts.relate.push({ v: 1, why: 'сохранили доверие собеседника' })
-  if (deal && run.early) parts.process.push({ v: 1, why: 'подписали, не дожидаясь гонга' })
+  if (run.stars.trust) parts.relate.push({ v: 1, why: 'сохранили доверие другой стороны' })
+  if (deal && run.early) parts.process.push({ v: 1, why: 'подписали договор до конца встречи' })
   const out = {} as Record<Axis, Gain>
   for (const a of SKILLS) {
     const list = parts[a].sort((x, y) => y.v - x.v)
@@ -215,7 +215,7 @@ export function nextCase(p: Progress): Advice | null {
   const rec = (sc: Scenario) => p.cases[sc.id]
   for (const sc of lib) {
     const r = rec(sc)
-    if (!r) return { scenario: sc, why: lib[0] === sc ? 'С него проще начать: собеседник идёт навстречу.' : 'Следующая ступенька: собеседник упрямее.' }
+    if (!r) return { scenario: sc, why: lib[0] === sc ? 'С него проще начать: другая сторона идёт навстречу.' : 'Следующая ступенька: другая сторона упрямее.' }
     if (r.bestPoints === null) return { scenario: sc, why: 'Сделки тут пока не было. Самое время.' }
   }
   for (const sc of lib) {
@@ -224,7 +224,7 @@ export function nextCase(p: Progress): Advice | null {
   }
   for (const sc of lib) {
     const h = harder(sc)
-    if (rec(h)?.bestPoints == null) return { scenario: h, why: 'Обычная версия пройдена. Та же история, собеседник упрямее.' }
+    if (rec(h)?.bestPoints == null) return { scenario: h, why: 'Обычная версия пройдена. Та же история, но другая сторона упрямее.' }
   }
   for (const sc of lib.flatMap((s) => [s, harder(s)])) {
     const r = rec(sc)

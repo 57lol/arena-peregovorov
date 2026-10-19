@@ -70,17 +70,17 @@ const OTHER: Record<string, { ink: Ink; title: string; why: (sc: Scenario) => st
   'Предложение хуже их запасного варианта': {
     ink: 'bad',
     title: 'Перегнули',
-    why: (sc) => `Такое предложение хуже, чем у ${g(sc, 'него', 'неё')} есть без вас: проще уйти, чем согласиться.`,
+    why: (sc) => `Такое предложение хуже ${g(sc, 'его', 'её')} запасного варианта: проще уйти, чем согласиться.`,
   },
   'Шаг навстречу в предложении': {
     ink: 'good',
     title: 'Шаг навстречу',
-    why: () => 'Сдвинулись в сторону собеседника, и он это видит.',
+    why: () => 'Сделали шаг навстречу другой стороне — это заметно.',
   },
   'Третий раз то же самое предложение': {
     ink: 'bad',
     title: 'Одно и то же',
-    why: () => 'Третий раз то же предложение: собеседник слышит, что торга не будет.',
+    why: () => 'Третий раз то же предложение: для другой стороны это знак, что торга не будет.',
   },
 }
 
@@ -110,7 +110,7 @@ function sideNotes(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): MarginNote
     out.push({
       key: 'side-worse',
       ink: 'bad',
-      title: 'Себе хуже, чем у собеседника',
+      title: 'Хуже предложения на листке',
       why: `${worse.map((i) => `«${i.options[asked[i.id]!]}» вместо «${i.options[sheet[i.id]!]}»`).join(', ')}: у ${g(sc, 'него', 'неё')} на листке было лучше для вас, минус ${lost} к выгоде. Если вы этого не говорили — поправьте.`,
     })
   }
@@ -121,8 +121,8 @@ function sideNotes(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): MarginNote
     out.push({
       key: 'side-free',
       ink: 'plain',
-      title: 'Это у собеседника уже было',
-      why: `${free.map((i) => `«${i.options[asked[i.id]!]}»`).join(', ')} и так стояло в ${g(sc, 'его', 'её')} предложении: это не ваша уступка, за неё ничего не просят.`,
+      title: 'Это уже было на листке',
+      why: `${free.map((i) => `«${i.options[asked[i.id]!]}»`).join(', ')} — это уже было в ${g(sc, 'его', 'её')} предложении. Здесь вы ничего не уступили, поэтому просить что-то взамен нет оснований.`,
     })
   return out
 }
@@ -138,7 +138,7 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): 
     const ink: Ink = b.polarity === 'strong' ? 'good' : b.polarity === 'weak' ? 'bad' : 'plain'
     // движок пометил повтор или спираль — скажем и об этом, одним хвостиком
     const note = rec.deltas.find((d) => d.because.startsWith(b.title))?.because ?? ''
-    const tail = note.includes('(повтор') ? ' Второй раз подряд — работает вдвое слабее.' : note.includes('(спираль') ? ' Уже второй промах подряд — бьёт сильнее.' : ''
+    const tail = note.includes('(повтор') ? ' Повтор подряд — работает вдвое слабее.' : note.includes('(спираль') ? ' Уже второй промах подряд — бьёт сильнее.' : ''
     const raw = hit.quote?.trim() || rec.playerText
     notes.push({ key: b.id, ink, title: b.title, why: plainWords(b.moment) + tail, quote: raw ? fragment(raw) : undefined })
   }
@@ -195,7 +195,7 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
       const what = d.final ? 'последний вариант' : 'свой вариант'
       return mine === null
         ? `${n} ${g(sc, 'предложил', 'предложила')} ${what}.`
-        : `${n} ${g(sc, 'предложил', 'предложила')} ${what}: вам ${mine}, без сделки ${P.batna}.`
+        : `${n} ${g(sc, 'предложил', 'предложила')} ${what}: вам ${mine}, без сделки — ${P.batna}.`
     }
     case 'reveal':
       return `${n} ${g(sc, 'рассказал', 'рассказала')}, что ${g(sc, 'ему', 'ей')} на самом деле важно. Записано в блокноте.`
@@ -225,7 +225,7 @@ function replyText(sc: Scenario, rec: TurnRecord): string {
 
 const DECISION_RU: Partial<Record<Decision['kind'], string>> = {
   accept: 'сделка',
-  counter: 'встречное',
+  counter: 'встречное предложение',
   hold: 'держит позицию',
   warn_tone: 'замечание за тон',
   respond: 'поговорили',
@@ -304,7 +304,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   if (last.decision.kind === 'reveal')
     out.push({
       id: 'reveal',
-      text: `Теперь есть что менять: где ${him} важно, а вам не очень, уступите в обмен на своё — «если вы…, то мы…».`,
+      text: `Теперь есть что обменять: уступите в том, что важно ${him}, но не так важно вам, и попросите что-то взамен — «если вы…, то мы…».`,
     })
 
   if (last.decision.kind === 'hold' && last.decision.reason === 'not_ready_to_reveal')
@@ -326,7 +326,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       out.push({
         id: 'ask',
         text: `Вы ещё ни разу не спросили, зачем ${him} то, что ${he} просит. Например, почему ${him} важно «${ask.option}» в пункте «${ask.title}».`,
-        example: ex(`${ask.title}: почему для вас важно именно «${ask.option}»?`, `${ask.title}: why is "${ask.option}" so important for you?`),
+        example: ex(`${ask.title}: почему для вас важно именно «${ask.option}»?`, `${ask.title}: why is "${ask.option}" so important to you?`),
       })
   }
 
@@ -349,7 +349,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
   if (history.filter(offered).length >= 2 && last.decision.kind === 'counter' && !history.some((h) => used(h, 'criteria')))
     out.push({
       id: 'criteria',
-      text: `Торг идёт цифра против цифры. Предложите мерку, которую примут оба: рыночную цену, индекс, прошлый договор — или спросите, из чего складывается ${g(sc, 'его', 'её')} цифра.`,
+      text: `Торг свёлся к спору о цифрах. Предложите мерку, которую примут оба: рыночную цену, индекс, прошлый договор — или спросите, из чего складывается ${g(sc, 'его', 'её')} цифра.`,
       example: ex('Давайте опираться на рынок: ', "Let's base this on the market rate: "),
     })
 
@@ -358,13 +358,13 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
     out.push({
       id: 'consequence',
       text: `${n} уже ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно. Спросите, во что ${him} обходится, если этого не будет: тогда ваше предложение сравнивают не с ценой, а со стоимостью проблемы.`,
-      example: ex('А во что вам обходится, если ', 'And what does it cost you if '),
+      example: ex('А во сколько вам обходится ситуация, когда ', 'And what does it cost you when '),
     })
 
   if (history.length >= 5 && !history.slice(-4).some((h) => used(h, 'summarize')))
     out.push({
       id: 'summary',
-      text: 'Давно не подводили итог. Скажите, о чём уже договорились и что осталось открытым: так видно, что ещё можно разменять.',
+      text: 'Давно не подводили итог. Скажите, о чём уже договорились и что осталось открытым: так видно, что ещё можно обменять.',
       example: ex('Давайте сверимся, на чём мы сейчас: ', "Let's check where we are: "),
     })
 

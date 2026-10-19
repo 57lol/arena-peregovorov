@@ -1,5 +1,5 @@
 // Галерея катсцен: все ролики «Сюжета» с превью, по клику — проигрываются, потом обратно сюда.
-// Экран открывают с титула («Катсцены» в углу) и из хаба жюри; там же — та же лента карточек (Films).
+// Экран открывают с титула («Ролики» в углу) и из хаба жюри; там же — та же лента карточек (Films).
 
 import { useEffect, useRef } from 'react'
 import { Button, PixelIcon } from '../ui'
@@ -63,8 +63,8 @@ export function Gallery({ onPlay, onBack, back }: { onPlay: (id: string) => void
             {back}
           </Button>
         </header>
-        <h1 className="g-h1">Катсцены</h1>
-        <p className="gl-lead">Все ролики «Сюжета» без прохождения. Клик — следующий план, Esc — обратно сюда.</p>
+        <h1 className="g-h1">Ролики</h1>
+        <p className="gl-lead">Все сюжетные ролики без прохождения. Нажмите, чтобы перейти к следующему кадру; Esc — вернуться сюда.</p>
         <Films onPlay={onPlay} />
       </main>
     </div>
