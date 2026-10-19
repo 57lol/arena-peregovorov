@@ -307,11 +307,11 @@ describe('ворота и /api/admin/jury', () => {
       expect((await post(app, path, {}, { cookie })).status).toBe(401)
     }
   })
-  it('волшебная ссылка удаляет ключ, выдаёт защищённую cookie, пропускает игру; отзыв ключа закрывает вход', async () => {
+  it('волшебная ссылка оставляет ключ в адресе, выдаёт защищённую cookie, пропускает игру; отзыв ключа закрывает вход', async () => {
     const app = withGate(plain())
     const entry = await app.request(`/play?key=${judgeKey}&case=tara`)
-    expect(entry.status).toBe(303)
-    expect(entry.headers.get('location')).toBe('/play?case=tara')
+    expect(entry.status).not.toBe(401)
+    expect(entry.headers.get('location')).toBeNull()
     const cookie = entry.headers.get('set-cookie')!
     expect(cookie).toContain('HttpOnly')
     expect(cookie).toContain('Secure')
@@ -331,7 +331,7 @@ describe('ворота и /api/admin/jury', () => {
     for (let n = 0; n < 8; n++) expect((await app.request('/?key=wrong')).status).toBe(401)
     expect((await app.request(`/?key=${judgeKey}`)).status).toBe(429)
     now += 15 * 60_000
-    expect((await app.request(`/?key=${judgeKey}`)).status).toBe(303)
+    expect((await app.request(`/?key=${judgeKey}`)).headers.get('set-cookie')).toContain('arena_pass=')
   })
   it('вход с паролем не допускает внешнее перенаправление', async () => {
     const app = new Hono().use('*', gate({ secret, login: 'Team', passwordHash: hashPassword('fixture-password', '0123456789abcdef') }))

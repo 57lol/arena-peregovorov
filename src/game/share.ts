@@ -70,6 +70,10 @@ async function fetchSaved(id: string): Promise<Scenario | undefined> {
 }
 
 export function clearLink() {
-  // экран в записи истории оставляем: иначе «Назад» на неё приводит на титул, а не туда, откуда открыли дело
-  history.replaceState(history.state, '', location.pathname)
+  // экран в записи истории оставляем: иначе «Назад» на неё приводит на титул, а не туда, откуда открыли дело.
+  // Личный ключ входа (?key=) оставляем: «Открыть в Safari» из Telegram уносит адрес, и без ключа там страница входа.
+  // Ключ доски (?board=…&key=…) уходит вместе с доской
+  const q = new URLSearchParams(location.search)
+  const key = q.has('board') ? null : q.get('key')
+  history.replaceState(history.state, '', location.pathname + (key ? `?key=${encodeURIComponent(key)}` : ''))
 }

@@ -20,9 +20,10 @@ it('успешный вход не перенаправляет на друго�
     expect(r.status).toBe(303)
     expect(r.headers.get('location')).toBe('/')
   }
+  // вход по ключу больше не перенаправляет вовсе: key остаётся в адресе
   const r = await a.request('http://localhost//evil.test/?key=jury')
-  expect(r.status).toBe(303)
-  expect(r.headers.get('location')).toBe('/')
+  expect(r.headers.get('location')).toBeNull()
+  expect(r.headers.get('set-cookie')).toMatch(/arena_pass=/)
 })
 
 it('тело входа ограничено до разбора формы и вычисления пароля', async () => {
@@ -55,10 +56,16 @@ describe('ворота', () => {
     expect((await app.request('/api/health')).status).toBe(200)
   })
 
-  it('ключ ставит cookie и убирает key из адреса', async () => {
+  it('ключ ставит cookie и оставляет key в адресе: «Открыть в Safari» из Telegram уносит ссылку с ключом', async () => {
     const r = await app.request('/?key=jk123&jury')
-    expect(r.status).toBe(303)
-    expect(r.headers.get('location')).toBe('/?jury')
+    expect(r.status).toBe(200)
+    expect(r.headers.get('location')).toBeNull()
+    expect(await r.text()).toBe('game')
+    expect(r.headers.get('referrer-policy')).toBe('no-referrer')
+    // перезагрузка с тем же ключом и cookie — пропуск не выписывается заново
+    const again = await app.request('/?key=jk123&jury', { headers: { cookie: cookieOf(r) } })
+    expect(await again.text()).toBe('game')
+    expect(again.headers.get('set-cookie')).toBeNull()
     const set = r.headers.get('set-cookie') ?? ''
     expect(set).toMatch(/HttpOnly/)
     expect(set).toMatch(/Secure/)
@@ -121,8 +128,8 @@ describe('личные ключи', () => {
       .get('/', (c) => c.json({ judge: judgeOf(c), session: sessionOf(c) }))
     const enter = async (key: string) => {
       const r = await a.request(`/?key=${key}&jury`)
-      expect(r.status).toBe(303)
-      expect(r.headers.get('location')).toBe('/?jury')
+      expect(r.status).toBe(200)
+      expect(r.headers.get('location')).toBeNull()
       const cookie = cookieOf(r)
       const data = await (await a.request('/', { headers: { cookie } })).json() as { judge: { id: string; name: string; kind: string }; session: string }
       return { cookie, ...data }
@@ -182,7 +189,7 @@ describe('личные ключи', () => {
     expect(warnings).toContain('совпадает с общим JURY_KEY')
     for (const [key, name, kind] of [[good, 'Анна', 'personal'], [second, 'Борис', 'personal'], [shared, '', 'shared']]) {
       const entered = await a.request(`/?key=${key}`)
-      expect(entered.status).toBe(303)
+      expect(entered.headers.get('set-cookie')).toMatch(/arena_pass=/)
       const r = await a.request('/api/me', { headers: { cookie: cookieOf(entered) } })
       expect(r.status).toBe(200)
       expect(await r.json()).toMatchObject({ kind, ...(name ? { name } : {}) })
@@ -211,7 +218,7 @@ it('блокирует сравнение любых ключей после в�
   const key = 'a'.repeat(32)
   const app = new Hono().use('*', gate({ secret, juryKeys: `Анна:${key}`, juryKey: 'shared' })).get('*', (c) => c.text('game'))
   const entered = await app.request(`/?%6Bey=${key}&jury&key=${key}&case=tara`)
-  expect(entered.headers.get('location')).toBe('/?jury&case=tara')
+  expect(await entered.text()).toBe('game')
   const cookie = cookieOf(entered)
   for (let i = 0; i < 8; i++) expect((await app.request('/?key=wrong')).status).toBe(401)
   for (const candidate of ['wrong', key, 'shared']) {

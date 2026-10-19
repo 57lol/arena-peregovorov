@@ -51,11 +51,16 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     if (!f || f.until < Date.now()) fails.set(ip, { n: 1, until: Date.now() + FAIL_WINDOW })
     else f.n++
   }
-  const letIn = (c: Context, to: string, judge?: Judge) => {
+  /** Выписать пропуск: cookie на 30 дней и строка в журнале входов. */
+  const issue = (c: Context, judge?: Judge) => {
     const pass = makePass(cfg.secret, Date.now(), judge)
     const who = readPass(cfg.secret, pass)!
     console.log(`[вход] судья=${JSON.stringify(who.name)} id=${who.id} тип=${who.kind}`)
     setCookie(c, COOKIE, pass, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: TTL })
+    return pass
+  }
+  const letIn = (c: Context, to: string, judge?: Judge) => {
+    issue(c, judge)
     c.header('Cache-Control', 'no-store')
     c.header('Referrer-Policy', 'no-referrer')
     return c.redirect(safeNext(to), 303)
@@ -90,16 +95,28 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
       return page(c, to, 'Не тот пропуск — проверьте логин и пароль.', 401, login)
     }
 
-    // волшебная ссылка: ставим cookie и убираем key из адреса, остальные параметры не трогаем.
+    // волшебная ссылка: ставим cookie и пускаем, key в адресе ОСТАЁТСЯ. Раньше его вырезали редиректом — и ссылка
+    // из Telegram открывалась во встроенном браузере, а «Открыть в Safari» уносила уже чистый адрес без ключа и без
+    // cookie: страница входа (брат, 19.10). Ключ и так лежит в чате; в адресе он виден владельцу и не уходит дальше —
+    // Referrer-Policy: no-referrer, «Поделиться делом» строит ссылку без него.
     // В ссылке на доску (?board=…&key=…) key — ключ доски, а не жюри: её не трогаем
     if (c.req.method === 'GET' && url.searchParams.has('key') && !url.searchParams.has('board')) {
       const rest = url.search.slice(1).split('&').filter((p) => p && !new URLSearchParams(p).has('key'))
       const clean = path + (rest.length ? `?${rest.join('&')}` : '')
       if (blocked(ip)) return page(c, clean, 'Слишком много попыток. Подождите 15 минут.', 429)
       const key = url.searchParams.get('key') ?? ''
-      const judge = judges.find((j) => same(key, j.key))
-      if (judge) return letIn(c, clean, personalJudge(cfg.secret, judge.name, judge.key))
-      if (cfg.juryKey && same(key, cfg.juryKey)) return letIn(c, clean)
+      const found = judges.find((j) => same(key, j.key))
+      const want = found ? personalJudge(cfg.secret, found.name, found.key) : cfg.juryKey && same(key, cfg.juryKey) ? null : undefined
+      if (want !== undefined) {
+        // тот же пропуск уже в cookie (перезагрузка, вкладка из истории) — не выписываем заново
+        const had = verifyPass(cfg.secret, getCookie(c, COOKIE), judges)
+        const pass = had && (want ? had.id === want.id : had.kind === 'shared') ? getCookie(c, COOKIE)! : issue(c, want ?? undefined)
+        c.set('verifiedPass', pass)
+        c.set('verifiedJudge', readPass(cfg.secret, pass)!)
+        c.header('Cache-Control', 'no-store')
+        c.header('Referrer-Policy', 'no-referrer')
+        return next()
+      }
       fail(ip, c)
       return page(c, clean, 'Ключ в ссылке не подошёл. Войдите по логину и паролю.', 401)
     }
