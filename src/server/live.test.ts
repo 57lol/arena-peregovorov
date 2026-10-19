@@ -66,6 +66,33 @@ describe('живой прогресс комнаты', () => {
     expect(live.find((p) => p.tension === 20)?.needsHelp).toBe(false)
     expect(live.find((p) => p.tension === 70)?.needsHelp).toBe(true) // старый снимок A не затёр её прогресс
   })
+  it('брошенная попытка не висит на доске рядом с новой попыткой того же участника', async () => {
+    const { id, key } = await room()
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+    // открыл бриф и вернулся к делам: клиент шлёт «ушёл»
+    await send(id)
+    await send(id, { seq: 2, phase: 'left' })
+    expect((await board(id, key)).live).toMatchObject([{ name: 'Аня', phase: 'left' }])
+    clock.mockReturnValue(now + 1000)
+    await send(id, { seq: 3, attemptId: 'attempt002' })
+    expect((await board(id, key)).live).toMatchObject([{ name: 'Аня', phase: 'brief' }])
+    // и после записи новой попытки старая не возвращается в «Играют сейчас»
+    const r = await app.request('/api/turn', post({ scenarioId: 'tara', history: [], playerText: 'Я ухожу.', walkAway: true }))
+    const { record } = await r.json() as { record: TurnRecord }
+    clock.mockReturnValue(now + 2000)
+    expect((await app.request(`/api/rooms/${id}/results`, post({ clientId: pulse.clientId, attemptId: 'attempt002', name: 'Аня', history: [record] }))).status).toBe(200)
+    expect((await board(id, key)).live).toHaveLength(0)
+  })
+  it('закрыл вкладку на брифе и открыл ссылку заново — на доске одна строка', async () => {
+    const { id, key } = await room()
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+    await send(id)
+    clock.mockReturnValue(now + 120_001)
+    await send(id, { seq: 2, attemptId: 'attempt002' })
+    expect((await board(id, key)).live).toMatchObject([{ name: 'Аня', silent: false }])
+  })
   it('помечает молчание и удаляет истёкшие пульсы по TTL', async () => {
     const { id, key } = await room()
     const now = Date.now()
