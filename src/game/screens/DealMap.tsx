@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactElement } from 'react'
+import { plural } from '../cast'
 import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { allDeals, formatOffer, isComplete, score } from '../../engine/utility'
@@ -262,7 +263,7 @@ function describe(sc: Scenario, x: number, y: number): string {
 function mapLabel(r: Report, name: string) {
   const o = r.outcome
   return (
-    `Карта сделок: ${r.space.length} разных исходов, на границе Парето ${r.frontier.length}. ` +
+    `Карта сделок: ${r.space.length} ${plural(r.space.length, 'возможный исход', 'возможных исхода', 'возможных исходов')}, на границе Парето ${r.frontier.length}. ` +
     (o.status === 'deal' ? `Ваша сделка: вам ${o.playerPoints}, ${name} ${o.opponentPoints}.` : `Сделки нет: вам ${o.playerPoints}, ${name} ${o.opponentPoints}.`)
   )
 }

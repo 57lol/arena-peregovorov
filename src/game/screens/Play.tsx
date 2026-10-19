@@ -46,7 +46,7 @@ export function Play(props: Props) {
   const mentor = tut.on
     ? mentorLine(tut.step, { sc, pose: 'desk', phone: false, held: null, theirs: theirsOnTable, batna: P.batna, voice: m.voiceMode })
     : props.tutorial && done && history.length > 0
-      ? { text: 'Встреча окончена. Жми «Разбор встречи»: там коротко, что получилось и что попробовать в следующий раз.' }
+      ? { text: 'Встреча окончена. Нажмите «Разбор встречи»: там коротко о том, что получилось и что попробовать в следующий раз.' }
       : null
   const lit = (t: string) => (mentor?.target === t ? ' is-tutor' : '')
   // на телефоне блокнот спрятан под кнопкой — когда наставник о нём заговорил, открываем сами
@@ -88,13 +88,13 @@ export function Play(props: Props) {
   const voiceBtn = canVoice && (
     <Button
       className="g-voice-btn"
-      aria-label="Голос собеседника"
+      aria-label={`Голос ${g(sc, 'собеседника', 'собеседницы')}`}
       variant={voiceOn ? 'brass' : 'paper'}
       icon={voiceOn ? 'sound' : 'mute'}
       aria-pressed={voiceOn}
       onClick={toggleVoice}
     >
-      <span className="g-voice-btn-label">{voiceOn ? 'Голос вкл' : 'Голос выкл'}</span>
+      <span className="g-voice-btn-label">{voiceOn ? 'Голос: вкл.' : 'Голос: выкл.'}</span>
     </Button>
   )
 

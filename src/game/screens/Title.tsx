@@ -59,7 +59,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
           <nav className="tt-corner">
             {onFilms && (
               <Button icon="right" onClick={onFilms}>
-                Катсцены
+                Ролики
               </Button>
             )}
             {played && (
@@ -98,7 +98,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
                   value={playerName}
                   maxLength={40}
                   autoComplete="nickname"
-                  placeholder="Имя или ник"
+                  placeholder="Имя или псевдоним"
                   aria-invalid={needName && !playerName.trim()}
                   onChange={(e) => onPlayerName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && start()}

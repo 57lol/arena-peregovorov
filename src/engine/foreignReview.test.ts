@@ -43,7 +43,7 @@ describe('зарубежные дела: правдивые финалы и ра
       expect(r.report.betterDeal?.changes.map((c) => c.issue)).toEqual(['extra-holders'])
       expect(r.report.explanation.join(' ')).toContain('Лишняя покупка')
       expect(r.ending.id).toBe('middling')
-      expect(r.ending.epilogue).toContain('доптовар')
+      expect(r.ending.epilogue).toContain('дополнительных товаров')
       expect(r.ending.epilogue).not.toMatch(/в цене, партии и сроках/)
       expect(endingFacts(sc, r.report, r.state)).toMatchObject({ extras: true })
     })

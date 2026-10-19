@@ -133,8 +133,8 @@ export default function Lab() {
           <PixelIcon name="left" px={2} /> В игру
         </a>
         <h1>Лаборатория</h1>
-        <p>Те же дела, но собеседника ведёт другая модель и озвучивает другой голос. Выбор действует только в этой вкладке.</p>
-        {info === null && <p className="vx-warn">Сервер не отвечает — лаборатории без него нет.</p>}
+        <p>Те же дела, но за собеседника отвечает другая модель, а реплики звучат другим голосом. Выбор действует только в этой вкладке.</p>
+        {info === null && <p className="vx-warn">Сервер не отвечает — лаборатория временно недоступна.</p>}
         {info && !info.enabled && <p className="vx-warn">Лаборатория выключена на сервере (LAB=off).</p>}
         {info && (
           <p className="vx-small">
@@ -326,7 +326,7 @@ export default function Lab() {
                 <dt>Разбор реплики</dt>
                 <dd>
                   {SOURCE_RU[probe.sources.analysis] ?? probe.sources.analysis}
-                  {probe.behaviors.length ? ` · ${probe.behaviors.join(', ')}` : ' · приёмов не нашёл'}
+                  {probe.behaviors.length ? ` · ${probe.behaviors.join(', ')}` : ' · приёмы не найдены'}
                 </dd>
                 <dt>Ответ собеседника</dt>
                 <dd>
@@ -334,7 +334,7 @@ export default function Lab() {
                 </dd>
                 {probe.sources.errors?.length ? (
                   <>
-                    <dt>Откатились</dt>
+                    <dt>Использован запасной режим</dt>
                     <dd>{probe.sources.errors.join('; ')}</dd>
                   </>
                 ) : null}

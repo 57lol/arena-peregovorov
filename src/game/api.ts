@@ -69,7 +69,7 @@ async function post<T>(path: string, body: unknown, ms = 90_000): Promise<T> {
     signal: AbortSignal.timeout(ms),
   })
   // ворота сайта: пропуск истёк, пока вкладка была открыта
-  if (r.status === 401) throw new ApiError('Вход на сайт истёк — обновите страницу и войдите снова.', 401)
+  if (r.status === 401) throw new ApiError('Срок действия сеанса истёк — обновите страницу и войдите снова.', 401)
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new ApiError(j?.error ?? `Сервер ответил ${r.status}`, r.status)
   return j as T
@@ -121,7 +121,7 @@ async function postStream(path: string, body: object, onLine: (l: TurnLine) => v
           published = true
           onLine({ text: ev.text, ...(ev.audio ? { audio: ev.audio } : {}) })
         } else if (ev.t === 'done') return ev
-        else if (ev.t === 'error') throw new ApiError(ev.error ?? 'Ход не сыгрался', 502)
+        else if (ev.t === 'error') throw new ApiError(ev.error ?? 'Не удалось выполнить ход', 502)
       }
     }
     throw new ApiError('Ответ сервера оборвался', 502)

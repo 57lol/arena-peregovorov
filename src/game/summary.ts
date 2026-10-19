@@ -48,7 +48,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     result = !r.zopa
       ? 'Вы ушли без сделки. И правильно: выгодной сделки тут не было.'
       : onTable !== undefined && onTable <= batna
-        ? `Вы ушли без сделки, и в тот момент верно: на столе было ${onTable}, ${onTable < batna ? 'меньше' : 'не больше'}, чем без сделки (${batna}). Но договориться выгоднее было можно.`
+        ? `Вы ушли без сделки, и в тот момент это было верно: на столе было ${onTable}, ${onTable < batna ? 'меньше' : 'не больше'}, чем без сделки (${batna}). Но договориться выгоднее было можно.`
         : 'Вы ушли без сделки. А договориться было можно — и выгоднее.'
   }
   else result = `Время вышло, сделки нет.${r.zopa ? ' А договориться было можно.' : ''}`
@@ -66,7 +66,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     quote = q ? fragment(q) : undefined
   } else if (told) good = `${n} ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно: ${told} из ${sc.opponent.profile.interests.length}.`
   else if (o.relationship >= 60) good = `Расстались по-хорошему: доверие ${o.relationship} из 100.`
-  else if (deal && o.playerPoints > batna) good = 'Довели дело до сделки, и она лучше, чем без неё.'
+  else if (deal && o.playerPoints > batna) good = 'Заключили сделку выгоднее, чем уйти без неё.'
   else if (!history.some((h) => !h.analysis.walksAway)) good = 'Разговор не начался: вы ушли до первой реплики.'
   else if (slammed) good = `Теперь видно, где у ${his} предел: что накалило разговор, разобрано подробно ниже.`
   else if (o.status === 'walked_away') good = 'Вы сами решили, когда встать из-за стола, — уйти тоже решение.'
@@ -83,7 +83,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
   else if (weak) next = behaviorById(weak.id)?.advice ?? weak.title
   else if (!asked) next = `Спросите, что для ${his} главное и почему. Вопрос ничего не стоит, а узнать можно много.`
   else if (deal && r.leftOnTable > 0)
-    next = `Можно было получить больше обоим — на столе осталось ещё ${r.leftOnTable} ${plural(r.leftOnTable, 'очко', 'очка', 'очков')} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
+    next = `Оба могли получить больше — на столе осталось ещё ${r.leftOnTable} ${plural(r.leftOnTable, 'очко', 'очка', 'очков')} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
   else if (!deal && r.zopa) next = `Предложите условия по всем пунктам сразу: так ${him} проще согласиться, а вам — обменять одно на другое.`
   else next = sc.lessons?.[0] ?? sc.goals?.[0] ?? 'Попробуйте сыграть это дело жёстче.'
   return { result, good: plainWords(good), quote, next: plainWords(next) }

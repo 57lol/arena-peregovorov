@@ -6,7 +6,7 @@ import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import { formatOffer } from '../../engine/utility'
 import { attemptSeries } from '../attempts'
-import { plural } from '../cast'
+import { g, plural } from '../cast'
 import { chartPath, trendWidth } from '../chart'
 import { plainWords, turnFeedback } from '../instant'
 import type { RunLog } from '../progress'
@@ -107,7 +107,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
   const currentValue = point[offerView]
   const valueSeries = [
     { label: 'Ваша выгода', values: values.map((p) => p?.player ?? null) },
-    { label: 'Выгода собеседника', values: values.map((p) => p?.opponent ?? null) },
+    { label: g(sc, 'Выгода собеседника', 'Выгода собеседницы'), values: values.map((p) => p?.opponent ?? null) },
     { label: 'Осталось на столе', values: values.map((p) => p?.left ?? null) },
   ]
   const valueRange = valueSeries.flatMap((s) => s.values.filter((v): v is number => v !== null))
@@ -124,7 +124,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
     <div className="g-analytics">
       <section className="g-sheet" aria-labelledby={`${panel}-h`}>
         <h2 id={`${panel}-h`} className="g-sheet-title">Как менялась встреча</h2>
-        <p className="g-muted">Выберите точку или штамп хода. На графике — состояние после ответа собеседника, от 0 до 100.</p>
+        <p className="g-muted">Выберите точку или штамп хода. На графике — состояние после ответа {g(sc, 'собеседника', 'собеседницы')}, от 0 до 100.</p>
         <FitTrend title="Доверие и напряжение по ходам" labels={labels} series={[
           { label: 'Доверие', values: data.points.map((p) => p.trust) },
           { label: 'Напряжение', values: data.points.map((p) => p.tension) },
@@ -152,7 +152,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
               <b>{d.field === 'trust' ? 'Доверие' : 'Напряжение'} {signed(d.by)}</b> — {censor(plainWords(d.because))}
             </li>)}</ul> : <p className="g-muted">Доверие и напряжение не изменились.</p>}
             {(fb?.trust !== point.shift.trust || fb?.tension !== point.shift.tension) && <p className="g-muted">Вверху фактический сдвиг: шкалы ограничены значениями 0 и 100.</p>}
-            {h.opponentLine && <p className="g-analytics-reply"><b>Собеседник:</b> {censor(h.opponentLine)}</p>}
+            {h.opponentLine && <p className="g-analytics-reply"><b>{g(sc, 'Собеседник:', 'Собеседница:')}</b> {censor(h.opponentLine)}</p>}
           </> : <p>Начальные условия: {censor(sc.opening)}</p>}
         </div>
         {data.points.some((p) => p.events.length) && <div className="g-event-index" aria-label="Ключевые моменты встречи">
@@ -168,10 +168,10 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
           <button type="button" aria-pressed={offerView === 'table'} onClick={() => setOfferView('table')}>После ответа</button>
           <button type="button" aria-pressed={offerView === 'playerOffer'} onClick={() => setOfferView('playerOffer')}>Ваши условия</button>
         </div>
-        <p className="g-muted">{offerView === 'table' ? 'Предложение на столе после каждого ответа.' : 'Ваша последняя названная позиция по всем пунктам.'} Пробел — условия ещё неполные. «Осталось» — сколько можно добавить вдвоём, не ухудшая ничей результат.</p>
+        <p className="g-muted">{offerView === 'table' ? 'Предложение на столе после каждого ответа.' : 'Ваша последняя названная позиция по всем пунктам.'} Разрыв линии — условия ещё неполные. «Осталось» — сколько можно добавить вдвоём, не ухудшая ничей результат.</p>
         <FitTrend title="Выгода в очках по ходам" labels={labels} series={valueSeries}
           min={Math.min(0, report.batna.player, ...valueRange)} max={Math.max(1, report.batna.player, ...valueRange)}
-          selected={selected} onSelect={setSelected} reference={{ value: report.batna.player, label: 'ваша BATNA' }} />
+          selected={selected} onSelect={setSelected} reference={{ value: report.batna.player, label: 'ваш запасной вариант (BATNA)' }} />
         <label className="g-analytics-select">Посмотреть условия
           <select value={selected} onChange={(e) => setSelected(Number(e.target.value))}>
             {labels.map((label, i) => <option key={label} value={i}>{label}</option>)}
@@ -180,18 +180,18 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
         <div className="g-value-detail" aria-live="polite">
           <h3 className="g-h3">{labels[selected]} · {offerView === 'table' ? 'на столе' : 'ваши условия'}</h3>
           {currentValue ? <>
-            <p><b>Вам {currentValue.player} · собеседнику {currentValue.opponent} · осталось {currentValue.left}</b></p>
-            <p>{formatOffer(sc, selected ? (offerView === 'playerOffer' ? h?.stateAfter.playerStance : h?.stateAfter.deal ?? h?.stateAfter.tableOffer) ?? {} : data.initialOffer) || 'Стартовое предложение собеседника.'}</p>
+            <p><b>Вам {currentValue.player} · {g(sc, 'собеседнику', 'собеседнице')} {currentValue.opponent} · осталось {currentValue.left}</b></p>
+            <p>{formatOffer(sc, selected ? (offerView === 'playerOffer' ? h?.stateAfter.playerStance : h?.stateAfter.deal ?? h?.stateAfter.tableOffer) ?? {} : data.initialOffer) || 'Первое предложение на листке.'}</p>
           </> : <p>Полного предложения нет — выгода пока не определена.</p>}
         </div>
         <h3 className="g-h3">Итог и ориентиры</h3>
         <dl className="g-value-comparison">
           <div><dt>{report.deal ? 'Ваша сделка' : 'Без сделки: ваш итог'}</dt><dd>{report.outcome.playerPoints}</dd></div>
           <div><dt>Ваш запасной вариант (BATNA)</dt><dd>{report.batna.player} <small>итог {signed(report.outcome.playerPoints - report.batna.player)}</small></dd></div>
-          <div><dt>Максимум вам, если обоим не хуже BATNA</dt><dd>{data.bestPlayer ?? 'нет сделки'}</dd></div>
+          <div><dt>Максимум для вас, если обоим не хуже запасного варианта</dt><dd>{data.bestPlayer ?? 'нет сделки'}</dd></div>
           <div><dt>Общая выгода: итог / лучший возможный договор*</dt><dd>{report.outcome.playerPoints + report.outcome.opponentPoints} / {data.bestJoint ?? 'нет сделки'}</dd></div>
         </dl>
-        <p className="g-muted">* Среди договоров не хуже BATNA обеих сторон. Максимум вам и максимум вдвоём могут быть разными договорами. Это ориентиры по таблицам, а не обещание согласия собеседника.</p>
+        <p className="g-muted">* Среди договоров не хуже BATNA обеих сторон. Максимум вам и максимум вдвоём могут быть разными договорами. Это ориентиры по таблицам, а не обещание согласия другой стороны.</p>
       </section>
     </div>
   )
@@ -199,7 +199,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
 
 export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; history: TurnRecord[]; tips: string[] }) {
   return <div className="g-profile">
-    <p className="g-muted">Все 22 индикатора. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть доказательства.</p>
+    <p className="g-muted">Все 22 приёма. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть примеры из реплик.</p>
     <div className="g-profile-grid">
       {rows.map((row) => {
         const bar = profileBar(row, history.length)
@@ -212,7 +212,7 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
               <span style={{ width: `${(bar.you ?? 0) / bar.max * 100}%` }} />
               {bar.skilled !== null && <i style={{ left: `${bar.skilled / bar.max * 100}%` }} />}
             </span>
-            <span className="g-profile-caption">{row.comparison && 'Все вопросы: '}{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${number(bar.skilled)}` : ' · без численной нормы'}</span>
+            <span className="g-profile-caption">{row.comparison && 'Все вопросы: '}{bar.you === null ? 'Нет ходов' : `Вы: ${number(bar.you)} ${bar.unit}`}{bar.skilled !== null ? ` · сильные: ${number(bar.skilled)}` : ' · без численной нормы'}</span>
           </summary>
           <div className="g-profile-evidence">
             <p>{plainWords(def.definition)}</p>

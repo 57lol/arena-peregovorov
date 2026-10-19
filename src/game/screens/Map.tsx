@@ -254,7 +254,7 @@ function ChapterCard({ row, intro, next, weekDone, docked, onOpen, ref }: CardPr
             </Button>
           )}
           {row.dealt && (
-            <Button variant="stamp" title="То же дело, но собеседник упрямее и реже раскрывается" onClick={() => onOpen(harder(sc))}>
+            <Button variant="stamp" title="То же дело, но другая сторона упрямее и реже рассказывает о себе" onClick={() => onOpen(harder(sc))}>
               Жёстче
             </Button>
           )}

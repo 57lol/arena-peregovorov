@@ -54,7 +54,7 @@ export function VoiceTurn({ m, v }: { m: Meeting; v: ReturnType<typeof useVoiceT
     button = (
       <span className={`g-voice-state${v.phase === 'listen' && v.mic === 'on' ? ' is-on' : ''}`} aria-hidden="true">
         <i className="g-rec-dot" />
-        {v.phase === 'busy' ? 'Распознаю' : m.pending ? 'Ждём ответ' : 'Слушаю'}
+        {v.phase === 'busy' ? 'Распознаю' : m.pending ? 'Ждём ответа' : 'Слушаю'}
       </span>
     )
 

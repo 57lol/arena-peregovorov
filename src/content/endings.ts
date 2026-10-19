@@ -48,7 +48,7 @@ const HINT: Record<EndingId, string> = {
   short: 'Взять меньше, чем уже было в кармане',
   walked: 'Встать из-за стола, когда на нём нет ничего лучше запасного',
   slammed: 'Довести собеседника до двери',
-  timeout: 'Проговорить все часы встречи',
+  timeout: 'Проговорить всю встречу',
 }
 
 
@@ -59,7 +59,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     cold_win: { title: 'Цена без улыбки', epilogue: 'Датчики приехали на согласованных условиях. Ли Вэй больше не шутит: на каждую просьбу присылает строку договора. Следующий заказ придётся обсуждать заново.' },
     middling: { title: 'Счёт сошёлся', epilogue: 'Заказ оформлен. {missed} Ли Вэй присылает фото коробок: «Считаем, считаем. Всё по списку».' },
     lose_lose: { title: 'Похожий — не тот же', epilogue: 'Повторную поставку снова обсуждают по фотографиям. Оказалось, Ли Вэй тоже хотел единый эталон: возвраты ему обходятся дорого. Общий интерес так и не стал условием заказа.' },
-    short: { title: 'Акция дороже запаса', epilogue: 'Финансист сравнил весь заказ с предложением казанского склада. Запасной вариант был выгоднее. Цена одной штуки отвлекла от остальных условий и состава покупки.', noDeal: 'Вы ушли на казанский склад, хотя последнее предложение Ли Вэя с учётом доптоваров давало больше. В следующий раз сравните полный заказ до ухода.' },
+    short: { title: 'Акция дороже запаса', epilogue: 'Финансист сравнил весь заказ с предложением казанского склада. Запасной вариант был выгоднее. Цена одной штуки отвлекла от остальных условий и состава покупки.', noDeal: 'Вы ушли на казанский склад, хотя последнее предложение Ли Вэя с учётом дополнительных товаров давало больше. В следующий раз сравните полный заказ до ухода.' },
     walked: { title: 'Только нужное', epilogue: 'Вы вернулись к запасному поставщику. Ли Вэй прислал каталог, но заказа без вашего согласия нет. Завод купит нужную партию, даже если без эффектной акции.' },
     slammed: { title: 'Магазин закрыл чат', epilogue: 'Ли Вэй закончил разговор. Телефон погас, заказ не оформлен. Пришлось вернуться к казанскому складу: спор о деталях превратился в спор с человеком.' },
     timeout: { title: 'Корзина без заказа', epilogue: 'Время встречи вышло: цены обсуждали, но весь заказ не согласовали. Ли Вэй отправил «пишите, друг». Для запуска линии остался запасной поставщик.' },
@@ -84,7 +84,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
         'Через месяц на выставке Марат бросил между делом: «Могли бы и лучше. Оба». Вы так и не поняли, что он имел в виду.',
       efficient:
         'Договор подписан, линия работает, коробки приходят. Финдиректор кивнул — не похвалил и не поругал. ' +
-        'Лучше сразу для обоих условия было не записать, но и праздновать особенно нечего: на выставке Марат кивнул вам издалека.',
+        'Более выгодных для обоих условий не было, но и праздновать особенно нечего: на выставке Марат кивнул вам издалека.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
@@ -97,7 +97,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
       title: TITLE.short,
       epilogue:
         'Коробки приходят, всё работает. В январе финдиректор положил рядом ваш договор и предложение из Казани ' +
-        'и молча подчеркнул разницу карандашом. Казань давала больше, а вы подписали меньше.',
+        'и молча подчеркнул разницу карандашом. Казань давала больше, а вы согласились на меньшее.',
       noDeal:
         'Вы ушли к казанскому «Тарапрому»: двести двенадцать за короб, срочные — за неделю. ' +
         'В январе вы нашли в почте последнее предложение Марата и долго на него смотрели. Оно было лучше.',
@@ -126,33 +126,33 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     legend: {
       title: TITLE.legend,
       epilogue:
-        'The line arrived on the agreed schedule, and Emre\'s engineer stayed two weeks in the shop: your operators now spray better ' +
+        'The line arrived on the agreed schedule, and Emre\'s engineer stayed two weeks on the shop floor: your operators now spray better ' +
         'than the people who trained them. In spring Emre brought a delegation from another Alabuga resident to see "our best line in Russia". ' +
         'You got a box of lokum and a discount on the next oven.',
     },
     cold_win: {
       title: TITLE.cold_win,
       epilogue:
-        'The CFO has never seen such a price for a coating line. Emre answers your emails in three days, strictly by the contract. ' +
+        'The CFO has never seen such a price for a coating line. Emre takes three days to answer your emails and sticks strictly to the contract. ' +
         'When the oven needed a burner in February, he sent the warranty clause first and the part second.',
     },
     middling: {
       title: TITLE.middling,
       epilogue:
-        'The contract is signed, the line paints casings. {missed} At a trade fair in Kazan you and Emre compare notes on the first months of operation.',
+        'The contract is signed, the line coats casings. {missed} At a trade fair in Kazan you and Emre compare notes on the first months of operation.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
       epilogue:
         'The line works, but you agreed on {got}, and for two months the operators learned on scrapped casings. ' +
-        'At the New Year call Emre admitted he wanted to send his engineer for two weeks from the start: ' +
+        'During the New Year call Emre admitted he wanted to send his engineer for two weeks from the start: ' +
         'his warranty calls doubled. You both laughed, but not for long.',
     },
     short: {
       title: TITLE.short,
       epilogue:
         'The line works. In January the CFO put your contract next to the Qingdao bid and underlined the difference with a pencil. ' +
-        'Qingdao gave more, and you signed for less.',
+        'The Qingdao offer was better, but you accepted less.',
       noDeal:
         'You went with Qingdao: €465,000 and fourteen weeks of waiting. In January you found Emre\'s last offer in your mail ' +
         'and looked at it for a long time. It was better.',
@@ -160,8 +160,8 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     walked: {
       title: TITLE.walked,
       epilogue:
-        'The Qingdao line arrives in fourteen weeks, not a celebration, but not worse than what was on the table. ' +
-        'In March Emre called himself: the Almaty plant never paid the deposit. This time the conversation was very different.',
+        'The Qingdao line arrives in fourteen weeks. It is nothing to celebrate, but no worse than the offer on the table. ' +
+        'In March Emre called you directly: the Almaty plant never paid the deposit. This time the conversation was very different.',
     },
     slammed: {
       title: TITLE.slammed,
@@ -173,7 +173,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
       title: TITLE.timeout,
       epilogue:
         'You parted with "let\'s talk next week". Next week Emre was still waiting for the Almaty deposit, but could no longer hold your production slot. ' +
-        'Your shop opened on the Qingdao line, a month late.',
+        'Your shop opened with the Qingdao line, a month late.',
     },
   },
   offer: {
@@ -195,28 +195,28 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
         'Дарина вышла, линию приняла, жалоб нет, восторгов тоже. Кадровик, подшивая бумаги, заметил: пару пунктов можно было ' +
         'записать иначе — и выиграли бы оба. Дарина, похоже, думала о том же, но промолчала.',
       efficient:
-        'Дарина вышла, линию приняла, жалоб нет, восторгов тоже. Кадровик, подшивая бумаги, пересчитал оффер: лучше сразу для обоих ' +
-        'его было не записать. Но и праздновать особенно нечего: Дарина держится вежливо и немного в стороне.',
+        'Дарина вышла, линию приняла, жалоб нет, восторгов тоже. Кадровик, подшивая бумаги, пересчитал предложение о работе: более выгодных для обоих условий ' +
+        'не было. Но и праздновать особенно нечего: Дарина держится вежливо и немного в стороне.',
     },
     lose_lose: {
       title: TITLE.lose_lose,
       epilogue:
-        'В оффере записали «{got}» — вы ведь были уверены, что запуск ей не нужен. Покраску запускал интегратор за полтора миллиона, ' +
+        'В предложении о работе записали «{got}» — вы ведь были уверены, что запуск ей не нужен. Покраску запускал интегратор за полтора миллиона, ' +
         'а Дарина чинила чужие ячейки, как на старом месте. В феврале она сказала на планёрке: «Я вообще-то ради этой камеры переезжала».',
     },
     short: {
       title: TITLE.short,
       epilogue:
-        'Оффер подписан, Дарина вышла. Финдиректор пересчитал и хмыкнул: интегратор за полтора миллиона обошёлся бы дешевле того, ' +
+        'Предложение о работе подписано, Дарина вышла. Финдиректор пересчитал и хмыкнул: интегратор за полтора миллиона обошёлся бы дешевле того, ' +
         'что вы наобещали. Дарина — отличный инженер. Просто договор с ней вышел плохой.',
       noDeal:
         'Линию запускал интегратор за полтора миллиона — в срок, но своего человека, который знает её наизусть, так и нет. ' +
-        'Последнее предложение Дарины до сих пор лежит в почте. Оно было лучше интегратора.',
+        'Последнее предложение Дарины до сих пор лежит в почте. Её условия были выгоднее, чем услуги интегратора.',
     },
     walked: {
       title: TITLE.walked,
       epilogue:
-        'Линию запускал интегратор: дорого, зато ровно на ваших условиях. Дарина уехала в Казань на 195 и через полгода написала сама — ' +
+        'Линию запускал интегратор: дорого, зато ровно на ваших условиях. Дарина уехала в Казань на оклад в 195 тысяч и через полгода написала сама — ' +
         'поддержка чужих линий ей надоела. На этот раз вам было что ей предложить.',
     },
     slammed: {
@@ -228,7 +228,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     timeout: {
       title: TITLE.timeout,
       epilogue:
-        'Дарина обещала подумать и написать. Написала через пять дней: приняла казанский оффер, спасибо за разговор. ' +
+        'Дарина обещала подумать и написать. Написала через пять дней: приняла предложение о работе в Казани, спасибо за разговор. ' +
         'Покраску запускал интегратор за полтора миллиона.',
     },
   },
@@ -243,7 +243,7 @@ const LIBRARY: Record<string, Record<EndingId, EndingText>> = {
     cold_win: {
       title: TITLE.cold_win,
       epilogue:
-        'Цену вы отстояли, финдиректор сиял неделю. Роза подписала всё до запятой и с тех пор пишет вам только письмами ' +
+        'Цену вы отстояли, финдиректор сиял неделю. Роза подписала всё до запятой и с тех пор общается с вами только по почте ' +
         'с копией юристу. В июне вы столкнулись в её приёмной с менеджером из Нинбо — он зашёл «просто познакомиться».',
     },
     middling: {
@@ -296,7 +296,7 @@ function generic(female: boolean): Record<EndingId, EndingText> {
     legend: {
       title: TITLE.legend,
       epilogue:
-        'Через три месяца договор работает как часы. {name} звонит сам — не с претензией, а с новой идеей. ' +
+        'Через три месяца договор работает как часы. {name} звонит лично — не с претензией, а с новой идеей. ' +
         'Пункт «{mine}» остался за вами, и проигравшим никто себя не чувствует.',
     },
     cold_win: {
@@ -311,7 +311,7 @@ function generic(female: boolean): Record<EndingId, EndingText> {
         'Договор подписан и исполняется: ничего плохого, ничего выдающегося. Где-то между пунктами осталась ценность, ' +
         'которую не забрал никто — ни вы, ни {name}.',
       efficient:
-        'Договор подписан и исполняется: ничего плохого, ничего выдающегося. Лучше сразу для обоих условия было не записать, ' +
+        'Договор подписан и исполняется: ничего плохого, ничего выдающегося. Более выгодных для обоих условий не было, ' +
         'но и праздновать особенно нечего: {name} держится вежливо и немного в стороне.',
     },
     lose_lose: {
@@ -323,7 +323,7 @@ function generic(female: boolean): Record<EndingId, EndingText> {
     short: {
       title: TITLE.short,
       epilogue:
-        'Договор исполняется, но при сверке выяснилось, что запасной вариант давал больше. Вы подписали меньше, чем у вас уже было в кармане.',
+        'Договор исполняется, но при сверке выяснилось, что запасной вариант давал больше. Вы согласились на меньшее, чем давал запасной вариант.',
       noDeal:
         'Вы вернулись к запасному варианту. А последнее предложение, от которого вы ушли, было лучше — цифры не спорят.',
     },
@@ -353,7 +353,7 @@ function missed(sc: Scenario, report?: Report): string {
   const changes = report.betterDeal?.changes ?? []
   if (!changes.length) return en ? 'Neither side could gain more without the other giving something up.' : 'Улучшить условия для обеих сторон одновременно уже нельзя.'
   if (changes.every((c) => c.issue.startsWith('extra-')))
-    return `Потеря выгоды только в доптоварах: ${changes.map((c) => c.title).join(', ')}. От них можно было отказаться, сохранив основные условия.`
+    return `Потеря выгоды только из-за дополнительных товаров: ${changes.map((c) => c.title).join(', ')}. От них можно было отказаться, сохранив основные условия.`
   const terms = changes.map((c) => `«${c.title}»: ${c.to}`).join('; ')
   return en ? `A better package was possible without either side losing out: ${terms}.` : `Можно было улучшить пакет без потерь для сторон: ${terms}.`
 }

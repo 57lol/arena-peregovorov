@@ -10,7 +10,7 @@ import { isEn } from '../../engine/lang'
 import { CHAPTERS } from '../../content/story'
 import type { Scenario, TurnRecord } from '../../engine/types'
 import type { Health } from '../api'
-import { portraitFor } from '../cast'
+import { plural, portraitFor } from '../cast'
 import { Films } from '../cutscene/Gallery'
 import { loadInstantOn, saveInstantOn } from '../instant'
 import { loadProgress, markTutorialDone, resetTutorial, type Progress } from '../progress'
@@ -58,14 +58,14 @@ export function Jury(p: Props) {
       <main className="px-desk g-desk jr-page">
         <header className="g-bar">
           <Button variant="ghost" icon="left" onClick={p.onBack}>
-            Титул
+            Главный экран
           </Button>
           <span className="jr-bar-right">
             <Button variant="ghost" icon="right" onClick={p.onMap}>
               Карта недели
             </Button>
             <Button variant="ghost" icon="right" onClick={p.onFilms}>
-              Катсцены
+              Ролики
             </Button>
             <Button variant="ghost" icon="right" onClick={p.onStory}>
               Сюжет
@@ -91,7 +91,7 @@ export function Jury(p: Props) {
             <button type="button" className="jr-step" onClick={() => p.onOpen(lib(demo))}>
               <span className="jr-step-n">2</span>
               <span className="jr-step-name">Провести</span>
-              <span className="jr-step-note">встреча «{demo.title}», {demo.turnLimit} реплик</span>
+              <span className="jr-step-note">встречу «{demo.title}»: {demo.turnLimit} {plural(demo.turnLimit, 'реплика', 'реплики', 'реплик')}</span>
             </button>
           </li>
           <li>
@@ -115,7 +115,7 @@ export function Jury(p: Props) {
           <span className="jr-step-name">🇬🇧 English: поставщик из Стамбула</span>
           <span className="jr-step-note">
             Командировка в Стамбул · переговоры на английском, собеседник говорит с турецким акцентом: экспорт-менеджер{' '}
-            {PORTRAITS[portraitFor(english)].label}, {english.turnLimit} реплик; разбор и подсказки — по-русски
+            {PORTRAITS[portraitFor(english)].label}, {english.turnLimit} {plural(english.turnLimit, 'реплика', 'реплики', 'реплик')}; разбор и подсказки — по-русски
           </span>
         </button>
 
@@ -129,7 +129,7 @@ export function Jury(p: Props) {
           <Face sc={lagos} />
           <span className="jr-step-name">🇳🇬 Lagos: экспорт и партнёрство</span>
           <span className="jr-step-note">
-            вторая командировка · финальный уровень: переговоры на английском с носителем языка {PORTRAITS[portraitFor(lagos)].label}, {lagos.turnLimit} реплик; разбор и
+            вторая командировка · финальный уровень: переговоры на английском с носителем языка {PORTRAITS[portraitFor(lagos)].label}, {lagos.turnLimit} {plural(lagos.turnLimit, 'реплика', 'реплики', 'реплик')}; разбор и
             подсказки — по-русски
           </span>
         </button>
@@ -137,9 +137,9 @@ export function Jury(p: Props) {
         <div className="jr-grid">
           <section className="g-sheet jr-sheet" aria-labelledby="jr-cases">
             <h2 id="jr-cases" className="jr-h2">
-              Деловые дела
+              Деловые переговоры
             </h2>
-            <p className="g-muted">«Жёстче» — то же дело, но собеседник упрямее и реже говорит, что ему на самом деле важно.</p>
+            <p className="g-muted">«Жёстче» — то же дело, но другая сторона упрямее и реже рассказывает о своих интересах.</p>
             <ul className="jr-cases">
               {SCENARIOS.map((sc) => (
                 <li key={sc.id}>
@@ -148,7 +148,7 @@ export function Jury(p: Props) {
                     <span className="jr-case-name">{isEn(sc) ? `🇬🇧 ${sc.title}` : sc.title}</span>
                     <span className="jr-case-sphere">{sc.sphere}</span>
                   </button>
-                  <Button variant="stamp" className="jr-hard" title="То же дело, но собеседник упрямее и реже раскрывается" onClick={() => p.onOpen(lib(harder(sc)))}>
+                  <Button variant="stamp" className="jr-hard" title="То же дело, но другая сторона упрямее и реже рассказывает о себе" onClick={() => p.onOpen(lib(harder(sc)))}>
                     Жёстче
                   </Button>
                 </li>
@@ -207,7 +207,7 @@ export function Jury(p: Props) {
 
         <section className="g-sheet jr-sheet jr-films" aria-labelledby="jr-cuts">
           <h2 id="jr-cuts" className="jr-h2">
-            Катсцены сюжета <small>— смотреть без прохождения, клик по карточке</small>
+            Ролики сюжета <small>— нажмите на карточку, чтобы посмотреть без прохождения</small>
           </h2>
           <Films onPlay={p.onCutscene} />
         </section>
@@ -286,7 +286,7 @@ function Settings({ progress, server, onProgress }: Props) {
           </dd>
         </div>
         <div>
-          <dt>Как отвечать во встрече</dt>
+          <dt>Как отвечать на встрече</dt>
           <dd className="jr-seg">
             <Toggle on={answer.mode === 'voice'} onClick={() => saveInputMode('voice')}>
               Голосом

@@ -32,7 +32,7 @@ export async function openMic(onFrame: (pcm: Int16Array, t: number) => void, onL
   }
   try {
     const Ctx = AC()
-    if (!Ctx) throw new Error('Нет Web Audio')
+    if (!Ctx) throw new Error('Браузер не поддерживает запись звука через Web Audio')
     ctx = new Ctx()
     void ctx.resume().catch(() => {})
     source = ctx.createMediaStreamSource(stream)

@@ -17,7 +17,7 @@ interface Props {
   onShare: (share: ShareState) => void
 }
 
-const pct = (x: number) => `${Math.round(x * 100)}%`
+const pct = (x: number) => `${Math.round(x * 100)} %`
 const time = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
 
 /**
@@ -45,16 +45,16 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
             <dt>Итог</dt>
             <dd>
               {a.status === 'deal'
-                ? `сделка, ${a.points} из ${a.maxPoints} очков (без сделки было бы ${a.batna})${short ? ' — хуже, чем без сделки' : ''}`
-                : `сделки нет, остался запасной вариант: ${a.points} очков`}
+                ? `сделка, ${a.points} из ${a.maxPoints} ${plural(a.maxPoints, 'очка', 'очков', 'очков')} (без сделки было бы ${a.batna})${short ? ' — хуже, чем без сделки' : ''}`
+                : `сделки нет, остался запасной вариант: ${a.points} ${plural(a.points, 'очко', 'очка', 'очков')}`}
             </dd>
             {a.status === 'deal' && (
               <>
-                <dt>Выжато из сделки</dt>
+                <dt>Выгода для обоих</dt>
                 <dd>{pct(a.efficiency)} от лучшего, что можно было получить обоим</dd>
               </>
             )}
-            <dt>Доверие собеседника</dt>
+            <dt>Доверие другой стороны</dt>
             <dd>{a.trust} из 100</dd>
             <dt>Финал</dt>
             <dd>{ending?.title ?? a.ending}</dd>
@@ -78,7 +78,7 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
             <ul className="g-pcard-list">
               {strong.map((b) => (
                 <li key={b.id}>
-                  {b.title}: {a.counts ? `${a.counts[b.id] ?? 0} из ${a.turns} реплик` : often(a.bench[b.id] ?? 0, b.benchmark?.unit ?? 'share')}
+                  {b.title}: {a.counts ? `${a.counts[b.id] ?? 0} из ${a.turns} ${plural(a.turns, 'реплики', 'реплик', 'реплик')}` : often(a.bench[b.id] ?? 0, b.benchmark?.unit ?? 'share')}
                 </li>
               ))}
               {a.traps.filter((t) => t.found).map((t) => (
@@ -162,7 +162,7 @@ function Talk({ room, secret, pid, at, share, onShare }: { room: string; secret:
             {share === 'asked'
               ? 'Запрос отправлен. Участник увидит его на своём разборе и решит, открыть ли переписку.'
               : share === 'denied'
-                ? 'Участник не разрешил смотреть переписку. Видно только итог.'
+                ? 'Участник не разрешил смотреть переписку. Виден только итог.'
                 : 'Переписка закрыта: её видно только с разрешения участника.'}
           </p>
           {share !== 'asked' && (

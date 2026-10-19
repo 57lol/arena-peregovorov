@@ -85,7 +85,7 @@ export default function Voices() {
         </a>
         <h1>Голоса</h1>
         <p>Одна и та же реплика разными голосами. Слушайте по кнопке: каждый звук синтезируется один раз, дальше берётся из кэша.</p>
-        {cat === null && <p className="vx-warn">Сервер не отвечает — без него голосов нет.</p>}
+        {cat === null && <p className="vx-warn">Сервер не отвечает — прослушивание временно недоступно.</p>}
         {y && !y.ready && <p className="vx-warn">SpeechKit на сервере выключен: нет YANDEX_API_KEY или SPEECH=off.</p>}
       </header>
 
@@ -108,7 +108,7 @@ export default function Voices() {
 
       <section className="vx-block">
         <h2>Кто кем говорит в игре</h2>
-        <p className="vx-lead">Собеседники семи дел. Голоса не повторяются, у новых лиц — голос своего пола.</p>
+        <p className="vx-lead">Голоса персонажей из готовых дел. Для новых персонажей голос подбирается с учётом пола.</p>
         <div className="vx-cast">
           {ALL_SCENARIOS.map((sc) => {
             const face = portraitFor(sc)
@@ -131,7 +131,7 @@ export default function Voices() {
       <section className="vx-block">
         <h2>SpeechKit: API v1 против v3</h2>
         <p className="vx-lead">
-          Игра говорит через v3: там семь новых голосов и выравнивание громкости. Старые голоса можно сравнить в обоих API. Роль под эмоцию сервер подбирает сам.
+          Игра говорит через v3: там семь новых голосов и выравнивание громкости. Старые голоса можно сравнить в обоих API. Сервер сам подбирает интонацию под эмоцию.
         </p>
         {[
           ['Мужские', male],

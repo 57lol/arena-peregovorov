@@ -236,7 +236,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       )}
       {ui.i === 0 && at === undefined && (
         <p className="cs-hint" aria-hidden="true">
-          {TOUCH ? 'тап — дальше' : 'клик — дальше, Esc — пропустить'}
+          {TOUCH ? 'нажмите, чтобы продолжить' : 'нажмите, чтобы продолжить; Esc — пропустить'}
         </p>
       )}
       <button
