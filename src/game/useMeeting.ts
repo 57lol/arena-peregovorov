@@ -178,8 +178,9 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const delivered = delivery?.text === line && delivery.record === last
   const lineWaiting = !pending && voiceOn && canVoice && !delivered
   const lineCps = pending ? early?.cps : delivered ? delivery.cps : undefined
-  /** реплика ещё дописывается потоком: её конец неизвестен */
-  const lineGrowing = !!pending && !!early
+  /** реплика ещё дописывается потоком (или вот-вот начнётся — «…»): её конец неизвестен, облачко сразу в рост,
+   * чтобы с первыми словами не переезжать */
+  const lineGrowing = !!pending
 
   useEffect(() => {
     if (!voiceMode) return

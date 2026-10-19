@@ -123,10 +123,9 @@ export class World {
     this.ro = new ResizeObserver(() => this.resize())
     this.ro.observe(el)
     this.resize()
-    if (this.call) {
-      this.head.pitch = this.head.tp
-      this.head.yaw = this.head.ty
-    }
+    // первый кадр — сразу в позе, без проезда камеры
+    this.head.pitch = this.head.tp
+    this.head.yaw = this.head.ty
   }
 
   on(fn: (f: Frame) => void) {
@@ -164,7 +163,12 @@ export class World {
     this.camera.updateProjectionMatrix()
     // стол на телефоне виден уже в обычном взгляде: голова чуть ниже, на стол — круче
     const tall = this.portrait
+    // смотрели на собеседника — смотрим и дальше, уже под новый кадр. Иначе до первого look('face') телефон стоя
+    // держал взгляд ноутбука (−6°), и на ответ первого хода камера посреди реплики опускалась к столу
+    const was = this.head.poses.face
+    const facing = Math.abs(this.head.tp - was.pitch) < 1e-6 && Math.abs(this.head.ty - was.yaw) < 1e-6
     this.head.poses = { face: { yaw: 0, pitch: (tall ? -15 : -6) * D }, desk: { yaw: 0, pitch: (tall ? -52 : -55) * D } }
+    if (facing) this.head.look('face')
     if (this.call) this.frameCall(w / h)
     // бумаги: страница в CSS-пикселях примерно того размера, каким лист виден, когда склонились к столу
     const deskEye = new Vector3(EYE.x, EYE.y + 0.1, EYE.z - 0.3)

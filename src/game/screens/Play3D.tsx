@@ -142,16 +142,29 @@ export default function Play3D(props: Props) {
   useEffect(() => {
     if (pending) world?.company?.stir('you', 3)
   }, [world, pending])
+  // собеседник начал отвечать — кладём бумаги и поднимаем глаза на него. С началом реплики (ход потоком — с первых
+  // слов), а не когда пришёл ход целиком: иначе камера ехала посреди реплики, и облачко перепрыгивало
   const turns = history.length
   const prevTurns = useRef(turns)
+  const reply = pending && m.lineKey !== 'pending' ? m.lineKey : null
+  const replyKey = useRef(m.lineKey)
+  replyKey.current = m.lineKey
+  const facedFor = useRef<unknown>(null)
+  useEffect(() => {
+    if (!world || !reply || facedFor.current === reply) return
+    facedFor.current = reply
+    setHeld(null)
+    world.look('face')
+    world.company?.stir('table', 3.5)
+  }, [world, reply])
   useEffect(() => {
     if (!world) return
-    if (turns > prevTurns.current) {
-      // ответ пришёл — кладём бумаги и поднимаем глаза на собеседника
+    if (turns > prevTurns.current && facedFor.current !== replyKey.current) {
       setHeld(null)
       world.look('face')
       world.company?.stir('table', 3.5)
     }
+    facedFor.current = null
     prevTurns.current = turns
   }, [world, turns])
   // по рукам: смотрим на стол, где на листок ложится штамп (на телефоне листок сам поднимается к глазам)

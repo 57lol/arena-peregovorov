@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 // Реплика потоком в облачке: заход, 2–3 растущих line, done. Печать не начинается заново, шрифт не прыгает,
-// облачко не схлопывается. Снимает кадры облачка (3D и классика, телефон и ноутбук) и пишет, что было на экране.
+// облачко не схлопывается и не переезжает, камера 3D стоит на месте. Снимает кадры облачка (3D и классика, телефон и ноутбук) и пишет, что было на экране.
 // Без платных вызовов: /api/* перехвачены, голос — предзаписанные mp3 из public/assets.
 // Запуск: vite на любом порту (API не нужен), затем
 //   npx tsx scripts/bubble-stream-e2e.ts [--url http://localhost:5173] [--out папка] [--view 3d,classic] [--size 390x844,1440x900]
@@ -91,11 +91,14 @@ const SNAP = `(() => {
   const shown = document.querySelector('.px-dialog-shown')
   if (!box || !text) return null
   const r = box.getBoundingClientRect()
+  const wd = window.__world
+  // камера 3D: угол обзора, наклон головы, размер холста и масштаб точки
+  const cam = wd ? { fov: +wd.camera.fov.toFixed(2), pitch: +wd.head.pitch.toFixed(3), pose: wd.head.pose, cw: wd.cw, ch: wd.ch, px: wd.px } : undefined
   return { t: Math.round(performance.now()), shown: shown ? shown.textContent : '', wait: !!document.querySelector('.px-dialog-wait'),
-    font: getComputedStyle(text).fontSize, w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left), y: Math.round(r.top) }
+    font: getComputedStyle(text).fontSize, w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left), y: Math.round(r.top), cam }
 })()`
 
-type Snap = { t: number; shown: string; wait: boolean; font: string; w: number; h: number; x: number; y: number }
+type Snap = { t: number; shown: string; wait: boolean; font: string; w: number; h: number; x: number; y: number; cam?: { fov: number; pitch: number; pose: string; cw: number; ch: number; px: number } }
 
 const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 let failed = false
@@ -161,7 +164,8 @@ try {
     }
     await page.screenshot({ path: join(OUT, `${name}-end.png`) })
     writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snaps, null, 1))
-    // проверки: напечатанное только растёт и всегда начало итоговой реплики; шрифт один; высота не уменьшается
+    // проверки: напечатанное только растёт и всегда начало итоговой реплики; шрифт один; высота не уменьшается;
+    // облачко и камера не двигаются
     const problems: string[] = []
     let prev = ''
     for (const s of snaps) {
@@ -177,6 +181,13 @@ try {
     if (fonts.size > 1) problems.push(`шрифт менялся: ${[...fonts].join(', ')}`)
     const typed = snaps.filter((s) => !s.wait && s.shown && s.shown !== '…')
     for (let i = 1; i < typed.length; i++) if (typed[i].h < typed[i - 1].h - 2) problems.push(`${typed[i].t} мс: облачко сжалось ${typed[i - 1].h} → ${typed[i].h} px`)
+    // камера и облачко стоят на месте всю реплику (от первых слов до конца), включая done
+    for (let i = 1; i < typed.length; i++) {
+      const a = typed[i - 1], b = typed[i]
+      if (Math.abs(b.y - a.y) > 12 || Math.abs(b.x - a.x) > 12) problems.push(`${b.t} мс: облачко переехало (${a.x}, ${a.y}) → (${b.x}, ${b.y})`)
+      if (a.cam && b.cam && (Math.abs(b.cam.pitch - a.cam.pitch) > 0.01 || b.cam.fov !== a.cam.fov || b.cam.px !== a.cam.px))
+        problems.push(`${b.t} мс: камера сдвинулась: наклон ${a.cam.pitch} → ${b.cam.pitch}, угол ${a.cam.fov} → ${b.cam.fov}, точка ${a.cam.px} → ${b.cam.px}`)
+    }
     const last = snaps[snaps.length - 1]
     if (last?.shown !== FULL) problems.push(`в конце на экране не вся реплика: «${last?.shown}»`)
     if (errors.length) problems.push(...errors.map((e) => `ошибка страницы: ${e}`))
