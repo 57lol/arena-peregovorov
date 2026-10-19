@@ -4,7 +4,7 @@
 // Поток Scribe открывают заранее (prepare) к концу реплики собеседника, а закрывают, как только он не нужен.
 
 import { SttError } from './recording'
-import { speechPause } from './silence'
+import { noiseFloor, QUIET_LOUD, speechPause } from './silence'
 
 /** 16 кГц: отсчётов в мс */
 const PER_MS = 16
@@ -12,8 +12,13 @@ const PER_MS = 16
 export const RING_MS = 1000
 /** столько звука до первого громкого кадра уходит в распознавание: первый слог мягкий */
 export const PREROLL_MS = 300
-/** громкость речи (RMS), как в silence.ts */
-export const LOUD = 0.012
+/** громкость речи (RMS) в тихой комнате; в шумной порог выше — над шумом (noiseFloor в silence.ts) */
+export const LOUD = QUIET_LOUD
+/**
+ * Текст от Scribe не меняется столько сверх паузы конца реплики — игрок замолчал, даже если микрофон слышит шум:
+ * Scribe пишет слова, а гул и стук не пишет. Запас — на задержку промежуточного текста (~0,3–0,6 с).
+ */
+export const TEXT_STALE_MS = 1000
 /** громкого набралось столько (с провалами не дольше GAP_MS) — игрок заговорил */
 export const ONSET_MS = 60
 const GAP_MS = 120
@@ -124,6 +129,12 @@ export function createListener(io: ListenIO) {
   let empties = 0
   let dead = false
   let heardAny = false
+  // шум комнаты и порог речи над ним
+  const noise = noiseFloor()
+  let thr = LOUD
+  // когда последний раз менялся распознанный текст реплики
+  let lastText = ''
+  let textAt = 0
 
   const set = (p: ListenPhase) => {
     if (phase === p) return
@@ -187,20 +198,26 @@ export function createListener(io: ListenIO) {
     const r = level(pcm)
     if (parked) {
       // после раннего commit игрок заговорил снова — новый поток, с PREROLL_MS до первого громкого кадра
-      if (r >= LOUD) {
+      if (r >= thr) {
         if (!rRun) rStart = t
         rRun += end - t
         rLast = end
       } else if (end - rLast > GAP_MS) rRun = 0
       if (rRun >= ONSET_MS) resume()
     } else if (used) pushChunk(pcm)
-    if (r >= LOUD) {
+    if (r >= thr) {
       voiced += end - t
       lastLoud = end
       if (used) segVoiced += end - t
     } else if (voiced < 160) voiced = 0
     if (paused?.(r, end)) return void finish('pause')
     if (samples / PER_MS >= limit) return void finish('limit')
+    // шум не даёт тишины, а Scribe давно не пишет новых слов — игрок договорил
+    const h = heardText()
+    if (h !== lastText) {
+      lastText = h
+      textAt = end
+    } else if (h && end - textAt >= io.pauseMs(h) + TEXT_STALE_MS) return void finish('text')
     if (!parked && used && io.earlyMs && session?.ready && segVoiced >= 160 && end - lastLoud >= io.earlyMs && segs.length < EARLY_LIMIT) commitEarly()
     // щелчок или шум, а не речь: поток с мусором закрываем, слушаем дальше
     if (voiced < 160 && end - lastLoud > FALSE_START_MS) {
@@ -266,7 +283,7 @@ export function createListener(io: ListenIO) {
   /** Игрок заговорил на кадре f: начало — из кольца, PREROLL_MS до первого громкого, но не раньше from. */
   function onset(f: Frame) {
     const begin = Math.max(from!, runStart - PREROLL_MS)
-    trace('onset', { at: runStart, begin })
+    trace('onset', { at: runStart, begin, thr: +thr.toFixed(4) })
     if (session && session.ended) dropSession()
     if (!session) openSession()
     used = !!session
@@ -280,7 +297,9 @@ export function createListener(io: ListenIO) {
     segVoiced = 0
     parked = false
     lost = false
-    paused = speechPause(() => io.pauseMs(heardText()))
+    paused = speechPause(() => io.pauseMs(heardText()), () => thr)
+    lastText = ''
+    textAt = runStart
     set('speak')
     for (const g of ring) {
       if (g.t > f.t || g.end <= begin) continue
@@ -303,7 +322,7 @@ export function createListener(io: ListenIO) {
       return hear(cut ? f.pcm.subarray(cut) : f.pcm, Math.max(f.t, from), f.end)
     }
     const r = level(f.pcm)
-    if (r >= LOUD) {
+    if (r >= thr) {
       if (!run) runStart = Math.max(f.t, from)
       run += f.end - Math.max(f.t, from)
       lastLoud = f.end
@@ -418,6 +437,8 @@ export function createListener(io: ListenIO) {
     frame(pcm: Int16Array, t: number) {
       if (dead) return
       const f = { pcm, t, end: t + pcm.length / PER_MS }
+      noise.push(level(pcm), t)
+      thr = noise.loud()
       ring.push(f)
       while (ring.length > 1 && f.end - ring[0].end > RING_MS) ring.shift()
       accept(f)

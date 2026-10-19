@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
+import { padToBlocks } from './mp3Pad'
 import { budget as sharedBudget, type Budget } from './budget'
 import { CACHE_DIR, hashOf } from './cache'
 import { clientIp, quotaOf, judgeOf, type ClientQuota } from './client'
@@ -25,7 +26,7 @@ import { WAIT } from './timeouts'
 import { hedge, hedgeDelay } from './sttHedge'
 import { looksEnglish } from '../engine/lang'
 import { streamConfigured } from './sttStream'
-import { castFor, ELEVEN_FORMAT, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
+import { castFor, ELEVEN_FORMAT, ELEVEN_TUNE, elevenBody, elevenConnect, elevenRequest, mainTts, MAIN_TTS, mp3Ms, price1k, speechkit, styleFor, ttsStatus, voicesOf, YANDEX_VOICES, type TtsRequest } from './tts'
 
 const STT_URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
@@ -198,13 +199,28 @@ export function spokenTail(whole: string, start: string): string {
   while (k < said.length && k < words.length && words[k].w === said[k]) k++
   if (k === words.length) return ''
   if (k === said.length) return whole.slice(words[k - 1].end).trim()
-  if (k < Math.max(2, said.length * 0.6)) return whole
+  // начало переписано целиком: озвучиваем новое, но не фразы, которые уже прозвучали (живая катка капитана 19.10, Ли Вэй:
+  // «Эй, друг, чего ты… Всё, я предупреждал.» прозвучало трижды — остаток считался всей репликой, и дважды)
+  if (k < Math.max(2, said.length * 0.6)) return unsaid(whole, said)
   // хвост начала переписан: пропускаем до конца фразы, на которой кончилось сказанное
   const after = words[Math.min(said.length, words.length) - 1].end
   const stop = /[.!?…]+/gu
   stop.lastIndex = after - 1
   const m = stop.exec(whole)
   return m ? whole.slice(m.index + m[0].length).trim() : ''
+}
+/** Фразы whole, которых ещё не было в сказанном (said — слова после norm), по порядку. */
+function unsaid(whole: string, said: string[]): string {
+  const norm = (w: string) => w.toLowerCase().replaceAll('ё', 'е').replace(/[^\p{L}\p{N}]+/gu, '')
+  const heard = ` ${said.join(' ')} `
+  return whole
+    .split(/(?<=[.!?…])\s+/u)
+    .filter((p) => {
+      const w = stripTags(unstress(p)).split(/\s+/).map(norm).filter(Boolean)
+      return !w.length || !heard.includes(` ${w.join(' ')} `)
+    })
+    .join(' ')
+    .trim()
 }
 /** Пометки [..] — пробелами той же длины: позиции слов совпадают с исходной строкой. */
 const stripTagsKeep = (t: string) => t.replace(/(?<![<[])\[[^[\]<>\n]{1,40}\](?!\])/gu, (m) => ' '.repeat(m.length))
@@ -859,6 +875,24 @@ export function makeSpeech(opts: SpeechOptions = {}) {
   })
 
   /**
+   * Модель живой реплики (ELEVEN_LIVE_MODEL) после простоя «холодная»: первый байт 1,6–2,4 с против ~0,3 с
+   * (~/Arena-materials/final/voice5/ab). В начале встречи будим её коротким синтезом мимо кэша (1–2 кредита),
+   * не чаще раза в 5 минут на голос.
+   */
+  const warmAt = new Map<string, number>()
+  app.post('/api/tts/warm', bodyLimit({ maxSize: 1024 }), async (c) => {
+    const b = TtsBody.omit({ text: true }).safeParse(await c.req.json().catch(() => null))
+    const who = b.success ? b.data.who : undefined
+    if (!b.success || !who || ELEVEN_TUNE[who]?.model !== 'eleven_v3' || !env.ELEVEN_LIVE_MODEL?.trim() || !elevenOn()) return c.json({ ok: false })
+    const voice = castFor(who, b.data.voice, env)
+    if (Date.now() - (warmAt.get(voice) ?? 0) < 5 * 60_000) return c.json({ ok: true })
+    warmAt.set(voice, Date.now())
+    const text = who === 'china' ? 'Хм.' : 'Hmm.'
+    void elevenRequest({ text, voice, who, live: true }, f, env).then((r) => r.arrayBuffer()).catch(() => undefined)
+    return c.json({ ok: true })
+  })
+
+  /**
    * Живой звук реплики: отдаём с первых байт, пока синтез идёт (<audio src> играет сразу). Заголовок — когда известно,
    * кто говорит: x-tts-api, а при подмене ElevenLabs на SpeechKit — x-tts-fallback. Запрос куска (Range, Safari) —
    * когда звук готов целиком.
@@ -889,7 +923,8 @@ export function makeSpeech(opts: SpeechOptions = {}) {
       if (from >= size || from > to) return c.body(null, 416, { 'content-range': `bytes */${size}` })
       return c.body(clip.audio.slice(from, to + 1), 206, { ...headers, 'accept-ranges': 'bytes', 'content-range': `bytes ${from}-${to}/${size}`, 'x-audio-ms': String(clip.ms) })
     }
-    const it = j.out.read()
+    // ?pad=1 — Firefox (и Zen): без MediaSource для mp3 он отдаёт декодеру поток только целыми блоками по 32 КБ (mp3Pad.ts)
+    const it = c.req.query('pad') === '1' ? padToBlocks(j.out.read()) : j.out.read()
     const body = new ReadableStream<Uint8Array>({
       async pull(ctl) {
         const { done, value } = await it.next()

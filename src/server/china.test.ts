@@ -49,6 +49,14 @@ describe('голос Ли Вэя', () => {
     expect(elevenBody({ voice: CAST.china, who: 'china', text: 'Друг.', live: true, opener: true }, fast).model_id).toBe('eleven_v4_turbo')
     expect(elevenBody({ voice: CAST.china, who: 'china', text: 'Друг.', live: true }, fast).model_id).toBe('eleven_v3')
     expect(elevenBody({ voice: CAST.lagos, who: 'lagos', text: 'Hmm.', live: true, opener: true }, { ...env, ELEVEN_LIVE_V3: 'on' }).model_id).toBe('eleven_v3')
+    // ELEVEN_LIVE_MODEL: вся живая реплика у china, emre, lagos — одной моделью (и заход), заготовки — v3, другие лица — как были
+    const one = { ...fast, ELEVEN_LIVE_MODEL: 'eleven_v3_conversational' }
+    for (const who of ['china', 'emre', 'lagos']) {
+      for (const opener of [false, true]) expect(elevenBody({ voice: CAST[who], who, text: 'Hmm.', live: true, opener }, one).model_id).toBe('eleven_v3_conversational')
+      expect(elevenBody({ voice: CAST[who], who, text: 'Hmm.' }, one).model_id).toBe('eleven_v3')
+    }
+    expect(elevenBody({ voice: CAST.emre, who: 'emre', text: 'Hmm.', live: true }, one).text).toBe('[strong Turkish accent] Hmm.')
+    expect(elevenBody({ voice: CAST.sosed, who: 'sosed', text: 'Хм.', live: true }, one).model_id).toBe('eleven_v4_turbo')
     for (const who of Object.keys(CAST).filter((id) => !['china', 'emre', 'lagos'].includes(id))) {
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, env).model_id).toBe('eleven_v4_turbo')
       expect(elevenBody({ voice: CAST[who], who, text: 'Проверка.' }, { ELEVENLABS_MODEL: 'eleven_v4' }).model_id).toBe('eleven_v4')

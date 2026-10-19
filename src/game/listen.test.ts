@@ -344,3 +344,50 @@ describe('голосовой ход: ранний commit', () => {
     expect(io.onText).not.toHaveBeenCalled()
   })
 })
+
+describe('голосовой ход: шум комнаты (фон игры из колонок, 19.10)', () => {
+  // гул цеха в микрофоне: громче старого порога речи 0,012, но тише голоса
+  const HUM = 800, LOUD_HUM = 1500
+
+  it('ровный гул громче старого порога: пауза конца реплики всё равно наступает', async () => {
+    const { l, sessions, play } = setup()
+    await play(HUM, 3000) // гул шёл ещё до конца реплики собеседника
+    l.open(Date.now())
+    await play(HUM, 300)
+    expect(l.phase).toBe('listen') // гул — не речь
+    await play(ME, 1500)
+    expect(l.phase).toBe('speak')
+    await play(HUM, 860)
+    expect(sessions[0].finished).toBe(false)
+    await play(HUM, 100)
+    expect(sessions[0].finished).toBe(true)
+  })
+
+  it('шум сильнее любого порога: конец реплики — по тексту Scribe, который перестал меняться', async () => {
+    const { l, sessions, play } = setup()
+    l.open(0)
+    await play(ME, 600)
+    sessions[0].text = 'Двести десять'
+    await play(ME, 600)
+    sessions[0].text = 'Двести десять тысяч.'
+    // игрок замолчал, а микрофон слышит громкий стук — по громкости тишины нет
+    await play(LOUD_HUM, 1800)
+    expect(sessions[0].finished).toBe(false)
+    await play(LOUD_HUM, 200)
+    expect(sessions[0].finished).toBe(true)
+    sessions[0].resolve('Двести десять тысяч.')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(l.phase).toBe('idle')
+  })
+
+  it('пока текст прибавляется, реплика не кончается и в шуме', async () => {
+    const { l, sessions, play } = setup()
+    l.open(0)
+    for (let i = 0; i < 6; i++) {
+      sessions[0].text += ' слово'
+      await play(LOUD_HUM, 600)
+    }
+    expect(sessions[0].finished).toBe(false)
+    expect(l.phase).toBe('speak')
+  })
+})

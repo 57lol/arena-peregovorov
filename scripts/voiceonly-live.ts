@@ -41,6 +41,7 @@ const browser = ff
   : await chromium.launch({ args: ['--mute-audio', ...(process.argv.includes('--real-autoplay') ? [] : ['--autoplay-policy=no-user-gesture-required']), '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
 if (!ff) await ctx.grantPermissions(['microphone'], { origin: base })
+if (opt('mic-noise', '')) await ctx.route('**/__noise', (r) => r.fulfill({ body: readFileSync(opt('mic-noise', '').split(':')[0]), contentType: 'audio/mpeg' }))
 await ctx.route('**/__wav/*', (r) => r.fulfill({ body: wavs[+r.request().url().split('/').pop()! % wavs.length], contentType: 'audio/wav' }))
 // строкой: tsx добавляет в функции __name, которого в браузере нет
 await ctx.addInitScript(`
@@ -51,6 +52,10 @@ await ctx.addInitScript(`
   window.ev = []; const log = (k, s) => window.ev.push([Math.round(performance.now()), k, s])
   // Слышно ли на самом деле: <audio>, заведённый в Web Audio (видеозвонок), «играет» и при спящем контексте — молча.
   // Каждое подключение к destination дублируем в анализатор и раз в 40 мс меряем уровень: sound on/off — реальный звук.
+  const ECHO = ${Number(opt('room-echo', '0'))}
+  const echoes = []
+  let ac, dest
+  const mixEcho = (stream) => { const s = ac.createMediaStreamSource(stream); const g = ac.createGain(); g.gain.value = ECHO; s.connect(g); g.connect(dest); log('echo', ECHO) }
   {
     const taps = new Map()
     const C = window.AudioContext
@@ -64,6 +69,11 @@ await ctx.addInitScript(`
         if (!t) { t = { an: this.context.createAnalyser(), on: false, state: this.context.state }; t.an.fftSize = 1024; taps.set(this.context, t)
           this.context.addEventListener('statechange', () => log('wa-state', this.context.state)); log('wa-ctx', this.context.state) }
         conn.call(this, t.an)
+        // --room-echo: всё, что игра играет через Web Audio (фон комнаты, звонок), слышит и «микрофон» — как колонки ноутбука
+        if (ECHO > 0 && this.context !== ac) {
+          if (!t.msd) { t.msd = this.context.createMediaStreamDestination(); echoes.push(t.msd.stream); if (ac) mixEcho(t.msd.stream) }
+          conn.call(this, t.msd)
+        }
       }
       return r
     }
@@ -96,7 +106,6 @@ await ctx.addInitScript(`
     return this.length
   }
   window.__voiceTrace = tr
-  let ac, dest
   const buffers = []
   window.say = async (i) => {
     const buf = buffers[i] ?? (buffers[i] = await ac.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer()))
@@ -111,6 +120,20 @@ await ctx.addInitScript(`
       dest = ac.createMediaStreamDestination()
       // живой микрофон шумит всегда; без этого между фразами у Firefox поток пустой (ноль каналов) — кадров нет вовсе
       if (${!process.argv.includes('--gap')}) { const keep = ac.createConstantSource(); keep.offset.value = 0; keep.connect(dest); keep.start() }
+      if (ECHO > 0) {
+        // свой шум микрофона, ≈ −60 дБ
+        const nb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const d = nb.getChannelData(0)
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.0017
+        const n = ac.createBufferSource(); n.buffer = nb; n.loop = true; n.connect(dest); n.start()
+        for (const s of echoes) mixEcho(s)
+      }
+      // --mic-noise файл:громкость — шум комнаты прямо в микрофоне (не из колонок игры, его не приглушить)
+      if (${JSON.stringify(opt('mic-noise', ''))}) {
+        const nb = await ac.decodeAudioData(await (await fetch('/__noise')).arrayBuffer())
+        const n = ac.createBufferSource(); n.buffer = nb; n.loop = true
+        const g = ac.createGain(); g.gain.value = ${Number(opt('mic-noise', ':0').split(':')[1] ?? 0)}
+        n.connect(g); g.connect(dest); n.start(); log('mic-noise', g.gain.value)
+      }
       // заранее декодируем фразы: на ход — без задержки
       for (let i = 0; i < ${wavs.length}; i++) buffers[i] = await ac.decodeAudioData(await (await fetch('/__wav/' + i)).arrayBuffer())
     }
