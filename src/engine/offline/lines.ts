@@ -167,7 +167,23 @@ function emotionFor(d: Decision, state: OpponentState): Emotion {
  * `prev` — прошлое предложение собеседника: во встречном он называет только то, что изменилось,
  * а не зачитывает весь листок заново («остальное как было»).
  */
-export function templateLine(sc: Scenario, d: Decision, state: OpponentState, prev?: Offer, stanceBefore?: Offer): { line: string; emotion: Emotion } {
+// Короткий отклик на приём из книг перед заготовкой (без модели): на ярлык теплеют, на нажим сроком — упираются.
+// Первый найденный по порядку; на согласие, уход и замечание за тон не откликаемся — там своя реплика.
+const HEARD: [string, string, string][] = [
+  ['deadline', 'Не торопите меня.', "Don't rush me."],
+  ['accusation_audit', 'Ценю, что прямо.', 'I appreciate the honesty.'],
+  ['label', 'Есть такое.', 'That is true.'],
+  ['i_message', 'Понимаю вас.', 'I hear you.'],
+  ['golden_bridge', 'Вот это уже разговор.', 'Now that helps.'],
+  ['balcony', 'Думайте, я подожду.', 'Take your time.'],
+]
+function heardPrefix(sc: Scenario, d: Decision, heard: string[] = []): string {
+  if (d.kind === 'accept' || d.kind === 'walk_away' || d.kind === 'warn_tone' || (d.kind === 'hold' && (d.reason === 'player_left' || d.reason === 'timeout'))) return ''
+  const h = HEARD.find(([id]) => heard.includes(id))
+  return h ? `${isEn(sc) ? h[2] : h[1]} ` : ''
+}
+
+export function templateLine(sc: Scenario, d: Decision, state: OpponentState, prev?: Offer, stanceBefore?: Offer, heard?: string[]): { line: string; emotion: Emotion } {
   const k = kindOf(d, state)
   const tone = sc.opponent.character.tone
   // Свои реплики персонажа (из сценария) важнее общих по тону.
@@ -201,7 +217,7 @@ export function templateLine(sc: Scenario, d: Decision, state: OpponentState, pr
       .join(', ')
     line += say.feigned(what)
   }
-  return { line: [line, upsellLine(sc, state)].filter(Boolean).join(' '), emotion: emotionFor(d, state) }
+  return { line: [heardPrefix(sc, d, heard) + line, upsellLine(sc, state)].filter(Boolean).join(' '), emotion: emotionFor(d, state) }
 }
 
 // «Могу подвинуться», «иду навстречу» — только когда встречное правда что-то уступает игроку

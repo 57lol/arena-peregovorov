@@ -422,7 +422,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
     const keyOf = (r: ReturnType<typeof step>) => frameKey(sc, history, body.playerText, r.decision, r.state)
     /** Реплика по решению. Её начало уходит в голос и в поток, только когда решение подтверждено (open). */
-    const speak = (r: ReturnType<typeof step>, basis: string) => {
+    const speak = (r: ReturnType<typeof step>, basis: string, heard: string[] = []) => {
       const ac = new AbortController()
       const at = Date.now() - t0
       let piece: string | undefined
@@ -445,6 +445,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         natural,
         marks,
         reaction: body.reaction,
+        heard,
         opener,
         fallback: llm,
         signal: ac.signal,
@@ -476,7 +477,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         const d = decide(a.analysis)
         if (cur?.key !== keyOf(d.r)) {
           cur?.ac.abort()
-          cur = speak(d.r, basis)
+          cur = speak(d.r, basis, d.analysis.behaviors.map((b) => b.id))
         }
         return cur
       }
