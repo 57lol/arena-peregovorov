@@ -1304,7 +1304,7 @@ export async function voice(
   const ms: { ttft?: number; header?: number; first?: number } = {}
 
   const run = async (m: LLM) => {
-    const spare = !!opts.fallback && opts.fallback !== m && opts.fallback.name !== 'offline'
+    const spare = (!!m.backup && m.backup !== m && m.backup.name !== 'offline') || (!!opts.fallback && opts.fallback !== m && opts.fallback.name !== 'offline')
     // короткое ожидание — только когда есть кому подхватить
     const wait = spare ? WAIT.voice() : WAIT.voiceAlone()
     const key = { v: VOICE_VERSION, llm: `${m.name}:${m.model}`, sc: sc.id, sys, user }
@@ -1399,6 +1399,22 @@ export async function voice(
   } catch (e) {
     const err = (e as Error).message
     if (opts.signal?.aborted) return { ...spare, source: 'template', error: err, ms: { done: Date.now() - t0 } }
+    if (llm.backup) {
+      const visited = new Set([`${llm.name}:${llm.model}`])
+      const errors = [`${llm.model}: ${err}`]
+      let next: LLM | undefined = llm.backup
+      while (next && next.name !== 'offline' && !visited.has(`${next.name}:${next.model}`)) {
+        visited.add(`${next.name}:${next.model}`)
+        try {
+          return { ...(await run(next)), error: errors.join('; ') }
+        } catch (error) {
+          errors.push(`${next.model}: ${(error as Error).message}`)
+          if (opts.signal?.aborted) break
+          next = next.backup ?? opts.fallback
+        }
+      }
+      return { ...spare, source: 'template', error: errors.join('; '), ms: { done: Date.now() - t0 } }
+    }
     if (opts.fallback && opts.fallback !== llm && opts.fallback.name !== 'offline') {
       try {
         return { ...(await run(opts.fallback)), error: `${llm.model}: ${err}` }

@@ -362,7 +362,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
     const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
     const skip = (process.env.OPENER_SKIP ?? '').split(',').map((x) => x.trim()).includes(sc.id)
-    const opens = !skip && !lab && !!body.tts && !body.walkAway && speaker.name === 'aitunnel' && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
+    const opens = !skip && !lab && !!body.tts && !body.walkAway && (speaker.name === 'aitunnel' || speaker.name === 'anthropic') && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
     const q = quotaOf(c)
     // Проверенная сессия не меняется при переходе телефона с Wi-Fi на мобильную сеть.
     // Для анонимного клиента q.key уже содержит IP; лимиты по IP остаются в clientLimiter.
@@ -462,8 +462,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // Спекуляция — только у модели с потоком: промах обрывается сразу и почти ничего не стоит.
       const spec = !body.walkAway && !lab && process.env.SPECULATE !== 'off' && !!speaker.stream
       const analyzer = lab ? llm : (isEn(sc) && llm.analyzerEn) || llm.analyzer || llm
-      // быстрый разметчик — запасной Claude (YandexGPT Pro): рамку реплики знаем через ~0,8 с, а не через ~2,2 с
-      const quick = spec && process.env.ANALYZE_QUICK !== 'off' ? analyzer.backup : undefined
+      // Быстрый разметчик — запасной AITunnel (YandexGPT Pro). У Anthropic запасные идут последовательно.
+      const quick = spec && analyzer.name !== 'anthropic' && process.env.ANALYZE_QUICK !== 'off' ? analyzer.backup : undefined
       const ar: AnalyzeRun = body.walkAway
         ? { ready: { analysis: walkAwayMove(), source: 'button' }, keep: async () => {} }
         : await startAnalysis(analyzer, sc, dict, history, body.playerText, before.lastOpponentOffer, quick)
