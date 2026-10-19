@@ -351,6 +351,11 @@ async function staticScreens(page: Page, vp: Vp, dir: string, tag: string) {
     await page.getByRole('button', { name: 'Личное дело', exact: true }).click()
     await page.waitForTimeout(500)
   })
+  await step('09b-библиотека', async () => {
+    await fresh(page, '/?jury')
+    await page.getByRole('button', { name: 'Библиотека приёмов', exact: true }).first().click()
+    await page.waitForSelector('.lb-book')
+  })
   await step('10-карта-недели', async () => {
     await fresh(page, '/?jury')
     await page.getByRole('button', { name: 'Карта недели' }).first().click()
