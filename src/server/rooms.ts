@@ -293,13 +293,18 @@ export function roomsApi({ dir, resolve, normalize }: Deps) {
         await save(fresh)
         return fresh
       })
+    // ушёл с брифа или встречи (или закрыл вкладку — пульс молчит) и начал новую попытку — старая уже не «играет сейчас»;
+    // две живые вкладки видны обе
+    const pulses = Object.values(room.pulses ?? {})
+    const latest = new Map<string, number>()
+    for (const p of pulses) latest.set(p.clientId, Math.max(latest.get(p.clientId) ?? 0, p.at))
     const board: Board = {
       id: room.id,
       caseId: room.caseId,
       name: room.name,
       createdAt: room.createdAt,
       ...(room.closedAt ? { closedAt: room.closedAt } : {}),
-      live: Object.values(room.pulses ?? {}).filter((p) => !p.submitted).map((p): LiveRow => ({
+      live: pulses.filter((p) => !p.submitted && !((p.phase === 'left' || p.phase === 'finished' || isSilent(p.at)) && p.at < latest.get(p.clientId)!)).map((p): LiveRow => ({
         pid: p.pid, name: p.name, turn: p.turn, total: p.total, trust: p.trust, tension: p.tension,
         phase: p.phase, at: p.at, needsHelp: needsHelp(p.tension, p.trail), silent: isSilent(p.at),
       })),
