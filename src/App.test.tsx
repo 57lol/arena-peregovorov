@@ -242,6 +242,24 @@ describe('самостоятельный сюжет после командно�
     expect(restored.story?.seen).toEqual(['dorm'])
   })
 
+  it('«Сюжет» не затирает прогресс, записанный мимо экрана (обучение, вторая вкладка)', async () => {
+    await act('Debrief', 'onOther')
+    await act('Setup', 'onBack')
+    // App уже прочитал пустой прогресс; потом обучение отметило себя пройденным, а другая вкладка сыграла общагу
+    const p: Progress = {
+      cases: { dorm: { title: 'dorm', plays: 1, bestPoints: 40, bestStars: 2, stars: { deal: true, value: false, trust: true }, lastStatus: 'deal' } },
+      tutorialDone: true, endings: {}, runs: [], story: { seen: [], chapter: 1 },
+    }
+    localStorage.setItem('peregovorka.progress.v2', JSON.stringify(p))
+    localStorage.setItem('peregovorka.cutscenes.v1', JSON.stringify(['prologue', 'to-stop']))
+    await act('Title', 'onPlay')
+    const after = JSON.parse(localStorage.getItem('peregovorka.progress.v2')!) as Progress
+    expect(after.cases).toEqual(p.cases)
+    expect(after.tutorialDone).toBe(true)
+    await act('CutscenePlayer', 'onDone')
+    expect(savedState().current.scenario.id).toBe('stop')
+  })
+
   it('после меню и пролога открывает общагу без допуска в закрытую комнату', async () => {
     const { sendPulse } = await import('./game/rooms')
     vi.mocked(sendPulse).mockRejectedValue(new Error('Тренировка завершена'))

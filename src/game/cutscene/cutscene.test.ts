@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { STORY_ENDINGS } from '../../content/scenarios/story'
 import { CHAPTERS } from '../../content/story'
 import { RGB_OF } from '../world3d/palette'
 import { SPOTS } from './art'
 import { lut, nearest } from './mood'
 import { pathLength, pointAt, routeBetween } from './render'
 import { BRIDGES, chapterCard, CUTSCENES, PROLOGUE } from './scripts'
-import { GUIDE_AT, lineAt, locate, phoneAt, sample, starts, total, travelled, walkFrame } from './timeline'
+import { clockOf, GUIDE_AT, lineAt, locate, phoneAt, sample, starts, total, travelled, walkFrame } from './timeline'
 
 describe('катсцены: одна мысль за раз и не дольше 40 секунд', () => {
   it.each(CUTSCENES.map((c) => [c.id, c] as const))('%s', (_, cs) => {
@@ -59,6 +60,25 @@ describe('катсцены: одна мысль за раз и не дольше
     }
     expect(BRIDGES[CHAPTERS.at(-1)!.id].id).toBe('finale')
     expect(new Set(CUTSCENES.map((c) => c.id)).size).toBe(CUTSCENES.length)
+  })
+
+  it('тексты переходов не спорят с главами: чайник несут во вторник, а финал недели — при любом исходе ночной смены', () => {
+    const said = (id: string) => BRIDGES[id].shots.flatMap((s) => (s.lines ?? []).map((l) => l.text)).join(' ')
+    // возврат чайника — глава «Семёрочка», вторник вечером: утром в понедельник это «потом», а не «вечером»
+    expect(CHAPTERS.find((c) => c.id === 'shop')!.day).toBe('Вторник')
+    expect(said('dorm')).not.toMatch(/Это вечером/)
+    // финал недели показывается после любой партии в бытовке, в том числе когда линия в понедельник не запустилась
+    expect(STORY_ENDINGS.launch.slammed.epilogue).toMatch(/линия не запустилась/)
+    expect(said('launch')).not.toMatch(/запущен|пошла|стартовал/)
+  })
+
+  it('часы на телефоне сходятся с главами: до остановки — раньше 7:35, в служебном автобусе — позже 7:52', () => {
+    const min = (hm: string) => Number(hm.split(':')[0]) * 60 + Number(hm.split(':')[1])
+    const phone = (id: string) => BRIDGES[id].shots.find((s) => s.set === 'phone')!
+    const at = (id: string) => min(CHAPTERS.find((c) => c.id === id)!.time)
+    expect(min(clockOf(phone('dorm')))).toBeLessThan(at('stop'))
+    expect(min(clockOf(phone('stop')))).toBeGreaterThan(min('7:52'))
+    expect(min(clockOf(phone('stop')))).toBeLessThan(at('tara'))
   })
 
   it('маршрут на карте идёт от метки главы к метке следующей', () => {

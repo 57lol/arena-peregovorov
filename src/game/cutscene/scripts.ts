@@ -148,11 +148,13 @@ export const BRIDGES: Record<string, Cutscene> = {
         mood: 'morning',
         dur: 5,
         actors: [{ who: 'newbie', x: [[-0.5, S.stop + 220], [4.6, S.stop + 14]] }],
-        lines: [{ at: 0.3, text: 'Это вечером. А сейчас — на остановку.' }],
+        lines: [{ at: 0.3, text: 'Это потом. А сейчас — на остановку.' }],
       },
       {
         set: 'phone',
         mood: 'morning',
+        // до остановки: глава начинается в 7:35
+        clock: '07:31',
         behind: 'street',
         cam: S.stop,
         dur: 4.6,
@@ -179,6 +181,8 @@ export const BRIDGES: Record<string, Cutscene> = {
       {
         set: 'phone',
         mood: 'morning',
+        // уже в служебном автобусе: он ушёл в 7:52
+        clock: '07:58',
         behind: 'bus',
         drive: 110,
         dur: 8.8,
@@ -339,7 +343,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         set: 'oez',
         dur: 5,
         actors: [{ who: 'newbie', x: [[0, O.vodogrey], [5.6, O.vodogrey + 210]] }],
-        lines: [{ at: 0.3, text: 'Понедельник. Новая линия запущена.' }],
+        lines: [{ at: 0.3, text: 'Понедельник, утро. Новая неделя на «Водогрее».' }],
       },
       {
         set: 'road',
