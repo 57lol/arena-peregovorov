@@ -97,6 +97,7 @@ beforeEach(() => {
   screen.enabled = false; screen.view = '3d'; screen.meeting = null; screen.voice = null
   speech.reaction.mockReset(); speech.reaction.mockImplementation(() => ({ cancel: vi.fn(), done: Promise.resolve() }))
   speech.on = true; speech.prepare.mockReset(); speech.play.mockReset(); speech.play.mockResolvedValue(true); speech.stop.mockClear()
+  api.prepare.mockReset(); api.prepare.mockResolvedValue(true)
   speech.blocked = false; speech.unlock.mockClear()
   speech.playing = false; settings.snap = { mode: 'text', pause: 'medium' }
   speech.live.mockClear(); speech.take.mockReset(); speech.take.mockReturnValue(null); speech.heard = ''
@@ -521,6 +522,53 @@ describe('мгновенная реакция в useMeeting', () => {
     speech.reaction.mockClear()
     void meeting.send('давай 1000, и уборку беру'); render()
     expect(speech.reaction).toHaveBeenCalledOnce()
+  })
+
+  it('одинаковый partial и final посылают prepare один раз; изменение текста — новый запрос', async () => {
+    render(); resolveAudio(prepared); await advance()
+    meeting.prepare('  давай 1000  ')
+    meeting.prepare('давай 1000')
+    expect(api.prepare).toHaveBeenCalledOnce()
+    meeting.prepare('давай 2000')
+    expect(api.prepare).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['empty', 'pending', 'done', 'local'] as const)('%s: useMeeting не шлёт prepare', async (why) => {
+    render(); resolveAudio(prepared); await advance()
+    const record: TurnRecord = { turn: 1, playerText: 'привет', opponentLine: 'Ответ.', emotion: 'neutral',
+      analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(props.game.scenario) }
+    if (why === 'pending') {
+      api.turn.mockImplementationOnce(() => new Promise(() => {}))
+      void meeting.send('привет'); render()
+    }
+    if (why === 'done') { props.history = [{ ...record, stateAfter: { ...record.stateAfter, status: 'walked_away' } }]; render() }
+    if (why === 'local') {
+      api.turn.mockResolvedValueOnce({ record, source: 'local' })
+      await meeting.send('привет'); render()
+    }
+    meeting.prepare(why === 'empty' ? '  ' : 'давай 1000')
+    expect(api.prepare).not.toHaveBeenCalled()
+  })
+
+  it.each(['rejected', 'expired', 'offer'] as const)('%s: заготовка не отключает реакцию настоящего хода', async (why) => {
+    render(); resolveAudio(prepared); await advance()
+    if (why === 'rejected') api.prepare.mockResolvedValueOnce(false)
+    meeting.prepare('давай 1000')
+    await advance(why === 'expired' ? 50_001 : 1)
+    api.turn.mockImplementationOnce(() => new Promise(() => {}))
+    void meeting.send('давай 1000', why === 'offer' ? { offer: { rent: 0 } } : {})
+    expect(speech.reaction).toHaveBeenCalledOnce()
+  })
+
+  it.each(['3d', 'classic'] as const)('%s: первый ход готовится и без TTS, распознавание не фильтруется по провайдеру', async (view) => {
+    screen.enabled = true; screen.view = view
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 390, innerHeight: 844 }))
+    settings.snap = { mode: 'voice', pause: 'medium' }
+    props.speech = { tts: false, stt: true, scribe: false }
+    render(); await advance()
+    meeting.prepare('Давайте договоримся.')
+    expect(api.prepare).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ history: [], text: 'Давайте договоримся.' }))
+    expect(api.prepare.mock.calls[0][0].tts).toBeUndefined()
   })
 })
 

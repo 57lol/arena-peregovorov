@@ -117,7 +117,7 @@ export const wrongScript = (text: string | null, lang: 'ru' | 'en') => lang === 
 /** lang — язык дела: 'en' сервер кладёт в пропуск потока */
 export function browserScribe(partial: (text: string) => void, seconds: number, lang: 'ru' | 'en' = 'ru') {
   const s = createScribe({
-    partial,
+    partial: (t) => partial(wrongScript(t, lang) ? '' : t),
     url: async (signal) => {
       const r = await fetch('/api/stt/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(lang === 'en' ? { seconds, lang } : { seconds }), signal })
       if (!r.ok) throw new Error('Поток недоступен')
@@ -129,6 +129,12 @@ export function browserScribe(partial: (text: string) => void, seconds: number, 
     },
     socket: (url) => new WebSocket(url) as unknown as StreamSocket,
   })
-  const finish = s.finish
-  return Object.assign(s, { finish: () => finish().then((t) => (wrongScript(t, lang) ? null : t)) })
+  return {
+    push: s.push,
+    cancel: s.cancel,
+    finish: () => s.finish().then((t) => (wrongScript(t, lang) ? null : t)),
+    get text() { return wrongScript(s.text, lang) ? '' : s.text },
+    get ready() { return s.ready },
+    get ended() { return s.ended },
+  }
 }

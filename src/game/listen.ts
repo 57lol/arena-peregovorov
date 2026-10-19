@@ -65,7 +65,7 @@ export interface ListenIO {
    * можно готовить, пока идёт пауза. Заговорил снова — новый поток, текст склеивается. Нет — один commit в конце.
    */
   earlyMs?: number
-  /** текст после раннего commit, пока игрок молчит: ход можно готовить (тот же текст уйдёт, если он не заговорит) */
+  /** промежуточный или финальный текст, пока игрок молчит: ход можно готовить; исправленный финал меняет ключ */
   onEarly?: (text: string) => void
   onPhase: (p: ListenPhase) => void
   onPartial: (text: string) => void
@@ -135,6 +135,16 @@ export function createListener(io: ListenIO) {
   // когда последний раз менялся распознанный текст реплики
   let lastText = ''
   let textAt = 0
+  let earlyText = ''
+
+  // Промежуточный текст уже годится для заготовки: финал commit может прийти позже короткой паузы.
+  // Повтор с тем же текстом не тратит запрос; исправленный финал обязан получить отдельный ключ.
+  const offerEarly = (text: string) => {
+    const t = text.trim()
+    if (!t || t === earlyText) return
+    earlyText = t
+    io.onEarly?.(t)
+  }
 
   const set = (p: ListenPhase) => {
     if (phase === p) return
@@ -210,6 +220,10 @@ export function createListener(io: ListenIO) {
       lastLoud = end
       if (used) segVoiced += end - t
     } else if (voiced < 160) voiced = 0
+    if (io.earlyMs && voiced >= 160 && end - lastLoud >= io.earlyMs && !lost &&
+        session?.ready && !session.ended && segs.every((x) => x.done !== undefined && (x.done !== null || x.voiced < TINY_MS))) {
+      offerEarly(heardText())
+    }
     if (paused?.(r, end)) return void finish('pause')
     if (samples / PER_MS >= limit) return void finish('limit')
     // шум не даёт тишины, а Scribe давно не пишет новых слов — игрок договорил
@@ -250,7 +264,7 @@ export function createListener(io: ListenIO) {
       seg.done = t
       if (g !== gen || !parked || phase !== 'speak' || segs.some((x) => x.done === undefined)) return
       const text = joined(segs.map((x) => x.done!), segs.map((x) => x.voiced))
-      if (text) io.onEarly?.(text)
+      if (text) offerEarly(text)
     })
   }
 
@@ -300,6 +314,7 @@ export function createListener(io: ListenIO) {
     lost = false
     paused = speechPause(() => io.pauseMs(heardText()), () => thr)
     lastText = ''
+    earlyText = ''
     textAt = runStart
     set('speak')
     for (const g of ring) {

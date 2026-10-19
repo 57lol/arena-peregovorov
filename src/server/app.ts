@@ -194,6 +194,7 @@ interface JobFirst {
 }
 interface Job {
   who: string
+  prepared: boolean
   t0: number
   ms: Record<string, number | string>
   /** заход — первые слова ответа быстрой моделью (opener.ts): звучат сразу, до разбора; undefined — без захода */
@@ -334,13 +335,22 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const natural = nh ? nh === '1' : naturalMode() === 'on' || naturalMode() === 'live'
     // voices+: модель ставит «+» в омографах; на экран — без плюсов, синтезу — с ними (rememberSpoken)
     const marks = !nh && naturalMode() === 'voices+'
+    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
+    const speaker = lab ? llm : asked.llm ?? llm.voice ?? llm
+    const skip = (process.env.OPENER_SKIP ?? '').split(',').map((x) => x.trim()).includes(sc.id)
+    const opens = !skip && !lab && !!body.tts && !body.walkAway && speaker.name === 'aitunnel' && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
     const q = quotaOf(c)
-    const who = `${q.key}|${q.ip}`
-    const key = hashOf({
-      who, sc: body.scenarioId ?? hashOf(sc), history: history.map((h) => [h.playerText, h.opponentLine, h.analysis]), text: body.playerText,
-      reaction: body.reaction, offer: body.offer, accept: body.accept, walkAway: body.walkAway, natural, marks, lab, voiceLlm: body.voiceLlm ?? c.req.header('x-voice-llm'),
-    })
-    return { llm, lab, sc, history, before, natural, marks, who, key }
+    // Проверенная сессия не меняется при переходе телефона с Wi-Fi на мобильную сеть.
+    // Для анонимного клиента q.key уже содержит IP; лимиты по IP остаются в clientLimiter.
+    const who = q.key
+    const key = hashOf(JSON.stringify({
+      who, sc, history: history.map((h) => [h.playerText, h.opponentLine, h.analysis, h.emotion]), text: body.playerText,
+      reaction: opens ? undefined : body.reaction || undefined, offer: fitOffer(sc, body.offer), accept: !!body.accept, walkAway: !!body.walkAway,
+      // Только включение opener меняет текст. Параметры синтеза — только доставку звука.
+      opener: !!opens, natural, marks, lab, voiceLlm: body.voiceLlm ?? c.req.header('x-voice-llm'),
+    }, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value))
+    return { llm, lab, sc, history, before, natural, marks, who, key, asked, speaker, opens }
   }
   type TurnInput = Awaited<ReturnType<typeof turnInput>>
 
@@ -357,7 +367,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
    * только его подтвердил разбор. heat — синтез захода заранее (заготовка хода, игрок ещё в паузе).
    */
   function startJob(t: TurnInput, body: z.infer<typeof TurnBody>, speaker: LLM, heat?: (text: string) => void): Job {
-    const { llm, lab, sc, history, before, natural, marks } = t
+    const { llm, lab, sc, history, before, natural, marks, opens } = t
     const t0 = Date.now()
     const ms: Record<string, number | string> = {}
     let stopped = false
@@ -365,8 +375,6 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const first = new Promise<JobFirst | undefined>((r) => (gotFirst = r))
     // Заход пишет YandexGPT Pro (llm.opener): ~0,2 с с прода против 1,0–1,5 с до первых слов Sonnet.
     // Только когда реплику озвучивают и пишет её модель с потоком через AITunnel; уход по кнопке — без захода.
-    const skip = (process.env.OPENER_SKIP ?? '').split(',').map((x) => x.trim()).includes(sc.id)
-    const opens = !skip && !lab && !!body.tts && !body.walkAway && speaker.name === 'aitunnel' && !!speaker.stream && process.env.SPECULATE !== 'off' ? llm.opener : undefined
     const openerP: Promise<string | undefined> = opens
       ? writeOpener(opens, sc, history, body.playerText, before, isRude(body.playerText), WAIT.opener()).then((o) => o ?? spareOpener(sc, history))
       : Promise.resolve(undefined)
@@ -484,8 +492,9 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
     const done = run()
     let over = false
-    done.then(() => (over = true), () => { over = true; gotFirst(undefined) })
+    done.then(() => (over = true), () => { over = true; stopped = true; gotFirst(undefined) })
     const job: Job = {
+      prepared: false,
       over: () => over,
       who: t.who,
       t0,
@@ -511,11 +520,14 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   app.post('/api/prepare', BODY, async (c) => {
     const body = TurnBody.parse(await c.req.json())
     if (llm.name === 'offline' || body.voiceLlm || c.req.header('x-lab-llm') || c.req.header('x-voice-llm') || process.env.PREPARE === 'off') return c.json({ ok: false })
-    if (!count.take('prep', quotaOf(c), limitOf('PREPARE_SESSION_MINUTE_LIMIT', 20), MINUTE)) return c.json({ ok: false }, 429)
     const t = await turnInput(c, body)
     if (t.before.status !== 'open') return c.json({ ok: false }, 409)
+    // Повтор готового или выполняющегося запроса ничего не стоит и не съедает квоту новых заготовок.
+    const ready = jobs.get(t.key)
+    if (ready && !ready.stopped()) return c.json({ ok: true }, 202)
+    if (!count.take('prep', quotaOf(c), limitOf('PREPARE_SESSION_MINUTE_LIMIT', 20), MINUTE)) return c.json({ ok: false }, 429)
     stopOthers(t.who, t.key)
-    if (!jobs.get(t.key) || jobs.get(t.key)!.stopped()) startJob(t, body, llm.voice ?? llm, body.tts ? speech.heater(body.tts, c) : undefined)
+    startJob(t, body, llm.voice ?? llm, body.tts ? speech.heater(body.tts, c) : undefined).prepared = true
     return c.json({ ok: true }, 202)
   })
 
@@ -523,15 +535,14 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const body = TurnBody.parse(await c.req.json())
     if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
     const t = await turnInput(c, body)
-    const { lab, sc, history, before } = t
+    const { lab, sc, history, before, asked, speaker } = t
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
 
     const t0 = Date.now()
     // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
-    const asked = lab ? {} : voiceLLM(body.voiceLlm ?? c.req.header('x-voice-llm'), c)
-    const speaker = lab ? t.llm : asked.llm ?? t.llm.voice ?? t.llm
     stopOthers(t.who, t.key)
     const ready = jobs.get(t.key)
+    // Повтор уже отданного хода проходит обычным путём через кэш разбора и реплики.
     const job = ready && !ready.stopped() && (!ready.attached || !ready.over()) ? ready : startJob(t, body, speaker)
     job.attached = true
     // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
@@ -588,13 +599,14 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // мс от прихода хода; заготовка начата раньше — на prepared мс
       const lead = t0 - job.t0
       const ms: Record<string, number | string> = Object.fromEntries(Object.entries(job.ms).map(([k, x]) => [k, typeof x === 'number' ? x - lead : x]))
-      if (lead > 0) ms.prepared = lead
+      ms.prepare = job.prepared ? 'hit' : 'miss'
+      if (job.prepared) ms.prepared = Math.max(0, lead)
       // строка задержек хода: по журналу видно, сколько ждали живые игроки (мс от прихода хода на сервер)
       const answered = Date.now() - t0
       const logTurn = (end?: number) => {
         const n = (k: string) => (typeof ms[k] === 'number' ? ms[k] : '-')
         const audio = sound?.firstAt ? sound.firstAt - t0 : '-'
-        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${lead > 0 ? lead : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} разбор=${a.source} модель=${v.model ?? v.source}`)
+        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${job.prepared ? Math.max(0, lead) : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} разбор=${a.source} модель=${v.model ?? v.source}`)
       }
       if (sound) void sound.ended.then(logTurn, () => logTurn())
       else logTurn()

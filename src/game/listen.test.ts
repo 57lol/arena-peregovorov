@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createListener, EMPTY_LIMIT, IDLE_MS, type ListenIO, type ListenPhase, type Session } from './listen'
+import { createListener, EARLY_LIMIT, EMPTY_LIMIT, IDLE_MS, type ListenIO, type ListenPhase, type Session } from './listen'
 import { SttError } from './recording'
+import { endOfTurnMs } from './endOfTurn'
 
 // Кадры по 20 мс; значение отсчёта говорит, чей это звук: эхо собеседника 1000, игрок 3000, тишина 0.
 const ECHO = 1000, ME = 3000
@@ -276,6 +277,85 @@ describe('голосовой ход: ошибки', () => {
 })
 
 describe('голосовой ход: ранний commit', () => {
+  it.each(['short', 'medium', 'long'] as const)('%s: промежуточный текст готовится на 450 мс, финал не дублирует prepare', async (pause) => {
+    const { l, sessions, play, io } = setup({ earlyMs: 450, pauseMs: (t) => endOfTurnMs(t, pause) })
+    l.open(0)
+    await play(ME, 600)
+    sessions[0].text = 'Давайте договоримся.'
+    await play(0, 440)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    await play(0, 20)
+    expect(io.onEarly).toHaveBeenCalledExactlyOnceWith('Давайте договоримся.')
+    expect(io.onText).not.toHaveBeenCalled()
+    // Финал через 250 мс: при short это уже позже порога 600 мс.
+    await play(0, 260)
+    sessions[0].resolve('Давайте договоримся.')
+    await play(0, 2000)
+    expect(io.onEarly).toHaveBeenCalledOnce()
+    expect(io.onText).toHaveBeenCalledExactlyOnceWith('Давайте договоримся.')
+    expect(io.recognize).not.toHaveBeenCalled()
+    l.dispose()
+  })
+
+  it.each(['short', 'medium', 'long'] as const)('%s: Яндекс без промежуточного текста — только конечный ход', async (pause) => {
+    const { l, play, io } = setup({ scribe: false, earlyMs: 450, pauseMs: (t) => endOfTurnMs(t, pause) })
+    l.open(0); await play(ME, 600); await play(0, 4000)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    expect(io.recognize).toHaveBeenCalledOnce()
+    expect(io.onText).toHaveBeenCalledExactlyOnceWith('по Яндексу')
+    l.dispose()
+  })
+
+  it.each(['no-text', 'not-ready', 'ended', 'no-silence', 'tiny', 'manual', 'limit'] as const)('%s: заготовка не стартует без пригодного текста и паузы', async (why) => {
+    const { l, sessions, play, io } = setup({ earlyMs: 450 })
+    l.open(0); await play(ME, why === 'tiny' ? 80 : 600)
+    if (why !== 'no-text') sessions[0].text = 'Договоримся.'
+    if (why === 'not-ready') sessions[0].ready = false
+    if (why === 'ended') sessions[0].ended = true
+    if (why === 'manual') void l.finish()
+    await play(why === 'no-silence' || why === 'limit' ? ME : 0, why === 'limit' ? 30_000 : 500)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    l.dispose()
+  })
+
+  it('финал исправил промежуточный текст — готовим и отправляем исправленное предложение', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 450, pauseMs: () => 1500 })
+    l.open(0); await play(ME, 600)
+    sessions[0].text = 'Двести рублей.'
+    await play(0, 460)
+    sessions[0].resolve('Триста рублей.')
+    await play(0, 1100)
+    expect(io.onEarly.mock.calls.map(([t]) => t)).toEqual(['Двести рублей.', 'Триста рублей.'])
+    expect(io.onText).toHaveBeenCalledExactlyOnceWith('Триста рублей.')
+    l.dispose()
+  })
+
+  it('финал без промежуточного текста пришёл после конца паузы — только turn, запоздалого prepare нет', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 450, pauseMs: () => 600 })
+    l.open(0); await play(ME, 600); await play(0, 700)
+    sessions[0].resolve('Договоримся.')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.onEarly).not.toHaveBeenCalled()
+    expect(io.onText).toHaveBeenCalledExactlyOnceWith('Договоримся.')
+    l.dispose()
+  })
+
+  it('EARLY_LIMIT ограничивает commit, но доступный partial четвёртого куска всё ещё готовит полный текст', async () => {
+    const { l, sessions, play, io } = setup({ earlyMs: 450, pauseMs: () => 2000 })
+    l.open(0)
+    for (let i = 0; i < EARLY_LIMIT; i++) {
+      await play(ME, 600); await play(0, 460)
+      sessions[i].resolve('Часть.')
+      await vi.advanceTimersByTimeAsync(0)
+    }
+    await play(ME, 600)
+    sessions[EARLY_LIMIT].text = 'Последняя часть.'
+    await play(0, 460)
+    expect(sessions[EARLY_LIMIT].finished).toBe(false)
+    expect(io.onEarly).toHaveBeenLastCalledWith('Часть. Часть. Часть. Последняя часть.')
+    l.dispose()
+  })
+
   it('замолчал на earlyMs — текст со знаками сразу, ход уходит по нему же без второго ожидания Scribe', async () => {
     const seen: string[] = []
     const { l, sessions, play, io } = setup({ earlyMs: 400, pauseMs: (t) => (seen.push(t), /[.?!]$/.test(t) ? 900 : 1500) })

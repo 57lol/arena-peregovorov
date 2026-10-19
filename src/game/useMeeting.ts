@@ -259,7 +259,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     return () => clearTimeout(t)
   }, [leaving])
 
-  const prepared = useRef<{ text: string; at: number } | null>(null)
+  const prepared = useRef<{ key: string; at: number; accepted?: boolean } | null>(null)
   /**
    * Голосом: игрок замолчал, текст уже распознан — сервер начинает ход, пока идёт пауза конца реплики. Тот же текст
    * уйдёт ходом (send), если игрок не заговорит снова; реакция та же, что выберет send, — от неё зависит реплика.
@@ -270,8 +270,12 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     const withVoice = voiceOn && canVoice
     const reaction = withVoice ? reactionText(chooseReaction(t, state, portraitFor(sc))) : undefined
     // голос — тот же, что у хода: сервер синтезирует заход (первые слова ответа) ещё в паузе
-    prepareTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) })
-    prepared.current = { text: t, at: performance.now() }
+    const input = { scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }
+    const key = JSON.stringify(input)
+    if (prepared.current?.key === key && performance.now() - prepared.current.at < 50_000) return
+    const attempt = { key, at: performance.now(), accepted: undefined as boolean | undefined }
+    prepared.current = attempt
+    void prepareTurn(input).then((ok) => { attempt.accepted = ok })
   }
 
   async function send(text: string, opts: SendOpts = {}) {
@@ -291,9 +295,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     // Лицо меняется сразу; короткая запись начинается через 0,32 с. Ход заготовлен заранее (голосом) или сервер начинает
     // ответ заходом (первые слова через ~0,5 с) — тогда записи нет: она длится 1,6–2,9 с, и ответ ждал бы её конца
     // (живой прогон 18.10: звук реплики на 2 с позже, чем она пришла). Реагирует лицо, первым звучит сам ответ.
-    const ahead = prepared.current?.text === t || (!!speech?.opener && !speech.openerSkip?.includes(sc.id))
-    prepared.current = null
     const said = withVoice ? reactionText(reaction) : undefined
+    const input = { scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(said ? { reaction: said } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }
+    const ahead = (prepared.current?.key === JSON.stringify(input) && prepared.current.accepted !== false && performance.now() - prepared.current.at < 50_000) || (!!speech?.opener && !speech.openerSkip?.includes(sc.id))
+    prepared.current = null
     const f = withVoice && !ahead ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction) : null
     filler.current = f
     const g = gen.current
@@ -319,7 +324,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       })
     }
     try {
-      const r = await playTurn({ scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(said ? { reaction: said } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }, onLine)
+      const r = await playTurn(input, onLine)
       if (g !== gen.current) return
       setReactionEmotion(toPortraitEmotion(r.record.emotion))
       noteVoice(r.audioVoice)

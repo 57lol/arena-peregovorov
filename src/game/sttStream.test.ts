@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CONNECT_MS, createScribe, wrongScript, type StreamSocket } from './sttStream'
+import { browserScribe, CONNECT_MS, createScribe, wrongScript, type StreamSocket } from './sttStream'
 import { pcmResampler } from './pcmStream'
 
 class Socket implements StreamSocket {
@@ -18,7 +18,7 @@ const setup = async () => {
   await Promise.resolve()
   return { ws, partial, s }
 }
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 describe('поток браузера', () => {
   it('буферизует начало, показывает partial, склеивает сегменты и ждёт финал', async () => {
     vi.useFakeTimers()
@@ -122,6 +122,26 @@ it('текст до ready не считается распознанной ре�
 })
 
 describe('Scribe в деле на английском', () => {
+  it('переведённый partial не попадает ни в интерфейс, ни в раннюю заготовку', async () => {
+    vi.useFakeTimers()
+    const ws = new Socket(), partial = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ url: '/stream' }))))
+    vi.stubGlobal('location', { href: 'https://arena.test/' })
+    vi.stubGlobal('WebSocket', class { constructor() { return ws } })
+    const s = browserScribe(partial, 30, 'en')
+    await vi.advanceTimersByTimeAsync(0)
+    ws.emit('ready'); ws.emit('partial', 'Предлагаю двести.')
+    expect(s.text).toBe('')
+    expect(partial).toHaveBeenLastCalledWith('')
+    ws.emit('partial', 'I offer two hundred.')
+    expect(s.text).toBe('I offer two hundred.')
+    expect(partial).toHaveBeenLastCalledWith('I offer two hundred.')
+    const final = s.finish()
+    ws.emit('final', 'Предлагаю двести.')
+    expect(await final).toBeNull()
+    expect(s.ended).toBe(true)
+  })
+
   it('кириллица вместо английского — не текст игрока (переводит русский акцент), русскому делу кириллица — норма', () => {
     expect(wrongScript('450 000 Евро, 2 недели обучения на месте, и у нас сделка.', 'en')).toBe(true)
     expect(wrongScript('450,000 Euros, two weeks of training on site, and we have a deal.', 'en')).toBe(false)

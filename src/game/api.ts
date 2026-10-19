@@ -150,16 +150,29 @@ const turnBody = (t: TurnInput) => ({
 
 /**
  * Ход заранее: игрок замолчал, текст уже распознан — сервер начинает разбор и реплику, пока идёт пауза конца реплики.
- * Ход с тем же текстом подхватит начатое; ответа не ждём, ошибки не важны.
+ * Ход с тем же текстом подхватит начатое; интерфейс не блокируем, отказ не считаем принятой заготовкой.
  */
-export function prepareTurn(t: TurnInput): void {
-  if (typeof fetch === 'undefined' || Object.keys(labHeaders()).length) return
-  void fetch('/api/prepare', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(turnBody(t)),
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => {})
+export async function prepareTurn(t: TurnInput): Promise<boolean> {
+  if (typeof fetch === 'undefined' || Object.keys(labHeaders()).length) return false
+  const body = turnBody(t)
+  if (body.voiceLlm) return false
+  // AbortSignal.timeout отсутствует в старых Safari: исключение раньше возникало до fetch/.catch.
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), 10_000)
+  try {
+    const r = await fetch('/api/prepare', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctl.signal,
+    })
+    return r.ok && (await r.json()).ok === true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** onLine — начало реплики раньше хода целиком (ход идёт потоком). */
