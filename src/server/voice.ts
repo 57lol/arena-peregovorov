@@ -8,7 +8,7 @@ import { lowerFirst } from '../engine/text'
 import { upsellLine } from '../engine/upsells'
 import { z } from 'zod'
 import { isRude, quantities, templateLine } from '../engine/offline'
-import { optionQuantity, type Dim, type Quantity } from '../engine/offline/numbers'
+import { optionQuantity, spokenClocks, type Dim, type Quantity } from '../engine/offline/numbers'
 import { initialState } from '../engine/turn'
 import type { Decision, Emotion, Interest, Issue, IssueId, Offer, OpponentState, Scenario, TalkAct, Tone, TurnRecord } from '../engine/types'
 import { bestOption, formatOffer, issueWeight } from '../engine/utility'
@@ -373,6 +373,16 @@ function dealSides(sc: Scenario, deal: Offer, prev: Offer, before: Offer): strin
   )
 }
 
+/**
+ * Пункты, где его вариант уже стоит и у тебя в листке: о них вы сошлись. Без этой строки Дарина, сама уступив оклад
+ * 150 000 ₽, на следующих ходах говорила «по деньгам вы так и стоите на ста пятидесяти» — и игрок сам поднял до 165
+ * (живая партия 19.10).
+ */
+function agreed(sc: Scenario, stance: Offer, prev: Offer): string {
+  const same = sc.issues.filter((i) => typeof stance[i.id] === 'number' && stance[i.id] === prev[i.id])
+  return same.length ? ` ${same.map((i) => `«${lc(i.title)}: ${i.options[stance[i.id]!]}»`).join(', ')} — тут вы уже сошлись, это и в твоём листке: не спорь с этим и не выдавай за его упрямство.` : ''
+}
+
 /** Его вариант по пунктам, и при каждом — что это для собеседника. */
 const hisTerms = (sc: Scenario, stance: Offer, sheet: Offer) =>
   sc.issues.filter((i) => typeof stance[i.id] === 'number').map((i) => `${lc(i.title)} — ${i.options[stance[i.id]!]} (${forYou(sc, i.id, stance[i.id]!, sheet)})`).join('; ')
@@ -468,7 +478,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
           const stepped = steppedToward(sc, stanceBefore, stance, prev)
-          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)} Новых цифр не называешь, листок не перечисляешь.${reasons}`
+          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)}${stepped ? '' : agreed(sc, stance, prev)} Новых цифр не называешь, листок не перечисляешь.${reasons}`
           break
         }
         case 'not_ready_to_reveal':
@@ -482,7 +492,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
           break
         default:
           text = Object.keys(stance).length
-            ? 'Он не сказал ничего нового по сделке. Ответь на его слова и дай понять, что ждёшь от него шага.'
+            ? `Он не сказал ничего нового по сделке. Ответь на его слова и дай понять, что ждёшь от него шага.${agreed(sc, stance, prev)}`
             : 'Он пока ничего не предложил. Ответь на его слова и спроси, что он предлагает.'
       }
       break
@@ -558,7 +568,8 @@ function saysYes(line: string): boolean {
 }
 
 // Когда решение — согласиться, «да» звучит и так: «оформлю», «по рукам», «вот это другой разговор», «ладно, берём»
-const YES_SOFT = /(?<!\p{L})(?:оформ(?:лю|им|ляю|ляем)|оформляйте|беру|берём|берем|идёт|идет|годится|принято|уговорил\p{L}*|так и сделаем|другой разговор|сошлись|решено|ладно|хорошо|lets? do it|let's do it|you've got it|fine by me|works for me|sounds good)(?!\p{L})/iu
+// «Ну раз так, го.» у Тимура и «Договор пришлю сегодня» у Марата — тоже «да» (живые партии 19.10)
+const YES_SOFT = /(?<!\p{L})(?:оформ(?:лю|им|ляю|ляем)|оформляйте|беру|берём|берем|идёт|идет|годится|принято|уговорил\p{L}*|так и сделаем|другой разговор|сошлись|решено|ладно|хорошо|го(?=\s*[.!…]|\s*$)|(?:при|вы)шл(?:ю|ём|ем) договор|договор (?:при|вы)шл(?:ю|ём|ем)|lets? do it|let's do it|you've got it|fine by me|works for me|sounds good)(?!\p{L})/iu
 const agreesNow = (line: string) => saysYes(line) || (YES_SOFT.test(line) && !/(?<!\p{L})(?:но|однако|только если|если|but|only if|if)(?!\p{L})/iu.test(line))
 
 // Кто есть кто: закупщик не отправляет искать другого поставщика, у продавца наоборот.
@@ -587,6 +598,8 @@ const COMMON = new Set([
   'немно', 'хочет', 'важне', 'важно', 'главн', 'деньг', 'рубле', 'рубля', 'догов', 'услов', 'предл', 'давай', 'можно', 'нужен',
   'нужна', 'хорош', 'плохо', 'проще', 'удобн', 'меньш', 'лучше', 'норма', 'понят', 'знаеш', 'знаю', 'делат', 'сделк', 'цифры',
   'сроки', 'срока', 'сейча', 'потому', 'поэто', 'тогда', 'вашим', 'ваших', 'наших', 'нашим', 'своим', 'другой', 'други',
+  // «вы назвали» и «What matters to you most?» — слова любого торга, а не тайна Дарины и Фрэнка (живые партии 19.10)
+  'назва', 'matte', 'impor',
   // английские общие слова торга
   'about', 'would', 'could', 'there', 'their', 'which', 'these', 'those', 'other', 'price', 'money', 'payme', 'deliv',
   'warra', 'train', 'month', 'weeks', 'years', 'think', 'right', 'maybe', 'reall', 'frien', 'hones', 'thing', 'thank',
@@ -845,7 +858,11 @@ function optionMarks(sc: Scenario, id: IssueId, option: number): Mark[] {
   const q = optionQuantity(o)
   // число узнаём и цифрами, и словами («двести четыре», «ста девяноста шести»), и как его говорят: «сто восемьдесят»
   // про 180 000 ₽, «four sixty-five» про €465,000, «с одиннадцати» про 23:00 — иначе код дописывал «Давай так: …»
-  const near = (a: number, b: number) => Math.abs(a - b) <= Math.abs(b) * 0.01 + 1e-9
+  // «полгода» (182,5 дня) — это «6 месяцев» (180), «год» — «12 месяцев»: сроки сравниваем с допуском в 2 %
+  const near = (a: number, b: number) => Math.abs(a - b) <= Math.abs(b) * (q?.dim === 'days' ? 0.02 : 0.01) + 1e-9
+  // «семь пятьдесят два» про 7:52 — часы и минуты словами
+  if (q?.dim === 'time') return [(t) => spokenClocks(t).some((v) => near(v, q.value) || near(v + 720, q.value)) || quantities(t).some((x) => near(x.value, q.value) || (x.dim === 'plain' &&
+    x.value >= 1 && x.value <= 12 && Number.isInteger(x.value) && (near(x.value * 60, q.value) || near((x.value + 12) * 60, q.value))))]
   if (q && q.dim !== 'plain') return [(t) => quantities(t).some((x) => near(x.value, q.value) || (x.dim === 'plain' && (
     ((q.dim === 'money' || q.dim === 'yuan') && q.value >= 1000 && near(x.value * 1000, q.value)) ||
     (q.dim === 'time' && x.value >= 1 && x.value <= 12 && Number.isInteger(x.value) && (near(x.value * 60, q.value) || near((x.value + 12) * 60, q.value))))))]
@@ -887,8 +904,10 @@ export function completeLine(sc: Scenario, frame: Frame, text: string): string {
   const clean = stripTags(unstress(text))
   const en = isEn(sc)
   // условия уже прозвучали своими словами — второй раз описью не зачитываем, только «договорились»
+  // Опись — только когда об условиях не сказано ни слова: «Триста за вай-фай, суббота у пацанов моя» + полная опись всех
+  // пяти пунктов звучала как робот (живая партия 19.10). Листок у игрока перед глазами.
   if (d.kind === 'accept' && !agreesNow(clean)) {
-    const told = sc.issues.every((i) => typeof frame.position[i.id] !== 'number' || optionMarks(sc, i.id, frame.position[i.id]!).some((has) => has(clean)))
+    const told = sc.issues.some((i) => typeof frame.position[i.id] === 'number' && optionMarks(sc, i.id, frame.position[i.id]!).some((has) => has(clean)))
     text += told ? (en ? " It's a deal." : ' Договорились.') : en ? ` It's a deal: ${terms(sc, frame.position)}.` : ` Договорились: ${terms(sc, frame.position)}.`
   }
   if (d.kind === 'reveal') {
@@ -1008,7 +1027,7 @@ const FIRST_WORDS = 3
 
 /** Кусок реплики — как clean(), но пометки по месту куска в реплике: только начало может задать подачу. */
 const cleanPiece = (t: string, mid: boolean, tags: number) =>
-  normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim(), mid ? Math.max(0, 1 - tags) : 1, mid)
+  normalizeTags(unquote(t.trim()).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim(), mid ? Math.max(0, 1 - tags) : 1, mid)
 const tagCount = (t: string) => (t.match(/\[[a-z ]+\]/g) ?? []).length
 
 interface Streamed {
@@ -1164,7 +1183,21 @@ export interface VoiceOptions {
 
 // ремарки, которые модели иногда пишут вместо пометок для голоса: [[laughs]], *вздыхает*, (смеётся), длинное [в квадратных скобках]
 const STAGE = /\[\[[^\]\n]{1,60}\]\]|\*[^*\n]{1,40}\*|\([^()\n]{1,40}\)|\[[^\]\n]{41,200}\]/gu
-const clean = (t: string) => normalizeTags(t.trim().replace(/^[«"]|[»"]$/g, '').replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
+/**
+ * Кавычки вокруг всей реплики (или её куска в потоке) снимаем, а парные внутри оставляем: «Ок» — это на что именно?
+ * Раньше срезалась первая «, и на экране было «Ок» — это…» без открывающей (живая партия 19.10).
+ */
+export function unquote(t: string): string {
+  const n = (re: RegExp) => (t.match(re) ?? []).length
+  const opens = n(/«/g), closes = n(/»/g), straight = n(/"/g)
+  if (/^«[^«»]*»$/u.test(t) || (straight === 2 && /^"[^"]*"$/u.test(t))) return t.slice(1, -1)
+  let s = t
+  if ((s.startsWith('«') && opens > closes) || (s.startsWith('"') && straight % 2)) s = s.slice(1)
+  if ((s.endsWith('»') && closes > opens) || (s.endsWith('"') && straight % 2)) s = s.slice(0, -1)
+  return s
+}
+
+const clean = (t: string) => normalizeTags(unquote(t.trim()).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 /** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
 export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction' | 'opener'> = {}) {

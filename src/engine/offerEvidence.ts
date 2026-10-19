@@ -333,6 +333,9 @@ const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по �
 // Явные слова согласия позволяют восстановить пропуск модели; условия и отрицания его отменяют.
 // «Давайте 40» — предложение, «согласен на 2 года, если цена 188» и «да, но 15%» — условие, а не согласие.
 const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подписываем|заключаем|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|let'?s\s+sign|shake\s+on\s+it|(?:i|we)(?:'ll|\s+will)\s+take\s+it|we\s+can\s+sign|works\s+for\s+(?:me|us))(?!\p{L})/iu
+const HOPE = /(?<!\p{L})(?:поладим|сработаемся|уживёмся|уживемся|сдружимся|(?:найд[её]м|найти)\s+общий\s+язык|(?:думаю|надеюсь|уверен\p{L}*|кажется),?\s+(?:что\s+)?(?:мы\s+)?(?:с\s+(?:тобой|вами)\s+)?(?:договоримся|сойд[её]мся)|рад\p{L}*\s+(?:знакомству|познакомиться)|приятно\s+познакомиться|(?:nice|glad|pleased)\s+to\s+meet|(?:we'?ll|we\s+will)\s+get\s+along)(?!\p{L})/iu
+// Слова, которые прямо говорят «да» сделке, а не просто «хорошо»
+const DEAL_WORD = /(?<!\p{L})(?:договорились|по\s+рукам|соглас(?:ен|на|ны|ен\s+на)|принима\p{L}*|беру|бер[её]м|ид[её]т|годится|оформ\p{L}*|подписываем|заключаем|deal|agreed|accept\p{L}*)(?!\p{L})/iu
 const NOT_AGREE = /(?<!\p{L})(?:не|нет|not|don'?t|do not|can'?t|cannot|won'?t)\s+(?:\p{L}+\s+)?(?:соглас|принима|подпис|заключ|подходит|устраивает|годится|пойд|agree|accept|sign|take)/iu
 const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однако|if|provided|as\s+long\s+as|unless|but|however)(?!\p{L})/iu
 
@@ -397,8 +400,12 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     (mentionedIssues(sc, p).length > 0 || /услови|срок|цен[ауые]|terms|price|delivery|payment|(?:только|лишь)\s+если|only\s+if|provided|as\s+long\s+as|unless/iu.test(p)))
   const modelAcceptance = analysis.accepts && !other.walksAway && uncontradictedDecision(sc, text, analysis)
   if (other.accepts && ((!acceptance && !modelAcceptance) || conditionalDeal || NOT_AGREE.test(text))) delete other.accepts
-  // «Ок» голосом может быть паузой; явное «договорились» остаётся согласием.
-  if (/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады)[.!]*\s*$/iu.test(text)) delete other.accepts
+  // «Ок» голосом может быть паузой; явное «договорились» остаётся согласием. «Понятно, хорошо» — услышал, а не «да» сделке.
+  if (/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады)[.!]*\s*$/iu.test(text) ||
+    /^\s*(?:(?:ну|понятно|ясно|понял|поняла|ага|угу|ок|окей|хорошо|ладно|лады)[\s,.!…]*)*(?:понятно|ясно|понял|поняла|ага|угу)(?:[\s,.!…]+(?:ну|понятно|ясно|понял|поняла|ага|угу|ок|окей|хорошо|ладно|лады))*[\s,.!…]*$/iu.test(text)) delete other.accepts
+  // «Думаю, мы с тобой поладим… рад знакомству» — знакомство и надежда, а не «да» сделке, даже со словом «хорошо»
+  // («будем жить хорошо»): Тимур закрыл сделку на своём листке (живая партия 19.10).
+  if (other.accepts && HOPE.test(text) && !DEAL_WORD.test(text)) delete other.accepts
   const supported = explicitOffer(sc, text, offer, said)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }

@@ -482,6 +482,27 @@ describe('ElevenLabs под нагрузкой (аудит 17.10)', () => {
     expect((await tts(s2.app, { text: line(s2.speech), voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-voice')).toBe('sergey')
   })
 
+  it('заход заранее не тратит квоту хода: у Папы 19.10 лимит 60 в час кончился за 36 ходов', async () => {
+    stub({ ELEVEN_SESSION_HOUR_LIMIT: '1' })
+    const { f } = worker(['ok'])
+    const { speech, app } = setup(f)
+    const { Hono } = await import('hono')
+    const mini = new Hono()
+    let heated: Promise<void> | undefined
+    mini.post('/heat', (c) => {
+      const heat = speech.heater({ voice: 'sergey', who: 'gopnik' } as never, c)
+      heated = new Promise((r) => setTimeout(r, 50))
+      heat?.(`Чё, братан ${Math.random()}…`)
+      return c.json({ ok: !!heat })
+    })
+    for (let n = 0; n < 3; n++) {
+      expect(await (await mini.request('/heat', { method: 'POST', headers: { 'x-forwarded-for': '1.1.1.1' } })).json()).toEqual({ ok: true })
+      await heated
+    }
+    // три захода заранее, а ход всё ещё звучит своим голосом
+    expect((await tts(app, { text: line(speech), voice: 'sergey', who: 'gopnik' })).headers.get('x-tts-api')).toBe('elevenlabs')
+  })
+
   it('платная нейросеть для ударений не зовётся, когда лимит озвучки исчерпан', async () => {
     const ask = vi.fn(async () => ({ a: [1] }))
     const speech = makeSpeech({ key: 'k', fetch: fakeYandex() as typeof fetch, ttsPerIp: 0, stressAsk: ask })

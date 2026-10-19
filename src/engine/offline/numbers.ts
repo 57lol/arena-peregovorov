@@ -206,6 +206,20 @@ export function quantities(text: string): Quantity[] {
   return out.sort((a, b) => a.at - b.at)
 }
 
+const HOUR_WORD = 'час|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать'
+const MIN_WORD = '(?:двадцать|тридцать|сорок|пятьдесят)(?:\\s+(?:одна|один|две|два|три|четыре|пять|шесть|семь|восемь|девять))?|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать'
+const SPOKEN_CLOCK = new RegExp(`(?<!\\p{L})(${HOUR_WORD})\\s+(?:ноль\\s+)?(${MIN_WORD})(?!\\p{L})`, 'giu')
+/**
+ * Время, сказанное словами «часы минуты»: «семь пятьдесят два» → 7:52 (в минутах от полуночи, без «утра/вечера»).
+ * В quantities не входит: «семь пятьдесят» в торге бывает и ценой, а голым числом оно складывалось в 59.
+ */
+export function spokenClocks(text: string): number[] {
+  return [...text.matchAll(SPOKEN_CLOCK)].map((m) => {
+    const h = m[1].toLowerCase() === 'час' ? 1 : WORDS[m[1].toLowerCase()]
+    return h * 60 + m[2].toLowerCase().split(/\s+/).reduce((a, w) => a + WORDS[w], 0)
+  })
+}
+
 /** Значение варианта пункта: «1,2 млн» → {1200000, money}; «без гарантии» → {0, ?}. */
 export function optionQuantity(option: string): { value: number; dim: Dim } | undefined {
   const q = quantities(option)

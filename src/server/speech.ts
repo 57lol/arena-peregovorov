@@ -465,11 +465,10 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     const who = quotaOf(c)
     const voice = castFor(b.who, b.voice, env)
     const perSession = limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), perIp = limitOf('ELEVEN_IP_DAY_LIMIT', 300)
-    let charged = false
+    // Заход заранее — часть того же хода: квоту хода списывает сам ход (live). Раньше каждая заготовка списывала ещё
+    // одну, и у Папы 19.10 лимит 60 в час кончился за 36 ходов — дальше голос шёл запасным с 4 с тишины.
     const charge = () => {
-      if (charged) return
-      if (!clients.take('el:s', who, perSession, HOUR) || !clients.take('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
-      charged = true
+      if (!clients.left('el:s', who, perSession, HOUR) || !clients.left('el:day', who, perIp, DAY)) throw new Refusal('Лимит голоса ElevenLabs')
     }
     elevenConnect(f, env)
     return (text) => {
