@@ -4,6 +4,6 @@
 
 export function applyKit(env: NodeJS.ProcessEnv = process.env): void {
   if (env.KIT !== 'base') return
-  for (const k of ['AITUNNEL_API_KEY', 'ELEVEN_RELAY_URL', 'ELEVEN_RELAY_SECRET', 'ELEVENLABS_API_KEY', 'TTS_PROVIDER']) delete env[k]
+  for (const k of ['ANTHROPIC_VIA_RELAY', 'ANTHROPIC_BASE_URL', 'AITUNNEL_API_KEY', 'ELEVEN_RELAY_URL', 'ELEVEN_RELAY_SECRET', 'ELEVENLABS_API_KEY', 'TTS_PROVIDER']) delete env[k]
   Object.assign(env, { LLM_PROVIDER: 'yandex', ANALYZE_LLM: 'main', ANALYZE_LLM_EN: 'main', VOICE_LLM: 'main', STT_STREAM: 'off' })
 }

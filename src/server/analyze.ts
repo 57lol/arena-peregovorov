@@ -319,8 +319,10 @@ export async function startAnalysis(
     const first = await ask(llm, fast ? WAIT.analyzeRace() : backup ? WAIT.analyzeFirst() : WAIT.analyze(), 'main')
     if ('result' in first) return first.result
     const failures: Failed[] = [first]
-    if (backup && id(backup) !== id(llm)) {
-      const second = await ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500), 'backup')
+    const visited = new Set([id(llm)])
+    for (let next = backup; next && next.name !== 'offline' && !visited.has(id(next)); next = next.backup) {
+      visited.add(id(next))
+      const second = await ask(next, Math.max(WAIT.analyze() - (Date.now() - t0), 2500), 'backup')
       if ('result' in second) return second.result
       failures.push(second)
     }
