@@ -1,12 +1,16 @@
-import { randomBytes } from 'node:crypto'
+import { randomInt } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { parseJuryKeys } from '../src/server/pass'
 
+// Только буквы и цифры: Telegram и почта не включают в ссылку «-» и «_» на конце — ключ обрезается
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+const newKey = () => Array.from({ length: 32 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('')
+
 export function generateJuryKeys(n: number, names?: string[]) {
   if (!Number.isInteger(n) || n < 1 || n > 1000 || (names && names.length !== n))
     throw new Error('Нужно N от 1 до 1000; число имён должно совпадать с N')
-  const judges = Array.from({ length: n }, (_, i) => ({ name: names?.[i] ?? `Судья${i + 1}`, key: randomBytes(24).toString('base64url') }))
+  const judges = Array.from({ length: n }, (_, i) => ({ name: names?.[i] ?? `Судья${i + 1}`, key: newKey() }))
   const raw = judges.map((j) => `${j.name}:${j.key}`).join(',')
   parseJuryKeys(raw)
   return `JURY_KEYS=${JSON.stringify(raw)}\n\n${judges.map((j) => `# ${j.name}: https://arena-peregovorov.ru/?key=${encodeURIComponent(j.key)}`).join('\n')}\n`

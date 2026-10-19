@@ -9,7 +9,7 @@ it('генератор возвращает N уникальных ключей 
   expect(judges.map((j) => j.name)).toEqual(['Анна', 'Борис', 'Вера'])
   expect(new Set(judges.map((j) => j.key)).size).toBe(3)
   for (const j of judges) {
-    expect(j.key).toMatch(/^[\w-]{32}$/)
+    expect(j.key).toMatch(/^[A-Za-z0-9]{32}$/)
     expect(output).toContain(`https://arena-peregovorov.ru/?key=${j.key}`)
   }
   expect(generateJuryKeys(1)).not.toBe(generateJuryKeys(1))
