@@ -213,6 +213,10 @@
   max-width: 62ch;
   text-wrap: pretty;
 }
+/* реплика дописывается потоком: «красивый» перенос перекладывал бы уже напечатанные строки с каждым куском */
+.px-dialog-text.is-growing {
+  text-wrap: wrap;
+}
 .px-dialog-ghost {
   color: transparent;
 }

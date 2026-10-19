@@ -394,6 +394,7 @@ export default function Play3D(props: Props) {
           onTalkingChange={m.setTalking}
           cps={m.lineCps}
           waiting={m.lineWaiting}
+          growing={m.lineGrowing}
         />
       </div>
 

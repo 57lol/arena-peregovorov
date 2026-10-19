@@ -133,6 +133,11 @@
   overflow-y: auto;
   scrollbar-width: none;
 }
+/* реплика потоком: конец неизвестен — облачко сразу во всю высоту (дальше текст листается), не растёт по кускам
+   и не ползёт вверх над головой с каждой строкой */
+.w3-them .px-dialog-text.is-growing {
+  min-height: calc(3 * var(--lh-read));
+}
 .w3-them .px-dialog-text::-webkit-scrollbar {
   display: none;
 }
@@ -1149,6 +1154,9 @@
   .w3-them .px-dialog-text {
     max-height: calc(2 * var(--lh-read));
   }
+  .w3-them .px-dialog-text.is-growing {
+    min-height: calc(2 * var(--lh-read));
+  }
 }
 
 /* лист в руках: реплика собеседника ждёт, пока его положат */
@@ -1444,6 +1452,9 @@
   }
   .w3-them .px-dialog-text {
     max-height: calc(2 * var(--lh-read));
+  }
+  .w3-them .px-dialog-text.is-growing {
+    min-height: calc(2 * var(--lh-read));
   }
   .w3-tray {
     width: min(560px, calc(100% - 24px));

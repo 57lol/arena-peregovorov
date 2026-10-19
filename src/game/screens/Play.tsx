@@ -36,7 +36,7 @@ export function Play(props: Props) {
   const v = useVoiceTurn(m, !m.voiceMode || (props.view === '3d' && voicePaused))
   const {
     sc, P, last, state, done, name, draft, setDraft, picks, pending, error, setError, talking, setTalking,
-    xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, lineWaiting, lineCps, lineKey, setMicOff,
+    xray, setXray, setXrayUsed, leaving, instantOn, switchInstant, source, voiceOn, toggleVoice, lineWaiting, lineCps, lineGrowing, lineKey, setMicOff,
     lowSure, acceptSure, line, emotion, theirsOnTable, canAccept, myTotal, revealedNow, canVoice, canMic, theirsForMe,
     stamp, feedback, tip, send, putOnTable, accept, walk,
   } = m
@@ -164,6 +164,7 @@ export function Play(props: Props) {
               onTalkingChange={setTalking}
               cps={lineCps}
               waiting={lineWaiting}
+              growing={lineGrowing}
               onSkip={stopAudio}
               extra={voiceBtn}
             />

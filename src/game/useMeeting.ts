@@ -178,6 +178,8 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   const delivered = delivery?.text === line && delivery.record === last
   const lineWaiting = !pending && voiceOn && canVoice && !delivered
   const lineCps = pending ? early?.cps : delivered ? delivery.cps : undefined
+  /** реплика ещё дописывается потоком: её конец неизвестен */
+  const lineGrowing = !!pending && !!early
 
   useEffect(() => {
     if (!voiceMode) return
@@ -309,8 +311,10 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
         return audible && (await playLive(l.audio!, () => voiceRef.current && current()))
       })()
       // Заход и продолжение приходят отдельными line: звук один, текст дополняется каждым событием.
-      void started.then(() => {
-        if (current()) setEarly({ text: l.text, cps: liveCps(l.text) })
+      // С голосом текст печатается, только когда звук пошёл: не пошёл — реплика прозвучит и напечатается с начала,
+      // когда придёт ход, и печать без звука не перепишется заново под звук
+      void started.then((playing) => {
+        if (current() && (playing || !withVoice)) setEarly({ text: l.text, cps: liveCps(l.text) })
       })
     }
     try {
@@ -325,7 +329,12 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       if (g !== gen.current) return
       if (playing) {
         if (r.interrupted) stopAudio()
-        else liveIs(r.record.opponentLine)
+        else {
+          liveIs(r.record.opponentLine)
+          // реплика уже звучит и печатается: на смене хода окно не мигает «готовится ответить» и печать не начинается
+          // заново (эффект выше подхватит тот же звук через takeLive)
+          setDelivery({ text: r.record.opponentLine, record: r.record, cps: liveCps(r.record.opponentLine) })
+        }
       }
       setHistory((h) => [...h, r.record])
       setSource(r.source)
@@ -400,7 +409,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     sc, P, last, state, done, name, history,
     draft, setDraft, picks, setPicks, pick, pending, error, setError, talking, setTalking,
     xray, setXray, xrayUsed, setXrayUsed, leaving, instantOn, switchInstant, source,
-    voiceOn, toggleVoice, soundBlocked, enableSound, lineWaiting, lineCps, micOff, setMicOff, lowSure, acceptSure,
+    voiceOn, toggleVoice, soundBlocked, enableSound, lineWaiting, lineCps, lineGrowing, micOff, setMicOff, lowSure, acceptSure,
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     voiceMode, voiceNote, voicedLine, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
