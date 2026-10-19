@@ -245,3 +245,140 @@ describe('квота, гонки, срок жизни и запреты', () => 
     expect(result.sources.ms.prepare).toBe('miss')
   })
 })
+
+describe('диагностика заготовки без речи и секретов', () => {
+  const id = '10000000-0000-4000-8000-000000000001'
+  const headers = { 'x-prepare-id': id }
+  const lines = () => vi.mocked(console.log).mock.calls.map(([s]) => String(s))
+  const diagnostic = () => lines().filter((s) => s.startsWith('[заготовка] событие=turn')).at(-1)!
+  const withId = (b: Body, process?: string) => ({ ...b, prepareDiag: { id, process } })
+
+  it('одна короткая строка непосредственно перед [ход], приход и опережение в мс', async () => {
+    const { app } = setup(), b = input()
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const prep = await post(app, 'prepare', b, headers)
+    now += 375
+    await (await post(app, 'turn', withId(b, prep.headers.get('x-prepare-process')!))).json()
+    expect(diagnostic()).toMatch(/^\[заготовка\] событие=turn процесс=[\da-f-]{36} запрос=[\da-f-]{36} попытка=[\da-f-]{36} пришла=1 до_мс=375 статус=202 итог=hit отличие=- tts=- opener=0$/)
+    const all = lines(), i = all.findIndex((s) => s.startsWith('[ход]'))
+    expect(all[i - 1]).toBe(diagnostic())
+    expect(all[i]).toContain(`запрос=${/запрос=([^ ]+)/.exec(diagnostic())![1]}`)
+    expect(diagnostic().length).toBeLessThan(350)
+  })
+
+  it.each([
+    ['text', { playerText: 'Секретная реплика!' }, /отличие=text:18\/18\/prefix:17/],
+    ['offer', { offer: { price: 1 } }, /отличие=offer/],
+    ['reaction', { reaction: 'Другой секрет' }, /отличие=reaction/],
+  ] as const)('%s: перечисляет отличия, но не значения', async (_field, change, expected) => {
+    const { app } = setup(), b = { ...input(), playerText: 'Секретная реплика.', reaction: 'Секрет реакции' }
+    await post(app, 'prepare', b, headers)
+    await (await post(app, 'turn', withId({ ...b, ...change }))).json()
+    expect(diagnostic()).toContain('итог=key_mismatch')
+    expect(diagnostic()).toMatch(expected)
+    expect(lines().filter((s) => s.startsWith('[заготовка]')).join('\n')).not.toMatch(/Секрет|секрет|реплика\./)
+  })
+
+  it('изменение истории и озвучки видно отдельно от ключа', async () => {
+    const { app } = setup()
+    const first = await (await post(app, 'turn', input())).json()
+    const b = { ...input(), history: [first.record], tts: { voice: 'secret-voice', speed: 1 } }
+    await post(app, 'prepare', b, headers)
+    await (await post(app, 'turn', withId({ ...b, history: [{ ...first.record, opponentLine: 'secret-history' }], tts: { voice: 'secret-new-voice', speed: 2 } }))).json()
+    expect(diagnostic()).toContain('отличие=history')
+    expect(diagnostic()).toContain('tts=voice,speed')
+    expect(diagnostic()).not.toContain('secret')
+  })
+
+  it.each([
+    ['limit', 429, 'limit'], ['off', 200, 'disabled'], ['offline', 200, 'no_llm'],
+    ['invalid', 400, 'http_400'], ['closed', 409, 'closed'],
+  ])('%s: отказ виден и у prepare, и рядом с ходом', async (mode, status, reason) => {
+    const { app, llm } = setup(), b = input()
+    let prep: Body = b
+    if (mode === 'limit') vi.stubEnv('PREPARE_SESSION_MINUTE_LIMIT', '0')
+    if (mode === 'off') vi.stubEnv('PREPARE', 'off')
+    if (mode === 'offline') llm.name = 'offline'
+    if (mode === 'invalid') prep = { ...b, playerText: '' }
+    if (mode === 'closed') {
+      const end = await (await post(app, 'turn', { ...input(), walkAway: true })).json()
+      prep = { ...b, history: [end.record] }
+    }
+    expect((await post(app, 'prepare', prep, headers)).status).toBe(status)
+    await (await post(app, 'turn', withId(b))).json()
+    expect(diagnostic()).toContain(`статус=${status} итог=${reason}`)
+    expect(lines().some((s) => s.includes(`статус=${status} причина=${reason}`))).toBe(true)
+  })
+
+  it('отмена другим ключом сохраняется, даже если вернулся прежний текст', async () => {
+    const { app } = setup(), b = input()
+    await post(app, 'prepare', b, headers)
+    await post(app, 'prepare', { ...b, playerText: 'Теперь иначе' })
+    await (await post(app, 'turn', withId(b))).json()
+    expect(diagnostic()).toContain('итог=cancelled отличие=-')
+    expect(lines().some((s) => s.includes(`событие=cancel`) && s.includes(`попытка=${id} причина=other_key отличие=text:`))).toBe(true)
+  })
+
+  it('TTL отличается от отсутствия prepare', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { app, started } = setup(), b = input()
+    await post(app, 'prepare', b, headers); await started
+    await (await post(app, 'turn', withId(b))).json()
+    await vi.advanceTimersByTimeAsync(60_001)
+    await (await post(app, 'turn', withId(b))).json()
+    expect(diagnostic()).toContain('итог=ttl')
+  })
+
+  it('другой процесс подтверждается отметкой ответа; без неё честно not_seen_here', async () => {
+    const a = setup(), other = setup(), b = input()
+    const prep = await post(a.app, 'prepare', b, headers)
+    await (await post(other.app, 'turn', withId(b, prep.headers.get('x-prepare-process')!))).json()
+    expect(diagnostic()).toContain('пришла=0 до_мс=- статус=- итог=other_process')
+    await (await post(other.app, 'turn', withId(input()))).json()
+    expect(diagnostic()).toContain('итог=not_seen_here')
+    await (await post(setup().app, 'turn', input())).json()
+    expect(diagnostic()).toContain('итог=not_received')
+  })
+
+  it('смена сессии не печатает пропуски, IP, ключ задания и клиентский мусор', async () => {
+    vi.stubEnv('GATE_SECRET', 'SECRET-GATE-KEY')
+    const { app } = setup(), b = input()
+    const pass = makePass('SECRET-GATE-KEY'), other = makePass('SECRET-GATE-KEY')
+    await post(app, 'prepare', b, { ...headers, cookie: `arena_pass=${pass}` })
+    await (await post(app, 'turn', { ...withId(b), prepareDiag: { id, counts: { noPartial: 2, manual: 1, textChanged: 'PRIVATE-SPEECH', limit: 10000, 'SECRET-KEY': 5 }, secret: pass } }, { cookie: `arena_pass=${other}` })).json()
+    expect(diagnostic()).toContain('итог=session отличие=session')
+    const logged = lines().filter((s) => /^\[(заготовка|ход)\]/.test(s)).join('\n')
+    for (const secret of [pass, other, b.playerText, 'SECRET-GATE-KEY', 'PRIVATE-SPEECH', 'SECRET-KEY']) expect(logged).not.toContain(secret)
+    expect(logged).toContain('prep_client=noPartial:2,manual:1,limit:999')
+    expect(logged).not.toMatch(/\b[a-f\d]{64}\b|arena_pass|ip:|who=|key=/)
+  })
+
+  it('ворота и испорченный JSON дают безопасную строку отказа', async () => {
+    const { app } = setup()
+    const guarded = new Hono().use('*', gate({ secret: 'secret' })).route('/', app)
+    await post(guarded, 'prepare', input(), { ...headers, cookie: 'arena_pass=SECRET-COOKIE' })
+    expect(lines().at(-1)).toContain(`попытка=${id} статус=401 причина=session`)
+    await app.request('/api/prepare', { method: 'POST', headers: { 'content-type': 'application/json', 'x-prepare-id': 'SECRET-HEADER' }, body: 'SECRET-BAD-JSON' })
+    expect(lines().at(-1)).toContain('статус=400 причина=http_400')
+    expect(lines().join('\n')).not.toContain('SECRET')
+  })
+})
+
+it('новый клиент без попытки в этом ходе не приписывает себе прошлую заготовку', async () => {
+  const { app } = setup()
+  await post(app, 'prepare', input())
+  await (await post(app, 'turn', { ...input(), prepareDiag: { counts: { manual: 1 } } })).json()
+  const line = vi.mocked(console.log).mock.calls.map(([s]) => String(s)).find((s) => s.startsWith('[заготовка] событие=turn'))!
+  expect(line).toContain('попытка=- пришла=0 до_мс=- статус=- итог=not_received')
+})
+
+it('413 тоже оставляет строку отказа без содержимого большого тела', async () => {
+  const { app } = setup()
+  const r = await post(app, 'prepare', { ...input(), extra: 'SECRET'.repeat(50_000) })
+  expect(r.status).toBe(413)
+  const lines = vi.mocked(console.log).mock.calls.map(([s]) => String(s)).filter((s) => s.startsWith('[заготовка]'))
+  expect(lines).toHaveLength(1)
+  expect(lines[0]).toContain('статус=413 причина=http_413')
+  expect(lines[0]).not.toContain('SECRET')
+})

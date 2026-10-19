@@ -73,6 +73,7 @@ export function useVoiceTurn(m: Meeting, paused: boolean) {
         }
       },
       onPartial: setPartial,
+      onPrepareStats: (counts) => cb.current.prepareStats(counts),
       onText: (t) => {
         setNote(null)
         void cb.current.send(t)

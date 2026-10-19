@@ -567,7 +567,7 @@ describe('мгновенная реакция в useMeeting', () => {
     props.speech = { tts: false, stt: true, scribe: false }
     render(); await advance()
     meeting.prepare('Давайте договоримся.')
-    expect(api.prepare).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ history: [], text: 'Давайте договоримся.' }))
+    expect(api.prepare).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ history: [], text: 'Давайте договоримся.' }), expect.any(Function))
     expect(api.prepare.mock.calls[0][0].tts).toBeUndefined()
   })
 })
@@ -677,4 +677,25 @@ describe('3D → 2D во время встречи', () => {
     expect(speech.reaction).not.toHaveBeenCalled()
     expect(speech.play.mock.calls.at(-1)?.[0]).toMatchObject({ url: 'blob:prepared-2d' })
   })
+})
+
+it('диагностика идёт с ходом: id, процесс, причины; поздний ответ не загрязняет следующий ход', async () => {
+  speech.on = false
+  api.turn.mockReset()
+  api.turn.mockImplementation(async (input) => ({ source: 'llm', record: {
+    turn: 1, playerText: input.text, opponentLine: 'Ответ.', emotion: 'neutral', analysis: { behaviors: [] },
+    deltas: [], decision: { kind: 'hold' }, stateAfter: initialState(props.game.scenario),
+  } }))
+  render(); await advance()
+  meeting.prepare('Секретный partial')
+  const [prep, observe] = api.prepare.mock.calls.at(-1)!
+  observe({ process: '10000000-0000-4000-8000-000000000001', status: 429 })
+  meeting.prepareStats({ shortPause: 1 })
+  await meeting.send('Секретный final'); render(); await advance()
+  const diag = api.turn.mock.calls.at(-1)![0].prepareDiag
+  expect(diag).toEqual({ id: prep.prepareDiag.id, process: '10000000-0000-4000-8000-000000000001', status: 429, counts: { limit: 1, textChanged: 1, shortPause: 1 } })
+  expect(JSON.stringify(diag)).not.toContain('Секретный')
+  observe({ status: 429 })
+  await meeting.send('Следующий ход'); render()
+  expect(api.turn.mock.calls.at(-1)![0].prepareDiag.counts).toEqual({ manual: 1 })
 })

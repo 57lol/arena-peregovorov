@@ -1,3 +1,4 @@
+import { type PrepareCounts, type PrepareReason } from '../shared/prepareDiag'
 // Голосовой ход игрока без браузера: микрофон открыт заранее (micStream.ts), но звук идёт в распознавание только с конца
 // реплики собеседника — всё, что раньше, это эхо его голоса из колонок. Начало фразы не теряется: последние кадры лежат
 // в кольце, и с первого громкого кадра в распознавание уходят ещё PREROLL_MS до него.
@@ -67,6 +68,7 @@ export interface ListenIO {
   earlyMs?: number
   /** промежуточный или финальный текст, пока игрок молчит: ход можно готовить; исправленный финал меняет ключ */
   onEarly?: (text: string) => void
+  onPrepareStats?: (counts: PrepareCounts) => void
   onPhase: (p: ListenPhase) => void
   onPartial: (text: string) => void
   onText: (text: string) => void
@@ -136,6 +138,10 @@ export function createListener(io: ListenIO) {
   let lastText = ''
   let textAt = 0
   let earlyText = ''
+  let prepCounts: PrepareCounts = {}
+  let sawPartial = false
+  let reachedPause = false
+  const notePrepare = (why: PrepareReason) => { prepCounts[why] = Math.min(999, (prepCounts[why] ?? 0) + 1) }
 
   // Промежуточный текст уже годится для заготовки: финал commit может прийти позже короткой паузы.
   // Повтор с тем же текстом не тратит запрос; исправленный финал обязан получить отдельный ключ.
@@ -220,6 +226,8 @@ export function createListener(io: ListenIO) {
       lastLoud = end
       if (used) segVoiced += end - t
     } else if (voiced < 160) voiced = 0
+    if (heardText().trim()) sawPartial = true
+    if (io.earlyMs && voiced >= 160 && end - lastLoud >= io.earlyMs) reachedPause = true
     if (io.earlyMs && voiced >= 160 && end - lastLoud >= io.earlyMs && !lost &&
         session?.ready && !session.ended && segs.every((x) => x.done !== undefined && (x.done !== null || x.voiced < TINY_MS))) {
       offerEarly(heardText())
@@ -315,6 +323,9 @@ export function createListener(io: ListenIO) {
     paused = speechPause(() => io.pauseMs(heardText()), () => thr)
     lastText = ''
     earlyText = ''
+    prepCounts = {}
+    sawPartial = false
+    reachedPause = false
     textAt = runStart
     set('speak')
     for (const g of ring) {
@@ -349,6 +360,13 @@ export function createListener(io: ListenIO) {
   async function finish(why: string) {
     if (phase !== 'speak') return
     trace('finish', why)
+    if (!earlyText) {
+      if (!sawPartial) notePrepare('noPartial')
+      if (!reachedPause) notePrepare('shortPause')
+      if (why === 'button') notePrepare('manual')
+      if (why === 'limit' || segs.length >= EARLY_LIMIT) notePrepare('limit')
+      if (sawPartial && reachedPause) notePrepare('unavailable')
+    }
     set('busy')
     const g = gen
     from = null
@@ -389,6 +407,7 @@ export function createListener(io: ListenIO) {
     empties = 0
     kept = null
     set('idle')
+    io.onPrepareStats?.({ ...prepCounts })
     io.onText(text)
   }
 

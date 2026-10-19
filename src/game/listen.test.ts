@@ -44,6 +44,7 @@ function setup(o: { pauseMs?: ListenIO['pauseMs']; scribe?: boolean; earlyMs?: n
     now: () => Date.now(),
     earlyMs: o.earlyMs,
     onEarly: vi.fn(),
+    onPrepareStats: vi.fn(),
   }
   const l = createListener(io)
   /** подать звук: value на ms миллисекунд (кадрами по 20 мс), часы идут вместе с кадрами */
@@ -488,5 +489,45 @@ describe('голосовой ход: шум комнаты (фон игры из
     }
     expect(sessions[0].finished).toBe(false)
     expect(l.phase).toBe('speak')
+  })
+})
+
+describe('счётчики причин без текста речи', () => {
+  it('кнопка до порога паузы: нет partial, короткая пауза, ручная отправка', async () => {
+    const { l, play, io } = setup({ earlyMs: 450, scribe: false })
+    l.open(0)
+    await play(ME, 600)
+    await l.finish()
+    expect(io.onPrepareStats).toHaveBeenCalledExactlyOnceWith({ noPartial: 1, shortPause: 1, manual: 1 })
+    expect(JSON.stringify(io.onPrepareStats.mock.calls)).not.toContain('по Яндексу')
+    l.dispose()
+  })
+
+  it('partial был, но до кнопки пауза короче порога', async () => {
+    const { l, play, io, sessions } = setup({ earlyMs: 450 })
+    l.open(0)
+    await play(ME, 600)
+    sessions[0].text = 'Секретные слова'
+    await play(0, 100)
+    const done = l.finish()
+    sessions[0].resolve('Секретные слова')
+    await done
+    expect(io.onEarly).not.toHaveBeenCalled()
+    expect(io.onPrepareStats).toHaveBeenCalledWith({ shortPause: 1, manual: 1 })
+    expect(JSON.stringify(io.onPrepareStats.mock.calls)).not.toContain('Секретные')
+    l.dispose()
+  })
+
+  it('длинная пауза без partial не считается короткой; следующий ход сбрасывает счётчики', async () => {
+    const { l, play, io } = setup({ earlyMs: 450, scribe: false })
+    l.open(0)
+    await play(ME, 600)
+    await play(0, 1000)
+    expect(io.onPrepareStats).toHaveBeenLastCalledWith({ noPartial: 1 })
+    l.open(Date.now())
+    await play(ME, 600)
+    await l.finish()
+    expect(io.onPrepareStats).toHaveBeenLastCalledWith({ noPartial: 1, shortPause: 1, manual: 1 })
+    l.dispose()
   })
 })

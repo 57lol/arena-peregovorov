@@ -1,3 +1,4 @@
+import { diagnosticId, type PrepareDiag } from '../shared/prepareDiag'
 // Тонкий клиент к серверу игры. Если сервер недоступен, ход считается прямо в браузере
 // офлайн-разметчиком и шаблонами: игра проходится и без сети.
 
@@ -30,6 +31,7 @@ function voiceLlmTest(): string | undefined {
 if (typeof window !== 'undefined') voiceLlmTest()
 
 export interface TurnInput {
+  prepareDiag?: PrepareDiag
   scenario: Scenario
   /** сценарий из библиотеки — отправляем id, свой — целиком */
   fromLibrary: boolean
@@ -139,6 +141,7 @@ async function postStream(path: string, body: object, onLine: (l: TurnLine) => v
 const turnBody = (t: TurnInput) => ({
   ...(t.fromLibrary ? { scenarioId: t.scenario.id } : { scenario: t.scenario }),
   history: t.history,
+  ...(t.prepareDiag ? { prepareDiag: t.prepareDiag } : {}),
   playerText: t.text,
   ...(t.reaction ? { reaction: t.reaction } : {}),
   ...(t.offer ? { offer: t.offer } : {}),
@@ -152,10 +155,10 @@ const turnBody = (t: TurnInput) => ({
  * Ход заранее: игрок замолчал, текст уже распознан — сервер начинает разбор и реплику, пока идёт пауза конца реплики.
  * Ход с тем же текстом подхватит начатое; интерфейс не блокируем, отказ не считаем принятой заготовкой.
  */
-export async function prepareTurn(t: TurnInput): Promise<boolean> {
-  if (typeof fetch === 'undefined' || Object.keys(labHeaders()).length) return false
+export async function prepareTurn(t: TurnInput, observed?: (result: { process?: string; status: number }) => void): Promise<boolean> {
+  if (typeof fetch === 'undefined' || Object.keys(labHeaders()).length) { observed?.({ status: 0 }); return false }
   const body = turnBody(t)
-  if (body.voiceLlm) return false
+  if (body.voiceLlm) { observed?.({ status: 0 }); return false }
   // AbortSignal.timeout отсутствует в старых Safari: исключение раньше возникало до fetch/.catch.
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), 10_000)
@@ -163,12 +166,14 @@ export async function prepareTurn(t: TurnInput): Promise<boolean> {
     const r = await fetch('/api/prepare', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(t.prepareDiag?.id ? { 'x-prepare-id': t.prepareDiag.id } : {}) },
       body: JSON.stringify(body),
       signal: ctl.signal,
     })
+    observed?.({ process: diagnosticId(r.headers.get('x-prepare-process')), status: r.status })
     return r.ok && (await r.json()).ok === true
   } catch {
+    observed?.({ status: 0 })
     return false
   } finally {
     clearTimeout(timer)

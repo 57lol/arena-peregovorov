@@ -1,3 +1,4 @@
+import { newPrepareId, type PrepareCounts, type PrepareReason } from '../shared/prepareDiag'
 // Логика встречи без вёрстки: реплики, блокнот, «Принять», «Уйти», голос, подсказки на ходу.
 // Ей пользуются оба вида встречи — классический 2D (screens/Play.tsx) и 3D (screens/Play3D.tsx).
 
@@ -259,23 +260,34 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     return () => clearTimeout(t)
   }, [leaving])
 
-  const prepared = useRef<{ key: string; at: number; accepted?: boolean } | null>(null)
+  const prepared = useRef<{ key: string; text: string; id: string; process?: string; status?: number; at: number; accepted?: boolean } | null>(null)
+  const prepCounts = useRef<PrepareCounts>({})
+  const listenCounts = useRef<PrepareCounts | null>(null)
+  const notePrepare = (why: PrepareReason) => { prepCounts.current[why] = Math.min(999, (prepCounts.current[why] ?? 0) + 1) }
+  const prepareStats = (counts: PrepareCounts) => { listenCounts.current = counts }
   /**
    * Голосом: игрок замолчал, текст уже распознан — сервер начинает ход, пока идёт пауза конца реплики. Тот же текст
    * уйдёт ходом (send), если игрок не заговорит снова; реакция та же, что выберет send, — от неё зависит реплика.
    */
   function prepare(text: string) {
     const t = text.trim()
-    if (pending || done || !t || !online) return
+    if (pending || done || !t || !online) { notePrepare(!t ? 'noPartial' : 'unavailable'); return }
     const withVoice = voiceOn && canVoice
     const reaction = withVoice ? reactionText(chooseReaction(t, state, portraitFor(sc))) : undefined
     // голос — тот же, что у хода: сервер синтезирует заход (первые слова ответа) ещё в паузе
     const input = { scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...(reaction ? { reaction } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }
     const key = JSON.stringify(input)
-    if (prepared.current?.key === key && performance.now() - prepared.current.at < 50_000) return
-    const attempt = { key, at: performance.now(), accepted: undefined as boolean | undefined }
+    if (prepared.current?.key === key && performance.now() - prepared.current.at < 50_000) { notePrepare('duplicate'); return }
+    if (prepared.current && prepared.current.text !== t) notePrepare('textChanged')
+    const attempt = { key, text: t, id: newPrepareId(), process: undefined as string | undefined, status: undefined as number | undefined, at: performance.now(), accepted: undefined as boolean | undefined }
     prepared.current = attempt
-    void prepareTurn(input).then((ok) => { attempt.accepted = ok })
+    const counts = prepCounts.current
+    void prepareTurn({ ...input, prepareDiag: { id: attempt.id } }, (result) => {
+      attempt.process = result.process
+      attempt.status = result.status
+      if (result.status === 0) counts.unavailable = Math.min(999, (counts.unavailable ?? 0) + 1)
+      if (result.status === 429) counts.limit = Math.min(999, (counts.limit ?? 0) + 1)
+    }).then((ok) => { attempt.accepted = ok })
   }
 
   async function send(text: string, opts: SendOpts = {}) {
@@ -298,6 +310,13 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     const said = withVoice ? reactionText(reaction) : undefined
     const input = { scenario: sc, fromLibrary: game.fromLibrary, history, text: t, ...opts, ...(said ? { reaction: said } : {}), ...(withVoice ? { tts: ttsVoice(voiceFor(sc)) } : {}) }
     const ahead = (prepared.current?.key === JSON.stringify(input) && prepared.current.accepted !== false && performance.now() - prepared.current.at < 50_000) || (!!speech?.opener && !speech.openerSkip?.includes(sc.id))
+    if (prepared.current && prepared.current.text !== t) notePrepare('textChanged')
+    if (!listenCounts.current) notePrepare('manual')
+    const counts = { ...prepCounts.current }
+    for (const [k, n] of Object.entries(listenCounts.current ?? {})) counts[k as PrepareReason] = Math.min(999, (counts[k as PrepareReason] ?? 0) + n)
+    const diag = { id: prepared.current?.id, process: prepared.current?.process, status: prepared.current?.status, counts }
+    prepCounts.current = {}
+    listenCounts.current = null
     prepared.current = null
     const f = withVoice && !ahead ? startReaction(voiceFor(sc), informal(sc), () => voiceRef.current, reaction) : null
     filler.current = f
@@ -324,7 +343,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
       })
     }
     try {
-      const r = await playTurn(input, onLine)
+      const r = await playTurn({ ...input, prepareDiag: diag }, onLine)
       if (g !== gen.current) return
       setReactionEmotion(toPortraitEmotion(r.record.emotion))
       noteVoice(r.audioVoice)
@@ -419,7 +438,7 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
     line, lineKey, emotion, theirsOnTable, canAccept, myTotal, max, revealedNow, online, canVoice, canMic, theirsForMe, stamp,
     feedback, tip,
     voiceMode, voiceNote, voicedLine, inputMode: settings.mode, pause: settings.pause, setInputMode: saveInputMode, setPause: savePause, micBlocked, setMicBlocked, heard,
-    send, prepare, putOnTable, accept, walk, rewind, undo, hush,
+    send, prepare, prepareStats, putOnTable, accept, walk, rewind, undo, hush,
   }
 }
 

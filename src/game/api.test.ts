@@ -69,3 +69,12 @@ describe('отправка заготовки', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 })
+
+it('метаданные заготовки проходят от запроса до ответа, не меняя boolean API', async () => {
+  const id = '10000000-0000-4000-8000-000000000001'
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 429, headers: { 'x-prepare-process': id } })))
+  const observed = vi.fn()
+  expect(await prepareTurn({ scenario: getScenario('tara')!, fromLibrary: true, history: [], text: 'Текст речи', prepareDiag: { id } }, observed)).toBe(false)
+  expect(observed).toHaveBeenCalledWith({ status: 429, process: id })
+  expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({ 'x-prepare-id': id })
+})

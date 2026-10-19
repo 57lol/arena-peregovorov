@@ -1,3 +1,4 @@
+import { sessionPrepareRejected } from './prepareLog'
 // Ворота прототипа: пока идёт экспертиза, сайт открыт только жюри и команде.
 // Вход — по волшебной ссылке ?key=<JURY_KEY> или по логину и паролю на странице входа;
 // после входа — подписанная cookie на 30 дней. Открыты только /api/health, ассеты страницы входа и скринкаст /screencast.mp4.
@@ -112,6 +113,7 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     }
     if (OPEN.some((r) => r.test(path))) return next()
 
+    if (path === '/api/prepare') sessionPrepareRejected(c.req.header('x-prepare-id'))
     if (path.startsWith('/api/')) return c.json({ error: 'Нужен вход: откройте сайт и войдите' }, 401)
     const isPage = c.req.method === 'GET' && !/\.[a-z0-9]{1,5}$/i.test(path)
     return isPage ? page(c, path + url.search) : c.text('Нужен вход', 401)

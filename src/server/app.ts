@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { diagnosticId, prepareDiag, prepareCountsLog } from '../shared/prepareDiag'
+import { canonical, ttsDifference, prepareDifference, prepareJournal, type PrepareObservation, type PrepareLifecycle, type PrepareParts } from './prepareLog'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseUpsells, withUpsellReply } from '../engine/upsells'
@@ -114,6 +117,7 @@ const TurnBody = z.object({
   voiceLlm: str(80).optional(),
   /** ответ потоком (строки JSON): line — начало реплики и ссылка на звук, как только они готовы; done — ход целиком */
   stream: z.boolean().optional(),
+  prepareDiag: z.unknown().optional(),
 })
 const ReportBody = z.object({ scenario: ScenarioInput.optional(), scenarioId: Id.optional(), history: History })
 const BODY = bodyLimit({ maxSize: 200 * 1024 })
@@ -195,6 +199,9 @@ interface JobFirst {
 interface Job {
   who: string
   prepared: boolean
+  lifecycle: PrepareLifecycle
+  prepareId?: string
+  parts: PrepareParts
   t0: number
   ms: Record<string, number | string>
   analysisAttempts: AnalyzeAttempt[]
@@ -216,6 +223,22 @@ interface Job {
 export function createApp(llm: LLM = makeLLM().llm, providerError?: string, speech: Speech = makeSpeech(), roomsDir = ROOMS, votesRoot = './public') {
   const app = new Hono()
   const count = clientLimiter()
+  const processId = randomUUID()
+  const journal = prepareJournal()
+  const observations = new WeakMap<Context, PrepareObservation>()
+  app.use('/api/prepare', async (c, next) => {
+    const observation: PrepareObservation = {
+      id: diagnosticId(c.req.header('x-prepare-id')) ?? randomUUID(), who: quotaOf(c).key,
+      at: Date.now(), status: 0, reason: 'pending',
+    }
+    journal.add(observation)
+    observations.set(c, observation)
+    c.header('x-prepare-process', processId)
+    await next()
+    observation.status = c.res.status
+    if (observation.reason === 'pending') observation.reason = `http_${c.res.status}`
+    console.log(`[заготовка] событие=prepare процесс=${processId} попытка=${observation.id} статус=${observation.status} причина=${observation.reason} opener=${Number(observation.parts?.opener ?? false)}`)
+  })
   app.use('*', usageMiddleware())
   app.route('/', votesApp({ root: votesRoot }))
   app.route('/', juryAdmin())
@@ -344,21 +367,23 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     // Проверенная сессия не меняется при переходе телефона с Wi-Fi на мобильную сеть.
     // Для анонимного клиента q.key уже содержит IP; лимиты по IP остаются в clientLimiter.
     const who = q.key
-    const key = hashOf(JSON.stringify({
+    const parts = {
       who, sc, history: history.map((h) => [h.playerText, h.opponentLine, h.analysis, h.emotion]), text: body.playerText,
       reaction: opens ? undefined : body.reaction || undefined, offer: fitOffer(sc, body.offer), accept: !!body.accept, walkAway: !!body.walkAway,
       // Только включение opener меняет текст. Параметры синтеза — только доставку звука.
       opener: !!opens, natural, marks, lab, voiceLlm: body.voiceLlm ?? c.req.header('x-voice-llm'),
-    }, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value))
-    return { llm, lab, sc, history, before, natural, marks, who, key, asked, speaker, opens }
+    }
+    const key = hashOf(canonical(parts))
+    return { llm, lab, sc, history, before, natural, marks, who, key, parts, asked, speaker, opens }
   }
   type TurnInput = Awaited<ReturnType<typeof turnInput>>
 
-  function stopOthers(who: string, key: string) {
+  function stopOthers(t: TurnInput) {
     for (const [k, j] of jobs) {
-      if (j.who !== who || k === key || j.attached) continue
+      if (j.who !== t.who || k === t.key || j.attached) continue
       j.stop()
+      j.lifecycle.state ??= 'cancelled'
+      if (j.prepared) console.log(`[заготовка] событие=cancel процесс=${processId} попытка=${j.prepareId ?? '-'} причина=other_key отличие=${prepareDifference(j.parts, t.parts)}`)
       jobs.delete(k)
     }
   }
@@ -496,9 +521,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     }
     const done = run()
     let over = false
-    done.then(() => (over = true), () => { over = true; stopped = true; gotFirst(undefined) })
+    done.then(() => (over = true), () => { over = true; stopped = true; job.lifecycle.state ??= 'failed'; gotFirst(undefined) })
     const job: Job = {
       prepared: false,
+      lifecycle: {},
+      parts: t.parts,
       over: () => over,
       who: t.who,
       t0,
@@ -515,7 +542,11 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
         cur?.ac.abort()
       },
     }
-    void done.finally(() => setTimeout(() => jobs.get(t.key) === job && jobs.delete(t.key), 60_000).unref?.()).catch(() => {})
+    void done.finally(() => setTimeout(() => {
+      if (jobs.get(t.key) !== job) return
+      job.lifecycle.state ??= 'ttl'
+      jobs.delete(t.key)
+    }, 60_000).unref?.()).catch(() => {})
     jobs.set(t.key, job)
     return job
   }
@@ -524,19 +555,37 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // Без голоса и звука: только разбор и реплика. Лаборатория и чужая модель реплики — без заготовок.
   app.post('/api/prepare', BODY, async (c) => {
     const body = TurnBody.parse(await c.req.json())
-    if (llm.name === 'offline' || body.voiceLlm || c.req.header('x-lab-llm') || c.req.header('x-voice-llm') || process.env.PREPARE === 'off') return c.json({ ok: false })
+    const observation = observations.get(c)!
+    const reject = (reason: string, status: 200 | 409 | 429 = 200) => {
+      observation.reason = reason
+      return c.json({ ok: false }, status)
+    }
+    if (process.env.PREPARE === 'off') return reject('disabled')
+    if (llm.name === 'offline') return reject('no_llm')
+    if (body.voiceLlm || c.req.header('x-lab-llm') || c.req.header('x-voice-llm')) return reject('model_override')
     const t = await turnInput(c, body)
-    if (t.before.status !== 'open') return c.json({ ok: false }, 409)
-    // Повтор готового или выполняющегося запроса ничего не стоит и не съедает квоту новых заготовок.
+    Object.assign(observation, { parts: t.parts, tts: body.tts })
+    if (t.before.status !== 'open') return reject('closed', 409)
+    // Повтор не съедает квоту новых заготовок.
     const ready = jobs.get(t.key)
-    if (ready && !ready.stopped()) return c.json({ ok: true }, 202)
-    if (!count.take('prep', quotaOf(c), limitOf('PREPARE_SESSION_MINUTE_LIMIT', 20), MINUTE)) return c.json({ ok: false }, 429)
-    stopOthers(t.who, t.key)
-    startJob(t, body, llm.voice ?? llm, body.tts ? speech.heater(body.tts, c) : undefined).prepared = true
+    if (ready && !ready.stopped()) {
+      observation.lifecycle = ready.lifecycle
+      ready.prepareId = observation.id
+      observation.reason = ready.prepared ? 'duplicate' : 'turn_already_started'
+      return c.json({ ok: true }, 202)
+    }
+    if (!count.take('prep', quotaOf(c), limitOf('PREPARE_SESSION_MINUTE_LIMIT', 20), MINUTE)) return reject('limit', 429)
+    observation.reason = t.opens ? 'accepted' : 'accepted_no_opener'
+    stopOthers(t)
+    const job = startJob(t, body, llm.voice ?? llm, body.tts ? speech.heater(body.tts, c) : undefined)
+    job.prepared = true
+    job.prepareId = observation.id
+    observation.lifecycle = job.lifecycle
     return c.json({ ok: true }, 202)
   })
 
   app.post('/api/turn', BODY, async (c) => {
+    const arrivedAt = Date.now()
     const body = TurnBody.parse(await c.req.json())
     if (tooFast(c)) return c.json({ error: 'Слишком часто: подождите минуту' }, 429)
     const t = await turnInput(c, body)
@@ -544,12 +593,29 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     if (before.status !== 'open') return c.json({ error: 'Переговоры уже закончены', state: before }, 409)
 
     const t0 = Date.now()
+    const requestId = randomUUID()
+    const clientDiag = prepareDiag(body.prepareDiag)
+    const attemptId = clientDiag.id ?? diagnosticId(c.req.header('x-prepare-id'))
+    const observation = attemptId || body.prepareDiag === undefined ? journal.find(attemptId, t.who) : undefined
+    // Снимок до stopOthers: отмена этим ходом не должна скрыть отличие ключа.
+    const previousState = observation?.lifecycle?.state
+    const difference = observation?.parts ? prepareDifference(observation.parts, t.parts) : '-'
     // реплику пишет своя модель (VOICE_LLM или выбранная на запрос), лаборатория — целиком своей; не ответила — основная
-    stopOthers(t.who, t.key)
+    stopOthers(t)
     const ready = jobs.get(t.key)
     // Повтор уже отданного хода проходит обычным путём через кэш разбора и реплики.
     const job = ready && !ready.stopped() && (!ready.attached || !ready.over()) ? ready : startJob(t, body, speaker)
     job.attached = true
+    const prepReason = job.prepared ? 'hit'
+      : observation && observation.who !== t.who ? 'session'
+      : observation && observation.status !== 202 ? observation.reason
+      : previousState ?? (observation && difference !== '-' ? 'key_mismatch'
+        : observation ? 'already_used'
+        : clientDiag.process && clientDiag.process !== processId ? 'other_process'
+        : clientDiag.status === 401 ? 'session'
+        : clientDiag.status && clientDiag.status >= 400 ? `http_${clientDiag.status}`
+        : clientDiag.id ? 'not_seen_here' : 'not_received')
+    const prepLine = `[заготовка] событие=turn процесс=${processId} запрос=${requestId} попытка=${observation?.id ?? clientDiag.id ?? '-'} пришла=${observation ? 1 : 0} до_мс=${observation ? arrivedAt - observation.at : '-'} статус=${observation?.status ?? '-'} итог=${prepReason} отличие=${difference} tts=${observation?.parts ? ttsDifference(observation.tts, body.tts) : '-'} opener=${Number(!!t.opens)}`
     // поток ответа (stream: true): начало реплики и ссылка на звук — раньше, чем ход целиком
     let emit: ((ev: object) => void) | undefined
     // голос включён: сервер озвучивает реплику сам, с первой фразы; игра берёт звук по ссылке или тем же /api/tts
@@ -611,7 +677,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const logTurn = (end?: number) => {
         const n = (k: string) => (typeof ms[k] === 'number' ? ms[k] : '-')
         const audio = sound?.firstAt ? sound.firstAt - t0 : '-'
-        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${job.prepared ? Math.max(0, lead) : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} ${analysisLog(a, job.analysisAttempts)} модель=${v.model ?? v.source}`)
+        console.log(prepLine)
+        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${job.prepared ? Math.max(0, lead) : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} ${analysisLog(a, job.analysisAttempts)} модель=${v.model ?? v.source} запрос=${requestId} prep_client=${prepareCountsLog(body.prepareDiag)}`)
       }
       if (sound) void sound.ended.then(logTurn, () => logTurn())
       else logTurn()
