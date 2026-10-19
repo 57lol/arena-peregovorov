@@ -80,6 +80,8 @@ export interface Shot {
   set: SetId
   dur: number
   mood?: Mood
+  /** часы на телефоне, «7:58»; нет — по времени суток (CLOCKS в timeline.ts) */
+  clock?: string
   /** центр камеры по x; нет — камера идёт за первым человеком */
   cam?: Track
   /** скорость автобуса, точек в секунду: трасса и вид из окна едут мимо */

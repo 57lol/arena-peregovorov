@@ -316,10 +316,12 @@ export default function App() {
     setRoom(null)
     setRoomError(null)
     if (!cutscenesAllowed()) return run({ then: { to: 'map' } })
-    const step = storyStart(progress, seenCutscenes())
+    // из хранилища, а не из состояния: обучение и вторая вкладка пишут прогресс мимо него — не затираем
+    const p = loadProgress()
+    const step = storyStart(p, seenCutscenes())
     if (step.then.to === 'brief') {
       const caseId = step.then.caseId
-      setProgress(setStoryChapter(progress, CHAPTERS.findIndex((ch) => ch.id === caseId)))
+      setProgress(setStoryChapter(p, CHAPTERS.findIndex((ch) => ch.id === caseId)))
     }
     return run(step)
   }

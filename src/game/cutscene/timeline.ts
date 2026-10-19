@@ -1,10 +1,14 @@
 // Время катсцены: где мы (план и секунда в нём), значение дорожки, какая строка и какая карточка телефона сейчас.
 // Чистые функции без DOM — их проверяют тесты и ими же пользуется рисовальщик.
 
-import type { Cutscene, Line, PhoneCard, Shot, Track } from './types'
+import type { Cutscene, Line, Mood, PhoneCard, Shot, Track } from './types'
 
 /** На какой секунде плана с телефоном-памяткой катсцена встаёт и ждёт, пока игрок долистает. */
 export const GUIDE_AT = 0.5
+
+/** Часы в строке состояния телефона по времени суток; у плана могут быть свои (shot.clock). */
+export const CLOCKS: Record<Mood, string> = { day: '13:05', dusk: '18:47', morning: '07:41', night: '22:16' }
+export const clockOf = (shot: Shot) => shot.clock ?? CLOCKS[shot.mood ?? 'day']
 
 export const total = (cs: Cutscene) => cs.shots.reduce((s, x) => s + x.dur, 0)
 

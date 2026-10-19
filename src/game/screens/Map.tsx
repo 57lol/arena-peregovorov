@@ -84,7 +84,10 @@ export function MapScreen({ progress, onProgress, onOpen, onBack, onFree, onCare
   const after = bi >= 0 && rows[bi + 1] && !rows[bi + 1].played ? bi + 1 : nextIdx
   const readBridge = () => {
     if (!bridge) return
-    onProgress(markStorySeen(bridge.ch.id))
+    // мостики раньше прочитанного устарели: не показываем их потом задом наперёд (после «Неделя позади» — четверг…)
+    let p = progress
+    for (const r of rows.slice(0, bi + 1)) if (r.played) p = markStorySeen(r.ch.id)
+    onProgress(p)
     if (after >= 0) setSel(after)
   }
 
