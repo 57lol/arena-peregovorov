@@ -2,7 +2,7 @@
 // Считается из того же отчёта, что и подробный разбор, без нейросети: тот же ход — те же строки.
 
 import { MINUTES_PER_TURN, behaviorById } from '../engine/behaviors'
-import { signature } from '../engine/books'
+import { bookSig } from './bookPicks'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { upsellPenalty } from '../engine/upsells'
@@ -100,7 +100,7 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     : deal && r.leftOnTable > 0 ? 'package'
     : !deal && r.zopa ? 'package'
     : undefined
-  return { result, good: plainWords(good), quote, next: plainWords(next), goodId: strong?.id, goodSrc: strong ? signature(strong.id) || undefined : undefined, nextSrc: from ? signature(from) || undefined : undefined }
+  return { result, good: plainWords(good), quote, next: plainWords(next), goodId: strong?.id, goodSrc: strong ? bookSig(strong.id) || undefined : undefined, nextSrc: from ? bookSig(from) || undefined : undefined }
 }
 
 /** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */

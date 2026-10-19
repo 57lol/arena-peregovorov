@@ -29,8 +29,14 @@ export interface BookPicks {
 
 const QUESTIONS: BehaviorId[] = ['ask_interest', 'implication', 'need_payoff', 'calibrated', 'mirror', 'no_question']
 
-/** «Попробуйте: «…»»: пример-диалог «— …. — …?» не берём в кавычки. */
-export const sayText = (say: string) => (say.startsWith('—') ? say : `«${say}»`)
+/** «гл. 3», «шаг 2» не разрываем переносом строки. */
+export const keepTogether = (s: string) => s.replace(/(гл\.|ч\.|шаг|разд\.) /gu, '$1\u00a0')
+
+/** Подпись приёма для разбора: «— Восс, «Никаких компромиссов», гл. 3» (пустая, если книги нет). */
+export const bookSig = (id: string) => keepTogether(signature(id))
+
+/** «Попробуйте: «…»»: пример-диалог «— …. — …?» не берём в кавычки; точку из кавычек выносим, как принято. */
+export const sayText = (say: string) => (say.startsWith('—') ? say : `«${say.replace(/\.$/u, '')}»`)
 
 /** skip — приём, который уже показан в строке «Получилось» наверху разбора: здесь показываем другие, если они есть. */
 export function bookPicks(history: TurnRecord[], skip?: string): BookPicks {
@@ -52,7 +58,7 @@ export function bookPicks(history: TurnRecord[], skip?: string): BookPicks {
       quote: q ? fragment(q) : undefined,
       idea: t?.idea,
       say: t?.say,
-      sig: signature(id),
+      sig: bookSig(id),
     }
   }
   const polar = (p: 'strong' | 'weak') =>
@@ -70,7 +76,7 @@ export function bookPicks(history: TurnRecord[], skip?: string): BookPicks {
       quote: fragment(circle.playerText),
       idea: POSITIONAL.idea,
       say: POSITIONAL.say,
-      sig: `— ${cite(POSITIONAL.refs[0])}`,
+      sig: keepTogether(`— ${cite(POSITIONAL.refs[0])}`),
     })
 
   // чего не хватило: просто и детерминированно, по тому, что было в партии

@@ -10,8 +10,8 @@ import { g, plural } from '../cast'
 import { chartPath, trendWidth } from '../chart'
 import { plainWords, turnFeedback } from '../instant'
 import type { RunLog } from '../progress'
-import { TECHNIQUES, signature } from '../../engine/books'
-import { sayText } from '../bookPicks'
+import { TECHNIQUES } from '../../engine/books'
+import { bookSig, sayText } from '../bookPicks'
 import '../analytics.css'
 import '../books.css'
 
@@ -225,7 +225,7 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
             {!bar.benchmark && <p>У этого приёма нет численного эталона Rackham & Carlisle.</p>}
             {quotes.length ? quotes.map((q) => <blockquote className="g-quote g-quote--small" key={q.turn}><b>Ход {q.turn}.</b> {censor(q.quote)}</blockquote>) : <p>В сохранённой разметке этот приём не найден.</p>}
             <p><b>Попробуйте:</b> {plainWords(def.advice)}{TECHNIQUES[row.id]?.say && <> Например: {sayText(TECHNIQUES[row.id].say)}</>}</p>
-            {signature(row.id) && <span className="g-book">{signature(row.id)}</span>}
+            {bookSig(row.id) && <span className="g-book">{bookSig(row.id)}</span>}
           </div>
         </details>
       })}
@@ -233,7 +233,7 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
     <h3 className="g-h3">В следующей встрече</h3>
     <ol className="g-practice-tips">{tips.map((tip) => {
       const by = BEHAVIORS.find((b) => b.advice === tip)
-      const sig = by ? signature(by.id) : ''
+      const sig = by ? bookSig(by.id) : ''
       return <li key={tip}>{plainWords(tip)}{sig && <span className="g-book">{sig}</span>}</li>
     })}</ol>
   </div>

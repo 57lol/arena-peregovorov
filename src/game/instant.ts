@@ -52,7 +52,7 @@ export interface Tip {
 }
 
 /** Короткая подпись на поля: первый автор и глава — «Восс, гл. 3», «Фишер, гл. 5». */
-export const shortCite = (ref: BookRef) => `${BOOKS[ref.book].short.split(',')[0]}, ${ref.where}`
+export const shortCite = (ref: BookRef) => `${BOOKS[ref.book].short.split(',')[0]}, ${ref.where.replace(' ', '\u00a0')}`
 
 /** Подпись к приёму; k — какая из ссылок (первая — главная). */
 export function bookSrc(id: BehaviorId, k = 0): string | undefined {

@@ -23,8 +23,8 @@ import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 import { often, summarize } from '../summary'
 import { decisionTag, plainWords } from '../instant'
-import { TECHNIQUES, signature } from '../../engine/books'
-import { bookPicks, sayText } from '../bookPicks'
+import { TECHNIQUES } from '../../engine/books'
+import { bookPicks, bookSig, sayText } from '../bookPicks'
 import '../onboarding.css'
 import '../books.css'
 
@@ -445,7 +445,7 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
                     const def = behaviorById(b.id)
                     if (!def) return null
                     const src = SOURCES[def.sources[0]]
-                    const sig = signature(def.id)
+                    const sig = bookSig(def.id)
                     return (
                       <li key={b.id} className={`is-${def.polarity}`}>
                         <b>{def.title}</b>
@@ -647,7 +647,7 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
           const def = behaviorById(r.id)
           const q = quotes.get(r.id)?.[0]
           const t = TECHNIQUES[r.id]
-          const sig = signature(r.id)
+          const sig = bookSig(r.id)
           return (
             <li key={r.id}>
               <p className="g-beh-head">

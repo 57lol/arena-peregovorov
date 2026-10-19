@@ -128,7 +128,16 @@ export function Margin({ fb, tip, where, open = false, dim, onOpen, onExample, o
               <PixelIcon name="cross" px={2} color="var(--c-steel-2)" />
             </button>
           </p>
-          <Body fb={fb} tip={tip} onExample={onExample} onOff={onOff} />
+          {/* на телефоне листок закрывает поле ввода: вставили пример — сворачиваем */}
+          <Body
+            fb={fb}
+            tip={tip}
+            onExample={(t) => {
+              onOpen?.(false)
+              onExample(t)
+            }}
+            onOff={onOff}
+          />
         </div>
       )}
     </section>

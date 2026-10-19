@@ -16,7 +16,8 @@ function play(moves: string[]): TurnRecord[] {
 describe('приёмы из книг в разборе', () => {
   it('сильный приём — с цитатой и подписью книги, слабый — «как в книге» и пример, недостающие — по ситуации', () => {
     const p = bookPicks(play(['Похоже, вас беспокоит, что мы сорвём запуск.', 'Решайте сейчас, это последний шанс.']))
-    expect(p.good[0]).toMatchObject({ id: 'label', sig: '— Восс, «Никаких компромиссов», гл. 3' })
+    expect(p.good[0].id).toBe('label')
+    expect(p.good[0].sig).toBe('— Восс, «Никаких компромиссов», гл.\u00a03')
     expect(p.good[0].quote).toContain('Похоже, вас беспокоит')
     expect(p.bad[0]).toMatchObject({ id: 'deadline' })
     expect(p.bad[0].idea).toBeTruthy()
@@ -24,7 +25,7 @@ describe('приёмы из книг в разборе', () => {
     expect(p.bad[0].sig).toMatch(/^— Восс/)
     // вопросов не было — не хватило вопроса об интересах (Фишер)
     expect(p.missing[0]).toMatchObject({ id: 'ask_interest' })
-    expect(p.missing[0].sig).toMatch(/^— Фишер, Юри, Паттон, «Переговоры без поражения», гл\. 3$/)
+    expect(p.missing[0].sig).toMatch(/^— Фишер, Юри, Паттон, «Переговоры без поражения», гл\.\u00a03$/)
     expect(p.missing.length).toBeLessThanOrEqual(2)
     expect(p.missing.some((m) => m.id === 'label')).toBe(false)
   })
