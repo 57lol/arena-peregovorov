@@ -40,7 +40,7 @@ const ACCEPT = new RegExp(
 const NEG = /(не|нет|никак)\s+$|(?<!\p{L})(?:no|not|never|not a)\s+$|n't\s+$/iu
 
 const WALK = new RegExp(
-  `${L}(ухожу|уходим|я пас|мы пас|завершаем переговоры|прекращаем переговоры|до свидания|всего доброго|всего хорошего|` +
+  `${L}(ухожу|уходим|я пош[её]л(?: домой)?[.!]*$|я пошла(?: домой)?[.!]*$|я пас|мы пас|завершаем переговоры|прекращаем переговоры|до свидания|всего доброго|всего хорошего|` +
     // «отказываюсь от предоплаты» и «сделки не будет без отсрочки» — условие, а не уход
     `сделки не будет(?!\\s+без${R})|нам не по пути|я отказываюсь(?!\\s+от${R})|мы отказываемся(?!\\s+от${R})|разговор окончен|больше не о чем говорить|` +
     `i'?m leaving|i am leaving|we'?re leaving|we are leaving|i'?m out${R}|i(?:'m| am) walking away|we(?:'re| are) done here|this meeting is over|goodbye|good bye|bye${R}|` +
@@ -60,12 +60,12 @@ function clauses(text: string): string[] {
 export function isWalkAway(text: string): boolean {
   return clauses(text).some((c) => {
     const m = WALK.exec(c)
-    return !!m && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
+    return !!m && !c.endsWith('?') && !CONDITIONAL.test(c) && !NEG.test(c.slice(0, m.index))
   })
 }
 
 // Уход своими словами, которых нет в словаре правил: «We are ending these negotiations», «на этом закончим»
-const LEAVE = /(?<!\p{L})(?:end(?:ing|s)?|terminat\p{L}*|finish\p{L}*|stop(?:ping)?|leav\p{L}*|walk(?:ing)?\s+(?:away|out)|quit\p{L}*|break(?:ing)?\s+off|call(?:ing)?\s+(?:it|this)\s+off|заверш\p{L}*|законч\p{L}*|заканчива\p{L}*|прекраща\p{L}*|прекрат\p{L}*|ухож\p{L}*|уход\p{L}*|уйд\p{L}*|пош[её]л|пошли|хватит|прощайте)(?!\p{L})/iu
+const LEAVE = /(?<!\p{L})(?:end(?:ing|s)?|terminat\p{L}*|finish\p{L}*|stop(?:ping)?|leav\p{L}*|walk(?:ing)?\s+(?:away|out)|quit\p{L}*|break(?:ing)?\s+off|call(?:ing)?\s+(?:it|this)\s+off|заверш\p{L}*|законч\p{L}*|заканчива\p{L}*|прекраща\p{L}*|прекрат\p{L}*|ухож\p{L}*|уход\p{L}*|уйд\p{L}*|пош[её]л(?!\s+(?:(?:вам|тебе)\s+)?навстречу|\s+на уступки)|пошли|хватит|прощайте)(?!\p{L})/iu
 const NOT_LEAVE = /(?<!\p{L})(?:не|not|never|no)\s+(?:\p{L}+\s+){0,2}?(?:end|terminat|finish|stop|leav|walk|quit|break|заверш|законч|заканчива|прекраща|прекрат|ухож|уход|уйд|пош)|n't\s+(?:\p{L}+\s+){0,2}?(?:end|stop|leav|walk|quit)/iu
 
 /**
@@ -117,7 +117,7 @@ export function analyzeOffline(sc: Scenario, text: string, dict: BehaviorDict): 
   return out
 }
 
-const APOLOGY = new RegExp(`${L}(извини\\p{L}*|прост(и|ите)${R}|сорян|сори${R}|виноват\\p{L}*|мой косяк|моя вина|sorry|apologi[sz]e\\p{L}*|my bad|forgive me|excuse me)`, 'iu')
+const APOLOGY = new RegExp(`${L}(извини\\p{L}*|прост(и|ите)${R}|сорян|сорри|сори${R}|виноват\\p{L}*|мой косяк|моя вина|sorry|apologi[sz]e\\p{L}*|my bad|forgive me|excuse me)`, 'iu')
 const JOKE = new RegExp(`(${L}(ахах\\p{L}*|хаха\\p{L}*|ха-ха\\p{L}*|хех${R}|шучу|прикол\\p{L}*|haha\\p{L}*|hehe${R}|lol${R}|lmao${R}|just kidding|i'?m kidding|joking)|\\)\\)|😂|😄)`, 'iu')
 const PERSONAL = new RegExp(
   `${L}(меня зовут|будем знакомы|приятно познакомиться|(тебя|вас) как (звать|зовут)|как (тебя|вас) (звать|зовут|по имени)|` +

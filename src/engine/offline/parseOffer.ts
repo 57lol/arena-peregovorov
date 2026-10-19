@@ -53,6 +53,7 @@ const SYNONYMS: [RegExp, string[]][] = [
   [/постав|достав|отгруз/i, ['поста', 'доста', 'отгру', 'привез']],
   [/гарант/i, ['гаран']],
   [/объ[её]м|партия|количеств/i, ['объем', 'парти', 'колич', 'штук']],
+  [/дата выхода/i, ['выход', 'выйд']],
   [/отпуск/i, ['отпус']],
   [/удал[её]н/i, ['удале', 'дома', 'офис']],
   // дела на английском
@@ -136,7 +137,7 @@ export interface Mention { id: IssueId; option: number; at: number; end: number 
  * side: 'player' — разбираем слова игрока, число между вариантами округляем в пользу собеседника.
  * rounded — пункты, где число попало между вариантами; mentions — все числа, разобранные в варианты пунктов.
  */
-export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Map<IssueId, number>, mentions?: Mention[]): Offer {
+export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?: Map<IssueId, number>, mentions?: Mention[], said?: string): Offer {
   const infos = issueInfo(sc)
   const offer: Offer = {}
   const lower = text.toLowerCase()
@@ -219,8 +220,12 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
       }
       // Ключевого слова рядом нет (или оно только в соседнем куске) — берём пункт, где есть ровно такой вариант.
       if (!pick || bestD >= 1000) {
+        // Голое число после вопроса относится к названному пункту, а не к случайной размерности.
+        const about = said ? new Set([...mentionedIssues(sc, said), ...Object.keys(parseOffer(sc, said))]) : new Set<string>()
+        const contextual = q.dim === 'plain' ? cands.filter((c) => about.has(c.info.issue.id)) : []
         const exact = cands.filter(exactly)
-        if (exact.length === 1) pick = exact[0]
+        if (contextual.length === 1) pick = contextual[0]
+        else if (exact.length === 1) pick = exact[0]
         else if (q.dim === 'plain') pick = closeOnly(cands) // голое число без подсказок — только если оно явно из одного пункта
       }
       cands = pick ? [pick] : []

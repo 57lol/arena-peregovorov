@@ -13,10 +13,10 @@ export { templateLine } from './lines'
 export { quantities } from './numbers'
 
 /** Те же подтверждённые условия на сервере и в браузере. Варианты с отрицанием («без учебных дней») — тоже. */
-export function groundedOffline(sc: Scenario, text: string, dict: BehaviorDict) {
+export function groundedOffline(sc: Scenario, text: string, dict: BehaviorDict, said?: string) {
   const a = analyzeOffline(sc, text, dict)
   const neg = a.offer || !isTentative(text) ? negativeOffer(sc, text) : {}
-  return groundAnalysis(sc, text, Object.keys(neg).length ? { ...a, offer: { ...neg, ...a.offer } } : a)
+  return groundAnalysis(sc, text, Object.keys(neg).length ? { ...a, offer: { ...neg, ...a.offer } } : a, said)
 }
 
 /** Уход по кнопке «Встать и уйти»: служебный ход без приёмов. */
@@ -39,7 +39,7 @@ export function offlineTurn(
   formalOffer?: Offer,
 ): TurnRecord {
   const before = stateAfter(sc, history, dict)
-  const analysis = withContext(withFormalOffer(withBareYes(playerText, withUpsellReply(sc, playerText, groundedOffline(sc, playerText, dict), before), history), formalOffer), before, history, dict)
+  const analysis = withContext(withFormalOffer(withBareYes(playerText, withUpsellReply(sc, playerText, groundedOffline(sc, playerText, dict, history.at(-1)?.opponentLine ?? sc.opening), before), history), formalOffer), before, history, dict)
   const r = step(sc, before, analysis, dict, history.map((h) => h.analysis))
   const { line, emotion } = templateLine(sc, r.decision, r.state, before.lastOpponentOffer, before.playerStance)
   return {

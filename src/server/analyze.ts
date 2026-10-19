@@ -209,7 +209,8 @@ export async function startAnalysis(
   quick?: LLM,
 ): Promise<AnalyzeRun> {
   const keepNothing = async () => {}
-  const offline = () => groundedOffline(sc, text, dict)
+  const said = history.length ? history[history.length - 1].opponentLine : sc.opening
+  const offline = () => groundedOffline(sc, text, dict, said)
   if (llm.name === 'offline') return { ready: { analysis: offline(), source: 'offline' }, keep: keepNothing }
   // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
   // один и тот же разбор, без капризов модели.
@@ -224,7 +225,6 @@ export async function startAnalysis(
     lastOpponentOffer,
   }
   // последняя реплика собеседника: голое число игрока — о том, о чём он только что говорил
-  const said = history.length ? history[history.length - 1].opponentLine : sc.opening
   const post = (value: MoveAnalysis) => groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }, said)
   const hit = await peek<MoveAnalysis>('analyze', key)
   if (hit) return { ready: { analysis: post(hit), source: 'cache' }, keep: keepNothing }

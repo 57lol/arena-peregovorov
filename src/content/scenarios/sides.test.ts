@@ -110,7 +110,8 @@ describe('живая проверка разметки 18.10: что прове�
     const said = 'Сорок четыре юаня, друг, это уже хорошая цена.'
     // так ответил YandexGPT: срок «40 дней» и согласие — сделка закрылась бы на её 44 юанях
     const wrong = groundAnalysis(china, 'Давайте 40.', { behaviors: [], offer: { delivery: 0 }, accepts: true }, said)
-    expect(wrong.offer).toBeUndefined()
+    // Правила восстанавливают встречную цену даже при неверном пункте у модели.
+    expect(wrong.offer).toEqual({ price: 2 })
     expect(wrong.accepts).toBeUndefined()
     expect(groundAnalysis(china, 'Давайте 40.', { behaviors: [], offer: { price: 2 } }, said).offer).toEqual({ price: 2 })
   })

@@ -1,7 +1,7 @@
-import { detectBehaviors } from './behaviors'
+import { BEHAVIOR_DICT, detectBehaviors, guardBehaviors } from './behaviors'
 import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
-import { confirmsWalkAway, isWalkAway } from './offline/analyze'
+import { analyzeOffline, confirmsWalkAway, isWalkAway } from './offline/analyze'
 import { mentionedIssues, parseOffer, spokenNumber, type Mention } from './offline/parseOffer'
 import { optionQuantity, quantities } from './offline/numbers'
 import type { MoveAnalysis, Offer, Scenario } from './types'
@@ -10,7 +10,7 @@ import type { MoveAnalysis, Offer, Scenario } from './types'
 const PREDICATE = String.raw`(?:предлага\p{L}*|отда\p{L}*|даю|дам|дадим|плачу|платим|заплачу|соглас\p{L}*|готов\p{L}*|буду|будем|хочу|хотим|могу|можем)(?!\p{L})`
 // то же по-английски: «we can pay», «I won't accept», «we don't need»
 const EN_PREDICATE = String.raw`(?:offer|propose|give|pay|accept|agree|take|sign|do|go(?!\s+(?:below|above|lower|higher)(?!\p{L}))|need|want|can|could|will|would)(?!\p{L})`
-const CLAUSE = new RegExp(String.raw`([!?;\n]+|(?<!\d)[,.]|[,.](?!\d)|\s+(?:а|но|but)\s+|\s+и\s+(?=(?:я\s+)?(?:не\s+)?${PREDICATE})|\s+and\s+(?=(?:I|we)\s+(?:don't|do not|can't|cannot|won't|will not)?\s*${EN_PREDICATE}))`, 'giu')
+const CLAUSE = new RegExp(String.raw`([!?;\n]+|(?<!\d)[,.]|[,.](?!\d)|\s+(?:а|но|but|вместо)\s+|\s+и\s+(?=(?:я\s+)?(?:не\s+)?${PREDICATE})|\s+and\s+(?=(?:I|we)\s+(?:don't|do not|can't|cannot|won't|will not)?\s*${EN_PREDICATE}))`, 'giu')
 const REFUSAL = new RegExp(
   String.raw`(?<!\p{L})(?:не\s+${PREDICATE}|отказыва\p{L}*|отверга\p{L}*|не\s+(?:на\s+)?\d|` +
     String.raw`(?:don't|do not|can't|cannot|won't|will not|wouldn't|couldn't|not going to|never)\s+(?:\p{L}+\s+){0,2}?${EN_PREDICATE}|no way|not\s+(?:at\s+)?[€$]?\d|refuse\p{L}*|reject\p{L}*|out of the question|forget (?:about )?(?:it|that))`,
@@ -32,7 +32,7 @@ const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*
 
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
 const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
-const OWN_RU = /(?<!\p{L})(?:давай\p{L}*|предлага\p{L}*|готов\p{L}*|могу|можем|дам|дадим|плачу|платим|соглас\p{L}*)(?!\p{L})/iu
+const OWN_RU = /(?<!\p{L})(?:давай\p{L}*|предлага\p{L}*|готов\p{L}*|могу|можем|хочу|хотим|заплачу|дам|дадим|плачу|платим|соглас\p{L}*)(?!\p{L})/iu
 const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| propose| pay| suggest)|let's|let us|how about|what about|our (?:offer|proposal|counter))(?!\p{L})/iu
 
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
@@ -65,7 +65,10 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
     REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) || IMPOSSIBLE.test(part) ||
     rejectsAlias(part) ||
     // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
-    (EN_THIRD.test(part) && !EN_OWN.test(part)))
+    (EN_THIRD.test(part) && !EN_OWN.test(part)) ||
+    (THIRD.test(part) && !OWN_RU.test(part) && !EN_OWN.test(part)))
+  // «Шесть вместо двенадцати»: справа отвергнутое условие, слева своё.
+  for (let k = 1; k < parts.length; k += 2) if (/вместо/iu.test(parts[k])) refused[k + 1] = true
   // «X, это не пойдёт», «X — нет»: отказ отдельным куском относится к тому, что сказано перед ним
   for (const [k, part] of parts.entries()) {
     if (!BARE_VETO.test(part)) continue
@@ -101,9 +104,11 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, sai
   const mentions: Mention[] = []
   const { parts, refused } = clauses(sc, text)
   const positive = parts.map((part, k) => (refused[k] ? '' : part)).join('')
-  const evidence = parseOffer(sc, positive, 'player', rounded, mentions)
+  // В «не пять процентов, а десять» единица остаётся в отвергнутой части.
+  const rejected = parts.filter((_, k) => refused[k]).join(' ')
+  const evidence = parseOffer(sc, positive, 'player', rounded, mentions, said ?? rejected)
   const negative = negativeEvidence(sc, parts, refused)
-  const out: Offer = {}
+  const out: Offer = { ...evidence, ...negative }
   for (const [id, option] of Object.entries(offer)) {
     if (option === undefined) continue
     const e = evidence[id] ?? negative[id]
@@ -191,7 +196,7 @@ function wordsOf(sc: Scenario, text: string, id: string, option: number): boolea
 
 const NEG = /(?<!\p{L})(не|нет|ни|not|no|never|n't)(?!\p{L})|n't(?!\p{L})/iu
 // чужая цифра: «у Казани 200», «у вас 204», «конкурент возит по 200», «было 212»; «Qingdao offers 465», «your price is 480»
-const THIRD = /(?<!\p{L})(?:у\s+\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|был\p{L}*|competitors?|they|their|offers|gives|asks|charges|quotes|was|were|your (?:price|offer|number|quote)|you (?:said|asked|offered|want))(?!\p{L})/iu
+const THIRD = /(?<!\p{L})(?:вы\s*[—–-]|ваш[аи]\s+|это уже разговор|у\s+(?!(?:нас|меня)(?!\p{L}))\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|был\p{L}*|competitors?|they|their|offers|gives|asks|charges|quotes|was|were|your (?:price|offer|number|quote)|you (?:said|asked|offered|want))(?!\p{L})/iu
 // слова, которые могут стоять при числе в перечне условий: «Хорошо. 200 ровно, по факту, 48 часов»
 const FILLER = new Set(['тогда', 'хорошо', 'ладно', 'ок', 'окей', 'итак', 'значит', 'короче', 'итого', 'ну', 'так', 'в', 'общем',
   'и', 'цена', 'цену', 'ценой', 'по', 'за', 'на', 'с', 'ровно', 'давай', 'давайте', 'рублей', 'рубля', 'рубль', 'руб', 'короб', 'коробку',
@@ -255,12 +260,23 @@ const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однак
 
 /** said — последняя реплика собеседника: голое число, которое подходит к нескольким пунктам, — о том, о чём шла речь. */
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis, said?: string): MoveAnalysis {
+  const rules = analyzeOffline(sc, text, BEHAVIOR_DICT)
+  // Пустая модель не должна терять явное согласие, уход, вопрос или разговорный приём.
+  const merged = { ...analysis,
+    behaviors: guardBehaviors(text, [...analysis.behaviors, ...rules.behaviors.filter((b) => !analysis.behaviors.some((h) => h.id === b.id))]),
+    accepts: analysis.accepts || rules.accepts, walksAway: analysis.walksAway || rules.walksAway,
+    toneViolation: analysis.toneViolation || rules.toneViolation,
+    talk: [...new Set([...(analysis.talk ?? []), ...(rules.talk ?? [])])],
+  }
   const extras = parseUpsells(sc, text)
-  const { offer, ...other } = analysis
+  const { offer, ...other } = merged
+  // Модель часто называет все пункты сразу: вопрос подтверждает только упомянутые.
+  other.asksAbout = rules.asksAbout
+  if (!other.asksAbout) delete other.asksAbout
   delete other.upsells
   if (extras.mentioned) {
     text = extras.main
-    other.accepts = !!analysis.accepts && /соглас|принима|договорились|бер[её]м|беру|по рукам/iu.test(text) && !/не (?:соглас|принима|бер)/iu.test(text)
+    other.accepts = !!merged.accepts && /соглас|принима|договорились|бер[её]м|беру|по рукам/iu.test(text) && !/не (?:соглас|принима|бер)/iu.test(text)
   }
   if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
@@ -277,6 +293,8 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     return other
   }
   if (other.accepts && (!parts.some((p) => !p.includes('?') && AGREE_WORD.test(p)) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
+  // «Ок» голосом может быть паузой; явное «договорились» остаётся согласием.
+  if (/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады)[.!]*\s*$/iu.test(text)) delete other.accepts
   const supported = explicitOffer(sc, text, offer, said)
   return { ...other, ...(Object.keys(supported).length ? { offer: supported } : {}), ...(REST.test(text) ? { rest: true } : {}) }
 }
