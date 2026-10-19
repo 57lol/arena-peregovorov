@@ -75,8 +75,9 @@ export function Board({ server, id, secret, onExit }: Props) {
   useEffect(() => {
     if (server) void refresh()
   }, [server, refresh])
+  // не загрузилось (сбой сети) — пробуем снова при следующем обновлении доски, иначе журнал так и не откроется
   useEffect(() => {
-    if (!caseId || getScenario(caseId)) return
+    if (!caseId || getScenario(caseId) || custom?.id === caseId) return
     let on = true
     fetch(`/api/scenarios/${encodeURIComponent(caseId)}`)
       .then((r) => (r.ok ? (r.json() as Promise<Scenario>) : null))
@@ -85,7 +86,7 @@ export function Board({ server, id, secret, onExit }: Props) {
     return () => {
       on = false
     }
-  }, [caseId])
+  }, [caseId, custom, updated])
   // доска живая: пока вкладка открыта, подтягиваем новые результаты раз в 4 секунды
   useEffect(() => {
     if (!server) return

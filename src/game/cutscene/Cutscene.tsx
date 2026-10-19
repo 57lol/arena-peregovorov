@@ -9,8 +9,8 @@ import { PORTRAITS } from '../ui/assets'
 import { H, PHONE } from './art'
 import { imagesOf, Painter, type FrameInfo } from './render'
 import { pinLabel } from './scripts'
-import { GUIDE_AT, lineAt, locate, phoneAt, starts, total } from './timeline'
-import type { Card, Cutscene as Script, Guide, Mood, PhoneCard } from './types'
+import { CLOCKS, clockOf, GUIDE_AT, lineAt, locate, phoneAt, starts, total } from './timeline'
+import type { Card, Cutscene as Script, Guide, PhoneCard } from './types'
 import './cutscene.css'
 
 interface Props {
@@ -205,7 +205,7 @@ export function CutscenePlayer({ script, onDone, at }: Props) {
       <div className="cs-stage">
         <div className="cs-frame" style={{ width: vw * s, height: H * s, ['--s' as string]: s }}>
           <canvas ref={canvas} className="cs-canvas" width={vw} height={H} style={{ width: vw * s, height: H * s }} aria-hidden="true" />
-          {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} time={CLOCKS[shot.mood ?? 'day']} />}
+          {card && ui.phone && <PhoneScreen key={`${ui.i}:${ui.card}`} card={card} rect={ui.phone} s={s} time={clockOf(shot)} />}
           {shot.guide && page <= shot.guide.tips.length && ui.phone && ui.phone[2] * s >= GUIDE_MIN && (
             <GuidePhone guide={shot.guide} page={page} onTurn={turn} style={rectStyle(ui.phone, s)} />
           )}
@@ -329,7 +329,6 @@ const GUIDE_MIN = 300
 const rectStyle = ([x, y, w, h]: [number, number, number, number], s: number) => ({ left: x * s, top: y * s, width: w * s, height: h * s })
 
 /** Время в строке состояния и у сообщений — по времени суток плана; пролог — вечер воскресенья у Елабуги. */
-const CLOCKS: Record<Mood, string> = { day: '13:05', dusk: '18:47', morning: '07:41', night: '22:16' }
 const CLOCK = CLOCKS.dusk
 
 /** Строка состояния телефона: время, связь, батарея. */
