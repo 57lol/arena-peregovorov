@@ -31,9 +31,17 @@ const stem5 = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|тян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|возьм\p{L}*|бер[её]м|купим|покупа\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:(?:это|так|уж)\s+|[—–-]\s*)(?:много|многовато|мало|маловато|дорого|дороговато|долго|долговато|недостаточно|жирно|перебор)|(?<!не\s)(?:дороговато|многовато|долговато|маловато|недостаточно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|да\s+(?:вы|ты)\s+что|с\s+ума\s+сош\p{L}*|издева\p{L}*|шутите|шутишь|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)(?:way\s+)?too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:enough|realistic|possible|feasible)|(?:can'?t|cannot|won'?t|will not)\s+(?:wait|afford|accept|take|do|pay|go\s+(?:with|for))|forget\s+(?:about\s+)?|unrealistic|impossible|crazy|insane|ridiculous|a joke|(?:are\s+you\s+)?(?:joking|kidding))(?!\p{L})/iu
 
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
-const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|was|were|your (?:price|offer|number|quote))(?!\p{L})/iu
+const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|your (?:price|offer|number|quote))(?!\p{L})/iu
 const OWN_RU = /(?<!\p{L})(?:давай\p{L}*|предлага\p{L}*|готов\p{L}*|могу|можем|хочу|хотим|заплачу|дам|дадим|плачу|платим|соглас\p{L}*)(?!\p{L})/iu
 const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| propose| pay| suggest)|let's|let us|how about|what about|our (?:offer|proposal|counter))(?!\p{L})/iu
+
+// Рассказ о прошлом и пересказ чужого предложения не создают новых условий.
+// Проверка локальная: «раньше платил 180, а теперь предлагаю 196» сохраняет вторую часть.
+const REPORT = /(?<!\p{L})(?:вчера|в прошлом|на прошлой|раньше|работаю|живу|проработал|прожил|(?:вы|ты)\s+(?:сказал\p{L}*|предложил\p{L}*|спросил\p{L}*|обещал\p{L}*|просишь|просите)|last (?:year|month|week)|used to|have worked|have lived|you(?:'ve| have)? (?:said|offered|asked|promised)|your offer includes)(?!\p{L})/iu
+
+function reported(part: string): boolean {
+  return REPORT.test(part) && !OWN_RU.test(part) && !EN_OWN.test(part)
+}
 
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
  * Правила независимо находят числа с единицами и отличительные слова вариантов.
@@ -44,8 +52,9 @@ const EN_OWN = /(?<!\p{L})(?:(?:we|I)(?:'ll|'d| can| could| will| would| offer| 
  */
 /** Куски реплики и какие из них — отказ, а не своё предложение. */
 function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolean[] } {
-  const rejectsAlias = (part: string) => /(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(part) &&
-    sc.issues.some((i) => i.aliases?.some((list) => list.some((a) => !/(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(a) && part.toLowerCase().includes(a.toLowerCase()))))
+  const rejectsAlias = (part: string) => sc.issues.some((i) => i.aliases?.some((list) => list.some((a) =>
+    !/(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(a) &&
+    new RegExp(String.raw`(?<!\p{L})(?:не|без)\s+${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'iu').test(part))))
   // Союз «и» начинает отдельное высказывание только перед новым сказуемым.
   // «Не предлагаю 300 и 450 рублей» остаётся единым отказом.
   const parts = text.split(CLAUSE).map((p) => p ?? '')
@@ -62,7 +71,7 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
     k -= 2
   }
   const refused = parts.map((part) =>
-    REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) || IMPOSSIBLE.test(part) ||
+    REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) || IMPOSSIBLE.test(part) || reported(part) ||
     rejectsAlias(part) ||
     // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
     (EN_THIRD.test(part) && !EN_OWN.test(part)) ||
@@ -100,6 +109,7 @@ export function negativeOffer(sc: Scenario, text: string): Offer {
 }
 
 export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, said?: string): Offer {
+  text = normalizeEvidenceText(text)
   const rounded = new Map<string, number>()
   const mentions: Mention[] = []
   const { parts, refused } = clauses(sc, text)
@@ -108,7 +118,13 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, sai
   const rejected = parts.filter((_, k) => refused[k]).join(' ')
   const evidence = parseOffer(sc, positive, 'player', rounded, mentions, said ?? rejected)
   const negative = negativeEvidence(sc, parts, refused)
-  const out: Offer = { ...evidence, ...negative }
+  // Свободный парсер находит упоминания, а не намерения. Не дописываем к содержательной
+  // разметке модели все его догадки. Для восстановления остаются короткий перечень условий
+  // и собственное числовое предложение (ownNumber ниже).
+  const short = sentences(text).length <= 1 && !/[«»"]/u.test(text) &&
+    !reported(text) && !confirmsWalkAway(text) && !/\?|это\s+(?:уже|не)|\b(?:said|again|mine)\b/iu.test(text)
+  const out: Offer = Object.fromEntries(Object.entries({ ...evidence, ...negative })
+    .filter(([id]) => offer[id] !== undefined || short))
   for (const [id, option] of Object.entries(offer)) {
     if (option === undefined) continue
     const e = evidence[id] ?? negative[id]
@@ -116,17 +132,65 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, sai
     // Соседний вариант по числу из слов игрока — это то же условие, берём округление правил.
     if (e !== undefined) {
       if (e === option || (Math.abs(e - option) === 1 && numeric(sc, id) && rounded.has(id))) out[id] = e
+      else if (modelEvidence(sc, text, id, option, said ?? rejected)) out[id] = option
       continue
     }
     // правила пункт не нашли: метку модели подтверждает голое число этого варианта («давайте десять» — 10% или
     // 10 дней, выбрала модель по разговору) или его слова («поддержка и помощь на запуске»)
-    if (bareNumberOf(sc, positive, mentions, id, option, said) || wordsOf(sc, positive, id, option)) out[id] = option
+    if (bareNumberOf(sc, positive, mentions, id, option, said) || wordsOf(sc, positive, id, option) || modelEvidence(sc, text, id, option, said ?? rejected)) out[id] = option
   }
   // Страховка поверх разметки: последнее число пункта, которое игрок называет как своё условие, — и есть его условие.
   const own = new Map<string, number>()
-  for (const m of mentions) if (ownNumber(sc, positive, m)) own.set(m.id, m.option)
+  for (const m of mentions) {
+    const sentence = bounds(positive, m.at, m.end, SENTENCE)
+    const body = positive.slice(sentence.start, sentence.stop)
+    const declaration = proposes(positive.slice(sentence.start, m.at), body)
+    if (ownNumber(sc, positive, m) && (offer[m.id] !== undefined || short || declaration || rounded.has(m.id) || termList(sc, body + (positive[sentence.stop] ?? '')))) own.set(m.id, m.option)
+  }
   for (const [id, option] of own) out[id] = option
   return out
+}
+
+/** Эквивалентные формулировки вариантов; исходные цитаты и behaviors не меняем. */
+function normalizeEvidenceText(text: string): string {
+  return text
+    .replace(/(?:full(?:\s+(?:money|payment))?|all)\s+upfront/giu, '100% upfront')
+    .replace(/полная\s+предоплата/giu, '100% предоплата')
+    .replace(/money upfront/giu, '100% upfront')
+    .replace(/ежеквартально/giu, 'раз в квартал')
+    .replace(/еженедельн\p{L}*\s+отгруз\p{L}*/giu, 'отгрузки раз в неделю')
+    .replace(/(?:тихо|тишина)\s+с\s+одиннадцати/giu, 'тихо с 23:00')
+    .replace(/уборка как пойд[её]т/giu, 'уборка по настроению')
+    .replace(/скидки нет/giu, 'скидка 0%')
+    .replace(/чайник\s+(?:(?:уходит|пока)\s+)?на\s+проверку/giu, 'проверка до 20 дней')
+    .replace(/деньги на чай собираем вместе/giu, 'чай и сахар вскладчину')
+    .replace(/оплат\p{L}* по факту(?!\s+отгруз)/giu, 'оплата по факту отгрузки')
+}
+
+/** Проверяем вариант модели по локальному пункту, сохраняя вопрос и контекст числа.
+ * Совпадение общего парсера в соседнем пункте само по себе не опровергает эту метку. */
+function modelEvidence(sc: Scenario, text: string, id: string, option: number, said?: string): boolean {
+  const issue = sc.issues.find((i) => i.id === id)
+  const label = issue?.options[option]
+  if (!issue || !label) return false
+  const single: Scenario = { ...sc, issues: [issue] }
+  const { parts, refused } = clauses(sc, text)
+  return parts.some((part, k) => {
+    if ((refused[k] && !(/это уже разговор/iu.test(part) && !REFUSAL.test(part) && !VETO.test(part))) || !part.trim()) return false
+    // Сохраняем вопросительный знак: без него локальный разбор превратит пересказ в предложение.
+    if (parts[k + 1]?.includes('?')) part += '?'
+    if (part.includes('?') && !Object.keys(parseOffer(sc, part, 'player', undefined, undefined, said)).length) return false
+    const named = mentionedIssues(sc, part).includes(id)
+    const value = optionQuantity(label)
+    const mentioned: Mention[] = []
+    parseOffer(sc, part, 'player', undefined, mentioned, said)
+    const exact = value && quantities(part).some((q) => value.value === q.value &&
+      (value.dim === q.dim || (value.dim === 'count' && q.dim === 'money' && !/₽|руб|\$|€|euro|dollar/iu.test(part))) &&
+      !mentioned.some((m) => m.at === q.at && m.id !== id))
+    if (!named && !exact && !bareNumberOf(sc, part, mentioned.filter((m) => m.id !== id), id, option, said)) return false
+    const parsed = parseOffer(single, part, 'player')[id]
+    return parsed === option || (!!exact && parsed === undefined)
+  })
 }
 
 const NEGATED = /^(?:не|нет|без|no|not|without)(?!\p{L})/iu
@@ -139,9 +203,10 @@ const NEG_WORD = /(?<!\p{L})(?:не|нет|без|no|not|without)(?!\p{L})/iu
 function negativeEvidence(sc: Scenario, parts: string[], refused: boolean[]): Offer {
   const out: Offer = {}
   for (const [k, part] of parts.entries()) {
+    if (reported(part) || IMPOSSIBLE.test(part) || /не\s+(?:открою|поеду)|\b(?:can't|cannot)\b/iu.test(part)) continue
     const said = parseOffer(sc, part)
     // в своём предложении отрицание — только «без …»: «без учебных дней»; в отказе — любое: «учебные дни — нет»
-    const neg = refused[k] ? NEG_WORD.test(part) : /(?<!\p{L})(?:без|without)(?!\p{L})/iu.test(part)
+    const neg = refused[k] ? NEG_WORD.test(part) : /(?<!\p{L})(?:без|without|не\s+будет)(?!\p{L})/iu.test(part)
     for (const i of sc.issues) {
       const n = i.options.findIndex((o) => NEGATED.test(o))
       if (n < 0) continue
@@ -150,7 +215,8 @@ function negativeEvidence(sc: Scenario, parts: string[], refused: boolean[]): Of
       const rest = label ? part.toLowerCase().replace(label.toLowerCase(), '') : ''
       if (label && (REFUSAL.test(rest) || LEAD_NOT.test(rest) || VETO.test(rest) || BARE_VETO.test(parts[k + 2] ?? ''))) continue
       if (refused[k] && said[i.id] === n) out[i.id] = n
-      else if (said[i.id] === undefined && neg && mentionedIssues(sc, part).includes(i.id)) out[i.id] = n
+      else if (said[i.id] === undefined && neg && mentionedIssues(sc, part).includes(i.id) &&
+        /(?:без|нет|не\s+(?:будет|буду|надо|нужно|нужен|нужна|нужны|дам))|\b(?:no|without)\b/iu.test(part)) out[i.id] = n
     }
   }
   return out
@@ -196,12 +262,20 @@ function wordsOf(sc: Scenario, text: string, id: string, option: number): boolea
 
 const NEG = /(?<!\p{L})(не|нет|ни|not|no|never|n't)(?!\p{L})|n't(?!\p{L})/iu
 // чужая цифра: «у Казани 200», «у вас 204», «конкурент возит по 200», «было 212»; «Qingdao offers 465», «your price is 480»
-const THIRD = /(?<!\p{L})(?:вы\s*[—–-]|ваш[аи]\s+|это уже разговор|у\s+(?!(?:нас|меня)(?!\p{L}))\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|был\p{L}*|competitors?|they|their|offers|gives|asks|charges|quotes|was|were|your (?:price|offer|number|quote)|you (?:said|asked|offered|want))(?!\p{L})/iu
+const THIRD = /(?<!\p{L})(?:вы\s*[—–-]|ваш[аи]\s+|это уже разговор|у\s+(?!(?:нас|меня)(?!\p{L}))\p{L}+|конкурент\p{L}*|прайс\p{L}*|рын(?:ок|к\p{L}*)|они|возит|возят|прода[её]т|продают|просит|просят|предлагает|предлагают|бер[её]т|берут|да[её]т|дают|competitors?|they|their|offers|gives|asks|charges|quotes|your (?:price|offer|number|quote)|you (?:said|asked|offered|want))(?!\p{L})/iu
 // слова, которые могут стоять при числе в перечне условий: «Хорошо. 200 ровно, по факту, 48 часов»
 const FILLER = new Set(['тогда', 'хорошо', 'ладно', 'ок', 'окей', 'итак', 'значит', 'короче', 'итого', 'ну', 'так', 'в', 'общем',
   'и', 'цена', 'цену', 'ценой', 'по', 'за', 'на', 'с', 'ровно', 'давай', 'давайте', 'рублей', 'рубля', 'рубль', 'руб', 'короб', 'коробку',
   'ok', 'okay', 'so', 'then', 'fine', 'well', 'alright', 'right', 'and', 'the', 'a', 'at', 'for', 'in', 'on', 'with', 'of', 'flat',
   'exactly', 'total', 'euros', 'euro', 'dollars', 'price', 'upfront', 'advance', 'delivery', 'warranty', 'training', 'site', 'payment'])
+
+/** Перечень условий после отдельного «Хорошо.»: в нём нет рассказа или переспроса. */
+function termList(sc: Scenario, text: string): boolean {
+  if (/[?«»…]/u.test(text) || reported(text)) return false
+  let words = text
+  for (const q of quantities(text).reverse()) words = words.slice(0, q.at) + ' ' + words.slice(q.end)
+  return (words.toLowerCase().match(/\p{L}+/gu) ?? []).every((w) => FILLER.has(w) || mentionedIssues(sc, w).length > 0)
+}
 
 const bounds = (text: string, at: number, end: number, stops: RegExp) => {
   let start = 0
@@ -229,10 +303,14 @@ function ownNumber(sc: Scenario, text: string, m: Mention): boolean {
   if (THIRD.test(clause)) return false
   if (proposes(text.slice(s.start, m.at), sentence)) return true
   if (NEG.test(clause)) return false
+  // Название перед двоеточием/тире относится к числу после него: «А доплата — пятьдесят».
+  const label = text.slice(s.start, m.at).match(/(?:^|[,;])\s*(?:а\s+|and\s+)?([\p{L}\s]+)[:—–]\s*$/iu)?.[1]
+  if (label && mentionedIssues(sc, label).includes(m.id)) return true
   if (/(?<!\p{L})(?:ровно|по)\s*$/iu.test(before) || /^\s*ровно(?!\p{L})/iu.test(after)) return true
   const words = clause.toLowerCase().match(/\p{L}+/gu) ?? []
   const bare = words.every((w) => FILLER.has(w) || mentionedIssues(sc, w).includes(m.id))
   if (!bare) return false
+  if (mentionedIssues(sc, clause).includes(m.id)) return true
   const others = parseOffer(sc, sentence.slice(0, m.at - s.start) + sentence.slice(m.end - s.start))
   return NEG.test(sentence) ? false : Object.keys(others).some((id) => id !== m.id)
 }
@@ -246,17 +324,29 @@ function proposes(before: string, sentence: string): boolean {
 const numeric = (sc: Scenario, id: string) => !!sc.issues.find((i) => i.id === id)?.options.every((o) => /\d/.test(o))
 
 // «остальное как у вас», «в остальном согласен», «по остальному — как договорились»; «остальное обсудим» — нет
-const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по остальному)(?!\p{L})(?![^.!?]{0,20}(?<!\p{L})не\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:как|соглас|устраива|подход|годит|ок(?!\p{L})|окей|пойд[её]т|принима|норм|по-вашему|ваш|тво[её])|(?<!\p{L})(?:(?:the )?rest|everything else|all (?:the )?other (?:terms|points)|otherwise)(?![^.!?]{0,20}(?<!\p{L})(?:not|n't)\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:as you|as (?:in )?your|is fine|are fine|ok(?!\p{L})|okay|works|agreed|accepted|stays|stay as)/iu
+const REST = /(?<!\p{L})(?:остально[ейм]|в остальном|по остальному)(?!\p{L})(?![^.!?]{0,20}(?<!\p{L})не\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:как\s+(?:(?:у\s+)?(?:вас|тебя)|договорились|согласовали)|соглас|устраива|подход|годит|ок(?!\p{L})|окей|пойд[её]т|принима|норм|по-вашему|ваш|тво[её])|(?<!\p{L})(?:(?:the )?rest|everything else|all (?:the )?other (?:terms|points)|otherwise)(?![^.!?]{0,20}(?<!\p{L})(?:not|n't)\s)[\s,—–-]{0,4}(?:\p{L}+\s+){0,2}?(?:as you|as (?:in )?your|is fine|are fine|ok(?!\p{L})|okay|works|agreed|accepted|stays|stay as)/iu
 
 /**
  * Разбор хода, подтверждённый словами игрока: условия — только названные им (explicitOffer);
  * rest — он сам сказал «остальное как у вас», и недостающие пункты движок берёт с листка собеседника.
  */
-// Согласие — только словами согласия и без условия: модель не может «согласиться» за игрока.
+// Явные слова согласия позволяют восстановить пропуск модели; условия и отрицания его отменяют.
 // «Давайте 40» — предложение, «согласен на 2 года, если цена 188» и «да, но 15%» — условие, а не согласие.
 const AGREE_WORD = /(?<!\p{L})(?:да|ок|окей|ok|okay|хорошо|ладно|ид[её]т|годится|пойд[её]т|договорились|по\s+рукам|соглас\p{L}*|принима\p{L}*|беру|бер[её]м|возьм\p{L}*|оформ\p{L}*|подписываем|заключаем|подходит|устраивает|устроит|решено|так\s+и\s+сделаем|уговорил\p{L}*|давайте\s+так|давай\s+так|deal|agree\p{L}*|accept\p{L}*|sounds\s+good|fine|yes|sure|let'?s\s+do\s+it|let'?s\s+sign|shake\s+on\s+it|(?:i|we)(?:'ll|\s+will)\s+take\s+it|we\s+can\s+sign|works\s+for\s+(?:me|us))(?!\p{L})/iu
 const NOT_AGREE = /(?<!\p{L})(?:не|нет|not|don'?t|do not|can'?t|cannot|won'?t)\s+(?:\p{L}+\s+)?(?:соглас|принима|подпис|заключ|подходит|устраивает|годится|пойд|agree|accept|sign|take)/iu
 const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однако|if|provided|as\s+long\s+as|unless|but|however)(?!\p{L})/iu
+
+/** Неузнанный оборот сам по себе не опровергает семантическую метку модели.
+ * Но вопрос, числовое предложение, отрицание, обсуждение и противоречивые метки
+ * не дают принять/закончить сделку без дополнительных доказательств. */
+function uncontradictedDecision(sc: Scenario, text: string, a: MoveAnalysis): boolean {
+  return !(a.accepts && a.walksAway) && !Object.keys(a.offer ?? {}).length &&
+    !Object.keys(parseOffer(sc, text)).length && !quantities(text).length &&
+    !/[?]/u.test(text) && !NEG.test(text) && !CONDITION.test(text) && !isTentative(text) &&
+    !/^\s*(?:без|without)(?!\p{L})/iu.test(text) &&
+    !reported(text) && !/(?:обсужда|давай|предлага|поговор|навстречу|discuss|propose|offer|let'?s talk)/iu.test(text) &&
+    !/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады|давайте|alright|okay|ok|no way)[.!]*\s*$/iu.test(text)
+}
 
 /** said — последняя реплика собеседника: голое число, которое подходит к нескольким пунктам, — о том, о чём шла речь. */
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis, said?: string): MoveAnalysis {
@@ -264,7 +354,10 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   // Пустая модель не должна терять явное согласие, уход, вопрос или разговорный приём.
   const merged = { ...analysis,
     behaviors: guardBehaviors(text, [...analysis.behaviors, ...rules.behaviors.filter((b) => !analysis.behaviors.some((h) => h.id === b.id))]),
-    accepts: analysis.accepts || rules.accepts, walksAway: analysis.walksAway || rules.walksAway,
+    accepts: analysis.accepts || (rules.accepts && sentences(text).some((p) =>
+      /^\s*(?:(?:да|ладно|лады|окей|хорошо|ну|тогда|yes|okay|alright)[\s,]+)*(?:договорились|по рукам|беру|бер[её]м|согласен|согласна|согласны|принимаю|ид[её]т|годится|решено|оформляем|подписываем|заключаем|давайте так и сделаем|deal|agreed|sounds good|that works for us|it'?s a deal|we have a deal|you'?ve got a deal|let'?s sign|shake on it|(?:i|we)(?:'ll| will) take it|we can sign)(?!\p{L})/iu.test(p) ||
+      // Короткий пакет с «и по рукам» — явное предложение заключить сделку.
+      (text.length < 110 && /(?:и\s+)?по рукам/iu.test(p)))), walksAway: analysis.walksAway || rules.walksAway,
     toneViolation: analysis.toneViolation || rules.toneViolation,
     talk: [...new Set([...(analysis.talk ?? []), ...(rules.talk ?? [])])],
   }
@@ -281,7 +374,8 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   if (extras.choices.length) other.upsells = extras.choices
   delete other.rest
   const parts = sentences(text)
-  if (other.walksAway && !isWalkAway(text) && !confirmsWalkAway(text)) delete other.walksAway
+  if (other.walksAway && !isWalkAway(text) && !confirmsWalkAway(text) &&
+    !(analysis.walksAway && !rules.accepts && uncontradictedDecision(sc, text, analysis))) delete other.walksAway
   if (!parts.some((p, i) => requestsInformation(p, parts[i + 1]) &&
     (p.includes('?') || /^(?:почему|зачем|расскажите|что|как|сколько|why|tell me|what|how|would|could|can)/iu.test(p)))) {
     delete other.asksAbout
@@ -292,7 +386,13 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     delete other.upsells
     return other
   }
-  if (other.accepts && (!parts.some((p) => !p.includes('?') && AGREE_WORD.test(p)) || NOT_AGREE.test(text) || CONDITION.test(text))) delete other.accepts
+  // «Если»/«но» в другом предложении не отменяет принятие: «По рукам. Если нужен адрес…».
+  const acceptance = parts.some((p) => !p.includes('?') && !NOT_AGREE.test(p) && !CONDITION.test(p) &&
+    (AGREE_WORD.test(p) || /возражений\s+(?:больше\s+)?нет|твоя взяла|you have my approval/iu.test(p)))
+  const conditionalDeal = parts.some((p) => CONDITION.test(p) &&
+    (mentionedIssues(sc, p).length > 0 || /услови|срок|цен[ауые]|terms|price|delivery|payment/iu.test(p)))
+  const modelAcceptance = analysis.accepts && !other.walksAway && uncontradictedDecision(sc, text, analysis)
+  if (other.accepts && ((!acceptance && !modelAcceptance) || conditionalDeal || NOT_AGREE.test(text))) delete other.accepts
   // «Ок» голосом может быть паузой; явное «договорились» остаётся согласием.
   if (/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады)[.!]*\s*$/iu.test(text)) delete other.accepts
   const supported = explicitOffer(sc, text, offer, said)

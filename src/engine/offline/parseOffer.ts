@@ -9,7 +9,7 @@ const words = (s: string) => s.toLowerCase().match(/\p{L}{3,}/gu) ?? []
 
 const UNIT_WORDS = /^(дн|ден|дня|нед|меся|год|лет|руб|юан|млн|тыс|шт|час|сут|раз|day|week|month|year|hour|euro|doll|perc|thous|milli)/
 const NEGATIONS = new Set(['нет', 'без', 'not', 'witho', 'none'])
-const STOP = new Set(['котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также',
+const STOP = new Set(['при', 'для', 'как', 'или', 'the', 'and', 'per', 'котор', 'чтобы', 'будет', 'может', 'через', 'после', 'перед', 'между', 'более', 'менее', 'также',
   'which', 'would', 'could', 'there', 'their', 'about', 'after', 'befor', 'other', 'these', 'those', 'with', 'from', 'only'])
 
 interface IssueInfo {
@@ -158,7 +158,7 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
     const before = text.slice(Math.max(0, q.at - 35), q.at)
     const after = text.slice(q.end, q.end + 90)
     // Остаток платежа — не аванс, даже без слова percent: «seventy now, thirty after commissioning».
-    if ((q.dim === 'percent' || q.dim === 'plain') && advanceOnly &&
+    if ((q.dim === 'percent' || q.dim === 'plain') && advanceOnly && !/^\s*(?:upfront|advance|предоплат|аванс)/iu.test(after) &&
       (/\b(?:remaining|balance|rest)(?:\s+(?:is|of|the|at))?\s*:?\s*$/i.test(before) ||
        /\bafter(?:\s+(?:the|delivery|shipment|commissioning|inspection))*\s*$/i.test(before) ||
        /^\s*(?:(?:payable|paid|covered)\s+)?(?:(?:by|under|via|through)\s+)?(?:the\s+)?(?:confirmed\s+)?(?:irrevocable\s+)?(?:USD\s+)?(?:letter of credit|L\/C|LC|balance|after|on shipment|on delivery)\b/i.test(after))) continue
@@ -200,7 +200,7 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
       c.info.values.some((v) => v && Math.abs(v.value - c.value) <= Math.abs(c.value) * 0.01)
     if (cands.length > 1) {
       // Ключевое слово в том же куске фразы (между запятыми) важнее; иначе ближайшее в окне ±40 символов.
-      const sep = /[,;.!?\n]|\s(и|а|но)\s/gu
+      const sep = /[,;.!?\n]|\s(?:и|а|но|and|but)\s/gu
       let segStart = 0, segEnd = lower.length
       for (const m of lower.matchAll(sep)) {
         if (m.index! + m[0].length <= q.at) segStart = m.index! + m[0].length

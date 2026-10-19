@@ -73,7 +73,12 @@ const NOT_LEAVE = /(?<!\p{L})(?:не|not|never|no)\s+(?:\p{L}+\s+){0,2}?(?:end|t
  * these negotiations»), без условия, отрицания и вопроса. «Если откажете — ухожу», «я не ухожу», «уходите?» — не уход.
  */
 export function confirmsWalkAway(text: string): boolean {
-  return clauses(text).some((c) => LEAVE.test(c) && !CONDITIONAL.test(c) && !/(?<!\p{L})(?:без|without)(?!\p{L})/iu.test(c) && !NOT_LEAVE.test(c) && !c.trim().endsWith('?'))
+  return clauses(text).some((c) => {
+    // Завершение встречи и выбор другой стороны — уход, даже без глагола «уйти».
+    const ended = /(?:встреча|разговор|переговоры)\s+окончен\p{L}*|(?:discussion|conversation|meeting) is over|nothing (?:further|more) to discuss|снимаю свою кандидатуру|меня здесь больше не будет|продолжать[^.!?]*не вижу смысла|(?:ищите другую|искать другого|обращусь в другой|закажу у другого)|(?:we|i) have chosen (?:a different|another)/iu.test(c)
+    const condition = CONDITIONAL.test(c.replace(/^\s*(?:тогда|then)[,\s]+/iu, ''))
+    return (LEAVE.test(c) || ended) && !condition && !/(?<!\p{L})(?:без|without)(?!\p{L})/iu.test(c) && !NOT_LEAVE.test(c) && !c.trim().endsWith('?')
+  })
 }
 
 /** Цитата — предложение, в котором нашёлся маркер (не длиннее 90 символов). */
