@@ -3,13 +3,17 @@
 // без второго запроса к нейросети. Поэтому одинаково работает онлайн, офлайн и без сервера.
 // Первую встречу ведёт наставник (tutorial.ts), поэтому здесь советов про интерфейс нет — только про разговор.
 
-import { behaviorById } from '../engine/behaviors'
+import { behaviorById, type BehaviorId } from '../engine/behaviors'
+import { BOOKS, POSITIONAL, TECHNIQUES, mainRef, type BookRef } from '../engine/books'
+import { mirrorOf } from './mirror'
 import { isEn } from '../engine/lang'
 import type { Decision, OpponentState, Scenario, TurnRecord } from '../engine/types'
 import { initialState } from '../engine/turn'
 import { upsellPenalty } from '../engine/upsells'
 import { isComplete, score } from '../engine/utility'
 import { firstName, g, plural } from './cast'
+
+export { mirrorOf }
 
 export type Ink = 'good' | 'bad' | 'plain'
 
@@ -19,6 +23,8 @@ interface MarginNote {
   title: string
   why: string
   quote?: string
+  /** откуда приём: «Восс, гл. 3» */
+  src?: string
 }
 
 export interface TurnFeedback {
@@ -34,12 +40,24 @@ export interface TurnFeedback {
 type TipId =
   | 'start' | 'last' | 'below' | 'tone' | 'tension' | 'reveal' | 'hold' | 'clock'
   | 'ask' | 'offer' | 'trade' | 'criteria' | 'consequence' | 'summary' | 'priority' | 'check'
+  // из книг: зеркало и вопрос «как?» (Восс), ярлык (Восс), золотой мост (Юри)
+  | 'mirror' | 'how' | 'label' | 'bridge'
 
 export interface Tip {
   id: TipId
   text: string
   example?: string         // можно вставить в поле реплики
   short?: string           // для свёрнутой полоски на телефоне, если первая фраза совета не о главном
+  src?: string             // на что опирается совет: «Восс, гл. 3»
+}
+
+/** Короткая подпись на поля: первый автор и глава — «Восс, гл. 3», «Фишер, гл. 5». */
+export const shortCite = (ref: BookRef) => `${BOOKS[ref.book].short.split(',')[0]}, ${ref.where}`
+
+/** Подпись к приёму; k — какая из ссылок (первая — главная). */
+export function bookSrc(id: BehaviorId, k = 0): string | undefined {
+  const ref = TECHNIQUES[id]?.refs[k]
+  return ref ? shortCite(ref) : undefined
 }
 
 const QUOTE_MAX = 48
@@ -61,7 +79,7 @@ export function fragment(q: string): string {
 }
 
 // Сдвиги, которые движок ставит не за приём, а за само предложение или тон (причины — из turn.ts).
-const OTHER: Record<string, { ink: Ink; title: string; why: (sc: Scenario) => string }> = {
+const OTHER: Record<string, { ink: Ink; title: string; why: (sc: Scenario) => string; src?: string }> = {
   'Нарушен деловой тон': {
     ink: 'bad',
     title: 'Резкий тон',
@@ -81,6 +99,7 @@ const OTHER: Record<string, { ink: Ink; title: string; why: (sc: Scenario) => st
     ink: 'bad',
     title: 'Одно и то же',
     why: () => 'Третий раз то же предложение: для другой стороны это знак, что торга не будет.',
+    src: shortCite(POSITIONAL.refs[0]),
   },
 }
 
@@ -140,13 +159,14 @@ export function turnFeedback(sc: Scenario, rec: TurnRecord, prev?: TurnRecord): 
     const note = rec.deltas.find((d) => d.because.startsWith(b.title))?.because ?? ''
     const tail = note.includes('(повтор') ? ' Повтор подряд — работает вдвое слабее.' : note.includes('(спираль') ? ' Уже второй промах подряд — бьёт сильнее.' : ''
     const raw = hit.quote?.trim() || rec.playerText
-    notes.push({ key: b.id, ink, title: b.title, why: plainWords(b.moment) + tail, quote: raw ? fragment(raw) : undefined })
+    const ref = mainRef(b.id)
+    notes.push({ key: b.id, ink, title: b.title, why: plainWords(b.moment) + tail, quote: raw ? fragment(raw) : undefined, src: ref && shortCite(ref) })
   }
   for (const d of rec.deltas) {
     const o = OTHER[d.because]
     if (!o || seen.has(d.because)) continue
     seen.add(d.because)
-    notes.push({ key: d.because, ink: o.ink, title: o.title, why: o.why(sc) })
+    notes.push({ key: d.because, ink: o.ink, title: o.title, why: o.why(sc), src: o.src })
   }
   for (const n of sideNotes(sc, rec, prev)) notes.push(n)
   // сколько даёт вам то, что вы положили на стол (или подписали)
@@ -264,6 +284,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       text: `Пишите как в жизни. Для начала спросите, что для ${g(sc, 'него', 'неё')} в этой сделке главное и почему: вопрос стоит дёшево, а узнать можно много.`,
       example: ex('Добрый день. Прежде чем обсуждать цифры, хочу понять: что для вас в этой договорённости главное и почему?', "Good afternoon. Before we talk numbers, I'd like to understand: what matters most to you in this deal, and why?"),
       short: `Спросите, что для ${g(sc, 'него', 'неё')} главное и почему`,
+      src: bookSrc('ask_interest'),
     })
     return out
   }
@@ -275,6 +296,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       text:
         `Это последнее предложение, дальше торга не будет. Ваша выгода ${mine}, без сделки — ${P.batna}. ` +
         (mine > P.batna ? 'Это больше — можно соглашаться.' : mine === P.batna ? 'Это столько же: сделка ничего не добавит и не отнимет.' : 'Это меньше — выгоднее уйти.'),
+      src: bookSrc('alternative'),
     })
   }
 
@@ -284,6 +306,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       out.push({
         id: 'below',
         text: `Поднимите планку. Ваше предложение даёт вам ${mine}, а без сделки у вас ${P.batna}: если ${n} согласится, вы проиграете. Меньше ${P.batna} брать нет смысла.`,
+        src: bookSrc('alternative'),
       })
   }
 
@@ -292,6 +315,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'tone',
       text: `Ещё одна резкость — и ${n} уйдёт. Сбавьте тон: признайте, что в ${g(sc, 'его', 'её')} словах есть резон, и вернитесь к делу.`,
       example: ex('Извините, это было лишнее. Давайте вернёмся к делу: что для вас сейчас главное?', "Sorry, that was too much. Let's get back to business: what matters most to you right now?"),
+      src: bookSrc('attack'),
     })
 
   if (state.tension >= 60)
@@ -299,21 +323,66 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'tension',
       text: `${n} на взводе. Сейчас давление сорвёт встречу. Спросите, что ${g(sc, 'его', 'её')} беспокоит, или перескажите ${g(sc, 'его', 'её')} позицию своими словами.`,
       example: ex('Похоже, вас что-то в нашем разговоре беспокоит. Правильно ли я понимаю, что для вас сейчас главное — ', 'It seems something in our conversation worries you. Do I understand correctly that the main thing for you is '),
+      src: bookSrc('label'),
+    })
+
+  // напряжение растёт, но до срыва далеко: самое время назвать чувство вслух (ярлык, Восс)
+  const rose = state.tension - (history[history.length - 2]?.stateAfter ?? initialState(sc)).tension
+  if (rose >= 5 && state.tension >= 20 && state.tension < 60 && !history.slice(-2).some((h) => used(h, 'label')))
+    out.push({
+      id: 'label',
+      text: `${n} ${g(sc, 'напрягся', 'напряглась')}. Попробуйте ярлык: назовите вслух, что ${g(sc, 'его', 'её')} беспокоит, и дайте ответить.`,
+      example: ex('Похоже, вас беспокоит, что ', 'It seems you are worried that '),
+      src: bookSrc('label'),
     })
 
   if (last.decision.kind === 'reveal')
     out.push({
       id: 'reveal',
       text: `Теперь есть что обменять: уступите в том, что важно ${him}, но не так важно вам, и попросите что-то взамен — «если вы…, то мы…».`,
+      src: bookSrc('package'),
     })
 
-  if (last.decision.kind === 'hold' && last.decision.reason === 'not_ready_to_reveal')
+  const closed = last.decision.kind === 'hold' && last.decision.reason === 'not_ready_to_reveal'
+  const stuck = isStuck(history)
+  // зеркало (Восс): повторить последние слова собеседника с вопросом — он сам объяснит, что за ними стоит
+  const mirror = (closed || stuck) && !used(last, 'mirror') ? mirrorOf(last.opponentLine) : null
+  if (mirror)
+    out.push({
+      id: 'mirror',
+      text: `Попробуйте зеркало: повторите ${g(sc, 'его', 'её')} последние слова с вопросом — «${mirror}» — и подождите: ${he} сам${g(sc, '', 'а')} объяснит, что за ними стоит.`,
+      example: mirror,
+      short: `Повторите ${g(sc, 'его', 'её')} последние слова с вопросом`,
+      src: bookSrc('mirror'),
+    })
+
+  if (closed)
     out.push({
       id: 'hold',
       text: `Сначала покажите, что слушаете: перескажите ${g(sc, 'его', 'её')} слова или скажите, что важно вам. Потом спросите ещё раз.`,
+      src: bookSrc('check', 1),
+    })
+
+  // вопрос «как?» (Восс): собеседник упёрся или на ваше предложение дал невыгодное встречное, а «как» ещё не спрашивали
+  const theirs = state.lastOpponentOffer
+  const poor = last.decision.kind === 'counter' && history.some(offered) && isComplete(sc, theirs) && score(P, theirs) - upsellPenalty(sc, state) < P.batna
+  if ((stuck || poor) && !history.some((h) => used(h, 'calibrated')))
+    out.push({
+      id: 'how',
+      text: `Вместо «нет» спросите «как?»: как вам согласиться на такое? Тогда ${n} сам${g(sc, '', 'а')} ищет, как решить вашу трудность.`,
+      example: ex('Как нам сделать так, чтобы это сработало и для вас, и для нас?', 'How can we make this work for both of us?'),
+      src: bookSrc('calibrated'),
     })
 
   const left = sc.turnLimit - state.turn
+  // золотой мост (Юри): под конец встречи помочь упёршемуся собеседнику отступить, не потеряв лица
+  if (stuck && left > 0 && left <= 3 && !state.lastCall && !history.some((h) => used(h, 'golden_bridge')))
+    out.push({
+      id: 'bridge',
+      text: `Время к концу, а ${n} упирается. Постройте золотой мост: дайте ${him} уступить так, чтобы было что показать начальству.`,
+      example: ex('Давайте так, чтобы вам было что показать руководству: ', "Let's find a way that you can present to your management: "),
+      src: bookSrc('golden_bridge'),
+    })
   if (left > 0 && left <= 2 && !state.lastCall)
     out.push({
       id: 'clock',
@@ -327,6 +396,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
         id: 'ask',
         text: `Вы ещё ни разу не спросили, зачем ${him} то, что ${he} просит. Например, почему ${him} важно «${ask.option}» в пункте «${ask.title}».`,
         example: ex(`${ask.title}: почему для вас важно именно «${ask.option}»?`, `${ask.title}: why is "${ask.option}" so important to you?`),
+        src: bookSrc('ask_interest'),
       })
   }
 
@@ -343,6 +413,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'trade',
       text: `Вы уже знаете, что ${him} важно, — это в блокноте. Предложите обмен: уступите там, где ${him} важнее, а взамен попросите своё.`,
       example: ex('Если вы берёте на себя ', 'If you can '),
+      src: bookSrc('package'),
     })
 
   // торг «цифра против цифры»: оба уже называли условия, а мерки, на которую согласились бы оба, нет (Fisher & Ury)
@@ -351,6 +422,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'criteria',
       text: `Торг свёлся к спору о цифрах. Предложите мерку, которую примут оба: рыночную цену, индекс, прошлый договор — или спросите, из чего складывается ${g(sc, 'его', 'её')} цифра.`,
       example: ex('Давайте опираться на рынок: ', "Let's base this on the market rate: "),
+      src: bookSrc('criteria'),
     })
 
   // интерес назван, но во что обходится проблема, не спрашивали (вопрос о последствиях, SPIN)
@@ -359,6 +431,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'consequence',
       text: `${n} уже ${g(sc, 'рассказал', 'рассказала')}, что ${him} важно. Спросите, во что ${him} обходится, если этого не будет: тогда ваше предложение сравнивают не с ценой, а со стоимостью проблемы.`,
       example: ex('А во сколько вам обходится ситуация, когда ', 'And what does it cost you when '),
+      src: bookSrc('implication'),
     })
 
   if (history.length >= 5 && !history.slice(-4).some((h) => used(h, 'summarize')))
@@ -366,6 +439,7 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'summary',
       text: 'Давно не подводили итог. Скажите, о чём уже договорились и что осталось открытым: так видно, что ещё можно обменять.',
       example: ex('Давайте сверимся, на чём мы сейчас: ', "Let's check where we are: "),
+      src: bookSrc('summarize'),
     })
 
   // запасные — если в реплике не нашлось ни одного приёма и больше сказать нечего
@@ -374,13 +448,24 @@ function candidates(sc: Scenario, history: TurnRecord[]): Tip[] {
       id: 'priority',
       text: `Скажите, что вам важно, а что не очень. Тогда ${n} поймёт, что вам можно предложить.`,
       example: ex('Скажу честно: для нас главное — ', 'To be honest, the main thing for us is '),
+      src: bookSrc('priority'),
     })
   out.push({
     id: 'check',
     text: `Перескажите своими словами, как вы поняли ${g(sc, 'его', 'её')} позицию, и спросите, так ли это.`,
     example: ex('Правильно ли я понимаю, что для вас главное — ', 'Do I understand correctly that the main thing for you is '),
+    src: bookSrc('check', 1),
   })
   return out
+}
+
+/** Собеседник упёрся: держит позицию «взамен мало» или второй раз кладёт то же встречное. */
+function isStuck(history: TurnRecord[]): boolean {
+  const last = history[history.length - 1]
+  const prev = history[history.length - 2]
+  if (!last) return false
+  if (last.decision.kind === 'hold' && last.decision.reason === 'no_movement') return true
+  return last.decision.kind === 'counter' && prev?.decision.kind === 'counter' && JSON.stringify(last.decision.offer) === JSON.stringify(prev.decision.offer)
 }
 
 const FALLBACK: TipId[] = ['priority', 'check']
