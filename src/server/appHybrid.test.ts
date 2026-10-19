@@ -45,8 +45,9 @@ function harness(blockFirst = false, delayFirst = false) {
   const sound = { url: '/api/tts/live/тест', voice: undefined, firstAt: undefined, ended: Promise.resolve(0), connect: vi.fn(), first: vi.fn(), more: vi.fn(), finish: vi.fn() }
   const speech = makeSpeech({ key: '', fetch: network, stressAsk: null })
   speech.live = () => sound
-  const app = createApp({ ...backup, analyzer: primary, voice: speaker }, undefined, speech)
-  return { app, main, quick, primary, backup, streams, speaking, voiceReady, sound }
+  const llm: LLM = { ...backup, analyzer: primary, voice: speaker }
+  const app = createApp(llm, undefined, speech)
+  return { app, llm, main, quick, primary, backup, streams, speaking, voiceReady, sound }
 }
 type Event = {
   t: string; text: string; opponentLine: string; analysis: MoveAnalysis; record: TurnRecord; state: OpponentState;
@@ -96,6 +97,7 @@ beforeEach(() => {
   for (const [k, v] of Object.entries({ SPECULATE: 'on', ANALYZE_QUICK: 'on', PREPARE: 'on', SPEECH: 'off', NATURAL_SPEECH: 'off', STRESS_LLM: 'off', YANDEX_API_KEY: '', AITUNNEL_API_KEY: '' })) vi.stubEnv(k, v)
 })
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllTimers()
   vi.useRealTimers()
   expect(network).not.toHaveBeenCalled()
@@ -105,6 +107,56 @@ afterEach(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
 describe('гибридный ход: управляемый порядок ответов', () => {
+  it.each([419, 805])('готовая разметка до opener (%s мс) остаётся llm, в журнале реальные длительности обоих запросов', async (openerMs) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const h = harness()
+    const openerStarted = deferred<void>()
+    const analyzerStarted = deferred<void>()
+    h.primary.json = vi.fn(() => { analyzerStarted.resolve(); return h.main.promise })
+    h.llm.voice!.stream = async function* () {
+      yield JSON.stringify({ agrees: true, terms: [], reveals: [], line: 'Договорились. Принимаю ваше предложение.', emotion: 'neutral' })
+    }
+    h.llm.opener = { name: 'yandex', model: `test-opener-${openerMs}`, json: async () => {
+      openerStarted.resolve()
+      await new Promise((r) => setTimeout(r, openerMs))
+      return { say: 'Так, слушаю…' }
+    } }
+    const output = await stream(h.app, { playerText: 'Обсудим условия поставки.', tts: { voice: 'ermil' } })
+    await openerStarted.promise
+    await analyzerStarted.promise
+    await vi.advanceTimersByTimeAsync(100)
+    h.main.resolve(raw)
+    await vi.advanceTimersByTimeAsync(50)
+    h.quick.resolve(raw)
+    await vi.advanceTimersByTimeAsync(openerMs - 150)
+    const events = await output.done
+    const result = events.at(-1)!
+    expect(result.t).toBe('done')
+    expect(result.sources.analysis).toBe('llm')
+    expect(result.sources.ms.analyze).toBe(result.sources.ms.opener)
+    const turn = log.mock.calls.map(([s]) => String(s)).find((s) => s.startsWith('[ход]'))!
+    expect(turn).toContain('разбор=llm разметчик_main=100(ok) разметчик_backup=150(ok)')
+    expect(h.primary.json).toHaveBeenCalledOnce()
+    expect(h.backup.json).toHaveBeenCalledOnce()
+  })
+
+  it('строка хода содержит причины двух отказов и не раскрывает сообщения или идентификаторы моделей', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const h = harness(), output = await stream(h.app)
+    await h.speaking.promise
+    await vi.advanceTimersByTimeAsync(80)
+    h.main.reject(new DOMException('secret-key-provider-body', 'AbortError'))
+    await vi.advanceTimersByTimeAsync(40)
+    h.quick.resolve({ invalid: 'secret-key-provider-body' })
+    expect(finished(await output.done).sources.analysis).toBe('offline')
+    const turn = log.mock.calls.map(([s]) => String(s)).find((s) => s.startsWith('[ход]'))!
+    expect(turn).toContain('разбор=offline(abort+error:ZodError) разметчик_main=80(abort) разметчик_backup=120(error:ZodError)')
+    expect(JSON.stringify([...log.mock.calls, ...warn.mock.calls])).not.toContain('secret-key-provider-body')
+    expect(turn).not.toContain('тестовый-pro')
+    expect(turn).not.toContain('тестовый-sonnet')
+  })
+
   async function ordered(order: 'быстрый' | 'основной', mainAnswer = raw) {
     for (const kind of ['analyze', 'voice']) rmSync(join(root, kind), { recursive: true, force: true })
     const h = harness()

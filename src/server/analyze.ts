@@ -141,8 +141,7 @@ function realQuestion(sc: Scenario, text: string): boolean {
 
 const WHY = /(зачем|почему|отчего|для чего|с чего|из-за чего|в ч[её]м (причина|дело|смысл)|что (для (тебя|вас)|тебе|вам)[^.?!]{0,20}(важн|главн|нужн)|важн|главн|расскаж|объясн|поясн|(?<!\p{L})(?:why|how come|reason|matters?|important|priority|tell me|explain|what for|behind|worr(?:y|ies|ied)|concern)(?!\p{L}))/iu
 
-export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown, said?: string): MoveAnalysis {
-  const r = Raw.parse(raw)
+function normalize(sc: Scenario, dict: BehaviorDict, text: string, r: z.infer<typeof Raw>): MoveAnalysis {
   const out: MoveAnalysis = {
     behaviors: r.behaviors
       .filter((b) => dict[b.id] && !CONTEXT_ONLY.has(b.id) && quoteFits(b.quote, text))
@@ -165,7 +164,11 @@ export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: un
   // человеческое: что нашла модель плюс то, что видно правилами (извинение, «ахах», имя)
   const talk = [...new Set([...r.talk.filter((t): t is TalkAct => (TALK_ACTS as string[]).includes(t)), ...talkActs(sc, text)])]
   if (talk.length) out.talk = talk
-  return groundAnalysis(sc, text, out, said)
+  return out
+}
+
+export function validate(sc: Scenario, dict: BehaviorDict, text: string, raw: unknown, said?: string): MoveAnalysis {
+  return groundAnalysis(sc, text, normalize(sc, dict, text, Raw.parse(raw)), said)
 }
 
 /** Служебные реплики интерфейса: «Предлагаю так: …» из блокнота и «Согласен. Принимаю…» с кнопки. */
@@ -180,19 +183,59 @@ export function isNotebookLine(sc: Scenario, text: string): boolean {
 
 export interface AnalyzeResult {
   analysis: MoveAnalysis
-  source: 'llm' | 'cache' | 'offline'
+  source: 'llm' | 'cache' | 'offline' | 'button'
+  offlineReason?: string
   error?: string
-  /** ответ модели после проверки, до правил-страховки (guardBehaviors, groundAnalysis): он и ложится в кэш */
+  /** Проверенный ответ модели; он и ложится в кэш. */
   value?: MoveAnalysis
 }
 
+type Failure = 'timeout' | 'abort' | `error:${string}`
+export interface AnalyzeAttempt {
+  role: 'main' | 'backup' | 'quick'
+  ms?: number
+  outcome: 'pending' | 'ok' | Failure
+}
+
+/** Только фиксированные классы: ни message, ни произвольное name провайдера не попадают в журнал. */
+function failure(e: unknown): Failure {
+  const name = e instanceof Error ? e.name : ''
+  if (name === 'TimeoutError') return 'timeout'
+  if (name === 'AbortError') return 'abort'
+  if (e instanceof z.ZodError) return 'error:ZodError'
+  if (e instanceof SyntaxError) return 'error:SyntaxError'
+  if (e instanceof TypeError) return 'error:TypeError'
+  if (e instanceof RangeError) return 'error:RangeError'
+  return 'error:Error'
+}
+
+export function analysisLog(result: AnalyzeResult, attempts: AnalyzeAttempt[] = []): string {
+  const source = result.source === 'offline' ? `offline(${result.offlineReason ?? 'rules'})` : result.source
+  const times = (['main', 'backup', 'quick'] as const).map((role) => {
+    const a = attempts.find((x) => x.role === role)
+    return `разметчик_${role}=${a ? `${a.ms ?? '-'}(${a.outcome})` : '-'}`
+  })
+  return `разбор=${source} ${times.join(' ')}`
+}
+
+// Кэш содержит MoveAnalysis, а не ответ провайдера Raw. Проверяем форму до groundAnalysis.
+const CachedAnalysis = z.object({
+  behaviors: Raw.shape.behaviors,
+  offer: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  accepts: z.boolean().optional(), walksAway: z.boolean().optional(), toneViolation: z.boolean().optional(),
+  asksAbout: z.array(z.string()).optional(), talk: z.array(z.enum(TALK_ACTS)).optional(),
+  rest: z.boolean().optional(),
+  upsells: z.array(z.object({ id: z.string(), choice: z.enum(['accepted', 'refused']), polite: z.boolean().optional() })).optional(),
+})
+
 /**
- * Разбор хода, который можно ждать по частям. ready — готов сразу (кэш, служебная строка, офлайн). Иначе main — основной
+ * Разбор хода, который можно ждать по частям. ready — готов сразу (кэш, офлайн). Иначе main — основной
  * разметчик (Claude; не ответил за ANALYZE_TIMEOUT_MS или не по схеме — запасной, потом правила), quick — быстрый
  * (YandexGPT Pro, ~0,8 с против ~2,2 с у Sonnet с прода): по нему реплику можно начать раньше. keep — разбор, по которому
  * сыгран ход, кладётся в кэш под ключом основного: тот же ход — тот же разбор, кто бы его ни размечал.
  */
 export interface AnalyzeRun {
+  attempts?: AnalyzeAttempt[]
   ready?: AnalyzeResult
   main?: Promise<AnalyzeResult>
   quick?: Promise<AnalyzeResult | undefined>
@@ -211,10 +254,10 @@ export async function startAnalysis(
   const keepNothing = async () => {}
   const said = history.length ? history[history.length - 1].opponentLine : sc.opening
   const offline = () => groundedOffline(sc, text, dict, said)
-  if (llm.name === 'offline') return { ready: { analysis: offline(), source: 'offline' }, keep: keepNothing }
+  if (llm.name === 'offline') return { ready: { analysis: offline(), source: 'offline', offlineReason: 'rules' }, keep: keepNothing }
   // Строку, которую собрал сам блокнот («Предлагаю так: …»), размечаем правилами: одна и та же строка —
-  // один и тот же разбор, без капризов модели.
-  if (isNotebookLine(sc, text)) return { ready: { analysis: offline(), source: 'offline' }, keep: keepNothing }
+  // один и тот же разбор, без капризов модели и без ожидания её ответа.
+  if (isNotebookLine(sc, text)) return { ready: { analysis: offline(), source: 'offline', offlineReason: 'notebook' }, keep: keepNothing }
   const key = {
     v: PROMPT_VERSION,
     llm: `${llm.name}:${llm.model}`,
@@ -226,38 +269,84 @@ export async function startAnalysis(
   }
   // последняя реплика собеседника: голое число игрока — о том, о чём он только что говорил
   const post = (value: MoveAnalysis) => groundAnalysis(sc, text, { ...value, behaviors: guardBehaviors(text, value.behaviors) }, said)
-  const hit = await peek<MoveAnalysis>('analyze', key)
-  if (hit) return { ready: { analysis: post(hit), source: 'cache' }, keep: keepNothing }
-  const ask = async (m: LLM, timeoutMs: number) =>
-    validate(sc, dict, text, await m.json({
-      system: systemPrompt(sc, dict),
-      user: userPrompt(sc, history, text, lastOpponentOffer),
-      temperature: 0,
-      maxTokens: 700,
-      timeoutMs,
-      schema: schemaFor(sc, dict),
-    }), said)
-  const done = (value: MoveAnalysis): AnalyzeResult => ({ analysis: post(value), source: 'llm', value })
-  // быстрый — тот же запасной (Pro): если основной не ответил, второй раз его не зовём
-  const fast = quick && quick.model !== llm.model ? ask(quick, WAIT.analyze()) : undefined
-  void fast?.catch(() => undefined)
+  const hit = CachedAnalysis.safeParse(await peek<unknown>('analyze', key))
+  if (hit.success) return { ready: { analysis: post(hit.data), source: 'cache' }, keep: keepNothing }
+  const attempts: AnalyzeAttempt[] = []
+  type Failed = { failure: Failure } | { internal: unknown }
+  type Answer = { result: AnalyzeResult } | Failed
+  const requests = new Map<string, Promise<Answer>>()
+  const id = (m: LLM) => `${m.name}:${m.model}`
+  const prompt = {
+    system: systemPrompt(sc, dict), user: userPrompt(sc, history, text, lastOpponentOffer),
+    temperature: 0, maxTokens: 700, schema: schemaFor(sc, dict),
+  }
+  // Один оплаченный запрос на модель во всех ролях. Промисы не отклоняются, поэтому поздний quick безопасен.
+  const ask = (m: LLM, timeoutMs: number, role: AnalyzeAttempt['role']): Promise<Answer> => {
+    const prior = requests.get(id(m))
+    if (prior) return prior
+    const attempt: AnalyzeAttempt = { role, outcome: 'pending' }
+    attempts.push(attempt)
+    const started = Date.now()
+    const request = (async (): Promise<Answer> => {
+      let parsed: z.infer<typeof Raw>
+      try {
+        const raw = await m.json({ ...prompt, timeoutMs })
+        attempt.ms = Date.now() - started
+        parsed = Raw.parse(raw)
+      } catch (e) {
+        attempt.ms ??= Date.now() - started
+        attempt.outcome = failure(e)
+        return { failure: attempt.outcome }
+      }
+      try {
+        const value = groundAnalysis(sc, text, normalize(sc, dict, text, parsed), said)
+        attempt.outcome = 'ok'
+        return { result: { analysis: value, source: 'llm', value } }
+      } catch (e) {
+        // Ошибка нашего кода после правильного JSON не означает, что модель ответила мусором.
+        attempt.outcome = failure(e)
+        return { internal: e }
+      }
+    })()
+    requests.set(id(m), request)
+    return request
+  }
+  const backup = llm.backup?.name !== 'offline' ? llm.backup : undefined
+  const fast = quick && quick.name !== 'offline' && id(quick) !== id(llm)
+    ? ask(quick, WAIT.analyze(), backup && id(quick) === id(backup) ? 'backup' : 'quick') : undefined
   const t0 = Date.now()
   const main = (async () => {
-    const backup = llm.backup
-    if (!backup) return done(await ask(llm, WAIT.analyze()))
-    try {
-      return done(await ask(llm, fast ? WAIT.analyzeRace() : WAIT.analyzeFirst()))
-    } catch (e) {
-      console.warn(`[разметка] ${llm.model}: ${(e as Error).message.slice(0, 120)} — размечает ${backup.model.split('/').pop()}`)
-      if (fast && backup.model === quick!.model) return done(await fast)
-      return done(await ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500)))
+    const first = await ask(llm, fast ? WAIT.analyzeRace() : backup ? WAIT.analyzeFirst() : WAIT.analyze(), 'main')
+    if ('result' in first) return first.result
+    const failures: Failed[] = [first]
+    if (backup && id(backup) !== id(llm)) {
+      const second = await ask(backup, Math.max(WAIT.analyze() - (Date.now() - t0), 2500), 'backup')
+      if ('result' in second) return second.result
+      failures.push(second)
     }
-  })().catch((e: Error): AnalyzeResult => ({ analysis: offline(), source: 'offline', error: e.message }))
+    // quick может быть отдельной моделью или ответить после короткого окна: его оплаченный ответ не теряем.
+    if (fast) {
+      const second = await fast
+      if ('result' in second) return second.result
+      failures.push(second)
+    }
+    const internal = failures.find((f) => 'internal' in f)
+    if (internal && 'internal' in internal) throw internal.internal
+    const reason = [...new Set(failures.flatMap((f) => 'failure' in f ? [f.failure] : []))].join('+')
+    return { analysis: offline(), source: 'offline', offlineReason: reason, error: reason } satisfies AnalyzeResult
+  })()
+  // startJob сначала ждёт opener; раннее исключение остаётся доступным await, но не становится unhandled rejection.
+  void main.catch(() => {})
   // ход ждёт быстрый разбор недолго: Pro отвечает за ~0,8 с (p90 1,1), а зависший держал ход на 4 с (живой прогон 18.10)
-  const late = new Promise<undefined>((r) => setTimeout(r, WAIT.analyzeQuick(), undefined).unref?.())
+  let quickResult: AnalyzeRun['quick']
+  if (fast) {
+    let timer: ReturnType<typeof setTimeout>
+    const late = new Promise<undefined>((resolve) => { timer = setTimeout(resolve, WAIT.analyzeQuick(), undefined); timer.unref?.() })
+    quickResult = Promise.race([fast.then((a) => 'result' in a ? a.result : undefined), late]).finally(() => clearTimeout(timer))
+  }
   return {
-    main,
-    ...(fast ? { quick: Promise.race([fast.then(done, () => undefined), late]) } : {}),
+    main, attempts,
+    ...(quickResult ? { quick: quickResult } : {}),
     keep: async (r) => (r.value ? put('analyze', key, r.value) : undefined),
   }
 }

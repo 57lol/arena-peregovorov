@@ -35,10 +35,11 @@ afterEach(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
 describe('гибридная разметка: отказы и сроки ожидания', () => {
-  const outcomes = ['ответ', 'ошибка', 'неверная схема', 'таймаут'] as const
+  const outcomes = ['ответ', 'ошибка', 'неверная схема', 'таймаут', 'отмена'] as const
   const answer = (kind: typeof outcomes[number]): LLM['json'] => async (req) => {
     if (kind === 'ответ') return raw
     if (kind === 'неверная схема') return { offer: 'сломанный JSON' }
+    if (kind === 'отмена') throw new DOMException('Заготовка отменена', 'AbortError')
     if (kind === 'таймаут') {
       // Заглушка соблюдает timeoutMs так же, как транспорт LLM; внешних запросов нет.
       await new Promise((r) => setTimeout(r, req.timeoutMs))

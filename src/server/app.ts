@@ -11,7 +11,7 @@ import { TALK_ACTS, type MoveAnalysis, type Offer, type Scenario, type TurnRecor
 import { checkScenario } from '../engine/validate'
 import { groundedOffline, isRude, walkAwayMove, withBareYes, withContext, withFormalOffer } from '../engine/offline'
 import { WAIT } from './timeouts'
-import { startAnalysis, type AnalyzeResult, type AnalyzeRun } from './analyze'
+import { analysisLog, startAnalysis, type AnalyzeAttempt, type AnalyzeResult, type AnalyzeRun } from './analyze'
 import { isEn } from '../engine/lang'
 import { GenerateRequest, generateScenario } from './generate'
 import { allScenarios, dict, findScenario, scenarios } from './library'
@@ -197,6 +197,7 @@ interface Job {
   prepared: boolean
   t0: number
   ms: Record<string, number | string>
+  analysisAttempts: AnalyzeAttempt[]
   /** заход — первые слова ответа быстрой моделью (opener.ts): звучат сразу, до разбора; undefined — без захода */
   opener: Promise<string | undefined>
   /** начало реплики подтверждено разбором — можно озвучивать; undefined — отдельного начала не будет */
@@ -370,6 +371,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
     const { llm, lab, sc, history, before, natural, marks, opens } = t
     const t0 = Date.now()
     const ms: Record<string, number | string> = {}
+    let analysisAttempts: AnalyzeAttempt[] = []
     let stopped = false
     let gotFirst!: (f: JobFirst | undefined) => void
     const first = new Promise<JobFirst | undefined>((r) => (gotFirst = r))
@@ -438,11 +440,12 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       // быстрый разметчик — запасной Claude (YandexGPT Pro): рамку реплики знаем через ~0,8 с, а не через ~2,2 с
       const quick = spec && process.env.ANALYZE_QUICK !== 'off' ? analyzer.backup : undefined
       const ar: AnalyzeRun = body.walkAway
-        ? { ready: { analysis: walkAwayMove(), source: 'offline' }, keep: async () => {} }
+        ? { ready: { analysis: walkAwayMove(), source: 'button' }, keep: async () => {} }
         : await startAnalysis(analyzer, sc, dict, history, body.playerText, before.lastOpponentOffer, quick)
+      analysisAttempts = ar.attempts ?? []
       // Реплика продолжает заход, поэтому пишется после него; заход приходит раньше любой разметки.
       opener = await openerP
-      let final: AnalyzeResult | undefined = ar.ready && { ...ar.ready, ...(body.walkAway ? { source: 'button' as never } : {}) }
+      let final: AnalyzeResult | undefined = ar.ready
       const frame = (a: AnalyzeResult, basis: string) => {
         if (stopped) throw new Error('Ход больше не нужен')
         const d = decide(a.analysis)
@@ -455,7 +458,8 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       if (!final) {
         // Спекуляция: пока модели размечают ход, реплику уже пишет модель — по разбору правил. Рамка та же, что по
         // настоящему разбору, — берём её; нет — обрываем и пишем заново. Разбор и оценка хода — по модели.
-        const rules: AnalyzeResult | undefined = spec ? { analysis: groundedOffline(sc, body.playerText, dict), source: 'offline' } : undefined
+        const said = history.length ? history[history.length - 1].opponentLine : sc.opening
+        const rules: AnalyzeResult | undefined = spec ? { analysis: groundedOffline(sc, body.playerText, dict, said), source: 'offline' } : undefined
         const rulesKey = rules && keyOf(decide(rules.analysis).r)
         if (rules && !stopped) frame(rules, 'rules')
         let quickA: AnalyzeResult | undefined
@@ -499,6 +503,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       who: t.who,
       t0,
       ms,
+      get analysisAttempts() { return analysisAttempts },
       opener: openerP.then((o) => (stopped ? undefined : o)),
       first,
       analyzed: analysisSeen,
@@ -606,7 +611,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
       const logTurn = (end?: number) => {
         const n = (k: string) => (typeof ms[k] === 'number' ? ms[k] : '-')
         const audio = sound?.firstAt ? sound.firstAt - t0 : '-'
-        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${job.prepared ? Math.max(0, lead) : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} разбор=${a.source} модель=${v.model ?? v.source}`)
+        console.log(`[ход] дело=${sc.id} ход=${r.state.turn} заготовка=${job.prepared ? Math.max(0, lead) : '-'} заход=${n('opener')} разметка=${n('analyze')} первые=${n('first')} звук=${audio} реплика=${answered} звук_весь=${end ? end - t0 : '-'} голос=${sound?.voice?.api ?? '-'}${sound?.voice?.fallback ? '/запасной' : ''} ${analysisLog(a, job.analysisAttempts)} модель=${v.model ?? v.source}`)
       }
       if (sound) void sound.ended.then(logTurn, () => logTurn())
       else logTurn()
