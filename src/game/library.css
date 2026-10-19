@@ -1,0 +1,201 @@
+/* Библиотека приёмов: вкладки-книги, слева карточка книги, справа её приёмы. На телефоне — одной колонкой. */
+
+.lb-page > * {
+  max-width: 1240px;
+  margin-inline: auto;
+}
+
+.lb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(4 * var(--u));
+  margin-bottom: calc(10 * var(--u));
+}
+.lb-tab {
+  appearance: none;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--u);
+  min-height: 44px;
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  border: 0;
+  background: var(--c-wood-3);
+  color: var(--c-paper);
+  box-shadow: inset 0 0 0 var(--u) var(--c-wood);
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.lb-tab small {
+  font: 400 var(--fs-small) / 18px var(--f-read);
+  color: var(--c-mist);
+}
+.lb-tab:hover {
+  background: var(--c-wood-2);
+}
+.lb-tab[aria-pressed='true'] {
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow:
+    inset 0 0 0 var(--u) var(--c-ink-2),
+    inset 0 calc(-2 * var(--u)) 0 var(--c-brass);
+}
+.lb-tab[aria-pressed='true'] small {
+  color: var(--c-steel-2);
+}
+.lb-tab:focus-visible {
+  outline: calc(2 * var(--u)) solid var(--c-brass-hi);
+  outline-offset: var(--u);
+}
+
+.lb-book {
+  display: grid;
+  gap: calc(10 * var(--u));
+  align-items: start;
+}
+.lb-book[hidden] {
+  display: none;
+}
+@media (min-width: 960px) {
+  .lb-book {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  }
+  .lb-card {
+    position: sticky;
+    top: calc(6 * var(--u));
+  }
+}
+
+.lb-authors {
+  margin: 0 0 calc(2 * var(--u));
+  color: var(--c-wood-2);
+}
+.lb-meta {
+  display: grid;
+  gap: calc(2 * var(--u));
+  margin: 0 0 calc(5 * var(--u));
+  font: 400 var(--fs-small) / 20px var(--f-read);
+}
+.lb-meta div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(3 * var(--u));
+}
+.lb-meta dt {
+  color: var(--muted-on-light);
+}
+.lb-meta dt::after {
+  content: ':';
+}
+.lb-meta dd {
+  margin: 0;
+}
+.lb-idea {
+  margin: 0 0 calc(4 * var(--u));
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-read);
+  text-wrap: pretty;
+}
+.lb-ingame {
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  background: var(--c-grid);
+  box-shadow: inset calc(2 * var(--u)) 0 0 var(--c-denim);
+  color: var(--c-night);
+}
+.lb-ingame span,
+.lb-say span {
+  display: block;
+  font: 400 var(--fs-small) / 18px var(--f-read);
+  color: var(--c-denim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lb-list ul {
+  display: grid;
+  gap: calc(6 * var(--u));
+  margin: 0 0 calc(10 * var(--u));
+  padding: 0;
+  list-style: none;
+}
+.lb-h {
+  margin: 0 0 calc(4 * var(--u));
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  color: var(--c-brass-hi);
+}
+.lb-h.is-avoid {
+  color: var(--c-coral);
+}
+
+.lb-tech {
+  display: grid;
+  gap: calc(3 * var(--u));
+}
+.lb-tech.is-weak {
+  box-shadow:
+    0 0 0 var(--u) var(--c-ink-2),
+    inset calc(2 * var(--u)) 0 0 var(--c-stamp),
+    0 calc(3 * var(--u)) 0 var(--u) var(--c-wood-3);
+}
+.lb-tech .lb-idea {
+  margin: 0;
+}
+.lb-tech-name {
+  margin: 0;
+  font: 700 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  text-wrap: balance;
+}
+.lb-where {
+  font: 400 var(--fs-small) / 18px var(--f-read);
+  color: var(--muted-on-light);
+  white-space: nowrap;
+}
+.lb-game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(2 * var(--u)) calc(4 * var(--u));
+  margin: 0;
+  font: 400 var(--fs-small) / 20px var(--f-read);
+  color: var(--c-steel-3);
+}
+.lb-mark {
+  padding: 0 calc(3 * var(--u));
+  color: var(--c-paper);
+  background: var(--c-steel-2);
+}
+.lb-mark.is-strong {
+  background: var(--c-leaf-2);
+}
+.lb-mark.is-weak {
+  background: var(--c-stamp-2);
+}
+.lb-say {
+  margin: 0;
+  padding: calc(3 * var(--u)) calc(4 * var(--u));
+  background: var(--c-paper-2);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-read);
+}
+.lb-say i {
+  color: var(--c-night);
+}
+.lb-tech.is-weak .lb-say span {
+  color: var(--c-stamp-2);
+}
+.lb-also {
+  margin: 0;
+  font: 400 var(--fs-small) / 18px var(--f-read);
+  color: var(--muted-on-light);
+}
+
+.lb-note {
+  margin-top: calc(4 * var(--u));
+  padding: calc(4 * var(--u)) calc(5 * var(--u));
+  background: var(--c-night);
+  color: var(--c-paper);
+  box-shadow: 0 0 0 var(--u) var(--c-ink);
+  font: 400 var(--fs-small) / 20px var(--f-read);
+}

@@ -3,7 +3,7 @@ import type { Case } from '../../App'
 import type { Health } from '../api'
 import type { Progress } from '../progress'
 import type { RoomRef } from '../rooms'
-import { Button } from '../ui'
+import { Button, PixelIcon } from '../ui'
 import { MusicHint, SoundToggle } from '../audio/SoundControls'
 import { TitleScene } from './TitleScene'
 import '../title.css'
@@ -25,6 +25,8 @@ interface Props {
   onJury?: () => void
   /** галерея катсцен сюжета — посмотреть без прохождения */
   onFilms?: () => void
+  /** «Библиотека приёмов»: пять книг и приёмы из них */
+  onBooks?: () => void
   onStart: () => void
   onLibrary: () => void
   onCoach: () => void
@@ -35,7 +37,7 @@ interface Props {
  * Титул: живая сцена на весь экран — вечер на Каме, автобус привозит новенького в Алабугу.
  * Слов минимум: название, одна строка и две кнопки. По ссылке-приглашению — записка с делом.
  */
-export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onStart, onLibrary, onCareer }: Props) {
+export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onBooks, onStart, onLibrary, onCareer }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -136,6 +138,13 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <b>Для жюри</b>
               <span>Все дела, настройки, кабинет</span>
             </button>
+            {onBooks && (
+              <button type="button" className="tt-books" onClick={onBooks}>
+                <PixelIcon name="notebook" px={2} />
+                <b>Библиотека приёмов</b>
+                <span>— пять книг, на которых стоит игра</span>
+              </button>
+            )}
             <MusicHint />
           </div>
         )}
