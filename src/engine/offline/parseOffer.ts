@@ -268,6 +268,9 @@ export function parseOffer(sc: Scenario, text: string, side?: 'player', rounded?
       }
       const at = Math.max(...hits)
       if (echoed(at)) return
+      // «без гостей» — только с самим «без»: «разрешу тебе принимать гостей» — это гости, а не их запрет (19.10)
+      const neg = /^(без|нет|no|without)\s/iu.exec(opt.toLowerCase())
+      if (neg && !own.some((w) => new RegExp(`(?<!\\p{L})(?:${neg[1]}|никак\\p{L}*|ни\\s+одн\\p{L}*)\\s+(?:\\p{L}+\\s+)?${w}|(?<!\\p{L})${w}\\p{L}*\\s+(?:нет|не\\s+(?:надо|нужн\\p{L}*|будет|будут|води|приводи)|no|not)(?!\\p{L})`, 'u').test(flat))) return
       if (at > foundAt) { found = n; foundAt = at }
     })
     const aliases = (info.issue.aliases ?? []).flatMap((list, n) => list.flatMap((alias) => {

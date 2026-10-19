@@ -40,6 +40,10 @@ export const CASES: [string, Sample[]][] = [
     ['Уборка раз в неделю', { offer: { cleaning: 1 } }],
     ['Давай график на двери', { offer: { cleaning: 2 } }],
     ['Без гостей', { offer: { guests: 0 } }],
+    // живая партия 19.10: «гостей» без «без» — не запрет гостей
+    ['А что я получу в обмен на то, что разрешу тебе принимать гостей?', { behaviors: ['package'], talk: ['question'], asksAbout: ['guests'] }],
+    ['Гостей не води', { offer: { guests: 0 } }],
+    ['Никаких гостей', { offer: { guests: 0 } }],
     ['Гости до 22:00', { offer: { guests: 1 } }],
     ['Суббота допоздна', { offer: { guests: 2 } }],
     ['Чай и сахар вскладчину', { offer: { kitty: 1 } }],
