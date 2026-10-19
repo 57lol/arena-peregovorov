@@ -68,7 +68,7 @@ try {
   console.log('Кабинет: своё дело')
   await coach.goto(`${base}/?jury`)
   await coach.getByRole('button', { name: 'Кабинет руководителя', exact: true }).click()
-  await coach.getByRole('button', { name: 'Заполнить бриф', exact: true }).click()
+  await coach.getByRole('button', { name: 'Заполнить описание', exact: true }).click()
   await coach.getByRole('button', { name: 'Найм', exact: true }).click()
   await coach.getByRole('button', { name: 'напористый', exact: true }).click()
   await coach.getByRole('button', { name: 'стоит до последнего', exact: true }).click()
@@ -101,7 +101,7 @@ try {
 
   console.log('Участник по ссылке')
   await anya.goto(link)
-  await anya.getByPlaceholder('Имя или ник').fill('Аня')
+  await anya.getByPlaceholder('Имя или псевдоним').fill('Аня')
   await until(async () => !(await anya.getByRole('button', { name: 'К делу', exact: true }).isDisabled()), 'Комната не загрузилась')
   await anya.getByRole('button', { name: 'К делу', exact: true }).click()
   await anya.getByRole('button', { name: 'Войти в переговорку', exact: true }).waitFor()

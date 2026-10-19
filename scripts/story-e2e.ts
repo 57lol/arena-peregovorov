@@ -115,8 +115,12 @@ async function hold(page: Page, id: string, phone: boolean) {
   if (!phone) return
   const p = await paperPoint(page, id)
   if (!p) return fail(`не нашли лист ${id} на столе`)
-  await page.mouse.click(p.x, p.y)
-  await page.waitForTimeout(1100)
+  // «Стол» на телефоне сразу берёт блокнот; касание другого листа сначала кладёт его, второе — берёт лист
+  const other = await page.locator(`.w3-paper.is-held:not(.w3-paper--${id})`).count()
+  for (let k = 0; k <= other; k++) {
+    await page.mouse.click(p.x, p.y)
+    await page.waitForTimeout(1100)
+  }
 }
 async function bestPicks(page: Page) {
   const rows = page.locator('.w3-paper--notebook .px-issue')

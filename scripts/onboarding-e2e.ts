@@ -141,8 +141,12 @@ async function run(phone: boolean) {
           await page.waitForTimeout(1300)
           if (phone) {
             const p = await paperPoint(page, 'slip')
-            if (p) await page.mouse.click(p.x, p.y)
-            await page.waitForTimeout(1100)
+            // «Стол» после обучения сразу берёт блокнот: первое касание листка кладёт его, второе — берёт листок
+            const other = await page.locator('.w3-paper.is-held:not(.w3-paper--slip)').count()
+            for (let k = 0; p && k <= other; k++) {
+              await page.mouse.click(p.x, p.y)
+              await page.waitForTimeout(1100)
+            }
           }
           await shot(page, tag, 'листок-перед-согласием')
           await accept.click()
