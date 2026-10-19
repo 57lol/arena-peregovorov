@@ -98,7 +98,7 @@ for (const [w, h] of [
   check((await q.locator('.cs-guide').count()) === 1, `${w}: памятка ждёт, пока её не пролистают`)
   const head = (await q.locator('.cs-guide-head').textContent()) ?? ''
   const hello = (await q.locator('.cs-guide-chat').textContent()) ?? ''
-  check(/HR/.test(head) && /Добро пожаловать в Алабугу/.test(hello), `${w}: видно, кто пишет и зачем`)
+  check(/отдела кадров/.test(head) && /Добро пожаловать в Алабугу/.test(hello), `${w}: видно, кто пишет и зачем`)
   const go = q.locator('.cs-guide-go')
   const box = await go.boundingBox()
   check(!!box && box.height >= 44 && box.y + box.height <= h, `${w}: большая кнопка «${await go.textContent()}» на экране`)

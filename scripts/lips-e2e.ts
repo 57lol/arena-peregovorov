@@ -213,8 +213,14 @@ try {
   for (const view of VIEWS) for (const mode of MODES) {
     const name = `${view}-${mode}`
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...(VIDEO ? { recordVideo: { dir: join(VIDEO, name), size: { width: 1280, height: 800 } } } : {}) })
-    // программный рендер (тем более с записью видео) даёт мало кадров — проверку «не тянет 3D» выключаем, как в play3d-e2e
-    await ctx.addInitScript({ content: "Object.defineProperty(Document.prototype, 'hidden', { get: () => true })" })
+    // программный рендер (тем более с записью видео) даёт мало кадров — проверку «не тянет 3D» выключаем, как в play3d-e2e:
+    // подменяем fps мира, а не document.hidden — в скрытой вкладке кадры не рисуются и рот не шевелится
+    await ctx.addInitScript({
+      content: `const fps = setInterval(() => {
+        if (!window.__world || Object.getOwnPropertyDescriptor(window.__world, 'fps')?.get) return
+        Object.defineProperty(window.__world, 'fps', { get() { return 60 }, set() {} })
+      }, 50)`,
+    })
     await ctx.addInitScript(INIT(mode))
     const page = await ctx.newPage()
     const errors: string[] = []

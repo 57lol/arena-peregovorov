@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createScribe, type StreamSocket } from '../src/game/sttStream'
 import { createMic } from '../src/game/mic'
-import { endOfTurnMs } from '../src/game/endOfTurn'
+import { endOfTurnMs, PAUSE_MS } from '../src/game/endOfTurn'
 import { makeBudget } from '../src/server/budget'
 
 process.env.CACHE_DIR = mkdtempSync(join(tmpdir(), 'stt-e2e-'))
@@ -59,9 +59,10 @@ for (const broken of [false, true]) {
   streaming.push(audio.buffer)
   ws.emit('ready')
   ws.emit('partial', 'давай за двести')
-  assert.equal(endOfTurnMs(streaming.text), 2000)
+  // пороги — по умолчанию «средне» (endOfTurn.ts): оборвана на числе — hang, с единицей — done
+  assert.equal(endOfTurnMs(streaming.text), PAUSE_MS.medium.hang)
   ws.emit('partial', 'давай за двести рублей')
-  assert.equal(endOfTurnMs(streaming.text), 550)
+  assert.equal(endOfTurnMs(streaming.text), PAUSE_MS.medium.done)
   if (broken) ws.onerror?.()
   await mic.finish()
   assert.deepEqual(texts, ['Договорились.'])

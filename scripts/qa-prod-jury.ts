@@ -39,7 +39,7 @@ try {
   const boris = await judge(k2)
   await boris.getByRole('heading', { name: 'Для жюри' }).waitFor()
   await boris.goto(link)
-  await boris.getByPlaceholder('Имя или ник').fill('Борис')
+  await boris.getByPlaceholder('Имя или псевдоним').fill('Борис')
   await boris.getByRole('button', { name: 'К делу', exact: true }).click()
   await boris.getByRole('button', { name: 'Войти в переговорку', exact: true }).click()
   await say(boris, 'Добрый день! Что для вас главное в этой сделке?')

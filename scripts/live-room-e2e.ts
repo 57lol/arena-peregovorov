@@ -69,7 +69,7 @@ try {
   await captain.getByRole('button', { name: 'Открыть доску', exact: true }).click()
   for (const [page, name] of [[anya, 'Аня'], [borya, 'Боря']] as const) {
     await page.goto(link)
-    await page.getByPlaceholder('Имя или ник').fill(name)
+    await page.getByPlaceholder('Имя или псевдоним').fill(name)
     await until(async () => !(await page.getByRole('button', { name: 'К делу', exact: true }).isDisabled()), 'Комната не загрузилась')
     await page.getByRole('button', { name: 'К делу', exact: true }).click()
     await page.getByRole('button', { name: 'Войти в переговорку', exact: true }).waitFor()

@@ -358,7 +358,7 @@ async function staticScreens(page: Page, vp: Vp, dir: string, tag: string) {
   })
   await step('11-катсцены', async () => {
     await fresh(page, '/')
-    await page.locator('.tt-corner').getByRole('button', { name: 'Катсцены' }).click()
+    await page.locator('.tt-corner').getByRole('button', { name: 'Ролики' }).click()
     await page.waitForTimeout(800)
   })
   await step('12-катсцена-пролог', async () => {
@@ -375,7 +375,8 @@ async function waitReply(page: Page) {
   })
   await page.waitForTimeout(300)
   const box = page.locator('.w3-them .px-dialog-box')
-  if (await box.isVisible()) await box.click()
+  // облачко прячется, когда взгляд на столе, — может исчезнуть между проверкой и кликом
+  if (await box.isVisible()) await box.click({ timeout: 3000 }).catch(() => {})
   await page.waitForTimeout(700)
 }
 async function say(page: Page, text: string) {
