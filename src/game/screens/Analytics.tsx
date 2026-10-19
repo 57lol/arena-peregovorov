@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { meetingAnalytics, profileBar } from '../../engine/analytics'
-import { behaviorById, type ProfileRow } from '../../engine/behaviors'
+import { BEHAVIORS, behaviorById, type ProfileRow } from '../../engine/behaviors'
 import { censor } from '../../engine/offline'
 import type { Report } from '../../engine/report'
 import type { Scenario, TurnRecord } from '../../engine/types'
@@ -199,7 +199,7 @@ export function MeetingAnalytics({ sc, history, report }: { sc: Scenario; histor
 
 export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; history: TurnRecord[]; tips: string[] }) {
   return <div className="g-profile">
-    <p className="g-muted">Все 22 приёма. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть примеры из реплик.</p>
+    <p className="g-muted">Все {BEHAVIORS.length} приёмов. Полоса — вы, вертикальная метка — сильные переговорщики по Rackham & Carlisle. Это ориентир из устной речи, не норматив для чата. Нажмите на приём, чтобы увидеть примеры из реплик.</p>
     <div className="g-profile-grid">
       {rows.map((row) => {
         const bar = profileBar(row, history.length)

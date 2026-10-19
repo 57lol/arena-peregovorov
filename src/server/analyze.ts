@@ -13,7 +13,7 @@ import { peek, put } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-const PROMPT_VERSION = 'a16'
+const PROMPT_VERSION = 'a17'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -26,7 +26,7 @@ const Raw = z.object({
 })
 
 // Эти индикаторы ставит движок по ходу игры (withContext), модели их не отдаём.
-const CONTEXT_ONLY = new Set(['anchor', 'instant_counter'])
+const CONTEXT_ONLY = new Set(['anchor', 'instant_counter', 'mirror'])
 const llmIds = (dict: BehaviorDict) => Object.keys(dict).filter((id) => !CONTEXT_ONLY.has(id))
 
 export function schemaFor(sc: Scenario, dict: BehaviorDict) {

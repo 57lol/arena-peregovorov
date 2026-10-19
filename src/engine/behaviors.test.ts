@@ -4,8 +4,8 @@ import { BEHAVIORS, BEHAVIOR_DICT, behaviorGuide, behaviorProfile, detectBehavio
 const ids = (text: string, ctx = {}) => detectBehaviors(text, ctx).map((h) => h.id)
 
 describe('словарь индикаторов', () => {
-  it('22 индикатора, id уникальны, у всех есть источник и примеры', () => {
-    expect(BEHAVIORS).toHaveLength(22)
+  it('30 индикаторов (22 + 8 из книг), id уникальны, у всех есть источник и примеры', () => {
+    expect(BEHAVIORS).toHaveLength(30)
     expect(new Set(BEHAVIORS.map((b) => b.id)).size).toBe(BEHAVIORS.length)
     for (const b of BEHAVIORS) {
       expect(b.sources.length, b.id).toBeGreaterThan(0)
@@ -14,7 +14,7 @@ describe('словарь индикаторов', () => {
     expect(Object.keys(BEHAVIOR_DICT)).toHaveLength(BEHAVIORS.length)
   })
 
-  for (const b of BEHAVIORS) {
+  for (const b of BEHAVIORS.filter((x) => x.id !== 'mirror')) {
     it(`${b.id}: примеры из словаря распознаются правилами`, () => {
       const ctx = b.id === 'anchor' ? { offered: true, firstOffer: true } : {}
       for (const ex of b.examples) expect(ids(ex, ctx), ex).toContain(b.id)
@@ -156,7 +156,7 @@ describe('профиль против эталона', () => {
 
   it('блок для промпта содержит все id', () => {
     const g = behaviorGuide()
-    for (const b of BEHAVIORS) if (!['anchor', 'instant_counter'].includes(b.id)) expect(g).toContain(b.id)
+    for (const b of BEHAVIORS) if (!['anchor', 'instant_counter', 'mirror'].includes(b.id)) expect(g).toContain(b.id)
   })
 })
 
