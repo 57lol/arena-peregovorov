@@ -6,7 +6,7 @@ import { initialState } from '../engine/turn'
 import type { Decision, Offer, OpponentState, Scenario } from '../engine/types'
 import type { LLM } from './llm'
 import { normalizeTags, stripTags } from './tags'
-import { checkLine, frameFor, prune, system, userPrompt, voice } from './voice'
+import { checkLine, fixSheet, frameFor, prune, system, userPrompt, voice } from './voice'
 
 const dorm = dormCase.scenario
 const stop = stopCase.scenario
@@ -341,5 +341,21 @@ describe('начало ответа уже прозвучало', () => {
     expect(after.frame).toEqual(before.frame)
     expect(after.sys).toBe(before.sys)
     expect(frameKey(tara, [], 'давайте 1000', d, state)).toBe(frameKey(tara, [], 'давайте 1000', d, { ...state }))
+  })
+})
+
+describe('листок в реплике', () => {
+  it('«сядете на мой листок» — это «согласитесь на мои условия»', () => {
+    expect(fixSheet('Так-так… заключаем, если вы сядете на мой листок. Там два года.')).toBe('Так-так… заключаем, если вы согласитесь на мои условия. Там два года.')
+    expect(fixSheet('Садитесь на мой листок — и по рукам.')).toBe('Соглашайтесь на мои условия — и по рукам.')
+  })
+
+  it('листок как вещь на столе не трогаем', () => {
+    const line = 'Моё предложение прежнее, условия у вас на листке.'
+    expect(fixSheet(line)).toBe(line)
+  })
+
+  it('промпт велит говорить «мои условия», а не подставлять листок', () => {
+    expect(system(tara, false, false)).toMatch(/вслух не подставляй его вместо условий/)
   })
 })

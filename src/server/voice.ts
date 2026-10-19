@@ -57,6 +57,16 @@ const STRESS_HINT = `
 // Слова из промпта модели повторяют как штамп («по-человечески» в каждой реплике) — в биографии их заменяем
 const tame = (t: string) => t.replace(/по-человечески|по-людски/giu, 'по-нормальному')
 
+// «Листок» из промпта модель путает с условиями: «заключаем, если вы сядете на мой листок» (живая партия 20.10,
+// Роза). Сесть на листок нельзя — согласиться можно.
+const SIT: Record<string, string> = { сядете: 'согласитесь', сядешь: 'согласишься', сядем: 'согласимся', садитесь: 'соглашайтесь', садись: 'соглашайся', сесть: 'согласиться' }
+const SIT_ON_SHEET = /(?<!\p{L})(сядете|сядешь|сядем|садитесь|садись|сесть)\s+на\s+(?:мой|наш|этот)\s+лист(?:ок|очек)(?!\p{L})/giu
+export const fixSheet = (t: string) =>
+  t.replace(SIT_ON_SHEET, (_, v: string) => {
+    const to = SIT[v.toLowerCase()]
+    return (v[0] === v[0].toUpperCase() ? to[0].toUpperCase() + to.slice(1) : to) + ' на мои условия'
+  })
+
 const issueTitle = (sc: Scenario, id: string) => sc.issues.find((i) => i.id === id)?.title ?? id
 
 /** Что собеседнику важно в сделке — словами, без очков. Совместимый пункт — это его тайна, о нём только намёк. */
@@ -107,6 +117,7 @@ ${priorities(sc)}
 - Сначала отвечаешь на то, что человек сказал: на шутку, вопрос, извинение, имя. Потом про дело, если есть что сказать.
 - Юмор — по характеру: кто любит пошутить, шутит и в торге (подколка, преувеличение, сравнение из своей жизни), кто сухой — сухая ирония. Смешно должно быть по ситуации, а не анекдотом.
 - Условия называешь, только когда они меняются или о них спросили. Что и так лежит на листке, вслух не перечисляешь: листок у собеседника перед глазами.
+- Листок — просто бумага на столе, вслух не подставляй его вместо условий. Говоришь «мои условия», «моё предложение», а «листок» — только как вещь: «соглашайтесь на мои условия — они на листке перед вами».
 - Причину, когда её можно рассказать, говоришь своими словами и с чувством, не так, как она записана выше.
 - Помнишь весь разговор и можешь сослаться на то, что было раньше. Свои прошлые фразы не повторяешь и не начинаешь так же, как в прошлый раз.
 - Свои цифры и условия берёшь только из решения. Цифру собеседника можно повторить, чтобы на неё ответить, но соглашаешься, только если решение — согласиться.
@@ -189,6 +200,7 @@ How to speak:
 - First answer what the person said: a joke, a question, an apology, a name. Then the deal, if there is something to say.
 - Humor in character: a quick tease, an exaggeration, a comparison from your own life or the workshop. Funny from the situation, not a canned joke.
 - Name terms only when they change or when asked. What is already on the sheet in front of them you don't read out.
+- The sheet is just paper on the table. Say "my terms" or "my offer", never "my sheet" in place of them.
 - When you may tell a reason, tell it in your own words and with feeling, not the way it is written above.
 - You remember the whole conversation and can refer back. Don't repeat your earlier lines and don't start the same way as last time.
 - Your numbers and terms come only from the decision. You may repeat their number to answer it, but you agree only if the decision is to agree.
@@ -480,7 +492,7 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
           const main = sc.issues.find((i) => i.kind === 'distributive') ?? sc.issues[0]
           const was = state.lastOpponentOffer?.[main.id]
           const stepped = steppedToward(sc, stanceBefore, stance, prev)
-          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)}${stepped ? '' : agreed(sc, stance, prev)} Новых цифр не называешь, листок не перечисляешь.${reasons}`
+          text = `Держишь своё предложение, оно прежнее${typeof was === 'number' ? ` (главное — ${lc(main.title)}: ${main.options[was]})` : ''}. ${stepped ? 'Он подвинулся, но этого мало: признай его шаг и скажи, что не хватает.' : 'Он ничего не дал взамен: дай понять, что ждёшь шага навстречу.'}${echoFree(sc, stance, stanceBefore, prev)}${stepped ? '' : agreed(sc, stance, prev)} Новых цифр не называешь, условия с листка не перечисляешь.${reasons}`
           break
         }
         case 'not_ready_to_reveal':
@@ -1052,7 +1064,7 @@ const FIRST_WORDS = 3
 
 /** Кусок реплики — как clean(), но пометки по месту куска в реплике: только начало может задать подачу. */
 const cleanPiece = (t: string, mid: boolean, tags: number) =>
-  normalizeTags(unquote(t.trim()).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim(), mid ? Math.max(0, 1 - tags) : 1, mid)
+  normalizeTags(fixSheet(unquote(t.trim())).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim(), mid ? Math.max(0, 1 - tags) : 1, mid)
 const tagCount = (t: string) => (t.match(/\[[a-z ]+\]/g) ?? []).length
 
 interface Streamed {
@@ -1222,7 +1234,7 @@ export function unquote(t: string): string {
   return s
 }
 
-const clean = (t: string) => normalizeTags(unquote(t.trim()).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
+const clean = (t: string) => normalizeTags(fixSheet(unquote(t.trim())).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 /** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
 export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction' | 'opener'> = {}) {
