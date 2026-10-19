@@ -599,10 +599,13 @@ export class Person {
     }
   }
 
-  /** Точка «над головой» и «под подбородком» — для реплики и рентгена. */
+  /** Точка «над головой» и «под подбородком» — для реплики и рентгена. Встал и уходит — у вставшего, а не над пустым стулом. */
   anchor(which: 'head' | 'chin' | 'chest', out = new Vector3()) {
-    const y = { head: BUST_BOTTOM + (S - 8) * M, chin: BUST_BOTTOM + 26 * M, chest: BUST_BOTTOM + 10 * M }[which]
-    return out.set(this.group.position.x, y, this.group.position.z)
+    const dy = { head: (S - 8) * M, chin: 26 * M, chest: 10 * M }[which]
+    const p = this.group.position
+    const w = this.walker
+    if (w && this.leaving && this.gone > 0) return out.set(p.x + w.position.x, w.position.y + STAND_BOTTOM + dy, p.z + w.position.z)
+    return out.set(p.x, BUST_BOTTOM + dy, p.z)
   }
 
   dispose() {
