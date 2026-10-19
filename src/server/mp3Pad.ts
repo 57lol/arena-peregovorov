@@ -31,30 +31,42 @@ function unit(b: Uint8Array, at: number): number | null {
 export async function* padToBlocks(src: AsyncIterator<Uint8Array>, idleMs = 80): AsyncGenerator<Uint8Array> {
   let held: Uint8Array = new Uint8Array(0)
   let sent = 0
-  let next = src.next()
-  for (;;) {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const idle = new Promise<'idle'>((r) => (timer = setTimeout(() => r('idle'), idleMs)))
-    const got = await Promise.race([next, idle])
-    clearTimeout(timer)
-    if (got === 'idle') {
-      if (!held.length && sent % BLOCK) {
-        const zeros = new Uint8Array(BLOCK - (sent % BLOCK))
-        sent += zeros.length
-        yield zeros
-      }
-      // до новых данных больше не дописываем: блок уже целый
-      const r = await next
-      if (r.done) break
-      next = src.next()
-      ;({ held, sent } = yield* emit(r.value))
-      continue
-    }
-    if (got.done) break
-    next = src.next()
-    ;({ held, sent } = yield* emit(got.value))
+  // Читаем наперёд, но ошибку источника держим обработанной, пока потребитель занят предыдущим куском.
+  const read = () => {
+    const p = src.next()
+    void p.catch(() => {})
+    return p
   }
-  if (held.length) yield held
+  let next = read()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    for (;;) {
+      const idle = new Promise<'idle'>((r) => (timer = setTimeout(() => r('idle'), idleMs)))
+      const got = await Promise.race([next, idle])
+      clearTimeout(timer)
+      if (got === 'idle') {
+        if (!held.length && sent % BLOCK) {
+          const zeros = new Uint8Array(BLOCK - (sent % BLOCK))
+          sent += zeros.length
+          yield zeros
+        }
+        // до новых данных больше не дописываем: блок уже целый
+        const r = await next
+        if (r.done) break
+        next = read()
+        ;({ held, sent } = yield* emit(r.value))
+        continue
+      }
+      if (got.done) break
+      next = read()
+      ;({ held, sent } = yield* emit(got.value))
+    }
+    if (held.length) yield held
+  } finally {
+    clearTimeout(timer)
+    // Остановка HTTP-чтения закрывает и исходного подписчика на живой звук.
+    await src.return?.()
+  }
 
   function* emit(chunk: Uint8Array): Generator<Uint8Array, { held: Uint8Array; sent: number }> {
     const b = new Uint8Array(held.length + chunk.length)

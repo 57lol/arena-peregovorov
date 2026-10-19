@@ -21,7 +21,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
-it.each(['tara', 'lagos'])('AITunnel 402: %s продолжает заход Яндексом, согласует line/done и скрывает ответ провайдера', async (scenarioId) => {
+it.each([['tara', false], ['lagos', false], ['tara', true], ['lagos', true]] as const)('AITunnel 402: %s, повтор захода %s — Яндекс согласует line/done и скрывает ответ провайдера', async (scenarioId, echo) => {
   const en = scenarioId === 'lagos'
   const opener = en ? 'Well…' : 'Так…'
   const continuation = en ? 'Let us discuss the terms calmly. I am listening.' : 'Давайте обсудим условия спокойно. Я вас слушаю.'
@@ -33,7 +33,7 @@ it.each(['tara', 'lagos'])('AITunnel 402: %s продолжает заход Я�
     calls.push({ provider, schema, user: req.messages[1].content })
     if (provider === 'aitunnel') return new Response('402 payment required review-private-upstream', { status: 402 })
     const value = schema === 'opener' ? { say: opener } : schema === 'move_analysis' ? raw
-      : { agrees: false, terms: [], reveals: [], line: continuation, emotion: 'neutral' }
+      : { agrees: false, terms: [], reveals: [], line: echo ? `${opener} ${continuation}` : continuation, emotion: 'neutral' }
     const text = JSON.stringify(value)
     if (req.stream) return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }], usage: { prompt_tokens: 10, completion_tokens: 10 } })}\n\ndata: [DONE]\n\n`)
     return Response.json({ choices: [{ message: { content: text } }], usage: { prompt_tokens: 10, completion_tokens: 10 } })

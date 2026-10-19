@@ -62,6 +62,25 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('голосовой ход: приём с конца реплики собеседника', () => {
+  it('BUG: обрыв Scribe с промежуточным текстом не обрезает продолжающуюся речь для Яндекса', async () => {
+    const { l, sessions, play, io } = setup()
+    l.open(0)
+    await play(ME, 600)
+    sessions[0].text = 'Предлагаю'
+    sessions[0].ready = false
+    sessions[0].ended = true
+    await play(ME, 2600)
+    expect(l.phase).toBe('speak')
+    expect(sessions[0].finished).toBe(false)
+    await play(0, 1000)
+    sessions[0].resolve(null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.recognize).toHaveBeenCalledOnce()
+    const pcm = new Int16Array(io.recognize.mock.calls[0][0])
+    expect(pcm.filter((x) => x === ME).length).toBe(3200 * 16)
+    l.dispose()
+  })
+
   it('эхо собеседника до open() в распознавание не попадает, первый слог игрока — попадает', async () => {
     const { l, sessions, play, io } = setup()
     await play(ECHO, 1000) // собеседник говорит, микрофон уже открыт

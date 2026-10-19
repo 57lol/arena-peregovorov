@@ -382,9 +382,9 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     }
   }
 
-  async function synthPiece(q: TtsRequest, file: string, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void): Promise<void> {
+  async function synthPiece(q: TtsRequest, file: string, onChunk: (u: Uint8Array) => void, deadline: number, charge: () => void, cache = true): Promise<void> {
     const body = elevenBody(q, env)
-    const cached = await read(file)
+    const cached = cache ? await read(file) : undefined
     if (cached) { onChunk(cached); return }
     if (!charsLeft(body.text.length)) throw new Refusal('ElevenLabs: символы на сегодня кончились')
     const usage = eleven.usage
@@ -416,7 +416,7 @@ export function makeSpeech(opts: SpeechOptions = {}) {
         if (audio.length < 500) throw new Error('ElevenLabs: пустой ответ')
         eleven.fails = 0
         // В том числе опоздавший звук: переключение игрока на SpeechKit его не теряет.
-        await keep(file, audio)
+        if (cache) await keep(file, audio)
         return
       }
     } catch (e) {
@@ -888,8 +888,16 @@ export function makeSpeech(opts: SpeechOptions = {}) {
     if (Date.now() - (warmAt.get(voice) ?? 0) < 5 * 60_000) return c.json({ ok: true })
     warmAt.set(voice, Date.now())
     const text = who === 'china' ? 'Хм.' : 'Hmm.'
-    void elevenRequest({ text, voice, who, live: true }, f, env).then((r) => r.arrayBuffer()).catch(() => undefined)
-    return c.json({ ok: true })
+    const q = { text, voice, who, live: true }
+    const client = quotaOf(c)
+    const charge = () => {
+      if (!clients.take('el:s', client, limitOf('ELEVEN_SESSION_HOUR_LIMIT', 60), HOUR) ||
+        !clients.take('el:day', client, limitOf('ELEVEN_IP_DAY_LIMIT', 300), DAY)) throw new Refusal('Лимит голоса ElevenLabs')
+    }
+    // Прогрев обходит только кэш: бюджет, очередь и учёт сбоев общие с живой репликой.
+    const ok = await synthPiece(q, fileOf({ warm: voice }), () => {}, Date.now() + WAIT.elevenFirst(), charge, false)
+      .then(() => true, () => false)
+    return c.json({ ok })
   })
 
   /**

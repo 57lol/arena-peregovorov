@@ -390,7 +390,8 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   const acceptance = parts.some((p) => !p.includes('?') && !NOT_AGREE.test(p) && !CONDITION.test(p) &&
     (AGREE_WORD.test(p) || /возражений\s+(?:больше\s+)?нет|твоя взяла|you have my approval/iu.test(p)))
   const conditionalDeal = parts.some((p) => CONDITION.test(p) &&
-    (mentionedIssues(sc, p).length > 0 || /услови|срок|цен[ауые]|terms|price|delivery|payment/iu.test(p)))
+    // «Но только если руководство одобрит» — тоже условие сделки, хотя ни одного пункта листка не называет.
+    (mentionedIssues(sc, p).length > 0 || /услови|срок|цен[ауые]|terms|price|delivery|payment|(?:только|лишь)\s+если|only\s+if|provided|as\s+long\s+as|unless/iu.test(p)))
   const modelAcceptance = analysis.accepts && !other.walksAway && uncontradictedDecision(sc, text, analysis)
   if (other.accepts && ((!acceptance && !modelAcceptance) || conditionalDeal || NOT_AGREE.test(text))) delete other.accepts
   // «Ок» голосом может быть паузой; явное «договорились» остаётся согласием.

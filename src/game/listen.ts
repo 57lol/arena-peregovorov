@@ -213,11 +213,12 @@ export function createListener(io: ListenIO) {
     if (paused?.(r, end)) return void finish('pause')
     if (samples / PER_MS >= limit) return void finish('limit')
     // шум не даёт тишины, а Scribe давно не пишет новых слов — игрок договорил
+    // После обрыва потока старый текст уже не свидетельствует о тишине: всю запись ждёт запасной Яндекс.
     const h = heardText()
     if (h !== lastText) {
       lastText = h
       textAt = end
-    } else if (h && end - textAt >= io.pauseMs(h) + TEXT_STALE_MS) return void finish('text')
+    } else if (h && !lost && (!session || (session.ready && !session.ended)) && end - textAt >= io.pauseMs(h) + TEXT_STALE_MS) return void finish('text')
     if (!parked && used && io.earlyMs && session?.ready && segVoiced >= 160 && end - lastLoud >= io.earlyMs && segs.length < EARLY_LIMIT) commitEarly()
     // щелчок или шум, а не речь: поток с мусором закрываем, слушаем дальше
     if (voiced < 160 && end - lastLoud > FALSE_START_MS) {

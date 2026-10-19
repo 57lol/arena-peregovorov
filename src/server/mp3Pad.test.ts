@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BLOCK, padToBlocks } from './mp3Pad'
 
 // кадр MPEG-1 Layer III, 128 кбит/с, 44,1 кГц, моно: 417 байт
@@ -12,6 +12,7 @@ const id3 = () => {
   t.set([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 20])
   return t
 }
+afterEach(() => vi.useRealTimers())
 
 async function* source(parts: (Uint8Array | number)[]) {
   for (const p of parts) {
@@ -31,6 +32,28 @@ async function collect(parts: (Uint8Array | number)[]) {
 }
 
 describe('живой звук для Firefox: нули до границы блока 32 КБ', () => {
+  it('BUG: ошибка источника не оставляет таймер ожидания данных', async () => {
+    vi.useFakeTimers()
+    const src = { next: async () => { throw new Error('Обрыв звука') } }
+    await expect(padToBlocks(src).next()).rejects.toThrow('Обрыв звука')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('BUG: остановка чтения закрывает исходный поток', async () => {
+    let closed = false
+    async function* src() {
+      try {
+        yield frame(1)
+        yield frame(2)
+      } finally { closed = true }
+    }
+    for await (const chunk of padToBlocks(src())) {
+      expect(chunk).toEqual(frame(1))
+      break
+    }
+    expect(closed).toBe(true)
+  })
+
   it('источник замолчал — дописываем нули ровно до 32 КБ, кадры целые', async () => {
     vi.useFakeTimers()
     const a = new Uint8Array([...id3(), ...frame(1), ...frame(2)])
