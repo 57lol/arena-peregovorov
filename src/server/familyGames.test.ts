@@ -113,3 +113,42 @@ describe('держит позицию: о чём уже сошлись, гово
     expect(fresh.text).not.toMatch(/сошлись/)
   })
 })
+
+describe('переспрос того, что игрок назвал словами', () => {
+  it('Серый: «Энергетик?.. ты за сто пятьдесят хочешь кроссы закрыть?» — цифра его варианта «150 ₽ за энергетик»', async () => {
+    const { strayNumbers } = await import('./voice')
+    const stop = sc('stop')
+    const pos = { phone: 0, money: 0, sorry: 3, bus: 0 }
+    const frame = frameFor(stop, { kind: 'hold', reason: 'no_movement' }, { ...initialState(stop), lastOpponentOffer: pos }, pos)
+    const heard = 'Сорян, брат. Давай я тебе энергетик куплю'
+    expect(strayNumbers(stop, frame, 'Энергетик?.. ты за сто пятьдесят хочешь кроссы закрыть?', heard)).toEqual([])
+    // не вопрос — это уже его условие
+    expect(strayNumbers(stop, frame, 'Ладно, сто пятьдесят, и разошлись.', heard)).toEqual(['сто пятьдесят'])
+    // энергетика не было — цифра выдумана
+    expect(strayNumbers(stop, frame, 'Ты за сто пятьдесят хочешь кроссы закрыть?', 'Сорян, брат.')).toEqual(['сто пятьдесят'])
+  })
+})
+
+describe('подсказку рамки вслух не пересказывают', () => {
+  it('Лариса Петровна: «…это я отдаю, не радуюсь» вырезается, остальное остаётся', async () => {
+    const { prune } = await import('./voice')
+    const shop = sc('shop')
+    const deal = { swap: 3, disc: 1, card: 2, paper: 2 }
+    const frame = frameFor(shop, { kind: 'accept' }, { ...initialState(shop), status: 'deal', deal, tableOffer: deal, playerStance: deal }, { swap: 0, disc: 0, card: 2, paper: 2 }, deal)
+    const line = 'Пять процентов?.. ладно, пусть так. Обмен сегодня и пять процентов — это я отдаю, не радуюсь. Карта виртуальная, акт с фото — добро. Идёмте на кассу, оформлю.'
+    const safe = prune(shop, frame, { line, emotion: 'neutral', terms: [], agrees: true, reveals: [] }, { said: shop.opening, heard: '', mine: [] })!
+    expect(safe).not.toMatch(/не радуюсь/)
+    expect(safe).toMatch(/^Пять процентов\?\.\. ладно, пусть так\./)
+  })
+})
+
+describe('продолжение не повторяет заход', () => {
+  it('«Самое важное?.. Самое важное — по субботам…» и «Помню, и что… помню. Только…»', async () => {
+    const { withOpener } = await import('./voice')
+    expect(withOpener('Самое важное?..', 'Самое важное — по субботам ко мне пацаны приходят.')).toBe('Самое важное?.. по субботам ко мне пацаны приходят.')
+    expect(withOpener('Помню, и что…', 'помню. Только мне не вы нужны, мне отчёт нужен.')).toBe('Помню, и что… Только мне не вы нужны, мне отчёт нужен.')
+    // своё продолжение с того же слова, но не повтором — не трогаем
+    expect(withOpener('Обмен говорите…', 'обмен у нас на листке, да.')).toBe('Обмен говорите… обмен у нас на листке, да.')
+    expect(withOpener('Eight weeks…', 'Eight weeks… is too fast, my friend.')).toBe('Eight weeks… is too fast, my friend.')
+  })
+})

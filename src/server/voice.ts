@@ -349,8 +349,10 @@ function whoGives(sc: Scenario, ids: IssueId[], prev: Offer, next: Offer, stance
   const name = (ids: IssueId[]) => ids.map((id) => `«${lc(issueTitle(sc, id))}»`).join(', ')
   const asked = giving.filter((id) => stance[id] === next[id])
   const many = giving.length > 1
+  // «ладно, так и быть» в примере повторяли все лица подряд — 27 реплик за день у семи разных людей (19.10)
+  const stock = isEn(sc) ? '' : ' (не «так и быть» каждый раз)'
   return (
-    (giving.length ? ` ${name(giving)} — ${many ? 'твои уступки' : 'твоя уступка'} ему${asked.length ? ` (${asked.length === giving.length ? 'как он и просил' : `${name(asked)} — как он просил`})` : ''}: тебе так хуже. Говори о ${many ? 'них как об уступках' : 'ней как об уступке'}, нехотя («ладно, так и быть»): не радуйся, не благодари и не говори ${take} — это ты отдаёшь, а не получаешь. И не говори, что уступаешь «за» то, что он сам себе просил.` : '') +
+    (giving.length ? ` ${name(giving)} — ${many ? 'твои уступки' : 'твоя уступка'} ему${asked.length ? ` (${asked.length === giving.length ? 'как он и просил' : `${name(asked)} — как он просил`})` : ''}: тебе так хуже. Говори о ${many ? 'них как об уступках' : 'ней как об уступке'}, нехотя, своими словами и в своей манере${stock}: не радуйся, не благодари и не говори ${take} — это ты отдаёшь, а не получаешь. И не говори, что уступаешь «за» то, что он сам себе просил.` : '') +
     (taking.length ? ` По ${name(taking)} он сам предложил тебе больше, чем было у тебя в листке: это его шаг к тебе — прими его.` : '')
   )
 }
@@ -368,7 +370,7 @@ function dealSides(sc: Scenario, deal: Offer, prev: Offer, before: Offer): strin
   const list = (xs: Issue[]) => xs.map((i) => `«${lc(i.title)}: ${i.options[at(i)]}»`).join(', ')
   if (!gave.length && sc.issues.every((i) => !has(i) || deal[i.id] === prev[i.id])) return ' Он принял твоё предложение как есть — этим можешь быть доволен.'
   return (
-    (gave.length ? ` Против своего листка ты тут уступил: ${list(gave)} — о ${gave.length > 1 ? 'них' : 'нём'} без радости («ладно, пусть так»).` : '') +
+    (gave.length ? ` Против своего листка ты тут уступил: ${list(gave)} — о ${gave.length > 1 ? 'них' : 'нём'} без радости, своими словами.` : '') +
     (got.length ? ` Он к тебе сдвинулся: ${list(got)} — этим можешь быть доволен.` : '')
   )
 }
@@ -657,6 +659,24 @@ function issuesFor(sc: Scenario, q: Quantity): Issue[] {
 }
 
 /**
+ * Переспрос того, что игрок назвал словами: «энергетик» — это вариант «150 ₽ за энергетик», и «Ты за сто пятьдесят
+ * хочешь кроссы закрыть?» — его же цифра, а не новая (живая партия 19.10: обрыв и переписка, +2,5 с тишины).
+ * Только в вопросе и только по его последней фразе: своё старое условие так не вернуть.
+ */
+function echoed(sc: Scenario, line: string, q: Quantity, heard: string): boolean {
+  const end = line.slice(q.end).search(/[.!?…]/u)
+  if (end < 0 || line[q.end + end] !== '?') return false
+  const last = heard.split('\n').pop() ?? ''
+  return sc.issues.some((i) => i.options.some((o, n) => {
+    const v = valueOf(sc, i.id, n)
+    if (!v || !same(v.value, q.value)) return false
+    const own = (o.toLowerCase().match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 5))
+      .filter((w) => !i.options.some((x, k) => k !== n && x.toLowerCase().includes(w)) && !i.title.toLowerCase().includes(w))
+    return own.some((w) => new RegExp(`(?<!\\p{L})${w}`, 'iu').test(last))
+  }))
+}
+
+/**
  * Числа-условия в реплике, которых нет в решении: собеседник выдумал цифру. Цифра условия — это вариант его позиции
  * по этому пункту; ещё можно повторить цифру игрока (heard — только его слова), сказать «было X, теперь Y» про то,
  * что меняется, и то, что он знает о себе (карточка, бриф, запасной вариант, открытые причины). Свои прошлые цифры —
@@ -679,6 +699,7 @@ export function strayNumbers(sc: Scenario, frame: Frame, line: string, heard: st
     // «было двести двенадцать, теперь двести четыре»: прошлое значение — только вместе с новым
     if (about.some((i) => frame.changed.includes(i.id) && is(i.id, frame.prev[i.id]) && said.some((x) => x !== q && same(valueOf(sc, i.id, frame.position[i.id])?.value ?? NaN, x.value)))) continue
     if (his.some((h) => same(h.value, q.value))) continue
+    if (echoed(sc, line, q, heard)) continue
     // голое число в карточке («за пятьсот брал») — от сотни и выше, мелкие («двое детей») ничего не разрешают
     if (own.some((h) => same(h.value, q.value) && (h.dim === q.dim || q.dim === 'plain' || (h.dim === 'plain' && h.value >= 100)))) continue
     out.push(line.slice(q.at, q.end))
@@ -784,6 +805,8 @@ function thanksForNothing(sc: Scenario, frame: Frame, line: string): boolean {
   })
 }
 
+const PARROT = /(?<!\p{L})(?:не радуюсь|без радости|отдаю, а не получаю)(?!\p{L})/iu
+
 /** Что нельзя произнести, по самому тексту: согласие, чужие цифры, тайна, «последнее слово», грубость, стороны. */
 function sayProblems(sc: Scenario, frame: Frame, line: string, ctx: CheckContext, before = ''): string[] {
   const hard: string[] = []
@@ -798,6 +821,8 @@ function sayProblems(sc: Scenario, frame: Frame, line: string, ctx: CheckContext
   if (mixesSides(sc, line)) hard.push('ты перепутал стороны сделки')
   if (sentences(line).some((s) => wrongJoy(sc, frame, s))) hard.push('ты радуешься тому, что тебе невыгодно: свою уступку отдаёшь нехотя, без радости, «беру» и «спасибо»')
   if (thanksForNothing(sc, frame, line)) hard.push('ты благодаришь, хотя он тебе ничего не дал')
+  // «Обмен сегодня и пять процентов — это я отдаю, не радуюсь» (Лариса Петровна, 19.10): подсказку рамки вслух не пересказывают
+  if (PARROT.test(line)) hard.push('не пересказывай подсказку вслух: просто скажи нехотя')
   if (isEn(sc) && /[а-яё]/iu.test(line)) hard.push('говори только по-английски')
   return hard
 }
@@ -884,7 +909,7 @@ export function prune(sc: Scenario, frame: Frame, out: Raw, ctx: CheckContext): 
     if (leaks(sc, frame, clean, ctx.said).length) return false
     if (claimsFinal(clean) && !frame.final && d.kind !== 'accept' && d.kind !== 'walk_away') return false
     if (isEn(sc) && /[а-яё]/iu.test(clean)) return false
-    if (wrongJoy(sc, frame, clean) || thanksForNothing(sc, frame, clean)) return false
+    if (wrongJoy(sc, frame, clean) || thanksForNothing(sc, frame, clean) || PARROT.test(clean)) return false
     return !isRude(clean) && !mixesSides(sc, clean)
   })
   const text = keep.join(' ').trim()
@@ -1225,7 +1250,10 @@ export const withOpener = (opener: string | undefined, line: string) =>
 export function dropEcho(opener: string | undefined, line: string): string {
   const words = opener?.match(/[\p{L}\d]+/gu)
   if (!words?.length) return line
-  const m = new RegExp(`^[^\\p{L}\\d]*${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\p{L}\\d]+')}(?=[\\s,]*[.…!?])[^\\p{L}\\d\\[]*`, 'iu').exec(line)
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // весь заход («Самое важное?.. Самое важное — по субботам») или его первое слово отдельной фразой («Помню, и что… помню.»)
+  const m = new RegExp(`^[^\\p{L}\\d]*${words.map(esc).join('[^\\p{L}\\d]+')}(?=[\\s,]*[.…!?—–])[^\\p{L}\\d\\[]*`, 'iu').exec(line) ??
+    (words.length > 1 ? new RegExp(`^[^\\p{L}\\d]*${esc(words[0])}(?=\\s*[.…!?]\\s+\\p{L})[^\\p{L}\\d\\[]*`, 'iu').exec(line) : null)
   return m ? line.slice(m[0].length) : line
 }
 
