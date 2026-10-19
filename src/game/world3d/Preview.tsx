@@ -1,5 +1,6 @@
 // Витрина 3D-комнаты для разработки: /?world=factory, office, dorm, street, shop, bytovka, inei, istanbul, meet.
-// Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1, &face=rinat, &case=tara.
+// Параметры: &yaw=градусы &pitch=градусы — сразу повернуть голову (для снимков), &xray=1, &face=rinat, &case=tara,
+// &leave=1 — через 2 с собеседник встаёт и уходит (exit.ts), &walk=1 — уходим мы: встаём и оборачиваемся к выходу.
 // Управление: перетаскивание, стрелки ←→, ↓ стол, ↑ собеседник.
 
 import { useEffect, useRef } from 'react'
@@ -42,12 +43,21 @@ export default function Preview() {
         w.head.tp = w.head.pitch = Number(pitch ?? -6) * MathUtils.DEG2RAD
       }, 300)
     if (q.get('desk')) w.look('desk')
+    const leave = setTimeout(() => {
+      if (q.get('leave') && w.company) w.company.lead.leaving = true
+      if (q.get('walk')) {
+        w.standTarget = 1
+        w.head.ty = w.exitYaw
+        w.head.tp = -4 * MathUtils.DEG2RAD
+      }
+    }, 2000)
     w.xrayTarget = q.get('xray') ? 1 : 0
     w.fade = 0
     w.start()
     const off = attachInput(w, ref.current!)
     ;(window as unknown as { world: World }).world = w
     return () => {
+      clearTimeout(leave)
       off()
       w.dispose()
       const debug = window as unknown as { world?: World }

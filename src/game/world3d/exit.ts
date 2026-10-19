@@ -2,7 +2,8 @@
 // и выходит в дверь своей комнаты — или, где двери нет, туда, куда уходят по-настоящему (с остановки — за ларёк).
 // Здесь только план и время: точки пути по полу, когда открывается дверь, когда человек темнеет в проёме и пропадает.
 // Рисует это people.ts, дверь двигает комната (RoomBuild.door), голову игрока за уходящим поворачивает stage.ts.
-// Пути сняты по виду сверху каждой комнаты: проходы между мебелью, без стола, стульев и шкафов (exit.test.ts).
+// Пути сняты по виду сверху каждой комнаты: проходы между мебелью, без стола, стульев и шкафов (exit.test.ts),
+// и сверены с настоящей геометрией собранных комнат (exit.rooms.test.ts).
 
 import type { WorldKind } from './rooms'
 import { ROOM, SEATED_FORWARD, SEATS } from './layout'
@@ -26,13 +27,16 @@ export interface ExitPlan {
   dark?: boolean
   /** за стеклом, на вечерней улице, человек чуть темнее (магазин) */
   dusk?: { x: number }
+  /** выход на полу: проём двери (на остановке — поворот тропинки за ларёк); к нему оборачивается игрок, если уходит сам */
+  look: Pt
 }
 
 const HW = ROOM.halfW
 /** где стоит поднявшийся собеседник: его место за столом */
 export const SEAT: Pt = [SEATS.opponent.x, SEATS.opponent.z + SEATED_FORWARD]
-/** проход между своим стулом и стулом соседа слева (зазор −0,62…−0,4 м во всех комнатах) */
-const GAP_X = -0.52
+/** проход между своим стулом и стулом соседа слева (зазор −0,62…−0,4 м во всех комнатах; у соседа в переговорной
+ * подлокотник и крестовина до −0,62 — держимся ближе к своему креслу, которое он, вставая, отодвигает) */
+const GAP_X = -0.48
 /** за спинками дальнего ряда */
 const BEHIND = -1.72
 /** в проёме: за плоскостью стены, где его уже не видно */
@@ -51,23 +55,29 @@ const PATHS: Record<WorldKind, Pt[]> = {
   dorm: [SEAT, [GAP_X, SEAT[1] - 0.04], [GAP_X, -1.62], [-2.15, -1.62], [-2.2, -0.9], [-2.27, -0.63], [-2.62, -0.4], [-2.62, mid(DORM.door)], [OUT, mid(DORM.door)]],
   // бытовка: стойка с микроволновкой в левом дальнем углу — обходим её край, дальше вдоль огнетушителя
   bytovka: [SEAT, [GAP_X, SEAT[1] - 0.04], [GAP_X, BEHIND], [-2.35, BEHIND], [-2.55, -1.2], [-2.55, mid(BYTOVKA.door)], [OUT, mid(BYTOVKA.door)]],
-  // «Иней»: у двери фикус (z 0,95) и вешалка (z 2,0) — входим между ними
-  inei: leave(-2.4, (INEI.ficus[1] + INEI.coat[1]) / 2),
+  // «Иней»: у двери фикус (z 0,95, крона до x −2,5 и до z 1,4) и вешалка (z 2,0) — мимо кроны и в проём ближе к вешалке
+  inei: leave(-2.36, mid(INEI.door) - 0.08),
   // Стамбул: вдоль стойки с образцами и мимо оливы у двери
   lagos: leave(-2.45, mid(LAGOS.door)),
   istanbul: leave(-2.45, mid(ISTANBUL.door)),
-  // магазин: из-за кассы назад, вдоль стеллажей налево, между промостойкой и рамкой у входа, в автоматическую дверь
-  // и по улице за витриной налево, пока не скроется за глухой стеной
-  shop: [SEAT, [0, -1.6], [-2.45, -1.6], [-2.45, mid(SHOP.door)], [-HW - 0.18, mid(SHOP.door)], [-HW - 0.18, SHOP.glass[0] - 0.45]],
+  // магазин: из-за кассы назад, вдоль стеллажей налево, мимо торца рамки у входа (до x −2,47), левее промостойки
+  // и того, кто сидит у неё в торце, в автоматическую дверь и по улице за витриной налево, пока не скроется за глухой стеной
+  shop: [SEAT, [0, -1.6], [-2.3, -1.6], [-2.3, -0.75], [-2.42, -0.3], [-2.42, mid(SHOP.door)], [-HW - 0.18, mid(SHOP.door)], [-HW - 0.18, SHOP.glass[0] - 0.45]],
   // остановка: перешагивает лавку, мимо собаки по тропинке назад-налево и за ларёк
   street: [SEAT, [0, -1.62], [-1.2, -2.2], [-2.5, -2.75], [-4.3, -3.5], [-4.4, -6.3]],
   // переговорная «Кама»: собеседник на экране и не ходит; путь на всякий случай — между пустыми креслами
-  // дальнего ряда назад, вдоль окон направо, в дверь в дальней стене и по коридору за ней
-  meet: [SEAT, [0, -1.78], [mid(MEET.door), -1.78], [mid(MEET.door), MEET.room[2] - 0.9], [0, MEET.room[2] - 0.9]],
+  // дальнего ряда назад, вдоль окон направо, в дверь в дальней стене и по коридору за ней направо — за глухую стену,
+  // а не налево, где окна в пол и он шёл бы за стеклом по воздуху
+  meet: [SEAT, [0, -1.78], [mid(MEET.door), -1.78], [mid(MEET.door), MEET.room[2] - 0.9], [MEET.room[1] + 0.5, MEET.room[2] - 0.9]],
 }
 
 /** Дверь в стене: открывается за 1,6 м пути до точки перед проёмом, закрывается, когда он скрылся за стеной. */
-const inDoor = (path: Pt[]): ExitPlan => ({ path, door: { at: pathLength(path.slice(0, -1)) - 1.6, shut: pathLength(path) }, dark: true })
+const inDoor = (path: Pt[]): ExitPlan => ({
+  path,
+  door: { at: pathLength(path.slice(0, -1)) - 1.6, shut: pathLength(path) },
+  dark: true,
+  look: [-HW, path[path.length - 1][1]],
+})
 
 export const EXITS: Record<WorldKind, ExitPlan> = {
   factory: inDoor(PATHS.factory),
@@ -78,9 +88,14 @@ export const EXITS: Record<WorldKind, ExitPlan> = {
   lagos: inDoor(PATHS.lagos),
   istanbul: inDoor(PATHS.istanbul),
   // автоматическая дверь магазина закрывается, когда он вышел на улицу
-  shop: { path: PATHS.shop, door: { at: pathLength(PATHS.shop.slice(0, -2)) - 1.6, shut: pathLength(PATHS.shop.slice(0, -1)) + 0.4 }, dusk: { x: -HW } },
-  street: { path: PATHS.street },
-  meet: { path: PATHS.meet },
+  shop: {
+    path: PATHS.shop,
+    door: { at: pathLength(PATHS.shop.slice(0, -2)) - 1.6, shut: pathLength(PATHS.shop.slice(0, -1)) + 0.4 },
+    dusk: { x: -HW },
+    look: [-HW, mid(SHOP.door)],
+  },
+  street: { path: PATHS.street, look: PATHS.street[4] },
+  meet: { path: PATHS.meet, look: [mid(MEET.door), MEET.room[2]] },
 }
 
 export function pathLength(path: readonly Pt[]) {

@@ -187,7 +187,7 @@ export default function Play3D(props: Props) {
     const wasStanding = world.standTarget === 1
     world.standTarget = we ? 1 : 0
     if (we) {
-      world.head.ty = 55 * (Math.PI / 180)
+      world.head.ty = world.exitYaw
       world.head.tp = -4 * (Math.PI / 180)
     } else if (wasStanding) world.look('face') // отменили уход — садимся обратно
   }, [world, state.status, state.endedBy])
