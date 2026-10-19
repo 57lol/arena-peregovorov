@@ -2021,6 +2021,10 @@ body {
 .w3-note .px-issue-value {
   white-space: normal;
   line-height: 20px;
+  /* длинное слово («виртуальная») на узком листе переносится, а не заезжает под стрелку */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 .g-report-left {
   display: flex;
