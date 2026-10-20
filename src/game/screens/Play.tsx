@@ -294,6 +294,10 @@ export function Play(props: Props) {
                     {notebook ? 'Закрыть блокнот' : 'Блокнот'}
                   </Button>
                   )}
+                  {/* телефон: в шапке места нет — «Как играть» здесь, у блокнота */}
+                  <button type="button" className="g-link g-only-mobile" onClick={() => setTour(true)}>
+                    Как играть
+                  </button>
                   {source === 'local' && <span className="g-source">сервер недоступен, играем офлайн</span>}
                 </div>
               </form>

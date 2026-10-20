@@ -29,13 +29,15 @@ interface Props {
   onLibrary: () => void
   onCoach: () => void
   onCareer: () => void
+  /** недоигранная встреча из прошлого раза (вкладку закрыли посреди разговора) */
+  resume?: { title: string; turn: number; total: number; onResume: () => void }
 }
 
 /**
  * Титул: живая сцена на весь экран — вечер на Каме, автобус привозит новенького в Алабугу.
  * Слов минимум: название, одна строка и две кнопки. По ссылке-приглашению — записка с делом.
  */
-export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onStart, onLibrary, onCareer }: Props) {
+export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onStart, onLibrary, onCareer, resume }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -127,6 +129,14 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <p className="tt-notice" role="alert">
                 {notice}
               </p>
+            )}
+            {resume && (
+              <button type="button" className="tt-btn is-story tt-resume" onClick={resume.onResume}>
+                <b>Продолжить встречу</b>
+                <span>
+                  «{resume.title}», сказано {resume.turn} из {resume.total}
+                </span>
+              </button>
             )}
             <button type="button" className="tt-btn is-story" onClick={onPlay}>
               <b>Сюжет</b>

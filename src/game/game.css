@@ -779,7 +779,8 @@ body {
     gap: 0;
   }
   /* на телефоне «Голос» — значок у таблички с именем, в шапке ему места нет; у микрофона только значок */
-  .g-hud-actions .g-voice-btn {
+  .g-hud-actions .g-voice-btn,
+  .g-hud-actions .g-howto-btn {
     display: none;
   }
   .g-voice-btn-label,

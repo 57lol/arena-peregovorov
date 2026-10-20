@@ -79,7 +79,7 @@ export function MeetingClock({ turn, turnLimit, startAt = 10 * 60, minutes = 60 
       </svg>
       <div className="px-clock-text">
         <span className="px-clock-time">{fmt(now)}</span>
-        <span className="px-clock-left">{left === 0 ? 'время вышло' : `осталось ${left} ${plural(left, 'реплика', 'реплики', 'реплик')}`}</span>
+        <span className="px-clock-left">{left === 0 ? 'время вышло' : `ещё ${left} ${plural(left, 'реплика', 'реплики', 'реплик')}`}</span>
       </div>
     </div>
   )

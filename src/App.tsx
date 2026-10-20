@@ -81,6 +81,29 @@ function loadSession(): Saved | null {
   }
 }
 const saved = loadSession()
+
+// Недоигранная встреча переживает закрытие вкладки (брат: «отвалился прогресс, когда я закрыл игру»): кампания и
+// открытые дела и так в localStorage (progress.ts), а саму встречу кладём сюда, пока она идёт. На титуле — «Продолжить».
+// Встреча по ссылке тренировки сюда не попадает: у неё своя попытка в журнале руководителя
+const RESUME = 'peregovorka.resume.v1'
+const RESUME_TTL = 3 * 24 * 3600_000
+interface Resume {
+  current: Case
+  history: TurnRecord[]
+  from: Origin
+  at: number
+}
+function loadResume(): Resume | null {
+  try {
+    if (saved) return null // перезагрузка и так вернула во встречу
+    const r = JSON.parse(localStorage.getItem(RESUME) ?? 'null') as Resume | null
+    const last = r?.history?.[r.history.length - 1]
+    return r?.current?.scenario && last && last.stateAfter.status === 'open' && Date.now() - r.at < RESUME_TTL ? r : null
+  } catch {
+    return null
+  }
+}
+const resumable = loadResume()
 // доска руководителя открывается по своей ссылке и живёт отдельно от игры
 const boardRef = readBoardParam()
 /** Подпись партии: разбор одной и той же партии записываем в прогресс один раз. */
@@ -142,6 +165,18 @@ export default function App() {
   // музыка экрана, фон комнаты на встрече, шаги и автобус в катсцене
   useSoundScene(screen, current?.scenario, film?.id)
 
+  // встреча идёт — запоминаем её для «Продолжить»; кончилась, вышли из неё или начали новую — забываем
+  const [resume, setResume] = useState<Resume | null>(resumable)
+  useEffect(() => {
+    try {
+      const last = history[history.length - 1]
+      if (screen === 'play' && current && !demo && !room && last?.stateAfter.status === 'open')
+        localStorage.setItem(RESUME, JSON.stringify({ current, history, from, at: Date.now() } satisfies Resume))
+      else if (screen === 'play' || screen === 'report' || screen === 'brief') localStorage.removeItem(RESUME)
+    } catch {
+      // нет хранилища — продолжить встречу после закрытия вкладки не выйдет
+    }
+  }, [screen, current, history, demo, room, from])
   useEffect(() => {
     try {
       if (screen !== 'board') sessionStorage.setItem(SESSION, JSON.stringify({ screen, current, history, recorded, demo, room, attemptId, startedAt, sent, from } satisfies Saved))
@@ -491,6 +526,32 @@ export default function App() {
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
         onFilms={() => films('title')}
+        resume={
+          resume && !invited
+            ? {
+                title: resume.current.scenario.title,
+                turn: resume.history.length,
+                total: resume.current.scenario.turnLimit,
+                onResume: () => {
+                  unlock()
+                  setNotice(null)
+                  setResume(null)
+                  clearLink()
+                  setRoom(null)
+                  setFrom(resume.from)
+                  setCurrent(resume.current)
+                  setDemo(false)
+                  setRecorded('')
+                  setHistory(resume.history)
+                  setRedo('')
+                  setAttemptId(newAttemptId())
+                  setStartedAt(Date.now())
+                  setPlayKey((k) => k + 1)
+                  go('play')
+                },
+              }
+            : undefined
+        }
         // «Сюжет»: в первый раз — пролог в автобусе и сразу первая глава, потом — карта недели
         onPlay={() => {
           setNotice(null)
@@ -557,7 +618,15 @@ export default function App() {
         }
         go('report')
       },
-      onQuit: () => go(home(from)),
+      onQuit: () => {
+        // «Выйти к папке дел» — встреча не сохраняется, и «Продолжить» потом её не предложит
+        try {
+          localStorage.removeItem(RESUME)
+        } catch {
+          // нет хранилища — нечего забывать
+        }
+        go(home(from))
+      },
     }
     return (
       <>
