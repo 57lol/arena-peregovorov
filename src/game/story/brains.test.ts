@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { brainsOf, modelName } from './Jury'
+import { brainsOf, modelName } from './brains'
 
 it('хаб жюри пишет, кто разбирает и кто отвечает, по /api/health', () => {
   expect(modelName('aitunnel:claude-sonnet-5.5')).toBe('Claude Sonnet 5.5')
