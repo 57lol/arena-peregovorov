@@ -358,7 +358,7 @@ function Books({ history, skip }: { history: TurnRecord[]; skip?: string }) {
         Приёмы из книг
       </h2>
       <p className="g-muted">
-        Каждый приём игры взят из книг по переговорам: Фишер и Юри, Восс, Рэкхем, Стоун. Вот что из них было в ваших репликах.
+        Приёмы игры описаны в пяти книгах по переговорам (Фишер, Юри, Восс, Рэкхем, Стоун). Вот что из них было в ваших репликах.
       </p>
       <div className="g-books-cols">
         <div className="g-books-col g-books-col--good">
