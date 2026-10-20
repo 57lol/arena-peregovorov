@@ -8,7 +8,7 @@ import type { LiveRow } from '../../engine/live'
 import type { Scenario } from '../../engine/types'
 import type { Health } from '../api'
 import { isFemale, plural } from '../cast'
-import { closeRoom, loadBoard, RoomError, teamLink } from '../rooms'
+import { boardLink, closeRoom, loadBoard, RoomError, teamLink } from '../rooms'
 import { Button, Row } from '../ui'
 import { LinkField } from './Coach'
 import { Bench } from './Debrief'
@@ -113,7 +113,7 @@ export function Board({ server, id, secret, onExit }: Props) {
       <main className="px-desk g-desk g-board">
         <header className="g-bar">
           <Button variant="ghost" icon="left" onClick={onExit}>
-            К игре
+            В кабинет
           </Button>
           {data && (
             <Button icon="rewind" onClick={refreshNow} disabled={busy} className="g-board-refresh">
@@ -172,6 +172,10 @@ function Journal({ data, sc, updated, error, secret, onShare, closing, onClose }
           {updated ? `. Обновлено в ${updated.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}.
         </span>
       </p>
+      <details className="g-board-private">
+        <summary>Ваша доска · ссылку никому не пересылайте</summary>
+        <LinkField label="Сохранить доску себе" value={boardLink({ id: data.id, key: secret })} secret note="По этой ссылке доступны результаты команды. Участникам отправляйте ссылку на тренировку ниже." />
+      </details>
       {error && (
         <p className="g-error g-board-err" role="alert">
           {error}
@@ -186,7 +190,7 @@ function Journal({ data, sc, updated, error, secret, onShare, closing, onClose }
         </section>
       ) : null}
       <div className="g-board-tools">
-        <LinkField label="Ссылка для команды" value={teamLink(data)} />
+        {!data.closedAt && <LinkField label="Ссылка для команды" value={teamLink(data)} note="Эту ссылку отправляйте участникам. Доска обновляется сама." />}
         <div className="g-board-tools-right">
           <fieldset className="g-chips" aria-label="Какую попытку считать">
             <legend>Считаем попытку</legend>

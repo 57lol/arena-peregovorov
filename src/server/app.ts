@@ -129,6 +129,7 @@ function zodText(e: z.ZodError): string {
   const i = e.issues[0]
   const where = i.path.join('.')
   if (where === 'playerText') return i.code === 'too_big' ? 'Реплика длиннее 1500 символов' : 'Пустая реплика'
+  if (where === 'context') return i.code === 'too_big' ? 'История длиннее 1500 символов. Сократите её и попробуйте ещё раз.' : 'Напишите историю обычным текстом.'
   if (where.startsWith('history')) return 'История встречи не разобралась — начните встречу заново'
   if (where.startsWith('scenario')) return 'Дело сломано'
   return `Запрос не разобрался (${where || i.code})`

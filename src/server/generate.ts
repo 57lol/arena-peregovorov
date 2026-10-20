@@ -25,6 +25,7 @@ export const GenerateRequest = z.object({
   opponentGoals: z.string().max(300).optional(),
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(2),
   goals: z.string().max(400).default(''),
+  context: z.string().max(1500).transform((value) => value.trim() || undefined).optional(),
 })
 export type GenerateRequest = z.infer<typeof GenerateRequest>
 
@@ -200,7 +201,7 @@ export function userPrompt(req: GenerateRequest, problems: string[]): string {
 Роль игрока: ${req.playerRole || 'на твой выбор'}${side ? `\n${SIDE_LINE[side]}` : ''}
 Характер оппонента: ${tone}${req.opponentRole?.trim() ? `\nКто оппонент: ${req.opponentRole.trim()} — сделай его именно таким (должность, положение, сторона сделки)` : ''}${req.opponentGoals?.trim() ? `\nЧего добивается оппонент: ${req.opponentGoals.trim()} — пусть его стартовые требования и скрытые интересы исходят из этого` : ''}
 Что игрок хочет потренировать: ${req.goals || 'не указано'}${req.goals ? ' — построй кейс так, чтобы это пришлось делать' : ''}
-Имя оппонента начинается на «${nameHint(req)}».
+Имя оппонента начинается на «${nameHint(req)}».${req.context?.trim() ? `\nПожелание к сюжету от руководителя (своя история / контекст):\n${req.context.trim()}\nИспользуй это как контекст истории; сохрани схему кейса, роли сторон и проверяемый баланс условий.` : ''}
 ${problems.length ? `\nПрошлый вариант не прошёл проверку:\n- ${problems.join('\n- ')}\nИсправь это.` : ''}
 Верни кейс JSON-объектом.`
 }

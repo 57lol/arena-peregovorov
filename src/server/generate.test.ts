@@ -4,6 +4,8 @@ import type { Scenario } from '../engine/types'
 import { checkScenario } from '../engine/validate'
 import { amount, unspeaker, GenerateRequest, generateScenario, libraryRequest, scenarioProblems, settle, sideOf, sideProblems, sideTextProblems, storyProblems, toScenario, userPrompt } from './generate'
 import { pickFromLibrary, SCENARIOS } from '../content/scenarios'
+import { CASE_TEMPLATES } from '../game/caseTemplates'
+import { hashOf } from './cache'
 
 const seed = {
   title: 'Склад под маркетплейс', playerRole: 'директор по логистике', playerBrief: '...', playerBatnaText: 'склад в Зеленодольске',
@@ -20,6 +22,49 @@ const seed = {
 }
 
 const raw = { ...seed, issues: seed.issues.map((i) => ({ ...i, bestForPlayer: i.options[0], bestForOpponent: i.options[i.role === 'shared' ? 0 : i.options.length - 1] })) }
+
+describe('история HR и шаблоны задач', () => {
+  it('старый запрос без истории даёт побайтово прежний промпт для кэша', () => {
+    const req = GenerateRequest.parse({ sphere: 'Найм', theme: 'Инженер', playerRole: 'HR-менеджер', goals: 'выяснять интересы' })
+    expect(req).not.toHaveProperty('context')
+    // Хэш userPrompt из HEAD до добавления поля context.
+    expect(hashOf(userPrompt(req, []))).toBe('40d7c8d05aec75a5ffca5469ab5f767d9639c4e67330247554336a53be22822f')
+    expect(userPrompt(GenerateRequest.parse({ ...req, context: ' \n ' }), [])).toBe(userPrompt(req, []))
+  })
+
+  it('история ограничена 1500 символами, сохраняет переносы и доходит до модели', async () => {
+    const context = '  Запускаем цех через месяц.\nИнженер переезжает с семьёй.  '
+    const req = GenerateRequest.parse({ context })
+    expect(req.context).toBe(context.trim())
+    expect(GenerateRequest.safeParse({ context: 'я'.repeat(1500) }).success).toBe(true)
+    expect(GenerateRequest.safeParse({ context: 'я'.repeat(1501) }).success).toBe(false)
+    expect(GenerateRequest.safeParse({ context: 123 }).success).toBe(false)
+    const json = vi.fn(async () => raw)
+    await generateScenario({ name: 'yandex', model: 'fixture', json }, req, SCENARIOS)
+    expect(json).toHaveBeenCalled()
+    for (const call of json.mock.calls as unknown as [{ user: string }][]) {
+      expect(call[0].user).toContain(context.trim())
+      expect(call[0].user).toContain('Пожелание к сюжету')
+      expect(call[0].user).toContain('Верни кейс JSON-объектом.')
+    }
+  })
+
+  it('пять задач покрывают разные сферы без повторов', () => {
+    expect(CASE_TEMPLATES).toHaveLength(5)
+    expect(new Set(CASE_TEMPLATES.map((t) => t.id)).size).toBe(5)
+    expect(new Set(CASE_TEMPLATES.map((t) => t.request.sphere))).toEqual(new Set(['Закупки', 'Найм', 'Аренда', 'Продажи', 'Подряд']))
+  })
+
+  it.each(CASE_TEMPLATES)('$title: форма заполнена и проходит серверную схему', ({ request }) => {
+    const req = GenerateRequest.parse(request)
+    for (const field of ['theme', 'playerRole', 'opponentRole', 'opponentGoals', 'goals', 'context'] as const) {
+      expect(req[field]?.trim().length).toBeGreaterThan(0)
+    }
+    expect(req).toEqual(request)
+    expect(sideOf(req)).toBe(req.sphere === 'Продажи' ? 'payee' : 'payer')
+    expect(userPrompt(req, [])).toContain(request.context)
+  })
+})
 
 it('повторённый моделью интерес с перепутанной стороной не принимается как косметическое замечание', async () => {
   const answer = { ...raw, interests: [{ issue: 'term', text: 'срок нам удобнее всего 1 год, не дольше' }, raw.interests[1]] }

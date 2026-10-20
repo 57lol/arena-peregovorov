@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import '../coach.css'
 import type { Case } from '../../App'
 import { SCENARIOS, harder, pickFromLibrary } from '../../content/scenarios'
 import type { Difficulty, Scenario, Tone } from '../../engine/types'
@@ -12,6 +13,8 @@ import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 import { CareerCard } from './Career'
 import { nextCase } from '../career'
+import { CASE_TEMPLATES, type CaseTemplate } from '../caseTemplates'
+import { CoachSteps } from './CoachSteps'
 
 interface Props {
   progress: Progress
@@ -32,6 +35,13 @@ interface Props {
 export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCareer, intro, customOpen }: Props) {
   // совет, а не замок: все дела открыты, отмечаем только одно
   const advice = coach ? null : nextCase(progress)
+  const jumpTo = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    // Экраны используют popstate: якорь не должен создавать запись без screen и уводить на титул.
+    event.preventDefault()
+    const target = document.getElementById(id)
+    target?.focus({ preventScroll: true })
+    target?.scrollIntoView({ block: 'start' })
+  }
   return (
     <div className="px-root g-page" data-desk="factory">
       <main className="px-desk g-desk g-setup">
@@ -40,14 +50,19 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCare
             Назад
           </Button>
         </header>
-        <h1 className="g-h1">{coach ? 'Какое дело дать команде' : 'Выберите дело'}</h1>
+        <h1 className="g-h1" tabIndex={-1}>{coach ? 'Кабинет руководителя' : 'Выберите дело'}</h1>
         <p className="g-sub">
           <span>
             {coach
-              ? 'Готовое из папки или своё. У всех по ссылке будут одинаковые условия, и результаты сойдутся на одной доске.'
+              ? 'Подготовьте встречу для команды. Участники сыграют по одной ссылке, результаты соберутся на вашей доске.'
               : 'Готовое из папки или своё — под вашу сферу и задачу.'}
           </span>
         </p>
+        {coach && <CoachSteps current={1} />}
+        {coach && <nav className="g-coach-paths" aria-label="Как выбрать дело">
+          <a href="#coach-custom" onClick={(e) => jumpTo(e, 'coach-custom')}>Собрать своё дело</a>
+          <a href="#coach-library" onClick={(e) => jumpTo(e, 'coach-library')}>Выбрать готовое</a>
+        </nav>}
         {intro}
         {!coach && onCareer && (
           <div className="g-setup-career">
@@ -56,6 +71,8 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCare
         )}
 
         <div className="g-folders">
+          {coach && <CustomCase server={server} onOpen={onOpen} coach startOpen={customOpen} />}
+          {coach && <h2 id="coach-library" tabIndex={-1} className="g-coach-library-title">Готовые дела</h2>}
           {SCENARIOS.map((sc) => (
             <Folder
               key={sc.id}
@@ -66,7 +83,7 @@ export function Setup({ progress, server, onOpen, onBack, coach, onCoach, onCare
               onOpen={(s) => onOpen({ scenario: s, fromLibrary: true })}
             />
           ))}
-          <CustomCase server={server} onOpen={onOpen} coach={coach} startOpen={customOpen} />
+          {!coach && <CustomCase server={server} onOpen={onOpen} startOpen={customOpen} />}
         </div>
         {onCoach && !coach && (
           <div className="g-coach-slot">
@@ -137,8 +154,8 @@ function Folder({ sc, progress, coach, advice, onOpen }: FolderProps) {
         </div>
       </div>
       <div className="g-folder-actions">
-        <Button variant="brass" icon={coach ? 'send' : 'notebook'} onClick={() => onOpen(sc)}>
-          {coach ? 'Дать команде' : 'Открыть дело'}
+        <Button variant="brass" icon="notebook" onClick={() => onOpen(sc)}>
+          {coach ? 'Проверить встречу' : 'Открыть дело'}
         </Button>
         {canHarder && (
           <Button variant="stamp" onClick={() => onOpen(hard)}>
@@ -207,6 +224,26 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
   }, [busy])
 
   const set = <K extends keyof GenerateRequest>(k: K, v: GenerateRequest[K]) => setReq((r) => ({ ...r, [k]: v }))
+  const [template, setTemplate] = useState<string | null>(null)
+  const applyTemplate = (item: CaseTemplate) => {
+    setReq({ ...item.request })
+    setTemplate(item.id)
+    setFallback(null)
+    setOpenForm(true)
+  }
+  const templates = (
+    <fieldset className="g-case-templates" disabled={busy}>
+      <legend>Начните с рабочей задачи</legend>
+      <p className="g-form-note">Шаблон заполнит описание. Любое поле можно изменить.</p>
+      <div className="g-case-template-list">
+        {CASE_TEMPLATES.map((item) => (
+          <button key={item.id} type="button" className="g-case-template" aria-pressed={template === item.id} onClick={() => applyTemplate(item)}>
+            <strong>{item.title}</strong><span>{item.note}</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  )
 
   const noServer = {
     message: 'Сервер не отвечает, новое дело сейчас не собрать. Можно сыграть похожее из папки — с тем характером и сложностью, что вы выбрали.',
@@ -228,36 +265,37 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
         scenario: r.scenario,
       })
     } catch (e) {
+      if (!alive.current) return
       // вход истёк, лимит, неверный бриф — сервер пишет причину по-русски, её и показываем
       setFallback({ message: shownError(e) ? e.message : noServer.message, scenario: pickFromLibrary(req, SCENARIOS) })
     } finally {
-      setBusy(false)
+      if (alive.current) setBusy(false)
     }
   }
 
   if (!openForm)
     return (
-      <article className="g-folder g-folder--blank">
+      <article id={coach ? 'coach-custom' : undefined} tabIndex={coach ? -1 : undefined} className={`g-folder g-folder--blank${coach ? ' g-folder--coach' : ''}`}>
         <span className="g-folder-tab">Своё дело</span>
         <div className="g-folder-body g-folder-body--blank">
           <div className="g-folder-text">
-            <h2 className="g-folder-title">Собрать под вашу задачу</h2>
+            <h2 className="g-folder-title">Своё дело под задачу команды</h2>
             <p className="g-folder-blurb">
-              Сфера, ваша роль, характер собеседника и сложность. Нейросеть напишет историю, движок посчитает, что кому
-              выгодно, и проверит, что договориться можно и есть что обменять.
+              Возьмите рабочую задачу или опишите свою историю. Перед выдачей дела вы увидите собеседника и условия встречи.
             </p>
+            {templates}
           </div>
         </div>
         <div className="g-folder-actions">
           <Button icon="pen" onClick={() => setOpenForm(true)}>
-            Заполнить описание
+            {req.theme || req.context ? 'Продолжить описание' : 'Описать с нуля'}
           </Button>
         </div>
       </article>
     )
 
   return (
-    <article ref={formRef} className="g-folder g-folder--blank" aria-busy={busy}>
+    <article id={coach ? 'coach-custom' : undefined} tabIndex={coach ? -1 : undefined} ref={formRef} className={`g-folder g-folder--blank${coach ? ' g-folder--coach' : ''}`} aria-busy={busy}>
       <span className="g-folder-tab">Своё дело</span>
       <form
         className="g-form"
@@ -266,75 +304,93 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
           if (!busy) submit()
         }}
       >
-        <fieldset className="g-chips">
-          <legend>Сфера</legend>
-          {SPHERES.map((s) => (
-            <Chip key={s} on={req.sphere === s} onClick={() => set('sphere', s)}>
-              {s}
-            </Chip>
-          ))}
+        <h2 className="g-folder-title">Соберите историю для тренировки</h2>
+        {templates}
+        <fieldset className="g-custom-fields" disabled={busy}>
+          <legend className="px-visually-hidden">Описание дела</legend>
+          <fieldset className="g-chips">
+            <legend>Сфера</legend>
+            {SPHERES.map((s) => (
+              <Chip key={s} on={req.sphere === s} onClick={() => set('sphere', s)}>
+                {s}
+              </Chip>
+            ))}
+          </fieldset>
+          <label className="g-input">
+            <span>О чём договариваемся</span>
+            <input
+              value={req.theme}
+              maxLength={300}
+              placeholder={HINT[req.sphere]?.[0] ?? 'о чём договор'}
+              onChange={(e) => set('theme', e.target.value)}
+            />
+          </label>
+          <label className="g-input">
+            <span>Кто вы</span>
+            <input
+              value={req.playerRole}
+              maxLength={120}
+              placeholder={HINT[req.sphere]?.[1] ?? 'ваша роль'}
+              onChange={(e) => set('playerRole', e.target.value)}
+            />
+          </label>
+          <fieldset className="g-chips">
+            <legend>Характер собеседника</legend>
+            {TONES.map((t) => (
+              <Chip key={t} on={req.opponentTone === t} onClick={() => set('opponentTone', t)}>
+                {TONE_RU[t]}
+              </Chip>
+            ))}
+          </fieldset>
+          <label className="g-input">
+            <span>Кто напротив</span>
+            <input
+              value={req.opponentRole}
+              maxLength={120}
+              placeholder={HINT[req.sphere]?.[2] ?? 'кто сидит напротив'}
+              onChange={(e) => set('opponentRole', e.target.value)}
+            />
+          </label>
+          <label className="g-input">
+            <span>Цель другой стороны</span>
+            <input
+              value={req.opponentGoals}
+              maxLength={300}
+              placeholder={HINT[req.sphere]?.[3] ?? 'желаемый результат встречи'}
+              onChange={(e) => set('opponentGoals', e.target.value)}
+            />
+          </label>
+          <fieldset className="g-chips">
+            <legend>Сложность</legend>
+            {([1, 2, 3] as Difficulty[]).map((d) => (
+              <Chip key={d} on={req.difficulty === d} onClick={() => set('difficulty', d)}>
+                {DIFFICULTY_RU[d]}
+              </Chip>
+            ))}
+          </fieldset>
+          <label className="g-input">
+            <span>Что хотите потренировать</span>
+            <input
+              value={req.goals}
+              maxLength={400}
+              placeholder="не уступать в цене сразу"
+              onChange={(e) => set('goals', e.target.value)}
+            />
+          </label>
+          <label className="g-input g-context">
+            <span>Своя история / контекст <small>необязательно</small></span>
+            <textarea
+              value={req.context ?? ''}
+              maxLength={1500}
+              rows={5}
+              placeholder="Что произошло, о чём спорите, какие сроки и ограничения? Можно описать ситуацию из работы."
+              onChange={(e) => set('context', e.target.value)}
+              aria-label="Своя история / контекст (необязательно)"
+              aria-describedby="case-context-hint"
+            />
+            <span id="case-context-hint" className="g-context-hint">Пожелание к сюжету · {(req.context ?? '').length} / 1500</span>
+          </label>
         </fieldset>
-        <label className="g-input">
-          <span>О чём договариваемся</span>
-          <input
-            value={req.theme}
-            maxLength={300}
-            placeholder={HINT[req.sphere]?.[0] ?? 'о чём договор'}
-            onChange={(e) => set('theme', e.target.value)}
-          />
-        </label>
-        <label className="g-input">
-          <span>Кто вы</span>
-          <input
-            value={req.playerRole}
-            maxLength={120}
-            placeholder={HINT[req.sphere]?.[1] ?? 'ваша роль'}
-            onChange={(e) => set('playerRole', e.target.value)}
-          />
-        </label>
-        <fieldset className="g-chips">
-          <legend>Собеседник</legend>
-          {TONES.map((t) => (
-            <Chip key={t} on={req.opponentTone === t} onClick={() => set('opponentTone', t)}>
-              {TONE_RU[t]}
-            </Chip>
-          ))}
-        </fieldset>
-        <label className="g-input">
-          <span>Кто напротив</span>
-          <input
-            value={req.opponentRole}
-            maxLength={120}
-            placeholder={HINT[req.sphere]?.[2] ?? 'кто сидит напротив'}
-            onChange={(e) => set('opponentRole', e.target.value)}
-          />
-        </label>
-        <label className="g-input">
-          <span>Цель другой стороны</span>
-          <input
-            value={req.opponentGoals}
-            maxLength={300}
-            placeholder={HINT[req.sphere]?.[3] ?? 'желаемый результат встречи'}
-            onChange={(e) => set('opponentGoals', e.target.value)}
-          />
-        </label>
-        <fieldset className="g-chips">
-          <legend>Сложность</legend>
-          {([1, 2, 3] as Difficulty[]).map((d) => (
-            <Chip key={d} on={req.difficulty === d} onClick={() => set('difficulty', d)}>
-              {DIFFICULTY_RU[d]}
-            </Chip>
-          ))}
-        </fieldset>
-        <label className="g-input">
-          <span>Что хотите потренировать</span>
-          <input
-            value={req.goals}
-            maxLength={400}
-            placeholder="не уступать в цене сразу"
-            onChange={(e) => set('goals', e.target.value)}
-          />
-        </label>
 
         {busy ? (
           <div className="g-writing" role="status">
@@ -342,12 +398,12 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
               <PixelIcon name="pen" px={3} color="var(--c-denim)" color2="var(--c-brass)" />
             </span>
             <span>{STEPS[step]}</span>
-            <span className="g-writing-note">Обычно это секунд десять, если придётся переписывать — до минуты.</span>
+            <span className="g-writing-note">Собираем историю и проверяем условия. Это может занять до двух минут.</span>
           </div>
         ) : (
           <div className="g-folder-actions">
             <Button variant="brass" icon="pen" type="submit">
-              Собрать дело
+              {coach ? 'Собрать и проверить встречу' : 'Собрать дело'}
             </Button>
             <Button variant="ghost" onClick={() => setOpenForm(false)}>
               Отмена
@@ -362,7 +418,7 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
             <p>{fallback.message}</p>
             {fallback.scenario && (
               <Button onClick={() => onOpen({ scenario: fallback.scenario!, fromLibrary: false })}>
-                {coach ? 'Дать команде' : 'Сыграть'} «{fallback.scenario.title}»
+                {coach ? 'Проверить встречу' : 'Сыграть'} «{fallback.scenario.title}»
               </Button>
             )}
           </div>

@@ -495,7 +495,7 @@ export default function App() {
         secret={boardRef.key}
         onExit={() => {
           clearLink()
-          go('title')
+          go('coach')
         }}
       />
     )

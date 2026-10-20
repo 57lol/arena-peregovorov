@@ -399,7 +399,8 @@ body {
   font-weight: 700;
   box-shadow: none;
 }
-.g-input input {
+.g-input input,
+.g-input textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -413,10 +414,16 @@ body {
   font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   image-rendering: pixelated;
 }
-.g-input input::placeholder {
+.g-input textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+.g-input input::placeholder,
+.g-input textarea::placeholder {
   color: var(--c-steel);
 }
-.g-input input:focus-visible {
+.g-input input:focus-visible,
+.g-input textarea:focus-visible {
   outline: var(--u) solid var(--c-denim);
   outline-offset: 0;
 }

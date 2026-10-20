@@ -237,6 +237,8 @@ export interface GenerateRequest {
   opponentGoals?: string
   difficulty: Difficulty
   goals: string
+  /** Своя история руководителя — пожелание к сюжету, до 1500 символов. */
+  context?: string
 }
 
 export interface GenerateResult {
@@ -249,6 +251,6 @@ export interface GenerateResult {
 export function generate(req: GenerateRequest): Promise<GenerateResult> {
   // три попытки LLM по 25 секунд плюс проверки
   // пустые роль и цели собеседника не шлём: запрос без них тот же, что и раньше (и кэш тот же)
-  const body = { ...req, opponentRole: req.opponentRole?.trim() || undefined, opponentGoals: req.opponentGoals?.trim() || undefined }
+  const body = { ...req, opponentRole: req.opponentRole?.trim() || undefined, opponentGoals: req.opponentGoals?.trim() || undefined, context: req.context?.trim() || undefined }
   return post<GenerateResult>('/api/scenario/generate', body, 150_000)
 }

@@ -15,6 +15,15 @@ const turn = async (history: TurnRecord[], playerText: string, offer?: Record<st
 }
 
 describe('API в офлайне', () => {
+  it('слишком длинная история HR возвращает понятную ошибку по-русски', async () => {
+    const r = await app.request('/api/scenario/generate', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ context: 'я'.repeat(1501) }),
+    })
+    expect(r.status).toBe(400)
+    expect(await r.json()).toEqual({ error: 'История длиннее 1500 символов. Сократите её и попробуйте ещё раз.' })
+  })
+
   it.each(['/api/turn', '/api/prepare', '/api/report', '/api/tts'])('%s: испорченный JSON — 400, а не 500', async (path) => {
     const r = await app.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' })
     expect(r.status).toBe(400)

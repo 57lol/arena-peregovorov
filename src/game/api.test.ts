@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getScenario } from '../content/scenarios'
-import { ApiError, playTurn, prepareTurn } from './api'
+import { ApiError, generate, playTurn, prepareTurn } from './api'
 
 const turn = () => playTurn({ scenario: getScenario('tara')!, fromLibrary: true, history: [], text: 'Добрый день' })
 const answer = (status: number, body: unknown = {}) => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status })))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
+
+it('своя история уходит в генерацию, пустое поле не меняет старый запрос', async () => {
+  answer(200)
+  const req = { sphere: 'Найм', theme: '', playerRole: '', opponentTone: 'neutral' as const, difficulty: 2 as const, goals: '' }
+  await generate(req)
+  await generate({ ...req, context: ' \n ' })
+  await generate({ ...req, context: '  Инженер переезжает с семьёй.\nДо запуска месяц.  ' })
+  const bodies = vi.mocked(fetch).mock.calls.map((call) => JSON.parse(String(call[1]?.body)))
+  expect(bodies[0]).toEqual(req)
+  expect(bodies[1]).toEqual(req)
+  expect(bodies[2].context).toBe('Инженер переезжает с семьёй.\nДо запуска месяц.')
+})
 
 describe('ход через сервер', () => {
   it('истёкший вход — понятная ошибка, а не тихая игра без сети', async () => {

@@ -46,6 +46,16 @@ export class RoomError extends Error {
     this.status = status
   }
 }
+/** В кабинете не показываем англоязычные ошибки браузерного fetch. */
+export function roomErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof RoomError) {
+    if (error.status === 401) return 'Сеанс истёк. Обновите страницу и войдите снова.'
+    if (error.status === 429) return 'Слишком много запросов. Подождите немного и попробуйте снова.'
+    if (error.status >= 500) return fallback
+    if (/[а-яё]/i.test(error.message)) return error.message
+  }
+  return error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : fallback
+}
 const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
 export const createRoom = (caseId: string, name: string) => call<RoomRef & { key: string }>('/api/rooms', post({ caseId, name }))
