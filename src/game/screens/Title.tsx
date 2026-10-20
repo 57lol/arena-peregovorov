@@ -145,8 +145,8 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <span>Неделя новенького в Алабуге</span>
             </button>
             <button type="button" className="tt-btn is-coach" onClick={onCoach}>
-              <b>Для руководителя</b>
-              <span>Собрать тренировку под задачу команды и смотреть результаты</span>
+              <b>Руководителю</b>
+              <span>Тренировка для команды</span>
             </button>
             <button type="button" className="tt-btn is-jury" onClick={onJury ?? onStart}>
               <b>Для жюри</b>
