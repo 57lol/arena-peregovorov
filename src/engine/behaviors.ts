@@ -1366,7 +1366,8 @@ export const ENGAGES: BehaviorId[] = ['ask_interest', 'check', 'label', 'summari
 // Одна фраза — один приём: если два приёма нашлись в одном предложении, остаётся более точный (первый).
 // «Как нам решить вопрос с отсрочкой?» — вопрос «как?» Восса, а не ещё и вопрос об интересах; «Вы, наверное, думаете,
 // что мы жадничаем» — анализ обвинений, а не ярлык. В разных предложениях засчитываются оба.
-const SAME_SENTENCE: [BehaviorId, BehaviorId][] = [['calibrated', 'ask_interest'], ['accusation_audit', 'label']]
+// «Пополам» по внешней мерке («середина между двумя индексами») — уже не механическое деление (Фишер, гл. 5): засчитываем мерку.
+const SAME_SENTENCE: [BehaviorId, BehaviorId][] = [['calibrated', 'ask_interest'], ['accusation_audit', 'label'], ['criteria', 'split']]
 const normQ = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\d]+/gu, ' ').trim()
 function oneSentenceOne(hits: BehaviorHit[]): BehaviorHit[] {
   let out = hits
