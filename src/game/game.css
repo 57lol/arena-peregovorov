@@ -975,6 +975,12 @@ body {
   min-height: 44px;
   accent-color: var(--c-stamp);
 }
+/* Подсказка общая для 2D и меню 3D: small не должен уменьшать шрифт браузерным стилем. */
+.g-mic-tip {
+  color: var(--c-steel-2);
+  font: 400 var(--fs-small) / 1.3 var(--f-ui);
+  text-wrap: pretty;
+}
 .g-voiceonly-hint {
   margin: 8px 0 0;
   font-size: 14px;

@@ -266,7 +266,7 @@
 
 @media (max-width: 599px) {
   .tt-sign {
-    font-size: var(--fs-ui-huge); /* Pixeloid ×4: «Переговорка» целиком в 358 точек */
+    font-size: clamp(27px, calc(12.5vw - 6px), var(--fs-ui-huge)); /* на 320 px вывеска помещается между отступами */
   }
   .tt-actions {
     flex-direction: column;

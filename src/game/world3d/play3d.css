@@ -1542,8 +1542,3 @@
   min-width: 0;
   font: inherit;
 }
-.g-mic-tip {
-  color: var(--c-steel-2);
-  font: 400 var(--fs-small) / 1.3 var(--f-ui);
-  text-wrap: pretty;
-}
