@@ -27,8 +27,8 @@ describe('история HR и шаблоны задач', () => {
   it('старый запрос без истории даёт побайтово прежний промпт для кэша', () => {
     const req = GenerateRequest.parse({ sphere: 'Найм', theme: 'Инженер', playerRole: 'HR-менеджер', goals: 'выяснять интересы' })
     expect(req).not.toHaveProperty('context')
-    // Хэш userPrompt из HEAD до добавления поля context.
-    expect(hashOf(userPrompt(req, []))).toBe('40d7c8d05aec75a5ffca5469ab5f767d9639c4e67330247554336a53be22822f')
+    // Хэш userPrompt без поля context: совпадает с промптом ветки настроек руководителя (тон, сложность, приёмы под цели).
+    expect(hashOf(userPrompt(req, []))).toBe('6b3f6d9b0cebee2367651a184813eeb7b03dac24dafe9d71785d80d104bf249b')
     expect(userPrompt(GenerateRequest.parse({ ...req, context: ' \n ' }), [])).toBe(userPrompt(req, []))
   })
 

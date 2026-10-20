@@ -15,6 +15,7 @@ import { CareerCard } from './Career'
 import { nextCase } from '../career'
 import { CASE_TEMPLATES, type CaseTemplate } from '../caseTemplates'
 import { CoachSteps } from './CoachSteps'
+import { SettingsEffect } from './SettingsEffect'
 
 interface Props {
   progress: Progress
@@ -207,6 +208,7 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
   const [fallback, setFallback] = useState<{ message: string; scenario?: Scenario } | null>(null)
+  const [ready, setReady] = useState<{ scenario: Scenario; effect?: string[] } | null>(null)
   const offline = server === null || server?.provider === 'offline'
   // дело собирается до двух минут: если игрок за это время ушёл из формы, готовое дело его никуда не уводит
   const alive = useRef(true)
@@ -229,6 +231,7 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
     setReq({ ...item.request })
     setTemplate(item.id)
     setFallback(null)
+    setReady(null)
     setOpenForm(true)
   }
   const templates = (
@@ -250,6 +253,7 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
   }
   const submit = async () => {
     setFallback(null)
+    setReady(null)
     // сервера нет вовсе (статический хостинг, нет сети) — сразу предлагаем дело из папки, без ожидания
     if (server === null) return setFallback({ ...noServer, scenario: pickFromLibrary(req, SCENARIOS) })
     setStep(0)
@@ -257,7 +261,8 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
     try {
       const r = await generate(req)
       if (!alive.current) return
-      if (r.source === 'llm') return onOpen({ scenario: r.scenario, fromLibrary: false })
+      // в кабинете сводка настроек — на шаге проверки встречи; игроку — здесь, играть по кнопке
+      if (r.source === 'llm') return coach ? onOpen({ scenario: r.scenario, fromLibrary: false, effect: r.effect }) : setReady(r)
       setFallback({
         message: offline
           ? 'Без нейросети новое дело не собрать. Можно сыграть похожее из папки — с тем характером и сложностью, что вы выбрали.'
@@ -412,6 +417,13 @@ function CustomCase({ server, onOpen, coach, startOpen }: { server: Health | nul
         )}
         {offline && !busy && (
           <p className="g-form-note">Сейчас офлайн-режим: вместо нового дела подберём похожее из папки.</p>
+        )}
+        {ready && (
+          <SettingsEffect scenario={ready.scenario} lines={ready.effect}>
+            <Button variant="brass" onClick={() => onOpen({ scenario: ready.scenario, fromLibrary: false })}>
+              {coach ? 'Дать команде' : 'Сыграть'} «{ready.scenario.title}»
+            </Button>
+          </SettingsEffect>
         )}
         {fallback && (
           <div className="g-error" role="alert">

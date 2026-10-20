@@ -12,6 +12,7 @@ import { mentionedIssues, parseOffer } from '../engine/offline'
 import { explicitOffer } from '../engine/offerEvidence'
 import { openingAnchor } from '../engine/policy'
 import { maxScore } from '../engine/utility'
+import { focusOf, meetingTuning, settingsEffect, SKILLS, skillsOf, type Skill } from '../engine/settings'
 import { hashOf } from './cache'
 import type { LLM } from './llm'
 
@@ -193,14 +194,30 @@ const SIDE_LINE: Record<Side, string> = {
     'Значит, в options первым идёт выгодное покупателю: цена — самая низкая, скидка — самая большая, отсрочка — самая длинная, предоплата — самая маленькая, гарантия — самая длинная.',
 }
 
+// Тон — не только слово в промпте: как он звучит в opening, opponentSpeech и opponentBio
+const TONE_HOW: Record<Tone, string> = {
+  friendly: 'тёплый, шутит, легко идёт на разговор о себе, но своё отстаивает',
+  neutral: 'деловой, ровный, без лишних эмоций',
+  cold: 'сухой, короткие фразы, держит дистанцию, о себе не говорит',
+  aggressive: 'давит: перебивает, торопит, ссылается на конкурентов, но без хамства',
+  evasive: 'уходит от прямых ответов, «надо посоветоваться», цифры называет неохотно',
+}
+const DIFFICULTY_HOW: Record<Difficulty, string> = {
+  1: 'простое: зона торга широкая, у оппонента слабый запасной вариант (называй его без цифр, расплывчато)',
+  2: 'среднее: у оппонента есть рабочий запасной вариант, конкретный',
+  3: 'трудное: у оппонента сильный запасной вариант с цифрой, он может уйти без сделки, и скрытые интересы спрятаны глубже',
+}
+
 export function userPrompt(req: GenerateRequest, problems: string[]): string {
   const tone = { friendly: 'дружелюбный', neutral: 'нейтральный', cold: 'холодный', aggressive: 'напористый', evasive: 'уклончивый' }[req.opponentTone]
   const side = sideOf(req)
+  const skills = skillsOf(req.goals)
   return `Сфера: ${req.sphere}
 Тема: ${req.theme || 'на твой выбор'}
 Роль игрока: ${req.playerRole || 'на твой выбор'}${side ? `\n${SIDE_LINE[side]}` : ''}
-Характер оппонента: ${tone}${req.opponentRole?.trim() ? `\nКто оппонент: ${req.opponentRole.trim()} — сделай его именно таким (должность, положение, сторона сделки)` : ''}${req.opponentGoals?.trim() ? `\nЧего добивается оппонент: ${req.opponentGoals.trim()} — пусть его стартовые требования и скрытые интересы исходят из этого` : ''}
-Что игрок хочет потренировать: ${req.goals || 'не указано'}${req.goals ? ' — построй кейс так, чтобы это пришлось делать' : ''}
+Характер оппонента: ${tone} — ${TONE_HOW[req.opponentTone]}; пусть это слышно в opening и opponentSpeech
+Сложность: ${DIFFICULTY_HOW[req.difficulty as Difficulty]}${req.opponentRole?.trim() ? `\nКто оппонент: ${req.opponentRole.trim()} — сделай его именно таким (должность, положение, сторона сделки)` : ''}${req.opponentGoals?.trim() ? `\nЧего добивается оппонент: ${req.opponentGoals.trim()} — пусть его стартовые требования и скрытые интересы исходят из этого` : ''}
+Что игрок хочет потренировать: ${req.goals || 'не указано'}${req.goals ? ' — построй кейс так, чтобы это пришлось делать' : ''}${skills.map((k) => `\n- ${SKILLS[k].prompt}`).join('')}
 Имя оппонента начинается на «${nameHint(req)}».${req.context?.trim() ? `\nПожелание к сюжету от руководителя (своя история / контекст):\n${req.context.trim()}\nИспользуй это как контекст истории; сохрани схему кейса, роли сторон и проверяемый баланс условий.` : ''}
 ${problems.length ? `\nПрошлый вариант не прошёл проверку:\n- ${problems.join('\n- ')}\nИсправь это.` : ''}
 Верни кейс JSON-объектом.`
@@ -457,11 +474,25 @@ export function finish(sc: Scenario): Scenario {
 }
 
 /** Очки по ролям: линейно по вариантам, вариант 0 — лучший для игрока. */
-function pointsFor(role: Role, n: number, k: number, jitter = 0) {
+// Навыки руководителя меняют веса, чтобы приём окупался: размен — разница в важности резче, общий пункт — весомее.
+const SKILL_WEIGHTS: Partial<Record<Skill, Partial<Record<Role, { player: number; opponent: number }>>>> = {
+  package: { mine: { player: 34, opponent: 6 }, theirs: { player: 6, opponent: 32 } },
+  shared: { shared: { player: 22, opponent: 20 } },
+}
+function weightsOf(role: Role, skills: Skill[]): { player: number; opponent: number } {
+  for (const s of skills) {
+    const w = SKILL_WEIGHTS[s]?.[role]
+    if (w) return w
+  }
+  return ROLES[role]
+}
+
+function pointsFor(role: Role, n: number, k: number, jitter = 0, skills: Skill[] = []) {
   // ±10% к весам пункта по хэшу дела: иначе у всех сгенерированных дел одинаковые 30/28/18/8.
   // Больше нельзя: после приведения таблиц к сотне делимый пункт перекосится, а разменный выровняется.
   const j = 1 + ((jitter % 7) - 3) / 30
-  const r = { player: ROLES[role].player * j, opponent: ROLES[role].opponent * (2 - j) }
+  const w = weightsOf(role, skills)
+  const r = { player: w.player * j, opponent: w.opponent * (2 - j) }
   const down = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * (n - 1 - i)) / (n - 1)))
   const up = (w: number) => Array.from({ length: n }, (_, i) => Math.round((w * i) / (n - 1)))
   const scale = k > 0 ? 0.6 : 1 // второй пункт той же роли весит меньше
@@ -471,8 +502,7 @@ function pointsFor(role: Role, n: number, k: number, jitter = 0) {
   }
 }
 
-// Сложность: чем выше, тем лучше альтернатива у оппонента и уже зона соглашения.
-const OPP_BATNA: Record<Difficulty, number> = { 1: 0.25, 2: 0.32, 3: 0.4 }
+// Зона торга, скорость уступок, характер и длина встречи — из настроек руководителя (engine/settings.ts).
 const TRUST: Record<Role, number> = { shared: 30, mine: 40, theirs: 50, split: 65 }
 
 export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scenario {
@@ -487,10 +517,13 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     return id
   })
   const h = hashOf(raw)
+  const skills = skillsOf(req.goals)
+  const d = req.difficulty as Difficulty
+  const tuning = meetingTuning(d, req.opponentTone as Tone, skills)
   const tables = raw.issues.map((i, n) => {
     const k = seen.get(i.role) ?? 0
     seen.set(i.role, k + 1)
-    return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16))
+    return pointsFor(i.role, i.options.length, k, parseInt(h.slice(n * 2, n * 2 + 2), 16), skills)
   })
   const issues: Issue[] = raw.issues.map((i, n) => {
     const options = orient(i)
@@ -508,7 +541,6 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
   const op = Object.fromEntries(ids.map((id, n) => [id, theirs[n]]))
   const pMax = maxScore({ points: pp, batna: 0, batnaText: '', interests: [] }, issues)
   const oMax = maxScore({ points: op, batna: 0, batnaText: '', interests: [] }, issues)
-  const d = req.difficulty as Difficulty
   const name = raw.opponentName.split(',')[0].trim()
   const id = `gen-${hashOf({ raw, req }).slice(0, 10)}`
   const female = raw.opponentGender ? raw.opponentGender === 'f' : looksFemale(name)
@@ -518,13 +550,15 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
     title: cap(raw.title),
     sphere: req.sphere,
     difficulty: d,
-    turnLimit: 10 + d,
+    turnLimit: tuning.turnLimit,
     issues,
     ...(goalsFrom(req.goals) ? { goals: goalsFrom(req.goals) } : {}),
+    ...(skills.length ? { lessons: [...(goalsFrom(req.goals) ?? []), ...skills.map((s) => SKILLS[s].lesson)].slice(0, 6), focus: focusOf(skills) } : {}),
+    tuning,
     player: {
       role: raw.playerRole,
       brief: sentence(raw.playerBrief),
-      profile: { points: pp, batna: Math.round(pMax * 0.28), batnaText: sentence(raw.playerBatnaText), interests: [] },
+      profile: { points: pp, batna: Math.round(pMax * tuning.playerBatna), batnaText: sentence(raw.playerBatnaText), interests: [] },
     },
     opponent: {
       character: {
@@ -539,7 +573,7 @@ export function toScenario(raw: z.infer<typeof Raw>, req: GenerateRequest): Scen
       brief: sentence(raw.opponentBrief),
       profile: {
         points: op,
-        batna: Math.round(oMax * OPP_BATNA[d]),
+        batna: Math.round(oMax * tuning.oppBatna),
         batnaText: sentence(raw.opponentBatnaText),
         interests: raw.interests.map((it, n) => {
           const k = raw.issues.findIndex((i) => i.id === it.issue)
@@ -622,6 +656,33 @@ export interface GenerateResult {
   source: 'llm' | 'library'
   attempts: number
   problems: string[]
+  /** как настройки руководителя отразились в деле — несколько коротких строк (settingsEffect) */
+  effect?: string[]
+  /** какая модель написала историю — для журнала и проверки */
+  model?: string
+}
+
+/**
+ * Кто пишет историю: сначала лучшая модель (llm.writer — Claude Sonnet через AITunnel или Anthropic), потом основная
+ * (YandexGPT Pro). Модель, которая не ответила или сломалась, из очереди выпадает; кончились все — дело из папки.
+ */
+export function writersOf(llm: LLM): LLM[] {
+  return [llm.writer, llm].filter((m, k, all): m is LLM => !!m && m.name !== 'offline' && all.indexOf(m) === k)
+}
+
+/** Claude через AITunnel со строгой схемой не дружит (кэш, ограничения схемы) — схему кладём в промпт. */
+const looseFor = (m: LLM) => m.name === 'aitunnel' && /^claude/.test(m.model)
+
+/** Сводка для руководителя: параметры дела и — если дело новое — куда легли цели собеседника. */
+export function effectOf(sc: Scenario, req: GenerateRequest, source: GenerateResult['source']): string[] {
+  const lines = settingsEffect(sc)
+  const goals = req.opponentGoals?.trim()
+  if (source === 'llm' && goals) {
+    const first = sc.opening.match(/[^.!?…]+[.!?…]*/gu)?.slice(-1)[0]?.trim()
+    lines.splice(2, 0, `Цели собеседника («${goals.slice(0, 80)}») — в его стартовых требованиях${first ? `: «${first.slice(0, 140).replace(/[.\s]+$/u, '')}»` : ''}.`)
+  }
+  if (source === 'library') lines.unshift('Новое дело не собралось — подобрано похожее из папки; ниже его параметры.')
+  return lines
 }
 
 export async function generateScenario(llm: LLM, req: GenerateRequest, library: Scenario[]): Promise<GenerateResult> {
@@ -629,11 +690,28 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   let attempts = 0
   let passable: Scenario | undefined // прошло проверки движка, но с замечаниями к тексту
   let passableSoft = Infinity
-  while (llm.name !== 'offline' && attempts < 3) {
+  const writers = writersOf(llm)
+  let w = 0
+  let model: string | undefined
+  const done = (r: Omit<GenerateResult, 'effect'>): GenerateResult => ({ ...r, effect: effectOf(r.scenario, req, r.source), ...(r.source === 'llm' && model ? { model } : {}) })
+  while (w < writers.length && attempts < 3) {
     attempts++
+    const writer = writers[w]
     try {
+      const loose = looseFor(writer)
       // pro: своё дело — редкий и главный для настройки запрос, на Lite он почти всегда проваливается в папку
-      const answer = Raw.parse(await llm.json({ system: SYSTEM, user: userPrompt(req, problems), temperature: 0.6, maxTokens: 3000, schema: SCHEMA, pro: true }))
+      let reply: unknown
+      try {
+        reply = await writer.json({ system: loose ? `${SYSTEM}\n\nJSON-схема ответа: ${JSON.stringify(SCHEMA.schema)}` : SYSTEM, user: userPrompt(req, problems), temperature: 0.6, maxTokens: 3000, schema: SCHEMA, pro: true, loose })
+      } catch (e) {
+        // модель не ответила — следующая попытка у следующей по очереди
+        if (w < writers.length - 1) {
+          console.log(`[своё дело] ${writer.name}:${writer.model} не ответила (${(e as Error).message}), пишет ${writers[w + 1].name}`)
+          w++
+        }
+        throw e
+      }
+      const answer = Raw.parse(reply)
       const { raw, fixes, problems: broken } = settle(answer, sideOf(req))
       if (fixes.length) console.log(`[своё дело] попытка ${attempts}, поправлено: ${fixes.join('; ')}`)
       if (broken.length) {
@@ -646,18 +724,19 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
       const soft = r.problems.length ? [] : storyProblems(raw)
       // из рабочих вариантов запоминаем тот, где меньше всего замечаний к тексту
       if (!r.problems.length && soft.length < passableSoft) {
+        model = `${writer.name}:${writer.model.split('/').pop()}`
         passable = r.scenario
         passableSoft = soft.length
       }
       problems = [...r.problems, ...soft]
       if (r.problems.length) console.log(`[своё дело] попытка ${attempts}, движок: ${r.problems.join('; ')}`)
-      if (!problems.length && r.scenario) return { scenario: finish(r.scenario), source: 'llm', attempts, problems: [] }
+      if (!problems.length && r.scenario) return done({ scenario: finish(r.scenario), source: 'llm', attempts, problems: [] })
       // дело рабочее, замечания только к тексту — ещё одну попытку тратим, только если время есть
       if (!r.problems.length && attempts >= 2) break
     } catch {
       problems = ['Ответ модели не удалось разобрать. Нужен кейс по указанной схеме.']
     }
   }
-  if (passable) return { scenario: finish(passable), source: 'llm', attempts, problems: [] }
-  return { scenario: pickFromLibrary(libraryRequest(req), library), source: 'library', attempts, problems }
+  if (passable) return done({ scenario: finish(passable), source: 'llm', attempts, problems: [] })
+  return done({ scenario: pickFromLibrary(libraryRequest(req), library), source: 'library', attempts, problems })
 }

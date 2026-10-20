@@ -36,6 +36,8 @@ export interface LLM {
   backup?: LLM
   /** разбор реплики в деле на английском (ANALYZE_LLM_EN); нет — тот же analyzer */
   analyzerEn?: LLM
+  /** сборка своего дела — лучшей моделью (GENERATE_LLM, по умолчанию Claude Sonnet, если есть ключ); не вышло — основная */
+  writer?: LLM
   /** реплика собеседника — своей моделью (VOICE_LLM, по умолчанию Claude Sonnet 5.5 через AITunnel, если есть ключ) */
   voice?: LLM
   /** заход — первые слова ответа (opener.ts): YandexGPT Pro, пока Claude пишет реплику; OPENER=off — без захода */
@@ -605,6 +607,15 @@ export function makeLLM(kind = process.env.LLM_PROVIDER ?? 'offline', env = proc
   // английские дела — тот же разметчик, если не задан свой (замер 18.10: Sonnet 97–100%, Pro 94% и 2 сломанных JSON)
   attach('analyzerEn', env.ANALYZE_LLM_EN ?? env.ANALYZE_LLM ?? claude)
   attach('voice', env.VOICE_LLM ?? (native ? `anthropic:${DEFAULT_ANTHROPIC_MODEL}` : env.AITUNNEL_API_KEY ? `aitunnel:${DEFAULT_VOICE_MODEL}` : undefined))
+  // своё дело пишет лучшая модель: GENERATE_LLM («main» — основная) или та же Claude, что и реплику
+  if (env.GENERATE_LLM !== 'main') {
+    try {
+      const w = env.GENERATE_LLM ? llmFromSpec(env.GENERATE_LLM, env) : llm.voice?.name === 'aitunnel' || llm.voice?.name === 'anthropic' ? llm.voice : undefined
+      if (w && w !== llm) llm.writer = w
+    } catch (e) {
+      errors.push(`writer: ${(e as Error).message}`)
+    }
+  }
   // заход нужен, только когда реплику пишет Claude: у YandexGPT первые слова и так через ~0,3 с
   if (env.OPENER !== 'off' && (llm.voice?.name === 'aitunnel' || llm.voice?.name === 'anthropic')) {
     try {

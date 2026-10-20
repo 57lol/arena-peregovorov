@@ -50,6 +50,8 @@ export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | '
 export interface Case {
   scenario: Scenario
   fromLibrary: boolean
+  /** сводка «как настройки повлияли на дело» с сервера — для шага проверки в кабинете */
+  effect?: string[]
 }
 
 // Партия живёт в sessionStorage вкладки: случайная перезагрузка страницы не стирает встречу.

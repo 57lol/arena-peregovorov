@@ -27,6 +27,7 @@ import { TECHNIQUES } from '../../engine/books'
 import { bookPicks, bookSig, sayText } from '../bookPicks'
 import '../onboarding.css'
 import '../books.css'
+import { FocusCheck } from './SettingsEffect'
 
 interface Props {
   attemptId: string
@@ -633,6 +634,7 @@ function Behavior({ sc, rows, history, wide, tips }: { sc: Scenario; rows: Profi
         {neutral.length > 0 && <BehGroup title="Другие ходы" rows={neutral} quotes={quotes} n={n} kind="neutral" />}
       </div>
       </Fold>
+      <FocusCheck sc={sc} history={history} />
       {(sc.lessons ?? sc.goals)?.length ? (
         <p className="g-muted">Это дело учит: {(sc.lessons ?? sc.goals)!.map((x) => x.charAt(0).toLowerCase() + x.slice(1)).join('; ')}.</p>
       ) : null}
