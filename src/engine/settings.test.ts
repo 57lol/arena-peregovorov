@@ -93,10 +93,13 @@ describe('настройки руководителя → параметры в�
   it('сводка для руководителя говорит цифрами дела и называет приёмы под цели', () => {
     const sc = { ...tuned(base, 3, 'aggressive', 'Выяснять интересы'), focus: focusOf(['interests']) }
     const lines = settingsEffect(sc)
-    expect(lines[0]).toMatch(/^Зона торга: .*\d+%/)
+    expect(lines[0]).toMatch(/^Зона торга (широкая|средняя|узкая): .*\d+%/)
     expect(lines.join(' ')).toMatch(/напористый: уступает медленно|напористый: почти не двигается/)
     expect(lines.join(' ')).toMatch(/взрывается быстро/)
-    expect(lines.some((l) => l.startsWith('Окупается приём «Спросите: «Почему?»»'))).toBe(true)
+    expect(lines.some((l) => l.startsWith('Окупается приём «Вопрос об интересах» (Фишер, Юри, Паттон): '))).toBe(true)
+    // слабые приёмы (давление сроком, «пополам») руководителю как цель не предлагаем
+    for (const s of ['interests', 'package', 'shared', 'anchor', 'batna', 'deadline', 'pressure'] as const) expect(focusOf([s])).not.toEqual(expect.arrayContaining(['deadline']))
+    expect(focusOf(['anchor', 'deadline'])).not.toContain('split')
     expect(settingsEffect(tuned(base, 1, 'friendly')).join(' ')).toMatch(/уступает рано/)
     // дело без настроек (из папки) — тоже описывается, без выдумок про характер
     expect(settingsEffect(base).length).toBeGreaterThanOrEqual(3)

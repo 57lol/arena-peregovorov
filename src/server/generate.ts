@@ -672,6 +672,18 @@ export function writersOf(llm: LLM): LLM[] {
 /** Claude через AITunnel со строгой схемой не дружит (кэш, ограничения схемы) — схему кладём в промпт. */
 const looseFor = (m: LLM) => m.name === 'aitunnel' && /^claude/.test(m.model)
 
+/** Сводка для руководителя: параметры дела и — если дело новое — куда легли цели собеседника. */
+export function effectOf(sc: Scenario, req: GenerateRequest, source: GenerateResult['source']): string[] {
+  const lines = settingsEffect(sc)
+  const goals = req.opponentGoals?.trim()
+  if (source === 'llm' && goals) {
+    const first = sc.opening.match(/[^.!?…]+[.!?…]*/gu)?.slice(-1)[0]?.trim()
+    lines.splice(2, 0, `Цели собеседника («${goals.slice(0, 80)}») — в его стартовых требованиях${first ? `: «${first.slice(0, 140).replace(/[.\s]+$/u, '')}»` : ''}.`)
+  }
+  if (source === 'library') lines.unshift('Новое дело не собралось — подобрано похожее из папки; ниже его параметры.')
+  return lines
+}
+
 export async function generateScenario(llm: LLM, req: GenerateRequest, library: Scenario[]): Promise<GenerateResult> {
   let problems: string[] = []
   let attempts = 0
@@ -680,7 +692,7 @@ export async function generateScenario(llm: LLM, req: GenerateRequest, library: 
   const writers = writersOf(llm)
   let w = 0
   let model: string | undefined
-  const done = (r: Omit<GenerateResult, 'effect'>): GenerateResult => ({ ...r, effect: settingsEffect(r.scenario), ...(r.source === 'llm' && model ? { model } : {}) })
+  const done = (r: Omit<GenerateResult, 'effect'>): GenerateResult => ({ ...r, effect: effectOf(r.scenario, req, r.source), ...(r.source === 'llm' && model ? { model } : {}) })
   while (w < writers.length && attempts < 3) {
     attempts++
     const writer = writers[w]

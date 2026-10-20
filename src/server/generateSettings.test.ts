@@ -85,6 +85,14 @@ describe('своё дело: настройки руководителя дох�
     expect(r.model).toBe('yandex:yandexgpt-5.1')
   })
 
+  it('цели собеседника из настроек видны в сводке рядом с его стартовыми требованиями', async () => {
+    const r = await generateScenario(fake('yandex', 'y', async () => raw), GenerateRequest.parse({ opponentGoals: 'депозит за три месяца' }), SCENARIOS)
+    expect(r.effect?.join(' ')).toMatch(/Цели собеседника \(«депозит за три месяца»\) — в его стартовых требованиях: «/)
+    const lib = await generateScenario(fake('offline', 'rules', async () => raw), GenerateRequest.parse({ opponentGoals: 'депозит' }), SCENARIOS)
+    expect(lib.effect?.[0]).toMatch(/подобрано похожее из папки/)
+    expect(lib.effect?.join(' ')).not.toMatch(/Цели собеседника/)
+  })
+
   it('историю пишет лучшая модель; не ответила — основная; обе молчат — папка, и сводка всё равно есть', async () => {
     const claude = vi.fn(async () => raw)
     const yandex = vi.fn(async () => raw)

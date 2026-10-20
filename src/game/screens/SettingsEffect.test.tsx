@@ -13,7 +13,7 @@ describe('сводка настроек для руководителя', () => 
     expect(html).toContain('собрано под ваши настройки')
     expect(html).toContain('Окупается приём «Ярлык».')
     const own = renderToStaticMarkup(<SettingsEffect scenario={sc} />)
-    expect(own).toMatch(/Зона торга: собеседник может уступить до \d+%/)
+    expect(own).toMatch(/Зона торга \S+: собеседник может уступить до \d+%/)
     expect(own).toContain('Окупается приём')
   })
 

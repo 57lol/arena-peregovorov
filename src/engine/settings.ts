@@ -2,8 +2,8 @@
 // навыки из «Что хотите потренировать». Генератор кладёт результат в дело (Scenario.tuning, Scenario.focus),
 // движок читает его в policy.ts и turn.ts. У дел из папки и старых сохранённых дел tuning нет — там всё как было.
 
-import type { BehaviorId } from './behaviors'
-import { TECHNIQUES } from './books'
+import { behaviorById, type BehaviorId } from './behaviors'
+import { BOOKS, TECHNIQUES } from './books'
 import type { Difficulty, Scenario, Tone } from './types'
 import { maxScore } from './utility'
 
@@ -79,7 +79,7 @@ export const SKILLS: Record<Skill, {
   },
   anchor: {
     re: /якор|перв\p{L}* (цифр|предлож|цен)|(^|[^\p{L}])цен[аыуеой]|ставк|бюджет|деньг|скидк/iu,
-    focus: ['anchor', 'criteria', 'split'],
+    focus: ['anchor', 'criteria', 'calibrated'],
     prompt: 'Тренируют первую цифру: у делимого пункта (split) дай 5 вариантов с широким разбросом, а в opening оппонент называет крайний — игроку есть что сдвинуть точной обоснованной цифрой.',
     lesson: 'Назвать точную обоснованную цифру первым и не делить пополам',
   },
@@ -91,7 +91,7 @@ export const SKILLS: Record<Skill, {
   },
   deadline: {
     re: /срок|дедлайн|время|спеш|быстр|успеть/iu,
-    focus: ['signpost', 'summarize', 'deadline'],
+    focus: ['summarize', 'signpost', 'balcony'],
     prompt: 'Тренируют работу со временем: у оппонента есть свой срок (решить до конца недели), это один из его скрытых интересов; встреча короткая.',
     lesson: 'Держать время: сверять итог и не сдаваться под «надо сегодня»',
   },
@@ -162,7 +162,7 @@ export function settingsEffect(sc: Scenario): string[] {
   const t = sc.tuning
   const lines: string[] = []
   const zone = Math.round(100 * (1 - O.batna / Math.max(1, oMax)))
-  lines.push(`Зона торга: собеседник может уступить до ${zone}% своего максимума — ${zone >= 72 ? 'широкая' : zone >= 64 ? 'средняя' : 'узкая'}.`)
+  lines.push(`Зона торга ${zone >= 72 ? 'широкая' : zone >= 64 ? 'средняя' : 'узкая'}: собеседник может уступить до ${zone}% своего максимума.`)
   const tone = sc.opponent.character.tone
   const e = t?.concession
   const speed = e === undefined
@@ -176,12 +176,13 @@ export function settingsEffect(sc: Scenario): string[] {
   }
   const hidden = O.interests.filter((i) => i.issue && sc.issues.find((x) => x.id === i.issue)?.kind === 'integrative').length
   const shared = sc.issues.filter((i) => i.kind === 'compatible').length
-  lines.push(`${hidden ? `Скрытых интересов, которые окупает вопрос «почему», — ${hidden}` : 'Скрытых интересов по спорным пунктам нет'}; ${shared ? `общий пункт есть (${shared})` : 'общего пункта нет'}.`)
+  lines.push(`Скрытых интересов под вопрос «почему»: ${hidden || 'нет'}; общий пункт, за который не нужно платить: ${shared ? 'есть' : 'нет'}.`)
   lines.push(`Ходов на встречу — ${sc.turnLimit}; запасной вариант у вас — ${Math.round((100 * P.batna) / Math.max(1, pMax))}% от максимума.`)
-  for (const id of sc.focus ?? []) {
+  for (const id of (sc.focus ?? []).slice(0, 3)) {
     const tech = TECHNIQUES[id as BehaviorId]
     const ref = tech?.refs[0]
-    if (ref) lines.push(`Окупается приём «${ref.name}»: ${lower(tech.idea.split(/(?<=\.)\s/u)[0])}`)
+    const title = behaviorById(id)?.title ?? ref?.name
+    if (tech && title) lines.push(`Окупается приём «${title}»${ref ? ` (${BOOKS[ref.book].short})` : ''}: ${lower(tech.idea.split(/(?<=\.)\s/u)[0])}`)
   }
   return lines.slice(0, 9)
 }
