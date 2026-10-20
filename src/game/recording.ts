@@ -40,7 +40,26 @@ export function micError(e: unknown): string {
  * устройства: голосовой режим держит микрофон всю встречу, и собеседника не слышно (партия капитана 18.10, Zen, «Семёрочка»).
  * Поэтому в Firefox на маке микрофон без обработки — шумоподавление ему всё равно не удаётся (cubeb: «AEC != NS»).
  */
-export function micAudio(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent): MediaTrackConstraints {
+export function micAudio(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent, device = loadMicId()): MediaTrackConstraints {
   const raw = /Macintosh/.test(ua) && /\bFirefox\//.test(ua)
-  return raw ? { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } : { channelCount: 1, echoCancellation: false, noiseSuppression: true }
+  const c: MediaTrackConstraints = raw ? { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } : { channelCount: 1, echoCancellation: false, noiseSuppression: true }
+  // выбранный в меню микрофон (наушники распознаются хуже встроенного): ideal — пропал, берём любой
+  return device ? { ...c, deviceId: { ideal: device } } : c
+}
+
+const MIC_KEY = 'peregovorka.mic.v1'
+export function loadMicId(): string | undefined {
+  try {
+    return localStorage.getItem(MIC_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+export function saveMicId(id: string) {
+  try {
+    if (id) localStorage.setItem(MIC_KEY, id)
+    else localStorage.removeItem(MIC_KEY)
+  } catch {
+    // нет хранилища — микрофон по умолчанию
+  }
 }
