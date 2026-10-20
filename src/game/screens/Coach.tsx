@@ -9,6 +9,7 @@ import { saveCase } from '../share'
 import { Button, Portrait, Scene, PORTRAITS, SCENES } from '../ui'
 import { Setup } from './Setup'
 import { CoachSteps } from './CoachSteps'
+import { SettingsEffect } from './SettingsEffect'
 import { customizeMeeting, meetingFaces } from '../meetingDraft'
 
 interface Props {
@@ -213,6 +214,7 @@ function OpenRoom({ game, onBack }: { game: Case; onBack: () => void }) {
                 {sc.issues.map((issue) => <li key={issue.id}><b>{issue.title}</b><span>{issue.options.join(' · ')}</span></li>)}
               </ul>
             </div>
+            {sc.tuning && <SettingsEffect scenario={sc} lines={game.effect} />}
             <form
               className="g-form"
               onSubmit={(e) => {

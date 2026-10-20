@@ -18,7 +18,7 @@ const WALK_TENSION = 90
 const MAX_TONE_STRIKES = 2
 
 export function initialState(sc: Scenario): OpponentState {
-  const s = START[sc.opponent.character.tone] ?? START.neutral
+  const s = sc.tuning ?? START[sc.opponent.character.tone] ?? START.neutral
   const anchor = openingAnchor(sc)
   return {
     trust: s.trust,
@@ -98,7 +98,17 @@ function moveDeltas(
 
   if (!deltas.some((d) => (d.field === 'tension' && d.by > 0) || (d.field === 'trust' && d.by < 0)))
     deltas.push({ field: 'tension', by: -3, because: 'Спокойный ход, напряжение спадает' })
-  return deltas
+  return sensitive(sc, deltas)
+}
+
+/** Характер из настроек: одних тот же ход располагает сильнее, других сильнее злит (только рост, не спад). */
+function sensitive(sc: Scenario, deltas: Delta[]): Delta[] {
+  const t = sc.tuning
+  if (!t || (t.trustGain === 1 && t.tensionGain === 1)) return deltas
+  return deltas.map((d) => {
+    const k = d.field === 'trust' ? (d.by > 0 ? t.trustGain : 1) : d.by > 0 ? t.tensionGain : 1
+    return k === 1 ? d : { ...d, by: Math.round(d.by * k) }
+  })
 }
 
 function lastOffer(past: MoveAnalysis[], sc: Scenario): Offer | undefined {
@@ -237,11 +247,11 @@ export function step(
 
   if (analysis.toneViolation) {
     s.toneStrikes = (s.toneStrikes ?? 0) + 1
-    if (s.toneStrikes >= MAX_TONE_STRIKES || s.tension >= WALK_TENSION)
+    if (s.toneStrikes >= MAX_TONE_STRIKES || s.tension >= (sc.tuning?.walkAt ?? WALK_TENSION))
       return end({ kind: 'walk_away' }, { status: 'walked_away', endedBy: 'opponent' })
     return end({ kind: 'warn_tone' }, {})
   }
-  if (s.tension >= WALK_TENSION) return end({ kind: 'walk_away' }, { status: 'walked_away', endedBy: 'opponent' })
+  if (s.tension >= (sc.tuning?.walkAt ?? WALK_TENSION)) return end({ kind: 'walk_away' }, { status: 'walked_away', endedBy: 'opponent' })
 
   if (acceptsTheirs) return end({ kind: 'accept' }, { status: 'deal', deal: theirsFull, tableOffer: theirsFull })
 

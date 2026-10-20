@@ -1,6 +1,8 @@
 // Общий контракт между движком, сервером и интерфейсом.
 // Движок детерминирован: одинаковый сценарий + одинаковые разобранные ходы = одинаковый результат.
 
+import type { MeetingTuning } from './settings'
+
 export type IssueId = string
 
 export interface Issue {
@@ -85,6 +87,10 @@ export interface Scenario {
   blurb?: string           // одна строка для карточки выбора сценария
   goals?: string[]         // чему учит сценарий — навыки без ответов (бриф)
   lessons?: string[]       // то же с ответами — для разбора после встречи; нет — берём goals
+  /** параметры встречи из настроек руководителя (settings.ts); нет — по сложности и тону, как у дел из папки */
+  tuning?: MeetingTuning
+  /** приёмы, которые руководитель просил потренировать: разбор проверяет именно их */
+  focus?: string[]
 }
 
 export type Offer = Partial<Record<IssueId, number>>  // issueId -> индекс варианта

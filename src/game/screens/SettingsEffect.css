@@ -1,0 +1,23 @@
+.g-effect {
+  margin: calc(3 * var(--u)) 0 0;
+  padding: calc(3 * var(--u)) calc(5 * var(--u));
+  background: var(--c-paper);
+  color: var(--c-ink);
+  box-shadow: inset 0 0 0 var(--u) var(--c-denim);
+}
+.g-effect h4 {
+  margin: 0 0 calc(2 * var(--u));
+}
+.g-effect ul {
+  margin: 0 0 calc(3 * var(--u));
+  padding-left: 1.2em;
+}
+.g-effect li {
+  margin: 0 0 calc(1 * var(--u));
+}
+.g-effect-used {
+  color: var(--c-denim);
+}
+.g-coach .g-effect {
+  margin-bottom: calc(4 * var(--u));
+}

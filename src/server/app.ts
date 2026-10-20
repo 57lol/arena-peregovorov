@@ -87,6 +87,15 @@ const ScenarioInput = z.object({
   blurb: str(500).optional(),
   goals: z.array(str(500)).max(10).optional(),
   lessons: z.array(str(500)).max(10).optional(),
+  // параметры встречи из настроек руководителя (engine/settings.ts): без них собеседник был бы «по умолчанию»
+  tuning: z.object({
+    oppBatna: z.number().min(0).max(0.6), playerBatna: z.number().min(0).max(0.6),
+    concession: z.number().min(0.1).max(4), reserve: z.number().min(0).max(0.5),
+    trust: z.number().min(0).max(100), tension: z.number().min(0).max(100),
+    trustGain: z.number().min(0.3).max(2), tensionGain: z.number().min(0.3).max(2),
+    revealShift: z.number().min(-40).max(40), turnLimit: z.number().int().min(4).max(20), walkAt: z.number().min(50).max(100),
+  }).optional(),
+  focus: z.array(str(40)).max(8).optional(),
 })
 const Analysis = z.object({
   upsells: z.array(z.object({ id: Id, choice: z.enum(['accepted', 'refused']), polite: z.boolean().optional() })).max(6).optional(),
