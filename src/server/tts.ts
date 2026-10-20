@@ -307,6 +307,9 @@ export const LAGOS_VOICE_ID = 'yH7WW3zeKrRMuKt6sg5a'
 export const CAST: Record<string, string> = {
   lagos: LAGOS_VOICE_ID,
   china: 'qEUg56UIsvkup7EM8Ovt',
+  // вторая волна лиц своих дел — утверждённые голоса близких по возрасту и манере лиц (новых голосов не заводили)
+  director: 'XuEV9VY3VUASYgJVNBh0', banker: 'vQxSi2EuaRWwBw3nn6dK', lawyer: 'WTn2eCRCpoFAC50VD351', logist: 'q5RNAd4899271dg9W2K8',
+  owner: 'zQzMRXieet72bdZKfX9V', cfo: 'tHvkdDYIKRZSsD8v6JWR', sales: 'YjESejviApN7SHrbfnA2', engineer: 'Jbte7ht1CqapnZvc4KpK',
   sosed: 'oW7TMKNYKHRJq1pltXn4', gopnik: 'o7PE01v4XYHJP2sq6EFk', rinat: 'vQxSi2EuaRWwBw3nn6dK', admin: 'NUa5MQrfzgHxj4sfEk7V', olga: 'pS0Vm2TDyApKkwL0YIqj', buyer: 'I7awGfosdGeHXOCnsK9G', palych: 'zQzMRXieet72bdZKfX9V', hr: 'ymDCYd8puC7gYjxIamPt', official: 'XuEV9VY3VUASYgJVNBh0', foreman: 'ouyTiWqmHA5WI5bbX7zj', dev: 'WTn2eCRCpoFAC50VD351', realtor: 'GN4wbsbejSnGSa1AzjH5', pacan: 'bqbHGIIO5oETYIqhWmfk', guard: 'TUQNWEvVPBLzMBSVDPUA', worker: 'q5RNAd4899271dg9W2K8', workerf: 'Jbte7ht1CqapnZvc4KpK', student: 'YjESejviApN7SHrbfnA2', cashier: 'AB9XsbSA4eLG12t2myjN', babka: 'EDpEYNf6XIeKYRzYcx4I', vahter: 'tHvkdDYIKRZSsD8v6JWR', emre: 'ezjpFmpyFJhaCJxPZlXg', narrator: 'Vl27Cllkuw8BhyPqus2n',
 }
 

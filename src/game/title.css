@@ -153,8 +153,19 @@
   --sub: var(--c-wood-2);
   --base: var(--c-wood-4);
 }
+.tt-btn.is-coach {
+  --face: var(--c-leaf);
+  --lo: var(--c-leaf-2);
+  --edge: var(--c-ink);
+  --label: var(--c-paper);
+  --sub: var(--c-paper-2);
+  --base: var(--c-ink-2);
+}
 .tt-btn:hover {
   --lo: var(--c-mist);
+}
+.tt-btn.is-coach:hover {
+  --lo: var(--c-leaf-hi);
 }
 .tt-btn.is-story:hover {
   --lo: var(--c-wood);
