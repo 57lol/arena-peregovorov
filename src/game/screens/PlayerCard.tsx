@@ -6,6 +6,8 @@ import { plural } from '../cast'
 import { askTalk, loadTalk } from '../rooms'
 import { Button } from '../ui'
 import { often } from '../summary'
+import { bookSig } from '../bookPicks'
+import '../books.css'
 
 interface Props {
   room: string
@@ -98,6 +100,7 @@ export function PlayerCard({ room, secret, player: p, pick, catalog, onShare }: 
               {slips.map((b) => (
                 <li key={b.id}>
                   <b>{b.polarity === 'strong' ? `Мало: ${b.title.toLowerCase()}` : `Много: ${b.title.toLowerCase()}`}.</b> {b.advice}
+                  {bookSig(b.id) && <span className="g-book">{bookSig(b.id)}</span>}
                 </li>
               ))}
             </ul>

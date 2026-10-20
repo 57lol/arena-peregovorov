@@ -14,6 +14,8 @@ import { LinkField } from './Coach'
 import { Bench } from './Debrief'
 import { PlayerCard } from './PlayerCard'
 import { Stars } from './Stars'
+import { bookSig } from '../bookPicks'
+import '../books.css'
 
 interface Props {
   server: Health | null | undefined
@@ -484,6 +486,7 @@ function Mistakes({ sum }: { sum: ReturnType<typeof summarize> }) {
                 </span>
               </p>
               <p className="g-beh-advice">{b.advice}</p>
+              {bookSig(b.id) && <span className="g-book">{bookSig(b.id)}</span>}
             </li>
           )
         })}

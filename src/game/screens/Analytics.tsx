@@ -10,7 +10,10 @@ import { g, plural } from '../cast'
 import { chartPath, trendWidth } from '../chart'
 import { plainWords, turnFeedback } from '../instant'
 import type { RunLog } from '../progress'
+import { TECHNIQUES } from '../../engine/books'
+import { bookSig, sayText } from '../bookPicks'
 import '../analytics.css'
+import '../books.css'
 
 const signed = (v: number) => v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0'
 /** по-русски: «62,5», не «62.5» */
@@ -221,13 +224,18 @@ export function BehaviorProfile({ rows, history, tips }: { rows: ProfileRow[]; h
             {bar.benchmark?.unit === 'reasons' && <p>У сильных — {bar.benchmark.skilled} довода на аргумент, у средних — {bar.benchmark.average}. Здесь считаем ходы с избытком доводов; среднего числа доводов в истории нет.</p>}
             {!bar.benchmark && <p>У этого приёма нет численного эталона Rackham & Carlisle.</p>}
             {quotes.length ? quotes.map((q) => <blockquote className="g-quote g-quote--small" key={q.turn}><b>Ход {q.turn}.</b> {censor(q.quote)}</blockquote>) : <p>В сохранённой разметке этот приём не найден.</p>}
-            <p><b>Попробуйте:</b> {plainWords(def.advice)}</p>
+            <p><b>Попробуйте:</b> {plainWords(def.advice)}{TECHNIQUES[row.id]?.say && <> Например: {sayText(TECHNIQUES[row.id].say)}</>}</p>
+            {bookSig(row.id) && <span className="g-book">{bookSig(row.id)}</span>}
           </div>
         </details>
       })}
     </div>
     <h3 className="g-h3">В следующей встрече</h3>
-    <ol className="g-practice-tips">{tips.map((tip) => <li key={tip}>{plainWords(tip)}</li>)}</ol>
+    <ol className="g-practice-tips">{tips.map((tip) => {
+      const by = BEHAVIORS.find((b) => b.advice === tip)
+      const sig = by ? bookSig(by.id) : ''
+      return <li key={tip}>{plainWords(tip)}{sig && <span className="g-book">{sig}</span>}</li>
+    })}</ol>
   </div>
 }
 

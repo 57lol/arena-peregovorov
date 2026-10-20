@@ -4,6 +4,7 @@
 
 import { effectText, type Ink, type Tip, type TurnFeedback } from '../instant'
 import { PixelIcon } from '../ui'
+import '../books.css'
 
 interface Props {
   fb: TurnFeedback | null
@@ -56,6 +57,7 @@ function Body({ fb, tip, onExample, onOff }: Pick<Props, 'fb' | 'tip' | 'onExamp
                   <b>{n.title}</b>
                   {n.quote && <q>{n.quote}</q>}
                   <span className="g-margin-why">{n.why}</span>
+                  {n.src && <span className="g-book g-margin-src">— {n.src}</span>}
                 </li>
               ))}
             </ul>
@@ -78,6 +80,7 @@ function Body({ fb, tip, onExample, onOff }: Pick<Props, 'fb' | 'tip' | 'onExamp
         <div className="g-margin-tip">
           <p>
             <b>Дальше:</b> {tip.text}
+            {tip.src && <span className="g-book g-margin-src">— {tip.src}</span>}
           </p>
           {tip.example && (
             <button type="button" className="g-link" onClick={() => onExample(tip.example!)}>
@@ -125,7 +128,16 @@ export function Margin({ fb, tip, where, open = false, dim, onOpen, onExample, o
               <PixelIcon name="cross" px={2} color="var(--c-steel-2)" />
             </button>
           </p>
-          <Body fb={fb} tip={tip} onExample={onExample} onOff={onOff} />
+          {/* на телефоне листок закрывает поле ввода: вставили пример — сворачиваем */}
+          <Body
+            fb={fb}
+            tip={tip}
+            onExample={(t) => {
+              onOpen?.(false)
+              onExample(t)
+            }}
+            onOff={onOff}
+          />
         </div>
       )}
     </section>

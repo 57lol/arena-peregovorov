@@ -1,0 +1,65 @@
+/* Подписи книг: откуда приём. Мелко и приглушённо — не ссылка, а «— Восс, гл. 3» под текстом. */
+.g-book {
+  display: block;
+  margin-top: var(--u);
+  color: var(--muted-on-light);
+  font: 400 var(--fs-small) / 1.35 var(--f-read);
+  overflow-wrap: anywhere;
+}
+.g-margin-src {
+  margin-top: 0;
+}
+.g-book-small {
+  color: var(--c-fog);
+  font: 400 var(--fs-small) / 1.35 var(--f-read);
+  overflow-wrap: anywhere;
+}
+
+/* Разбор: «Приёмы из книг» — три коротких столбца, на телефоне друг под другом */
+.g-books > .g-muted {
+  max-width: 76ch;
+  margin-bottom: calc(4 * var(--u));
+}
+.g-books-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: calc(6 * var(--u)) calc(10 * var(--u));
+}
+.g-books-col h3 {
+  margin: 0 0 calc(2 * var(--u));
+}
+.g-books-col--good h3 {
+  color: var(--c-leaf-2);
+}
+.g-books-col--bad h3 {
+  color: var(--c-stamp);
+}
+.g-books-col--miss h3 {
+  color: var(--c-wood);
+}
+.g-books-col ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.g-books-col li {
+  padding: calc(3 * var(--u)) 0 calc(4 * var(--u));
+  border-top: var(--u) dashed var(--c-mist);
+}
+.g-books-col li > p {
+  margin: 0;
+  text-wrap: pretty;
+}
+.g-books-col .g-quote {
+  margin: calc(1 * var(--u)) 0;
+}
+.g-books-try {
+  margin-top: calc(1 * var(--u)) !important;
+}
+.g-books-try b,
+.g-books-idea b {
+  color: var(--c-wood-2);
+}
+.g-books-empty {
+  color: var(--muted-on-light);
+}
