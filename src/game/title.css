@@ -158,6 +158,41 @@
   outline-offset: calc(3 * var(--u));
 }
 
+/* «Библиотека приёмов»: тихая строка под двумя главными кнопками */
+.tt-books {
+  appearance: none;
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 calc(3 * var(--u));
+  min-height: 44px;
+  margin: 0 auto;
+  padding: calc(2 * var(--u)) calc(6 * var(--u));
+  border: 0;
+  background: color-mix(in srgb, var(--c-ink) 78%, transparent);
+  color: var(--c-paper);
+  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
+  cursor: pointer;
+}
+.tt-books b {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: var(--u);
+  text-underline-offset: calc(2 * var(--u));
+}
+.tt-books span {
+  color: var(--c-mist);
+}
+.tt-books:hover b {
+  color: var(--c-brass-hi);
+}
+.tt-books:focus-visible {
+  outline: calc(2 * var(--u)) solid var(--c-paper);
+  outline-offset: var(--u);
+}
+
 .tt-notice {
   flex-basis: 100%;
   margin: 0;
@@ -231,6 +266,13 @@
   }
   .tt-btn b {
     font-size: var(--fs-ui-big);
+  }
+  .tt-books {
+    flex: none;
+    width: 100%;
+  }
+  .tt-books span {
+    display: none;
   }
   .tt-invite {
     padding: calc(5 * var(--u));

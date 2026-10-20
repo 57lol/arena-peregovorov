@@ -31,6 +31,7 @@ const Coach = Object.assign(lazy(() => import('./game/screens/Coach').then((m) =
 const Board = Object.assign(lazy(() => import('./game/screens/Board').then((m) => ({ default: m.Board }))), { displayName: 'Board' })
 const RoomReceipt = Object.assign(lazy(() => import('./game/screens/RoomReceipt').then((m) => ({ default: m.RoomReceipt }))), { displayName: 'RoomReceipt' })
 const Career = Object.assign(lazy(() => import('./game/screens/Career').then((m) => ({ default: m.Career }))), { displayName: 'Career' })
+const Library = Object.assign(lazy(() => import('./game/screens/Library').then((m) => ({ default: m.Library }))), { displayName: 'Library' })
 const MapScreen = Object.assign(lazy(() => import('./game/screens/Map').then((m) => ({ default: m.MapScreen }))), { displayName: 'MapScreen' })
 
 // катсцены сюжета и хаб жюри — тоже отдельными кусками
@@ -44,7 +45,7 @@ const home = (o: Origin): Screen => (o === 'story' ? 'title' : o)
 /** Подпись кнопки «туда, откуда открыли дело» — в брифе и в разборе одна и та же. */
 const backLabelOf = (o: Origin) => (o === 'story' ? 'В меню' : o === 'map' ? 'К карте недели' : o === 'jury' ? 'К жюри' : undefined)
 
-export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films'
+export type Screen = 'title' | 'map' | 'setup' | 'brief' | 'play' | 'report' | 'coach' | 'board' | 'career' | 'cutscene' | 'jury' | 'films' | 'library'
 
 export interface Case {
   scenario: Scenario
@@ -147,6 +148,8 @@ export default function App() {
   const [playKey, setPlayKey] = useState(0)
   // «Личное дело» открывают с титула и из папки — туда же и возвращаемся
   const [careerFrom, setCareerFrom] = useState<Screen>('title')
+  // «Библиотека приёмов» — с титула и из хаба жюри
+  const [booksFrom, setBooksFrom] = useState<Screen>('title')
   // вид встречи: 3D за столом или классический; «не тянет» — переключаемся сами и говорим об этом
   const [view, setView] = useState<View>(loadView)
   const [viewNote, setViewNote] = useState('')
@@ -426,6 +429,10 @@ export default function App() {
     setCareerFrom(from)
     go('career')
   }
+  const toBooks = (from: Screen) => {
+    setBooksFrom(from)
+    go('library')
+  }
 
   if (screen === 'cutscene') {
     const cs = film && cutsceneById(film.id)
@@ -467,6 +474,7 @@ export default function App() {
           }}
           onCoach={() => go('coach')}
           onCareer={() => toCareer('jury')}
+          onBooks={() => toBooks('jury')}
           onMap={() => go('map')}
           onCutscene={(id) => watch(id, 'jury')}
           onFilms={() => films('jury')}
@@ -490,6 +498,13 @@ export default function App() {
           go('title')
         }}
       />
+    )
+
+  if (screen === 'library')
+    return (
+      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
+        <Library back={booksFrom === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(booksFrom)} />
+      </Suspense>
     )
 
   if (screen === 'career') return <Career progress={progress} onOpen={(c) => open(c)} onBack={() => go(careerFrom)} />
@@ -525,6 +540,7 @@ export default function App() {
         }}
         onCoach={() => go('coach')}
         onCareer={() => toCareer('title')}
+        onBooks={() => toBooks('title')}
         onFilms={() => films('title')}
         resume={
           resume && !invited

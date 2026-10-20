@@ -3,7 +3,7 @@
 
 import { isTentative, requestsInformation } from '../methodIntent'
 import { parseUpsells } from '../upsells'
-import { BEHAVIOR_DICT, detectBehaviors } from '../behaviors'
+import { BEHAVIOR_DICT, ENGAGES as ENGAGE_IDS, detectBehaviors } from '../behaviors'
 import type { BehaviorDict } from '../dictionary'
 import type { BehaviorHit, MoveAnalysis, OpponentState, Scenario, TalkAct, TurnRecord } from '../types'
 import { mentionedIssues, parseOffer } from './parseOffer'
@@ -156,7 +156,7 @@ function markerHits(text: string, dict: BehaviorDict): BehaviorHit[] {
 }
 
 // Индикаторы, которые ставятся не по словам, а по ходу игры (см. behaviors.ts: anchor, instant_counter).
-const ENGAGES = new Set(['ask_interest', 'check', 'label', 'summarize', 'priority', 'implication', 'need_payoff'])
+const ENGAGES = new Set<string>(ENGAGE_IDS)
 
 /**
  * Добавить индикаторы по контексту хода — одинаково и для LLM, и для офлайна:

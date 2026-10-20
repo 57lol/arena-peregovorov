@@ -2,6 +2,7 @@
 // Считается из того же отчёта, что и подробный разбор, без нейросети: тот же ход — те же строки.
 
 import { MINUTES_PER_TURN, behaviorById } from '../engine/behaviors'
+import { bookSig } from './bookPicks'
 import type { Report } from '../engine/report'
 import type { Scenario, TurnRecord } from '../engine/types'
 import { upsellPenalty } from '../engine/upsells'
@@ -15,7 +16,12 @@ export interface Summary {
   good: string
   /** цитата игрока к «получилось», если есть */
   quote?: string
+  /** сильный приём из «получилось» и его книга */
+  goodId?: string
+  goodSrc?: string
   next: string
+  /** на какую книгу опирается совет: «— Фишер, Юри, Паттон, «Переговоры без поражения», гл. 6» */
+  nextSrc?: string
 }
 
 export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summary {
@@ -86,7 +92,15 @@ export function summarize(sc: Scenario, r: Report, history: TurnRecord[]): Summa
     next = `Оба могли получить больше — на столе осталось ещё ${r.leftOnTable} ${plural(r.leftOnTable, 'очко', 'очка', 'очков')} выгоды. Уступите там, где вам не так важно, а взамен попросите своё.`
   else if (!deal && r.zopa) next = `Предложите условия по всем пунктам сразу: так ${him} проще согласиться, а вам — обменять одно на другое.`
   else next = sc.lessons?.[0] ?? sc.goals?.[0] ?? 'Попробуйте сыграть это дело жёстче.'
-  return { result, good: plainWords(good), quote, next: plainWords(next) }
+  // на какую книгу опирается совет — по той же цепочке
+  const from = loss ? 'alternative'
+    : slammed && history.some((h) => h.analysis.toneViolation) ? 'attack'
+    : weak ? weak.id
+    : !asked ? 'ask_interest'
+    : deal && r.leftOnTable > 0 ? 'package'
+    : !deal && r.zopa ? 'package'
+    : undefined
+  return { result, good: plainWords(good), quote, next: plainWords(next), goodId: strong?.id, goodSrc: strong ? bookSig(strong.id) || undefined : undefined, nextSrc: from ? bookSig(from) || undefined : undefined }
 }
 
 /** Частота словами: доля реплик (%) или «на 12 реплик» → «примерно раз в 5 реплик». */

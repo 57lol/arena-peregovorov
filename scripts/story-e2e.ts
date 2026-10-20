@@ -153,7 +153,7 @@ async function play(kase: string, phone: boolean) {
     console.log('  снимок', `${tag}-${name}`)
   }
   console.log(`\n${tag}`)
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'] })
   const ctx = await b.newContext({
     viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     deviceScaleFactor: phone ? 2 : 1,

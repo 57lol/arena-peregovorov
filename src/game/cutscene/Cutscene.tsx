@@ -282,6 +282,7 @@ function PhoneScreen({ card, rect, s, time }: { card: PhoneCard; rect: [number, 
         </p>
         <h2 className="cs-memo-title">{card.title}</h2>
         <p className="cs-memo-text">{card.text}</p>
+        {card.src && <p className="cs-memo-src">{card.src}</p>}
       </div>
     )
   const face = PORTRAITS[card.face]
@@ -432,6 +433,7 @@ function GuidePhone({ guide, page, onTurn, style }: { guide: Guide; page: number
           </p>
           <h2>{tip.title}</h2>
           <p className="cs-guide-text">{tip.text}</p>
+          {tip.src && <p className="cs-guide-src">{tip.src}</p>}
           <p className="cs-guide-when">
             <span>Пригодится</span>
             {tip.when}

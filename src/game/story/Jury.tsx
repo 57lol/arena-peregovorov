@@ -34,6 +34,8 @@ interface Props {
   onSetup: () => void
   onCoach: () => void
   onCareer: () => void
+  /** «Библиотека приёмов»: пять книг и приёмы из них */
+  onBooks?: () => void
   /** карта недели: все главы сразу, без катсцен — она есть только у жюри */
   onMap: () => void
   onCutscene: (id: string) => void
@@ -164,6 +166,11 @@ export function Jury(p: Props) {
               <Button variant="ghost" onClick={p.onCareer}>
                 Личное дело
               </Button>
+              {p.onBooks && (
+                <Button variant="ghost" icon="notebook" onClick={p.onBooks}>
+                  Библиотека приёмов
+                </Button>
+              )}
             </div>
           </section>
 
@@ -213,7 +220,7 @@ export function Jury(p: Props) {
         </section>
 
         <section className="g-sheet jr-sheet jr-method">
-          <Method />
+          <Method onBooks={p.onBooks} />
         </section>
       </main>
     </div>

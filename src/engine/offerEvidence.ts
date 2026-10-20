@@ -1,4 +1,4 @@
-import { BEHAVIOR_DICT, detectBehaviors, guardBehaviors } from './behaviors'
+import { BEHAVIOR_DICT, detectBehaviors, guardBehaviors, mirrorHit } from './behaviors'
 import { isTentative, requestsInformation, sentences } from './methodIntent'
 import { parseUpsells } from './upsells'
 import { analyzeOffline, confirmsWalkAway, isWalkAway } from './offline/analyze'
@@ -354,6 +354,9 @@ function uncontradictedDecision(sc: Scenario, text: string, a: MoveAnalysis): bo
 /** said — последняя реплика собеседника: голое число, которое подходит к нескольким пунктам, — о том, о чём шла речь. */
 export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysis, said?: string): MoveAnalysis {
   const rules = analyzeOffline(sc, text, BEHAVIOR_DICT)
+  // Зеркало (Восс) видно только рядом с последней репликой собеседника: его ставим здесь, для любой разметки.
+  const mirror = analysis.behaviors.some((h) => h.id === 'mirror') ? undefined : mirrorHit(text, said)
+  if (mirror) rules.behaviors.push(mirror)
   // Пустая модель не должна терять явное согласие, уход, вопрос или разговорный приём.
   const merged = { ...analysis,
     behaviors: guardBehaviors(text, [...analysis.behaviors, ...rules.behaviors.filter((b) => !analysis.behaviors.some((h) => h.id === b.id))]),
@@ -371,6 +374,11 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
   const modelTopics = [...new Set((analysis.asksAbout ?? []).filter((id) => sc.issues.some((i) => i.id === id)))]
   const allTopics = modelTopics.length > 1 && modelTopics.length === sc.issues.length
   other.asksAbout = modelTopics.length && !allTopics ? modelTopics : rules.asksAbout
+  // «Только по предоплате?» — вопрос о том пункте, чьи слова повторили
+  if (!other.asksAbout?.length && merged.behaviors.some((h) => h.id === 'mirror')) {
+    const about = mentionedIssues(sc, text)
+    if (about.length) other.asksAbout = about
+  }
   if (!other.asksAbout) delete other.asksAbout
   delete other.upsells
   if (extras.mentioned) {

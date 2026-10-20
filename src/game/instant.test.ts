@@ -3,7 +3,8 @@ import { getScenario } from '../content/scenarios'
 import { BEHAVIOR_DICT } from '../engine/behaviors'
 import { offlineTurn } from '../engine/offline'
 import type { Offer, TurnRecord } from '../engine/types'
-import { effectText, fragment, nextTip, turnFeedback } from './instant'
+import { effectText, fragment, mirrorOf, nextTip, turnFeedback } from './instant'
+import { mirrorHit } from '../engine/behaviors'
 
 const tara = getScenario('tara')!
 
@@ -150,5 +151,61 @@ describe('совет «что дальше»', () => {
     const b = play(['Почему для вас важна оплата по факту?', 'Давайте пополам.'])
     expect(turnFeedback(tara, a[1])).toEqual(turnFeedback(tara, b[1]))
     expect(nextTip(tara, a)).toEqual(nextTip(tara, b))
+  })
+})
+
+// подписи книг — с неразрывным пробелом «гл.\u00a03»
+const nb = (s?: string) => s?.replace(/\u00a0/g, ' ')
+
+describe('подсказки из книг', () => {
+  it('зеркало строится из последних слов собеседника: без цифр, с вопросом, и разметка его узнаёт', () => {
+    expect(mirrorOf('Работаем только по предоплате.')).toBe('Только по предоплате?')
+    expect(mirrorOf('Это наша внутренняя кухня.')).toBe('Наша внутренняя кухня?')
+    expect(mirrorOf('We only work with prepayment.')).toBe('Work with prepayment?')
+    expect(mirrorOf('Цена 200 рублей?')).toBeNull()
+    for (const said of ['Работаем только по предоплате.', 'Это наша внутренняя кухня.'])
+      expect(mirrorHit(mirrorOf(said)!, said)?.id).toBe('mirror')
+  })
+
+  it('собеседник не стал рассказывать — совет «зеркало» с примером из его реплики и подписью Восса', () => {
+    const h = play(['Почему вам важна оплата по факту?'])
+    expect(h[0].decision).toMatchObject({ kind: 'hold', reason: 'not_ready_to_reveal' })
+    const tip = nextTip(tara, h)!
+    expect(tip.id).toBe('mirror')
+    expect(tip.example).toBe(mirrorOf(h[0].opponentLine))
+    expect(tip.example).toMatch(/\?$/)
+    expect(tip.example).not.toMatch(/\d/)
+    expect(tip.text).toContain(`«${tip.example}»`)
+    expect(nb(tip.src)).toBe('Восс, гл. 2')
+  })
+
+  it('напряжение выросло, но до срыва далеко — совет «ярлык» (Восс, гл. 3)', () => {
+    const h = play(['Почему вам важна оплата по факту?', 'Решайте сейчас, это последний шанс.'])
+    const tip = nextTip(tara, h)!
+    expect(tip.id).toBe('label')
+    expect(tip.example).toMatch(/^Похоже, вас беспокоит/)
+    expect(nb(tip.src)).toBe('Восс, гл. 3')
+  })
+
+  it('пометки и советы подписаны книгой: вопрос — Фишер, гл. 3; давление сроком — Восс; ярлык — Восс', () => {
+    const h = play(['Почему вам важна оплата по факту?', 'Решайте сейчас, это последний шанс.', 'Похоже, вас беспокоит, что мы сорвём запуск.'])
+    expect(nb(turnFeedback(tara, h[0]).notes.find((n) => n.key === 'ask_interest')?.src)).toBe('Фишер, гл. 3')
+    expect(nb(turnFeedback(tara, h[1]).notes.find((n) => n.key === 'deadline')?.src)).toBe('Восс, гл. 6')
+    expect(nb(turnFeedback(tara, h[2]).notes.find((n) => n.key === 'label')?.src)).toBe('Восс, гл. 3')
+    expect(nb(nextTip(tara, play(['Добрый день.']))?.src)).toBe('Фишер, гл. 3')
+  })
+
+  it('третий раз то же предложение — пометка с подписью «Фишер, гл. 1»', () => {
+    const o = 'Цена 190, отсрочка 30 дней, срочная за 48 часов, договор 1 год, отгрузки раз в неделю.'
+    const h = play(['Почему для вас важен срок договора?', o, o, o])
+    const n = h.map((r, k) => turnFeedback(tara, r, h[k - 1]).notes.find((x) => x.title === 'Одно и то же')).find(Boolean)
+    expect(nb(n?.src)).toBe('Фишер, гл. 1')
+  })
+
+  it('книжные советы тоже не повторяются подряд и бывают не чаще одного за ход', () => {
+    const h = play(['Почему вам важна оплата по факту?', 'Почему для вас важен срок договора?', 'Решайте сейчас, это последний шанс.', 'Хорошо.', 'Ладно.', 'Понятно.'])
+    const tips = h.map((_, k) => nextTip(tara, h.slice(0, k + 1)))
+    for (let k = 1; k < tips.length; k++) if (tips[k]) expect(tips[k]!.id).not.toBe(tips[k - 1]?.id)
+    for (const t of tips) if (t && ['mirror', 'how', 'label', 'bridge'].includes(t.id)) expect(t.src).toMatch(/^(Восс|Юри), (гл\.|шаг)\s\d$/)
   })
 })

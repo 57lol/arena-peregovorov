@@ -6,6 +6,8 @@
 
 import { getScenario } from '../../content/scenarios'
 import { CHAPTERS } from '../../content/story'
+import type { BehaviorId } from '../../engine/behaviors'
+import { BOOKS, TECHNIQUES } from '../../engine/books'
 import { PORTRAITS, type PortraitId } from '../ui/assets'
 import { BUS, SPOTS } from './art'
 import type { Card, Cutscene, Guide, Shot } from './types'
@@ -38,6 +40,15 @@ export function chapterCard(id: string): Card {
   }
 }
 
+/**
+ * Откуда приём наставника — по карте приёмов из books.ts: «Юри, шаг 1, «Поднимитесь на балкон»».
+ * k — какая из ссылок приёма; name: false — без названия в книге, когда оно длинное.
+ */
+export function bookOf(id: BehaviorId, k = 0, name = true): string {
+  const r = TECHNIQUES[id].refs[k]
+  return `${BOOKS[r.book].short}, ${r.where}${name ? `, «${r.name.replace(/«/g, '„').replace(/»/g, '“')}»` : ''}`
+}
+
 const card = (id: string, dur = 3): Shot => ({ set: 'black', dur, card: chapterCard(id) })
 const map = (from: string, to: string, text: string, dur = 3.6): Shot => ({ set: 'map', dur, route: { from, to }, lines: [{ at: 0.3, text }] })
 
@@ -56,10 +67,10 @@ export const WELCOME: Guide = {
   ],
   open: 'Смотреть приёмы',
   tips: [
-    { title: 'Меняйся', text: 'Отдай то, что тебе почти ничего не стоит, за то, что тебе важно.', when: 'Сегодня вечером, с соседом по комнате' },
-    { title: 'Не заводись', text: 'Не повышай голос. И заранее реши, что сделаешь, если не договоритесь.', when: 'Завтра утром, на остановке' },
-    { title: 'Первая цифра — не последняя', text: 'Цену сначала всегда называют с запасом. Не соглашайся сразу — торгуйся.', when: 'В понедельник, на заводе' },
-    { title: 'Спроси «зачем?»', text: 'За просьбой прячется причина. Узнаешь её — найдёшь, чем помочь.', when: 'В среду, на собеседовании' },
+    { title: 'Меняйся', text: 'Отдай то, что тебе почти ничего не стоит, за то, что тебе важно.', when: 'Сегодня вечером, с соседом по комнате', src: bookOf('package') },
+    { title: 'Не заводись', text: 'Не повышай голос. И заранее реши, что сделаешь, если не договоритесь.', when: 'Завтра утром, на остановке', src: bookOf('balcony') },
+    { title: 'Первая цифра — не последняя', text: 'Цену сначала всегда называют с запасом. Не соглашайся сразу — торгуйся.', when: 'В понедельник, на заводе', src: bookOf('anchor') },
+    { title: 'Спроси «зачем?»', text: 'За просьбой прячется причина. Узнаешь её — найдёшь, чем помочь.', when: 'В среду, на собеседовании', src: bookOf('ask_interest') },
   ],
   done: 'Понятно, едем!',
 }
@@ -158,7 +169,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         behind: 'street',
         cam: S.stop,
         dur: 4.6,
-        phone: [{ at: 0, kind: 'memo', n: 'приём дня', title: 'Не заводись', text: 'Спокойный тон — сильная позиция.' }],
+        phone: [{ at: 0, kind: 'memo', n: 'приём дня', title: 'Не заводись', text: 'Спокойный тон — сильная позиция.', src: bookOf('balcony') }],
         lines: [{ at: 0.3, text: 'И заранее решите, куда отступить.' }],
       },
       card('stop'),
@@ -188,7 +199,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         dur: 8.8,
         phone: [
           { at: 0, kind: 'chat', from: 'Начальница', face: 'hr', text: 'Новенький? Закупщик на больничном, а через два часа — поставщик коробок. Кроме тебя некому.' },
-          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Первая цифра — не последняя', text: 'Её всегда называют с запасом.' },
+          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Первая цифра — не последняя', text: 'Её всегда называют с запасом.', src: bookOf('anchor') },
         ],
         lines: [
           { at: 0.3, text: 'Пишет начальница.' },
@@ -222,7 +233,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         behind: 'street',
         cam: S.shop + 120,
         dur: 4.6,
-        phone: [{ at: 0, kind: 'memo', n: 'приём дня', title: 'Факты сильнее эмоций', text: 'Закон, упаковка, сроки.' }],
+        phone: [{ at: 0, kind: 'memo', n: 'приём дня', title: 'Факты сильнее эмоций', text: 'Закон, упаковка, сроки.', src: bookOf('criteria', 0, false) }],
         lines: [{ at: 0.3, text: '«Я же прав» не работает. Работают правила.' }],
       },
       {
@@ -258,7 +269,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         dur: 8.8,
         phone: [
           { at: 0, kind: 'chat', from: 'Начальница', face: 'hr', text: 'Завтра в 11 — «Штамп-К». Лучшая кандидатка за три месяца ждёт заключительного собеседования. Проведёшь.' },
-          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Что просит и зачем', text: 'Деньги — не всегда про деньги.' },
+          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Что просит и зачем', text: 'Деньги — не всегда про деньги.', src: bookOf('ask_interest') },
         ],
         lines: [
           { at: 0.3, text: 'Пишет начальница.' },
@@ -288,7 +299,7 @@ export const BRIDGES: Record<string, Cutscene> = {
         dur: 8.8,
         phone: [
           { at: 0, kind: 'chat', from: 'Начальница', face: 'hr', text: '«Иней» грозит уйти к китайцам. Роза ждёт завтра в три. Ты у нас теперь переговорщик.' },
-          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Угроза — это вопрос', text: 'Проверьте её, прежде чем уступать.' },
+          { at: 4.4, kind: 'memo', n: 'приём дня', title: 'Угроза — это вопрос', text: 'Проверьте её, прежде чем уступать.', src: bookOf('ultimatum', 1, false) },
         ],
         lines: [
           { at: 0.3, text: 'Опять начальница.' },

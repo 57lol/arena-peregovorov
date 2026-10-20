@@ -520,7 +520,36 @@ export function frameFor(sc: Scenario, d: Decision, state: OpponentState, prev: 
   return { decision: d, text, position, allowed, locked, final: offering && !!d.final, changed, prev, stance, before: stanceBefore }
 }
 
-export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: string, frame: Frame, state: OpponentState, prev: Offer): string {
+// Как собеседник слышит приёмы игрока (книги: Восс, Юри, Фишер, Стоун). Это настроение реплики, а не решение: условия и
+// причины — только из рамки. Названий приёмов модель не знает и вслух их не говорит. Не больше двух — самые заметные.
+const HEARD: [string, string][] = [
+  ['attack', 'нападает на тебя — тебе обидно, но без ответной грубости'],
+  ['ultimatum', 'ставит ультиматум — тебе это неприятно, настораживаешься'],
+  ['deadline', 'торопит сроком — не нравится, когда тебя подгоняют, спешить не станешь'],
+  ['irritator', 'хвалит своё же предложение — тебя это слегка раздражает'],
+  ['accusation_audit', 'сам заранее сказал, что ты о нём можешь подумать, — упрекать его уже не тянет, отвечаешь мягче'],
+  ['label', 'назвал вслух, что тебя беспокоит, — приятно, что слышат, чуть теплеешь (но причин сверх решения не раскрываешь)'],
+  ['mirror', 'переспросил твоими же словами — поясни, что ты имел в виду, насколько позволяет решение'],
+  ['calibrated', 'спросил «как?» — прикинь вслух, как это можно решить, в пределах своего решения'],
+  ['golden_bridge', 'подумал о том, как ты объяснишь это своим, — это ты ценишь'],
+  ['i_message', 'говорит о своих чувствах, а не обвиняет тебя, — отвечаешь без обороны'],
+  ['no_question', 'спросил так, что легко отказать, — давления не чувствуешь, отвечаешь спокойно'],
+  ['balcony', 'попросил минуту подумать — не торопи его'],
+  ['check', 'пересказал твои слова — если понял верно, коротко подтверди'],
+  ['joint_frame', 'зовёт решать вместе — откликаешься на это'],
+  ['criteria', 'опирается на внешнюю мерку — отвечаешь по существу, а не «хочу и всё»'],
+  ['split', 'предлагает поделить пополам — середина тебя не впечатляет'],
+]
+
+/** Строка рамки «как он сейчас с тобой говорит» по приёмам из разметки. Пусто — если откликаться не на что. */
+export function heardNote(ids: string[] = []): string {
+  const have = new Set(ids)
+  const notes = HEARD.filter(([id]) => have.has(id)).slice(0, 2).map(([, t]) => t)
+  return notes.length ? `Как он сейчас говорит с тобой: ${notes.join('; ')}. Откликнись на это по-своему, в характере, не длиннее обычного.` : ''
+}
+
+export function userPrompt(sc: Scenario, history: TurnRecord[], playerText: string, frame: Frame, state: OpponentState, prev: Offer, heard?: string[]): string {
+  const note = heardNote(heard)
   const talk = [`Ты: «${sc.opening}»`, ...history.flatMap((h) => [`Собеседник: «${h.playerText}»`, `Ты: «${h.opponentLine}»`])].join('\n')
   const stance = state.playerStance ?? {}
   const sheet = Object.keys(prev).length ? `На листке у собеседника твоё предложение: ${terms(sc, prev)}.` : ''
@@ -532,7 +561,7 @@ ${talk}
 Собеседник (сейчас): «${playerText}»
 
 ${sheet}${his}
-Сейчас ${mood(sc, state)}.
+Сейчас ${mood(sc, state)}.${note ? `\n${note}` : ''}
 
 Твоё решение на этот ход: ${frame.text}
 ${sc.upsells?.length ? 'Доптовары оформляет отдельная строка заказа. Не озвучивай допродажи сам и не меняй их состав.' : ''}
@@ -1196,6 +1225,8 @@ export interface VoiceResult {
 export interface VoiceOptions {
   /** уже выбранное начало ответа; только для реплики, не для оценки */
   reaction?: string
+  /** приёмы, которые разметка нашла в реплике игрока: собеседник на них откликается (heardNote) */
+  heard?: string[]
   /** естественная речь: промпт «для голоса» (FOR_VOICE) */
   natural?: boolean
   /** ударения «+» в омографах (voices+) */
@@ -1237,12 +1268,12 @@ export function unquote(t: string): string {
 const clean = (t: string) => normalizeTags(fixSheet(unquote(t.trim())).replace(EMOJI, '').replace(STAGE, ' ').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?…])/g, '$1').trim())
 
 /** Голос и рамка хода: что видит модель реплики. Одинаковые — одна и та же реплика (по этому сверяется спекуляция). */
-export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction' | 'opener'> = {}) {
+export function voicePrompt(sc: Scenario, history: TurnRecord[], playerText: string, d: Decision, state: OpponentState, opts: Pick<VoiceOptions, 'natural' | 'marks' | 'reaction' | 'opener' | 'heard'> = {}) {
   const prev = history[history.length - 1]?.stateAfter.lastOpponentOffer ?? initialState(sc).lastOpponentOffer ?? {}
   const stanceBefore = history[history.length - 1]?.stateAfter.playerStance ?? {}
   const frame = frameFor(sc, d, state, prev, stanceBefore)
   const reaction = opts.reaction && !opts.opener ? `\nИнтерфейс может проиграть короткую реакцию: «${opts.reaction}». Она может не прозвучать: ответ должен быть самостоятельным. Не повторяй её.` : ''
-  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev) + reaction + (opts.opener ? openerNote(sc, opts.opener) : '') }
+  return { prev, frame, sys: system(sc, !!opts.natural, !!opts.marks), user: userPrompt(sc, history, playerText, frame, state, prev, opts.heard) + reaction + (opts.opener ? openerNote(sc, opts.opener) : '') }
 }
 
 /** Заход уже прозвучал: продолжить с него одной репликой, без повтора и без нового начала. */
@@ -1294,7 +1325,7 @@ export async function voice(
 ): Promise<VoiceResult> {
   const t0 = Date.now()
   const { prev, frame, sys, user } = voicePrompt(sc, history, playerText, d, state, opts)
-  const fallback = templateLine(sc, d, state, prev, frame.before)
+  const fallback = templateLine(sc, d, state, prev, frame.before, opts.heard)
   if (llm.name === 'offline') return { ...fallback, source: 'template' }
   const ctx: CheckContext = {
     said: [sc.opening, ...history.flatMap((h) => [h.playerText, h.opponentLine]), playerText].join('\n'),

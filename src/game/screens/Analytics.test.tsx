@@ -2,7 +2,7 @@ import { isValidElement, type ReactNode, type KeyboardEvent } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { getScenario } from '../../content/scenarios'
-import { BEHAVIOR_DICT } from '../../engine/behaviors'
+import { BEHAVIOR_DICT, BEHAVIORS } from '../../engine/behaviors'
 import { nextPractice } from '../../engine/analytics'
 import { offlineTurn } from '../../engine/offline'
 import { buildReport } from '../../engine/report'
@@ -43,7 +43,7 @@ describe('графики разбора', () => {
 
   it('не скрывает неиспользованные приёмы и показывает все доказательства', () => {
     const html = renderToStaticMarkup(<BehaviorProfile rows={report.benchmark} history={history} tips={nextPractice(report)} />)
-    expect(html.match(/<details/g)).toHaveLength(22)
+    expect(html.match(/<details/g)).toHaveLength(BEHAVIORS.length)
     expect(html).toContain('Ход 1.')
     expect(html).toContain('В следующей встрече')
     expect(html).toContain('без численной нормы')

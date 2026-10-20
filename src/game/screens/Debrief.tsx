@@ -23,7 +23,10 @@ import { ShareButton } from './ShareButton'
 import { Stars } from './Stars'
 import { often, summarize } from '../summary'
 import { decisionTag, plainWords } from '../instant'
+import { TECHNIQUES } from '../../engine/books'
+import { bookPicks, bookSig, sayText } from '../bookPicks'
 import '../onboarding.css'
+import '../books.css'
 
 interface Props {
   attemptId: string
@@ -98,6 +101,8 @@ export function Debrief({ attemptId, game, history, recorded: alreadyRecorded, d
         {receipt}
         {/* сначала главное: три строки и что делать дальше; цифры, карта и моменты — в подробном разборе */}
         <Main sc={sc} report={report} history={history} improved={improved} onAgain={onAgain} onMore={openMore} onNext={onNext} />
+
+        {history.length > 0 && <Books history={history} skip={summarize(sc, report, history).goodId} />}
 
         <div className="g-report-fun">
           <Finale sc={sc} ending={ending} opened={opened} fresh={fresh} />
@@ -252,11 +257,15 @@ function Main({
           <dd>
             {s.good}
             {s.quote && <q className="g-main-quote">{censor(s.quote)}</q>}
+            {s.goodSrc && <span className="g-book">{s.goodSrc}</span>}
           </dd>
         </div>
         <div className="is-next">
           <dt>В следующий раз</dt>
-          <dd>{s.next}</dd>
+          <dd>
+            {s.next}
+            {s.nextSrc && <span className="g-book">{s.nextSrc}</span>}
+          </dd>
         </div>
       </dl>
       {improved !== null && (
@@ -340,6 +349,69 @@ function Ledger({ sc, report, history, name, improved }: { sc: Scenario; report:
 /** Термин для тех, кто знает теорию, — мелко после простых слов. */
 const Term = ({ children }: { children: React.ReactNode }) => <small className="g-term">({children})</small>
 
+/** Приёмы из пяти книг: что получилось, что мешало, чего не хватило — коротко, с подписью книги. */
+function Books({ history, skip }: { history: TurnRecord[]; skip?: string }) {
+  const p = useMemo(() => bookPicks(history, skip), [history, skip])
+  return (
+    <section className="g-sheet g-books" aria-labelledby="books-h">
+      <h2 id="books-h" className="g-sheet-title">
+        Приёмы из книг
+      </h2>
+      <p className="g-muted">
+        Приёмы игры описаны в пяти книгах по переговорам (Фишер, Юри, Восс, Рэкхем, Стоун). Вот что из них было в ваших репликах.
+      </p>
+      <div className="g-books-cols">
+        <div className="g-books-col g-books-col--good">
+          <h3 className="g-h3">Что получилось</h3>
+          {p.good.length ? (
+            <ul>
+              {p.good.map((x) => (
+                <li key={x.id}>
+                  <p><b>{x.title}</b></p>
+                  {x.quote && <blockquote className="g-quote g-quote--small">{censor(x.quote)}</blockquote>}
+                  {x.sig && <span className="g-book">{x.sig}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="g-books-empty">Сильных приёмов из книг в репликах не нашлось.</p>
+          )}
+        </div>
+        {p.bad.length > 0 && (
+          <div className="g-books-col g-books-col--bad">
+            <h3 className="g-h3">Что мешало</h3>
+            <ul>
+              {p.bad.map((x) => (
+                <li key={x.id}>
+                  <p><b>{x.title}</b></p>
+                  {x.quote && <blockquote className="g-quote g-quote--small">{censor(x.quote)}</blockquote>}
+                  {x.idea && <p className="g-books-idea"><b>Как в книге:</b> {x.idea}</p>}
+                  {x.say && <p className="g-books-try"><b>Попробуйте:</b> {sayText(x.say)}</p>}
+                  {x.sig && <span className="g-book">{x.sig}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {p.missing.length > 0 && (
+          <div className="g-books-col g-books-col--miss">
+            <h3 className="g-h3">Чего не хватило</h3>
+            <ul>
+              {p.missing.map((x) => (
+                <li key={x.id}>
+                  <p><b>{x.title}.</b> {x.why}</p>
+                  {x.say && <p className="g-books-try"><b>Попробуйте:</b> {sayText(x.say)}</p>}
+                  {x.sig && <span className="g-book">{x.sig}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; report: Report; history: TurnRecord[]; onReplayFrom: (t: number) => void; wide: boolean }) {
   if (!report.keyMoments.length) return null
   return (
@@ -372,16 +444,23 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
                   {hits.map((b) => {
                     const def = behaviorById(b.id)
                     if (!def) return null
-                    const src = SOURCES[def.sources[0]]
+                    // книга уже в подписи — ссылку показываем, только если первым источником стоит исследование
+                    const research = def.sources.find((k) => !['voss16', 'ury91', 'stone99', 'fisherUry81', 'rackham88', 'huthwaite', 'ponPrincipled'].includes(k))
+                    const src = research ? SOURCES[research] : undefined
+                    const sig = bookSig(def.id)
                     return (
                       <li key={b.id} className={`is-${def.polarity}`}>
                         <b>{def.title}</b>
                         {def.polarity === 'strong' ? ' — сильный приём' : def.polarity === 'weak' ? ' — слабый приём' : ''}.{' '}
-                        {plainWords(def.polarity !== 'strong' ? def.advice : whyWorks(def))}{' '}
+                        {plainWords(def.polarity !== 'strong' ? def.advice : whyWorks(def))}
+                        {sig && <span className="g-book">{sig}</span>}
                         {src && (
-                          <a href={src.url} target="_blank" rel="noreferrer" className="g-cite">
-                            {shortCite(src.cite)}
-                          </a>
+                          <small className="g-book-small">
+                            Исследование:{' '}
+                            <a href={src.url} target="_blank" rel="noreferrer" className="g-cite">
+                              {shortCite(src.cite)}
+                            </a>
+                          </small>
                         )}
                       </li>
                     )
@@ -569,6 +648,8 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
         {rows.map((r) => {
           const def = behaviorById(r.id)
           const q = quotes.get(r.id)?.[0]
+          const t = TECHNIQUES[r.id]
+          const sig = bookSig(r.id)
           return (
             <li key={r.id}>
               <p className="g-beh-head">
@@ -579,7 +660,15 @@ function BehGroup({ title, rows, quotes, n, kind }: { title: string; rows: Profi
               </p>
               {r.benchmark && r.benchmark.unit !== 'reasons' && r.value !== undefined && <Bench row={r} n={n} />}
               {q && <blockquote className="g-quote g-quote--small">{censor(q)}</blockquote>}
-              {(kind === 'weak' || kind === 'missing') && def && <p className="g-beh-advice">{plainWords(def.advice)}</p>}
+              {(kind === 'weak' || kind === 'missing') && def && (t ? (
+                <>
+                  <p className="g-beh-advice"><b>Как в книге:</b> {t.idea}</p>
+                  <p className="g-beh-advice"><b>Попробуйте:</b> {sayText(t.say)}</p>
+                </>
+              ) : (
+                <p className="g-beh-advice">{plainWords(def.advice)}</p>
+              ))}
+              {sig && <span className="g-book">{sig}</span>}
             </li>
           )
         })}
