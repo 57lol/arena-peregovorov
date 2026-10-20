@@ -37,6 +37,7 @@ export function Play(props: Props) {
   // «Как играть»: само — перед первой встречей в этом браузере, потом — из меню встречи
   const [tour, setTour] = useState(() => history.length === 0 && tutorialAllowed() && !introSeen())
   useEffect(() => {
+    if (typeof document === 'undefined') return
     document.documentElement.classList.toggle('is-touring', tour)
     return () => document.documentElement.classList.remove('is-touring')
   }, [tour])
@@ -124,8 +125,7 @@ export function Play(props: Props) {
 
   if (props.view === '3d') return (
     <Suspense fallback={<div className="w3-loading">Входим в переговорку…</div>}>
-      <Play3D {...props} m={m} v={v} tut={tut} onVoicePause={setVoicePaused} onHowTo={() => setTour(true)} />
-      {tourEl}
+      <Play3D {...props} m={m} v={v} tut={tut} onVoicePause={setVoicePaused} onHowTo={() => setTour(true)} tour={tourEl} />
     </Suspense>
   )
 

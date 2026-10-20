@@ -37,6 +37,8 @@ type Props = MeetingProps & {
   onVoicePause: (paused: boolean) => void
   /** «Как играть» из меню: знакомство с экраном встречи */
   onHowTo?: () => void
+  /** само знакомство «Как играть» (Play.tsx) — поверх встречи */
+  tour?: ReactNode
   /** в запасной 2D-вид: WebGL отвалился или устройство не тянет (сам игрок вид не выбирает) */
   onClassic: (why: 'slow') => void
 }
@@ -570,6 +572,7 @@ export default function Play3D(props: Props) {
           }
         />
       )}
+      {props.tour}
     </div>
   )
 }

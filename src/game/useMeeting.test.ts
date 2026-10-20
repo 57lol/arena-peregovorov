@@ -20,7 +20,7 @@ const speech = vi.hoisted(() => ({ on: true, prepare: vi.fn(), play: vi.fn(async
 const settings = vi.hoisted(() => ({ snap: { mode: 'text', pause: 'medium' } }))
 const screen = vi.hoisted(() => ({ enabled: false, view: '3d' as '3d' | 'classic',
   meeting: null as import('./useMeeting').Meeting | null, tree: null as ReactNode, voice: null as unknown }))
-vi.mock('./tutorial', () => ({ useTutorial: () => ({ on: false, shows: () => false }), mentorLine: () => null }))
+vi.mock('./tutorial', () => ({ useTutorial: () => ({ on: false, shows: () => false }), mentorLine: () => null, tutorialAllowed: () => false, introSeen: () => true, introSteps: () => [], markIntroSeen: () => {} }))
 vi.mock('./useVoiceTurn', () => ({ useVoiceTurn: (m: import('./useMeeting').Meeting) => {
   screen.meeting = m
   const session = useRef({ phase: 'listen', mic: 'on', partial: '', myTurn: false })
