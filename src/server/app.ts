@@ -83,6 +83,7 @@ const ScenarioInput = z.object({
     pitch: str(500), accepted: str(500), refused: str(500),
   })).max(6).optional(),
   opening: str(1500),
+  scene: str(40).optional(),
   blurb: str(500).optional(),
   goals: z.array(str(500)).max(10).optional(),
   lessons: z.array(str(500)).max(10).optional(),

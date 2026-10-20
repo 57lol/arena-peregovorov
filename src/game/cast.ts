@@ -20,6 +20,38 @@ export function portraitFor(sc: Scenario): PortraitId {
 const VIDEO_CALLS = new Set(['china'])
 export const isVideoCall = (sc: Scenario) => VIDEO_CALLS.has(baseCaseId(sc.id))
 
+/** Деловые места для своих дел. Переговорная «Кама» не входит: она устроена под видеозвонок. */
+export const BUSINESS_SCENES = ['office', 'factory', 'inei', 'bytovka', 'istanbul', 'lagos'] as const satisfies readonly SceneId[]
+export type BusinessScene = (typeof BUSINESS_SCENES)[number]
+
+/** Что в описании дела зовёт в это место. Стамбул и Лагос — только когда дело про них. */
+const PLACE_FITS: Record<BusinessScene, { fits: RegExp; base: number }> = {
+  office: { fits: /аренд|недвиж|офис|найм|ваканс|оффер|кадр|персонал|продаж|клиент|(^|[^\p{L}])it|айти|юрист|юридич|банк|кредит|инвест|маркетинг|консалт|услуг|страх|лиценз/iu, base: 1 },
+  factory: { fits: /закуп|постав|производ|завод|цех|тар[аы]|упаков|сырь|склад|логист|опт|гофр/i, base: 1 },
+  inei: { fits: /закуп|снабжен|тендер|постав|контракт|комплектующ|оборудован|станк|линии|холодильн/i, base: 1 },
+  bytovka: { fits: /подряд|монтаж|ремонт|строит|стройк|бригад|смен[аеуы]|рабоч|наладк|пусконалад|обслуживан|сварк/i, base: 0.5 },
+  istanbul: { fits: /турц|стамбул|turk|istanbul/i, base: 0 },
+  lagos: { fits: /африк|нигер|лагос|lagos|africa/i, base: 0 },
+}
+
+/**
+ * Место для своего дела: подходящее по описанию весит в восемь раз больше, но и остальные деловые места выпадают —
+ * иначе все дела про закупки шли бы в одном кабинете. Детерминированно: то же дело — то же место.
+ */
+export function pickPlace(sc: Scenario): BusinessScene {
+  const c = sc.opponent.character
+  const text = `${sc.sphere} ${sc.title} ${c.role} ${c.company} ${sc.player.role}`
+  const weights = BUSINESS_SCENES.map((k) => (PLACE_FITS[k].fits.test(text) ? 8 : PLACE_FITS[k].base))
+  // другие биты хэша, чем у лица (faces.ts): место и лицо выпадают независимо
+  const u = parseInt(sc.id.replace(/[^0-9a-f]/gi, '').slice(-16, -8) || '0', 16) / 2 ** 32
+  let n = u * weights.reduce((s, w) => s + w, 0)
+  for (let i = 0; i < BUSINESS_SCENES.length; i++) {
+    n -= weights[i]
+    if (n < 0) return BUSINESS_SCENES[i]
+  }
+  return 'office'
+}
+
 export function sceneFor(sc: Scenario): SceneId {
   const id = baseCaseId(sc.id)
   if (VIDEO_CALLS.has(id)) return 'meet'
@@ -29,6 +61,9 @@ export function sceneFor(sc: Scenario): SceneId {
   if (id === 'lagos') return 'lagos'
   if (id === 'istanbul') return 'istanbul'
   if (id === 'offer') return 'office'
+  // своё дело: место, выбранное руководителем, иначе подбор по описанию
+  if ((BUSINESS_SCENES as readonly string[]).includes(sc.scene ?? '')) return sc.scene as BusinessScene
+  if (id.startsWith('gen-')) return pickPlace(sc)
   return /закуп|постав|производ|завод|цех|подряд|логист|склад|стро/i.test(`${sc.sphere} ${sc.title}`) ? 'factory' : 'office'
 }
 

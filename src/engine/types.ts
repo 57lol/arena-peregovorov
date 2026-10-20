@@ -80,6 +80,8 @@ export interface Scenario {
   player: { role: string; brief: string; profile: SideProfile }
   opponent: { character: Character; brief: string; profile: SideProfile }
   opening: string          // первая реплика оппонента
+  /** где идёт встреча (id сцены из BUSINESS_SCENES); нет — место подбирает sceneFor по описанию дела */
+  scene?: string
   blurb?: string           // одна строка для карточки выбора сценария
   goals?: string[]         // чему учит сценарий — навыки без ответов (бриф)
   lessons?: string[]       // то же с ответами — для разбора после встречи; нет — берём goals
