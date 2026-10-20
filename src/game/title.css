@@ -169,9 +169,23 @@
   --sub: var(--c-paper-2);
   --base: var(--c-ink-2);
 }
-a.tt-btn {
+a.tt-btn,
+div.tt-btn {
   box-sizing: border-box;
   text-decoration: none;
+}
+/* плашка «Видео» — не кнопка, а две ссылки внутри */
+div.tt-btn {
+  cursor: default;
+}
+.tt-btn span a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+.tt-btn span a:hover {
+  color: var(--label);
 }
 .tt-btn:hover {
   --lo: var(--c-mist);
@@ -189,7 +203,7 @@ a.tt-btn {
 .tt-btn.is-story:hover {
   --lo: var(--c-wood);
 }
-.tt-btn:active {
+.tt-btn:not(div):active {
   transform: translateY(calc(3 * var(--u)));
   box-shadow:
     inset 0 calc(-1 * var(--u)) 0 var(--lo),
