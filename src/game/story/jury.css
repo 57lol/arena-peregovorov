@@ -384,8 +384,8 @@
   .jr-cuts {
     grid-template-columns: 1fr;
   }
-  /* шапка: слева «Титул», справа «Сюжет»; карта недели и катсцены есть на листах ниже */
-  .jr-bar-right > .px-btn:not(:last-child) {
+  /* шапка: слева «Главный экран», справа «Карта недели» и «Сюжет»; ролики есть на листе ниже */
+  .jr-bar-right > .px-btn:nth-child(2) {
     display: none;
   }
   .jr-lead,

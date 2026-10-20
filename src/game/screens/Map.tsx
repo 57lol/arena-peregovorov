@@ -37,7 +37,8 @@ function useLayout() {
       const w = el.clientWidth
       if (w >= MAP.w * 3 + 16 + 400) setBox({ scale: 3, side: true })
       else if (w >= MAP.w * 2 + 16 + 360) setBox({ scale: 2, side: true })
-      else setBox({ scale: w >= MAP.w * 3 ? 3 : 2, side: false })
+      // телефон: карта вся в ширину экрана (дробный масштаб), иначе за краем рамки оставались остановки 3, 5, 6, 7 в ОЭЗ
+      else setBox({ scale: w >= MAP.w * 3 ? 3 : w >= MAP.w * 2 ? 2 : Math.floor(((w - 8) / MAP.w) * 100) / 100, side: false })
     }
     fit()
     const ro = new ResizeObserver(fit)
