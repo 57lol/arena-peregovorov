@@ -162,9 +162,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
             <p className="tt-videos">
               <PixelIcon name="right" px={2} />
               <span>Видео:</span>
-              <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре</a>
-              <span>·</span>
-              <a href="/demo.mp4" target="_blank" rel="noopener">полное прохождение</a>
+              <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре, 3,5 минуты</a>
             </p>
             <MusicHint />
           </div>
