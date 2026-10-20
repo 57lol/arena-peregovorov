@@ -111,3 +111,30 @@
     display: none;
   }
 }
+
+/* звук вкл/выкл в углу — на экранах без своей кнопки звука */
+.snd-float {
+  position: fixed;
+  z-index: 40;
+  left: max(8px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+}
+.snd-float > .px-btn {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+body:has(.snd-corner) .snd-float,
+body:has(.w3-root) .snd-float,
+body:has(.g-play) .snd-float {
+  display: none;
+}
+/* телефон: над нижней полосой карты недели и над «Войти» в брифе */
+@media (max-width: 599px) {
+  body:has(.mp-dock) .snd-float {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  body:has(.g-brief) .snd-float {
+    bottom: calc(56px + 20 * var(--u) + env(safe-area-inset-bottom));
+  }
+}

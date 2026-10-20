@@ -69,3 +69,27 @@ export function MusicHint() {
     </div>
   )
 }
+
+/** Пункт меню встречи: музыка и звуки одним нажатием (голос собеседника — отдельным пунктом). */
+export function MusicMenuItem({ className = 'w3-menu-item' }: { className?: string }) {
+  const on = useSyncExternalStore(subscribe, soundOn, () => false)
+  return (
+    <button type="button" className={className} aria-pressed={on} onClick={() => setSoundOn(!on)}>
+      <PixelIcon name={on ? 'sound' : 'mute'} px={2} /> Музыка и звуки: {on ? 'вкл' : 'выкл'}
+    </button>
+  )
+}
+
+/**
+ * Кнопка «звук вкл/выкл» в углу на всех экранах, где нет своей: на титуле есть SoundToggle, во встрече — меню.
+ * Там она прячется сама (sound.css, :has), чтобы не дублировать и не наезжать на панель встречи.
+ */
+export function MuteFloat() {
+  const on = useSyncExternalStore(subscribe, soundOn, () => false)
+  return (
+    <div className="snd-float">
+      <Button variant="paper" icon={on ? 'sound' : 'mute'} aria-label={on ? 'Выключить музыку и звуки' : 'Включить музыку и звуки'}
+        title={on ? 'Выключить музыку и звуки' : 'Включить музыку и звуки'} onClick={() => setSoundOn(!on)} />
+    </div>
+  )
+}

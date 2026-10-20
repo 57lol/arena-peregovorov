@@ -25,6 +25,7 @@ import { Mentor } from './Mentor'
 import { VoiceMenuItems } from './VoiceSettings'
 import { canRecord } from '../speech'
 import { VolumeSlider } from './Volume'
+import { MusicMenuItem } from '../audio/SoundControls'
 import { sfx } from '../audio/engine'
 import { Notes, XRay } from './meetingParts'
 import '../world3d/world3d.css'
@@ -1212,6 +1213,9 @@ function Menu({ m, onClose, onQuit, onXray, onHowTo }: { m: Meeting; onClose: ()
               <VolumeSlider />
             </li>
           )}
+          <li>
+            <MusicMenuItem />
+          </li>
           {m.canMic && canRecord() && <VoiceMenuItems />}
           {onHowTo && (
             <li>

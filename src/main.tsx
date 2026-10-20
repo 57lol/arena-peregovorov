@@ -7,6 +7,7 @@ import { resetting } from './game/reset'
 import { StrictMode, Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
+import { MuteFloat } from './game/audio/SoundControls'
 import { installChunkRecovery } from './game/chunkRecovery'
 import { ErrorBoundary } from './game/ErrorBoundary'
 
@@ -37,7 +38,7 @@ if (!resetting) createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
         <Ready>
-          {labPage ? (labPage === 'voices' ? <Voices /> : <Lab />) : worldPreview ? <WorldPreview /> : <App />}
+          {labPage ? (labPage === 'voices' ? <Voices /> : <Lab />) : worldPreview ? <WorldPreview /> : <><App /><MuteFloat /></>}
         </Ready>
       </Suspense>
     </ErrorBoundary>
