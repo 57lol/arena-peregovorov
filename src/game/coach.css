@@ -130,6 +130,8 @@
 .g-face-options,
 .g-place-options { display: grid; gap: calc(4 * var(--u)); }
 .g-face-options { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+/* подписи лиц длинные («Собственник предприятия, 62»): мелким шрифтом и переносом по словам, а не посреди слова */
+.g-face-option > span:last-child { font: 400 var(--fs-small) / 1.4 var(--f-read); text-align: center; overflow-wrap: normal; word-break: normal; hyphens: manual; }
 .g-place-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-face-option,
 .g-place-option {
