@@ -1303,7 +1303,8 @@
     display: none;
   }
 }
-@media (max-width: 420px) {
+/* узкий телефон и телефон боком: «на часах» не влезает — лежачим строка сдвигала облачко реплики на лицо */
+@media (max-width: 420px), (max-height: 500px) {
   .w3-wide {
     display: none;
   }
