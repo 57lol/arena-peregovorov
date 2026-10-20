@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { behaviorById, type BehaviorId, type Polarity } from '../../engine/behaviors'
 import { BOOKS, BOOK_ORDER, TECHNIQUES, shortTitle, techniquesOf, type BookId, type BookRef } from '../../engine/books'
+import { sayText } from '../bookPicks'
 import { Button } from '../ui'
 import '../library.css'
 
@@ -121,7 +122,7 @@ function Tech({ id, at }: { id: BehaviorId; at: BookRef }) {
       <p className="lb-idea">{t.idea}</p>
       <p className="lb-say">
         <span>{beh.polarity === 'weak' ? 'Вместо этого' : 'Пример из наших дел'}</span>
-        <i>{t.say.startsWith('—') ? t.say : `«${t.say}»`}</i>
+        <i>{sayText(t.say)}</i>
       </p>
       {also.length > 0 && <p className="lb-also">Ещё: {also.map((r) => `${BOOKS[r.book].short}, ${r.where}`).join('; ')}</p>}
     </li>

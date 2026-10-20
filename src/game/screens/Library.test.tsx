@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it } from 'vitest'
 import { behaviorById, type BehaviorId } from '../../engine/behaviors'
 import { BOOKS, BOOK_ORDER, TECHNIQUES, techniquesOf } from '../../engine/books'
+import { sayText } from '../bookPicks'
 import { Method } from './Method'
 import { Library } from './Library'
 
@@ -20,7 +21,7 @@ it('библиотека: пять книг и все приёмы из них �
     const b = behaviorById(id)
     expect(b?.title, id).toBeTruthy()
     if (!t.refs.length) continue
-    expect(html, id).toContain(esc(t.say))
+    expect(html, id).toContain(esc(sayText(t.say)))
     expect(html, id).toContain(esc(`в игре: ${b!.title}`))
   }
   // ловушки — отдельным списком, а приём без книги честно подписан
