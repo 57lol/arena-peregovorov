@@ -257,7 +257,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   // заход: первым звучит сам ответ, а не запись-реакция; дела без захода (OPENER_SKIP) — с реакцией, как раньше
   const openerCaps = () => (llm.opener ? { opener: true, ...(process.env.OPENER_SKIP ? { openerSkip: process.env.OPENER_SKIP.split(',').map((x) => x.trim()) } : {}) } : {})
   app.get('/api/health', async (c) =>
-    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: { ...speech.status(), ...openerCaps() } }),
+    c.json({ ok: true, mode: await llmMode(llm), provider: llm.name, model: llm.model.split('/').pop(), ...(llm.analyzer ? { analyzeModel: llm.analyzer.model.split('/').pop() } : {}), ...(llm.voice ? { voiceModel: `${llm.voice.name}:${llm.voice.model.split('/').pop()}` } : {}), ...(llm.opener ? { openerModel: `${llm.opener.name}:${llm.opener.model.split('/').pop()}` } : {}), ...(providerError ? { providerError } : {}), scenarios: allScenarios.length, speech: { ...speech.status(), ...openerCaps() } }),
   )
 
   // Чужая модель на запрос — тот же лимит на пропуск, что у лаборатории.

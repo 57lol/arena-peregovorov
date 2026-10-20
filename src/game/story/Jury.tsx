@@ -47,6 +47,26 @@ const DEMO = 'tara'
 const ENGLISH = 'istanbul'
 const PROVIDER: Record<string, string> = { yandex: 'YandexGPT', anthropic: 'Claude', openai: 'GPT', 'claude-cli': 'Claude' }
 
+/** «claude-sonnet-5.5» → «Claude Sonnet 5.5», «yandexgpt-5.1» → «YandexGPT Pro»; «aitunnel:» — лишь способ доступа. */
+export function modelName(spec: string | undefined, provider?: string): string {
+  const id = (spec ?? '').split(':').pop()!.split('/').pop()!.replace(/\/latest$/, '')
+  if (/^yandexgpt-lite/.test(id)) return 'YandexGPT Lite'
+  if (/^yandexgpt/.test(id)) return 'YandexGPT Pro'
+  const claude = /^claude-([a-z]+)-([\d.-]+)/.exec(id)
+  if (claude) return `Claude ${claude[1][0].toUpperCase()}${claude[1].slice(1)} ${claude[2].replace(/-/g, '.')}`
+  return id || (provider ? (PROVIDER[provider] ?? provider) : '')
+}
+
+/** Кто что делает — из /api/health, а не надписью: разметка (и запасные), реплика, первые слова. */
+export function brainsOf(h: Health): { analyze: string; voice: string } {
+  if (h.provider === 'offline' || h.mode === 'offline') return { analyze: 'офлайн: правила и заготовки', voice: 'заготовки' }
+  const main = modelName(h.model, h.provider)
+  const analyze = h.analyzeModel && modelName(h.analyzeModel) !== main ? `${modelName(h.analyzeModel)}, запасной — ${main}, затем правила` : `${main}, запасной — правила`
+  const voice = modelName(h.voiceModel ?? h.model, h.provider)
+  const opener = h.openerModel && modelName(h.openerModel)
+  return { analyze, voice: opener && opener !== voice ? `${voice}, первые слова — ${opener}` : voice }
+}
+
 export function Jury(p: Props) {
   const demo = getScenario(DEMO)!
   const english = getScenario(ENGLISH)!
@@ -233,8 +253,7 @@ function Settings({ progress, server, onProgress }: Props) {
   const answer = useVoiceSettings()
   const tts = !!server?.speech?.tts
   const mentor = !progress.tutorialDone
-  const mode =
-    server === undefined ? 'проверяем связь…' : server && server.provider !== 'offline' ? (PROVIDER[server.provider] ?? server.provider) : 'офлайн: правила и заготовки'
+  const brains = server === undefined ? null : server ? brainsOf(server) : { analyze: 'офлайн: правила и заготовки', voice: 'заготовки' }
   return (
     <section className="g-sheet jr-sheet" aria-labelledby="jr-set">
       <h2 id="jr-set" className="jr-h2">
@@ -306,7 +325,11 @@ function Settings({ progress, server, onProgress }: Props) {
         )}
         <div>
           <dt>Реплики разбирает</dt>
-          <dd className="jr-mode">{mode}</dd>
+          <dd className="jr-mode">{brains?.analyze ?? 'проверяем связь…'}</dd>
+        </div>
+        <div>
+          <dt>Отвечает собеседник</dt>
+          <dd className="jr-mode">{brains?.voice ?? 'проверяем связь…'}</dd>
         </div>
       </dl>
       <p className="jr-fine">

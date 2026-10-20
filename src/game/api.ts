@@ -209,6 +209,10 @@ export interface Health {
   /** режим нейросети под общим бюджетом: pro, lite (с 80%) или offline (100%) */
   mode?: 'pro' | 'lite' | 'offline'
   model?: string
+  /** разметка реплик, если не основной моделью; реплика собеседника; первые слова (заход) */
+  analyzeModel?: string
+  voiceModel?: string
+  openerModel?: string
   providerError?: string
   /** голос: озвучка и распознавание через SpeechKit, если на сервере есть ключ; eleven — говорит ElevenLabs */
   speech?: { tts: boolean; stt: boolean; eleven?: boolean; scribe?: boolean; opener?: boolean; openerSkip?: string[] }
