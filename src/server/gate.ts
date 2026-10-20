@@ -10,7 +10,8 @@ import type { Context, MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { bodyLimit } from 'hono/body-limit'
 import { clientIp, PASS_COOKIE as COOKIE } from './client'
-import { makePass, parseJuryKeys, personalJudge, readPass, verifyPass, same, type Judge } from './pass'
+import { makePass, parseJuryKeys, personalJudge, pilotJudge, readPass, verifyPass, same, type Judge } from './pass'
+import { pilotEnter, pilotKey, pilotOpen, pilotUntil } from './pilot'
 export { makePass, passValid } from './pass'
 import { votePath } from './votes'
 import { GATE_SCENE_JS } from './gate-scene'
@@ -51,12 +52,12 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     if (!f || f.until < Date.now()) fails.set(ip, { n: 1, until: Date.now() + FAIL_WINDOW })
     else f.n++
   }
-  /** Выписать пропуск: cookie на 30 дней и строка в журнале входов. */
-  const issue = (c: Context, judge?: Judge) => {
-    const pass = makePass(cfg.secret, Date.now(), judge)
+  /** Выписать пропуск: cookie на 30 дней (пилоту — до конца пилота) и строка в журнале входов. */
+  const issue = (c: Context, judge?: Judge, ttl = TTL) => {
+    const pass = makePass(cfg.secret, Date.now(), judge, ttl)
     const who = readPass(cfg.secret, pass)!
     console.log(`[вход] судья=${JSON.stringify(who.name)} id=${who.id} тип=${who.kind}`)
-    setCookie(c, COOKIE, pass, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: TTL })
+    setCookie(c, COOKIE, pass, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: ttl })
     return pass
   }
   const letIn = (c: Context, to: string, judge?: Judge) => {
@@ -78,6 +79,8 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
 
     if (votePath(path, cfg.voteKey) !== null) return next()
     if (path === '/api/admin/jury' && ['GET', 'HEAD'].includes(c.req.method)) return next()
+    // страница пилота сама проверяет ключ админа
+    if (path === '/pilot-admin' || path === '/pilot-admin/close') return next()
 
     if (path === '/auth/login' && c.req.method === 'POST') {
       await loginBody(c, async () => {})
@@ -105,6 +108,18 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
       const clean = path + (rest.length ? `?${rest.join('&')}` : '')
       if (blocked(ip)) return page(c, clean, 'Слишком много попыток. Подождите 15 минут.', 429)
       const key = url.searchParams.get('key') ?? ''
+      const pk = pilotKey()
+      if (pk && same(key, pk)) {
+        if (!pilotOpen()) return page(c, clean, 'Тестирование закончилось — спасибо, что играли!', 401)
+        const had = verifyPass(cfg.secret, getCookie(c, COOKIE), judges)
+        const pass = had?.pilot ? getCookie(c, COOKIE)! :
+          issue(c, pilotJudge(cfg.secret, pilotEnter()), Math.max(60, Math.floor((pilotUntil() - Date.now()) / 1000)))
+        c.set('verifiedPass', pass)
+        c.set('verifiedJudge', readPass(cfg.secret, pass)!)
+        c.header('Cache-Control', 'no-store')
+        c.header('Referrer-Policy', 'no-referrer')
+        return next()
+      }
       const found = judges.find((j) => same(key, j.key))
       const want = found ? personalJudge(cfg.secret, found.name, found.key) : cfg.juryKey && same(key, cfg.juryKey) ? null : undefined
       if (want !== undefined) {
@@ -130,10 +145,12 @@ export function gate(cfg: GateConfig): MiddlewareHandler {
     }
     if (OPEN.some((r) => r.test(path))) return next()
 
+    // пропуск пилота после закрытия: говорим, что тест окончен, а не «войдите»
+    const over = readPass(cfg.secret, pass)?.pilot ? 'Тестирование закончилось — спасибо, что играли!' : ''
     if (path === '/api/prepare') sessionPrepareRejected(c.req.header('x-prepare-id'))
-    if (path.startsWith('/api/')) return c.json({ error: 'Нужен вход: откройте сайт и войдите' }, 401)
+    if (path.startsWith('/api/')) return c.json({ error: over || 'Нужен вход: откройте сайт и войдите' }, 401)
     const isPage = c.req.method === 'GET' && !/\.[a-z0-9]{1,5}$/i.test(path)
-    return isPage ? page(c, path + url.search) : c.text('Нужен вход', 401)
+    return isPage ? page(c, path + url.search, over, over ? 401 : 200) : c.text('Нужен вход', 401)
   }
 }
 

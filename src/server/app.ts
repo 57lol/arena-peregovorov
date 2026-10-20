@@ -23,6 +23,7 @@ import { quotaOf, judgeOf } from './client'
 import { budget } from './budget'
 import { usageMiddleware } from './usage'
 import { juryAdmin } from './juryAdmin'
+import { pilotAdmin } from './pilotAdmin'
 import { DAY, clientLimiter, limitOf, MINUTE } from './limits'
 import { llmFromSpec, llmMode, llmStatus, makeLLM, voiceChoices, type LabLlm, type LLM } from './llm'
 import { ttsStatus } from './tts'
@@ -242,6 +243,7 @@ export function createApp(llm: LLM = makeLLM().llm, providerError?: string, spee
   app.use('*', usageMiddleware())
   app.route('/', votesApp({ root: votesRoot }))
   app.route('/', juryAdmin())
+  app.route('/', pilotAdmin())
   // вступления дел — тексты сервера: их можно озвучивать голосом ElevenLabs
   for (const sc of allScenarios) speech.issue(sc.opening)
 
