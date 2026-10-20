@@ -244,6 +244,8 @@ export interface GenerateResult {
   source: 'llm' | 'library'
   attempts: number
   problems: string[]
+  /** как настройки повлияли на дело: зона торга, характер, приёмы под цели */
+  effect?: string[]
 }
 
 export function generate(req: GenerateRequest): Promise<GenerateResult> {
