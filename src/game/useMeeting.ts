@@ -416,11 +416,14 @@ export function useMeeting({ game, history, setHistory, redo, speech, tutorial, 
   }
   const undo = () => {
     gen.current++
-    restored.current = null
+    // Отмена возвращает уже сказанное: сохраняем доставку, чтобы эффект не озвучил её заново.
+    const previous = history.at(-2)
+    restored.current = { text: previous?.opponentLine || sc.opening, record: previous }
+    playback.current?.cancel()
+    stopAudio()
     setPending(null)
     setEarly(null)
     filler.current?.cancel()
-    if (voiceOn && canVoice) unlockAudio()
     setHistory((h) => h.slice(0, -1))
   }
 

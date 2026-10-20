@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
+import { lazy, useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
 import { getScenario, harder } from './content/scenarios'
 import type { Scenario, TurnRecord } from './engine/types'
 import { health, type Health } from './game/api'
@@ -19,6 +19,7 @@ import { cutsceneLink, cutscenesAllowed, juryLink, markCutsceneSeen, seenCutscen
 import { cutsceneById } from './game/cutscene/scripts'
 import { markStorySeen } from './game/progress'
 import { chapterOf, CHAPTERS } from './content/story'
+import { ScreenBoundary } from './game/ScreenBoundary'
 import './game/ui/tokens.css'
 import './game/ui/ui.css'
 import './game/game.css'
@@ -120,6 +121,10 @@ const firstScreen = (): Screen => {
 }
 
 export default function App() {
+  return <ScreenBoundary>{useAppScreen()}</ScreenBoundary>
+}
+
+function useAppScreen() {
   const [screen, setScreen] = useState<Screen>(firstScreen)
   const [current, setCurrent] = useState<Case | null>(saved?.current ?? null)
   const [history, setHistory] = useState<TurnRecord[]>(saved?.history ?? [])
@@ -437,22 +442,18 @@ export default function App() {
   if (screen === 'cutscene') {
     const cs = film && cutsceneById(film.id)
     return cs ? (
-      <Suspense fallback={<div className="g-loading" role="status">Загружаем сцену…</div>}>
-        <CutscenePlayer key={film.id} script={cs} at={film.at} onDone={film.then} />
-      </Suspense>
+      <CutscenePlayer key={film.id} script={cs} at={film.at} onDone={film.then} />
     ) : null
   }
 
   if (screen === 'films')
     return (
-      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
-        <Gallery back={filmsBack === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(filmsBack)} onPlay={(id) => watch(id, 'films')} />
-      </Suspense>
+      <Gallery back={filmsBack === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(filmsBack)} onPlay={(id) => watch(id, 'films')} />
     )
 
   if (screen === 'jury')
     return (
-      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
+      <>
         <BudgetNote />
         <Jury
           progress={progress}
@@ -484,7 +485,7 @@ export default function App() {
           }}
           onBack={() => go('title')}
         />
-      </Suspense>
+      </>
     )
 
   if (screen === 'board' && boardRef)
@@ -502,9 +503,7 @@ export default function App() {
 
   if (screen === 'library')
     return (
-      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
-        <Library back={booksFrom === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(booksFrom)} />
-      </Suspense>
+      <Library back={booksFrom === 'jury' ? 'К жюри' : 'Титул'} onBack={() => go(booksFrom)} />
     )
 
   if (screen === 'career') return <Career progress={progress} onOpen={(c) => open(c)} onBack={() => go(careerFrom)} />

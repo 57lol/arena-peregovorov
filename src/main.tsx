@@ -8,6 +8,7 @@ import { StrictMode, Suspense, lazy, useEffect, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { installChunkRecovery } from './game/chunkRecovery'
+import { InitialLoading } from './game/ScreenBoundary'
 import { ErrorBoundary } from './game/ErrorBoundary'
 
 import { markInteractive, perfEnabled } from './game/perf'
@@ -35,7 +36,7 @@ const labPage = new URLSearchParams(location.search).has('voices') ? 'voices' : 
 if (!resetting) createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <Suspense fallback={<div className="g-loading" role="status">Загружаем экран…</div>}>
+      <Suspense fallback={<InitialLoading />}>
         <Ready>
           {labPage ? (labPage === 'voices' ? <Voices /> : <Lab />) : worldPreview ? <WorldPreview /> : <App />}
         </Ready>

@@ -531,3 +531,20 @@ describe('счётчики причин без текста речи', () => {
     l.dispose()
   })
 })
+
+it.each(['short', 'medium', 'long'] as const)('продолжение через 0,7 с после вопроса остаётся в том же ходе: %s', async (level) => {
+  const { l, sessions, play, io } = setup({ pauseMs: (text) => endOfTurnMs(text, level) })
+  l.open(0)
+  await play(ME, 1000)
+  sessions[0].text = 'Двести двенадцать?'
+  await play(0, 700)
+  expect(sessions[0].finished).toBe(false)
+  await play(ME, 800)
+  sessions[0].text = 'Двести двенадцать? Это грабёж.'
+  await play(0, endOfTurnMs('Это грабёж.', level) + 40)
+  expect(sessions[0].finished).toBe(true)
+  sessions[0].resolve('Двести двенадцать? Это грабёж.')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(io.onText).toHaveBeenCalledExactlyOnceWith('Двести двенадцать? Это грабёж.')
+  l.dispose()
+})

@@ -28,7 +28,7 @@ const stem5 = (w: string) => w.toLowerCase().replace(/ё/g, 'е').slice(0, 5)
 // «210, к сожалению, никто сейчас не предоставляет», «это много», «мы не потянем», «nobody pays 480»: число собеседника
 // игрок отвергает, а не предлагает. Иначе «двести десять вы всё-таки назвали, это уже шаг» — радость тому, от чего
 // игрок отказался (партия капитана в «Оффере», 19.10).
-const IMPOSSIBLE = /(?<!\p{L})(?:нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|тян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|возьм\p{L}*|бер[её]м|купим|покупа\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:(?:это|так|уж)\s+|[—–-]\s*)(?:много|многовато|мало|маловато|дорого|дороговато|долго|долговато|недостаточно|жирно|перебор)|(?<!не\s)(?:дороговато|многовато|долговато|маловато|недостаточно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|да\s+(?:вы|ты)\s+что|с\s+ума\s+сош\p{L}*|издева\p{L}*|шутите|шутишь|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)(?:way\s+)?too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:enough|realistic|possible|feasible)|(?:can'?t|cannot|won'?t|will not)\s+(?:wait|afford|accept|take|do|pay|go\s+(?:with|for))|forget\s+(?:about\s+)?|unrealistic|impossible|crazy|insane|ridiculous|a joke|(?:are\s+you\s+)?(?:joking|kidding))(?!\p{L})/iu
+const IMPOSSIBLE = /(?<!\p{L})(?:(?<!не\s)(?:граб[её]ж\p{L}*|обдираловк\p{L}*)|нереальн\p{L}*|невозможн\p{L}*|никто\s+(?:\p{L}+\s+){0,2}?не\s+\p{L}+|не\s+(?:потян\p{L}*|тян\p{L}*|предоставля\p{L}*|выдерж\p{L}*|осил\p{L}*|вытян\p{L}*|возьм\p{L}*|бер[её]м|купим|покупа\p{L}*|бывает|реально|получится|выйдет|платят|дают)|(?<!не\s)слишком\s+(?:много|дорого|долго|рано|поздно|мало|жирно)|(?<!не\s)(?:(?:это|так|уж)\s+|[—–-]\s*)(?:много|многовато|мало|маловато|дорого|дороговато|долго|долговато|недостаточно|жирно|перебор)|(?<!не\s)(?:дороговато|многовато|долговато|маловато|недостаточно|перебор)|(?:у\s+(?:нас|меня)\s+)(?:\p{L}+\s+){0,2}?нет|да\s+(?:вы|ты)\s+что|с\s+ума\s+сош\p{L}*|издева\p{L}*|шутите|шутишь|(?:nobody|no one)\s+(?:\p{L}+\s+){0,2}?(?:gives|pays|offers|does|accepts)|(?<!not\s)(?:way\s+)?too\s+(?:much|high|expensive|long|short|low|early|late)|not\s+(?:enough|realistic|possible|feasible)|(?:can'?t|cannot|won'?t|will not)\s+(?:wait|afford|accept|take|do|pay|go\s+(?:with|for))|forget\s+(?:about\s+)?|unrealistic|impossible|crazy|insane|ridiculous|a joke|(?:are\s+you\s+)?(?:joking|kidding))(?!\p{L})/iu
 
 // Чужие условия по-английски: конкурент, его котировка, прошлое предложение собеседника.
 const EN_THIRD = /(?<!\p{L})(?:qingdao|competitors?|they|their|quote|quotes|quoted|bid|your (?:price|offer|number|quote))(?!\p{L})/iu
@@ -43,6 +43,15 @@ function reported(part: string): boolean {
   return REPORT.test(part) && !OWN_RU.test(part) && !EN_OWN.test(part)
 }
 
+/** Голое число с вопросом повторяет услышанную сумму, а не предлагает её заново. */
+function repeatsNumber(text: string, said: string): boolean {
+  const values = quantities(text)
+  if (values.length !== 1) return false
+  const q = values[0]
+  const rest = text.slice(0, q.at) + text.slice(q.end)
+  return /^[\s?!.,—–-]*$/u.test(rest) && quantities(said).some((v) => v.value === q.value)
+}
+
 /** Модель может понимать смысл, но не может добавлять отсутствующие значения.
  * Правила независимо находят числа с единицами и отличительные слова вариантов.
  * Отказ предлагать/платить и отвергнутые условия не служат доказательством.
@@ -51,7 +60,7 @@ function reported(part: string): boolean {
  * и сделка ушла на прошлые 196, дешевле, чем предложил сам игрок).
  */
 /** Куски реплики и какие из них — отказ, а не своё предложение. */
-function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolean[] } {
+function clauses(sc: Scenario, text: string, said = sc.opening): { parts: string[]; refused: boolean[] } {
   const rejectsAlias = (part: string) => sc.issues.some((i) => i.aliases?.some((list) => list.some((a) =>
     !/(?<!\p{L})(не|нет|без)(?!\p{L})/iu.test(a) &&
     new RegExp(String.raw`(?<!\p{L})(?:не|без)\s+${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'iu').test(part))))
@@ -70,7 +79,8 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
     parts.splice(k - 1, 3, joined)
     k -= 2
   }
-  const refused = parts.map((part) =>
+  const refused = parts.map((part, k) =>
+    (parts[k + 1]?.includes('?') && repeatsNumber(part, said)) ||
     REFUSAL.test(part) || LEAD_NOT.test(part) || VETO.test(part) || IMPOSSIBLE.test(part) || reported(part) ||
     rejectsAlias(part) ||
     // и чужая цифра без своего «предлагаю»: «We have a quote from Qingdao at 465 with 14 weeks»
@@ -90,10 +100,10 @@ function clauses(sc: Scenario, text: string): { parts: string[]; refused: boolea
   for (const [k, part] of parts.entries()) {
     if (!IMPOSSIBLE.test(part) || Object.keys(parseOffer(sc, part)).length) continue
     for (let j = k - 1; j >= 0; j--) {
-      // «212? Да вы что.» — короткий переспрос перед возмущением тоже отвергнут
-      const short = (x: string | undefined) => !!x && (x.match(/[\p{L}\d]+/gu) ?? []).length <= 3
+      // «212? Да вы что.» — переспрос перед возмущением тоже отвергнут, в том числе сумма прописью с единицами.
+      const echo = (x: string | undefined) => !!x && ((x.match(/[\p{L}\d]+/gu) ?? []).length <= 3 || quantities(x).length > 0)
       if (/[.!;\n]/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j])) break
-      if (/\?/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j]) && !short(parts[j - 1])) break
+      if (/\?/u.test(parts[j]) && !/[\p{L}\d]/u.test(parts[j]) && !echo(parts[j - 1])) break
       if (!/[\p{L}\d]/u.test(parts[j])) continue
       if (OWN_RU.test(parts[j]) || EN_OWN.test(parts[j])) break
       refused[j] = true
@@ -112,7 +122,7 @@ export function explicitOffer(sc: Scenario, text: string, offer: Offer = {}, sai
   text = normalizeEvidenceText(text)
   const rounded = new Map<string, number>()
   const mentions: Mention[] = []
-  const { parts, refused } = clauses(sc, text)
+  const { parts, refused } = clauses(sc, text, said)
   const positive = parts.map((part, k) => (refused[k] ? '' : part)).join('')
   // В «не пять процентов, а десять» единица остаётся в отвергнутой части.
   const rejected = parts.filter((_, k) => refused[k]).join(' ')
@@ -174,7 +184,7 @@ function modelEvidence(sc: Scenario, text: string, id: string, option: number, s
   const label = issue?.options[option]
   if (!issue || !label) return false
   const single: Scenario = { ...sc, issues: [issue] }
-  const { parts, refused } = clauses(sc, text)
+  const { parts, refused } = clauses(sc, text, said)
   return parts.some((part, k) => {
     if ((refused[k] && !(/это уже разговор/iu.test(part) && !REFUSAL.test(part) && !VETO.test(part))) || !part.trim()) return false
     // Сохраняем вопросительный знак: без него локальный разбор превратит пересказ в предложение.
@@ -345,7 +355,7 @@ const CONDITION = /(?<!\p{L})(?:если|при\s+условии|но|однак
 function uncontradictedDecision(sc: Scenario, text: string, a: MoveAnalysis): boolean {
   return !(a.accepts && a.walksAway) && !Object.keys(a.offer ?? {}).length &&
     !Object.keys(parseOffer(sc, text)).length && !quantities(text).length &&
-    !/[?]/u.test(text) && !NEG.test(text) && !CONDITION.test(text) && !isTentative(text) &&
+    !/[?]/u.test(text) && !IMPOSSIBLE.test(text) && !NEG.test(text) && !CONDITION.test(text) && !isTentative(text) &&
     !/^\s*(?:без|without)(?!\p{L})/iu.test(text) &&
     !reported(text) && !/(?:обсужда|давай|предлага|поговор|навстречу|discuss|propose|offer|let'?s talk)/iu.test(text) &&
     !/^\s*(?:ну\s+)?(?:ок|окей|хорошо|ладно|лады|давайте|alright|okay|ok|no way)[.!]*\s*$/iu.test(text)
@@ -401,7 +411,7 @@ export function groundAnalysis(sc: Scenario, text: string, analysis: MoveAnalysi
     return other
   }
   // «Если»/«но» в другом предложении не отменяет принятие: «По рукам. Если нужен адрес…».
-  const acceptance = parts.some((p) => !p.includes('?') && !NOT_AGREE.test(p) && !CONDITION.test(p) &&
+  const acceptance = parts.some((p) => !p.includes('?') && !IMPOSSIBLE.test(p) && !NOT_AGREE.test(p) && !CONDITION.test(p) &&
     (AGREE_WORD.test(p) || /возражений\s+(?:больше\s+)?нет|твоя взяла|you have my approval/iu.test(p)))
   const conditionalDeal = parts.some((p) => CONDITION.test(p) &&
     // «Но только если руководство одобрит» — тоже условие сделки, хотя ни одного пункта листка не называет.

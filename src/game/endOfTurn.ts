@@ -24,13 +24,14 @@ function tailOf(text: string): Tail {
   const bare = raw.replace(/[.!?…,:;]+$/u, '').trim()
   const words = bare.split(/\s+/u)
   const last = words.at(-1) ?? ''
-  if (/^да[.!?]$/u.test(raw)) return 'done'
+  if (/^да\?$/u.test(raw)) return 'unsure'
+  if (/^да[.!]$/u.test(raw)) return 'done'
   if (/[,;:…]$|\.{2,}$/u.test(raw) || hanging.has(last)) return 'hang'
-  // число в конце обычно значит «сейчас продолжит» (точку Scribe ставит и на оборванной фразе), но вопрос
-  // («Can you do 450?») уже закончен: было 2,6 с ожидания на каждый вопрос с ценой
-  // Число с точкой — «непонятно», а не «оборвано»: в торге фраза почти всегда кончается суммой («…на двести десять.»),
-  // и каждая ждала 2–2,6 с (Дарина, партия капитана 19.10: заготовка хода стартовала за 1,1–1,9 с до самого хода)
-  if (numbers.test(last)) return /[?!]$/u.test(raw) ? 'done' : /\.$/u.test(raw) ? 'unsure' : 'hang'
+  // Вопрос внутри реплики («212? Это грабёж») не обрывает обычную паузу на вдох.
+  // Утверждения и короткие ответы с точкой/восклицанием по-прежнему отправляются быстро.
+  if (/\?$/u.test(raw)) return 'unsure'
+  // Сумма с точкой ждёт обычную паузу; число без знака может быть началом следующей суммы.
+  if (numbers.test(last)) return /!$/u.test(raw) ? 'done' : /\.$/u.test(raw) ? 'unsure' : 'hang'
   if (/[.!?]$/u.test(raw) || /(?:^|\s)(?:по рукам|договорились|согласен|согласна|согласны)$/u.test(bare)) return 'done'
   if (unit.test(bare) && (words.slice(0, -1).some((w) => numbers.test(w)) || /\d(?:[.,]\d+)?(?:₽|%|кг)$/u.test(bare))) return 'done'
   // Несколько частых полных реплик без пунктуации.

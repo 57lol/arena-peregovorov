@@ -284,7 +284,7 @@ describe('реплики в настоящем useMeeting', () => {
     await next; await advance()
   })
 
-  it('быстрая ошибка без промежуточного рендера не глушит явную перемотку после следующего хода', async () => {
+  it('отмена после ошибки и нового хода возвращает приветствие без озвучивания', async () => {
     render(); await advance(); resolveAudio(prepared); await advance()
     api.turn.mockRejectedValueOnce(new ApiError('Лимит', 429))
     await meeting.send('Раз'); await advance()
@@ -293,8 +293,9 @@ describe('реплики в настоящем useMeeting', () => {
     const sent = meeting.send('Два'); render(); await sent; await advance()
     resolveAudio({ ...prepared, url: 'blob:answer' }); await advance()
     meeting.undo(); render(); await advance()
-    expect(speech.prepare).toHaveBeenCalledTimes(3)
-    expect(meeting.lineWaiting).toBe(true)
+    expect(speech.prepare).toHaveBeenCalledTimes(2)
+    expect(speech.play).toHaveBeenCalledTimes(2)
+    expect(meeting.lineWaiting).toBe(false)
   })
 
   it('приветствие скрыто с первого рендера; готовность звука открывает его один раз', async () => {
@@ -698,4 +699,25 @@ it('диагностика идёт с ходом: id, процесс, прич�
   observe({ status: 429 })
   await meeting.send('Следующий ход'); render()
   expect(api.turn.mock.calls.at(-1)![0].prepareDiag.counts).toEqual({ manual: 1 })
+})
+
+it('отмена возвращает прошлую реплику без повторной загрузки и озвучивания', async () => {
+  const sc = props.game.scenario
+  const record = (turn: number): TurnRecord => ({ turn, playerText: 'Ход', opponentLine: `Ответ ${turn}.`, emotion: 'neutral',
+    analysis: { behaviors: [] }, deltas: [], decision: { kind: 'hold' }, stateAfter: { ...initialState(sc), turn } })
+  props.history = [record(1), record(2)]
+  render(); resolveAudio(prepared); await advance()
+  speech.prepare.mockClear(); speech.play.mockClear(); speech.stop.mockClear()
+  meeting.undo(); render(); await advance(5000)
+  expect(meeting.line).toBe('Ответ 1.')
+  expect(meeting.lineWaiting).toBe(false)
+  expect(speech.stop).toHaveBeenCalled()
+  expect(speech.prepare).not.toHaveBeenCalled()
+  expect(speech.play).not.toHaveBeenCalled()
+  // Следующий настоящий ход всё ещё озвучивается обычным путём.
+  api.turn.mockResolvedValueOnce({ record: record(2), source: 'llm' })
+  await meeting.send('Новый ход'); await advance()
+  resolveAudio({ ...prepared, url: 'blob:new-turn' }); await advance()
+  expect(speech.prepare).toHaveBeenCalledOnce()
+  expect(speech.play).toHaveBeenCalledOnce()
 })
