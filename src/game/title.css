@@ -164,6 +164,10 @@
 .tt-btn:hover {
   --lo: var(--c-mist);
 }
+/* «Руководителю» шире кнопки в 340 px крупным кеглем — на ступень мельче */
+.tt-btn.is-coach b {
+  font-size: var(--fs-ui-big);
+}
 .tt-btn.is-coach:hover {
   --lo: var(--c-leaf-hi);
 }
