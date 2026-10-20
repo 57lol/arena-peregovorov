@@ -17,7 +17,7 @@ describe('карта «приём → книга»', () => {
       if (!t.refs.length) expect(t.note, b.id).toMatch(/Rackham/)
       for (const r of t.refs) {
         expect(BOOKS[r.book], `${b.id}: ${r.book}`).toBeDefined()
-        expect(r.where, b.id).toMatch(/^(?:гл\.|шаг|ч\.) \d+$/)
+        expect(r.where, b.id).toMatch(/^(?:(?:гл\.|шаг) \d+|пролог)$/)
         expect(r.name.length, b.id).toBeGreaterThan(3)
       }
     }
@@ -25,9 +25,9 @@ describe('карта «приём → книга»', () => {
 
   it('подпись: автор, книга, глава', () => {
     expect(signature('label')).toBe('— Восс, «Никаких компромиссов», гл. 3')
-    expect(signature('implication')).toBe('— Рэкхем, «СПИН-продажи», гл. 6')
+    expect(signature('implication')).toBe('— Рэкхем, «СПИН-продажи», гл. 4')
     expect(signature('criteria')).toBe('— Фишер, Юри, Паттон, «Переговоры без поражения», гл. 5')
-    expect(signature('golden_bridge')).toBe('— Юри, «Преодолевая «нет»», шаг 4')
+    expect(signature('golden_bridge')).toBe('— Юри, «Преодолевая „нет“», шаг 4')
     expect(signature('dilution')).toBe('')
     expect(cite(TECHNIQUES.label.refs[0], { title: false, name: true })).toBe('Восс, гл. 3, «Ярлыки»')
   })
@@ -66,7 +66,7 @@ describe('новые приёмы из книг: корпус «да / нет»'
     ['Может показаться, что мы давим, но сроки правда горят.', ['accusation_audit'], []],
     ['Вы думаете только о себе.', [], ['accusation_audit']],
     ['Наверное, вам непросто с новой линией.', ['label'], ['accusation_audit']],
-    // вопрос под «нет» (Восс, гл. 5)
+    // вопрос под «нет» (Восс, гл. 4)
     ['Будет совсем безумием попросить отсрочку в тридцать дней?', ['no_question'], ['ultimatum']],
     ['Вы будете против, если мы разобьём поставку на две партии?', ['no_question'], ['package']],
     ['Это совсем нереально — возить раз в неделю?', ['no_question'], []],
@@ -92,7 +92,7 @@ describe('новые приёмы из книг: корпус «да / нет»'
     ['Не буду решать сгоряча, дайте мне подумать.', ['balcony'], []],
     ['Мне нужно немного подумать.', ['balcony'], []],
     ['Подумаем вместе над графиком?', [], ['balcony']],
-    // давление сроком (Восс, гл. 6; Рэкхем, гл. 10)
+    // давление сроком (Восс, гл. 6; Рэкхем, гл. 2)
     ['Предложение действует только до вечера.', ['deadline'], []],
     ['Решайте сейчас, это последний шанс.', ['deadline'], []],
     ['Время пошло.', ['deadline'], []],
@@ -102,6 +102,32 @@ describe('новые приёмы из книг: корпус «да / нет»'
     ['Я только сегодня узнал про новую линию.', [], ['deadline']],
     ['Нам важно решить до пятницы: перевозчик ставит рейс. Успеем?', [], ['deadline', 'ultimatum']],
     ['Это последнее предложение, решайте сейчас, или мы уходим.', ['ultimatum'], ['deadline']],
+    // обычные фразы, на которых приёмы срабатывали зря
+    ['Как вы видите, цена уже снижена на пять процентов.', [], ['calibrated']],
+    ['How do I get to your office?', [], ['calibrated']],
+    ['How would you like to pay — wire or card?', [], ['calibrated']],
+    ['How would you like to proceed?', ['calibrated'], []],
+    ['Понимаю, это выглядит как хорошая сделка для вас.', [], ['accusation_audit']],
+    ['Понимаю, что это выглядит как давление, но срок правда горит.', ['accusation_audit'], []],
+    ['It will look good on the quarterly report.', [], ['accusation_audit']],
+    ['Это невозможно, давайте по-другому?', [], ['no_question']],
+    ['Вы отказались от поставки в прошлом году?', [], ['no_question']],
+    ['Are you against the new customs rules?', [], ['no_question']],
+    ['Как вам сказать, руководство против.', [], ['golden_bridge']],
+    ['Это не будет уступкой с нашей стороны, это стандарт.', [], ['golden_bridge']],
+    ['I need to save face with my board.', [], ['golden_bridge']],
+    ['Я чувствую себя отлично, спасибо.', [], ['i_message']],
+    ['Я боюсь, что не поняла вопрос.', [], ['i_message']],
+    ['Я боюсь, что линия встанет без запаса.', ['i_message'], []],
+    ['Нам нужна пауза в поставках на лето.', [], ['balcony']],
+    ['Давайте сделаем короткий перерыв.', ['balcony'], []],
+    ['Let me take a moment to explain our position.', [], ['balcony']],
+    ['Скидка действует до конца года по договору.', [], ['deadline']],
+    ['Цену мы узнали только сегодня.', [], ['deadline']],
+    ['У вас есть минута на вопрос?', [], ['deadline']],
+    ['У вас есть пять минут, чтобы решить.', ['deadline'], []],
+    ['We cannot decide now, we need the board.', [], ['deadline']],
+    ['Is this the last chance to change the spec?', [], ['deadline']],
     // «пополам» без мерки — ошибка (Восс, гл. 6), по внешней мерке — нет (Фишер, гл. 5)
     ['Давайте просто поделим разницу пополам.', ['split'], []],
     ['Давайте возьмём середину между рыночной ценой и прошлым договором.', ['criteria'], ['split']],

@@ -36,7 +36,8 @@ export const keepTogether = (s: string) => s.replace(/(гл\.|ч\.|шаг|раз
 export const bookSig = (id: string) => keepTogether(signature(id))
 
 /** «Попробуйте: «…»»: пример-диалог «— …. — …?» не берём в кавычки; точку из кавычек выносим, как принято. */
-export const sayText = (say: string) => (say.startsWith('—') ? say : `«${say.replace(/\.$/u, '')}»`)
+export const sayText = (say: string) =>
+  say.startsWith('—') ? say : `«${say.replace(/\.$/u, '').replace(/«/gu, '„').replace(/»/gu, '“')}»`
 
 /** skip — приём, который уже показан в строке «Получилось» наверху разбора: здесь показываем другие, если они есть. */
 export function bookPicks(history: TurnRecord[], skip?: string): BookPicks {

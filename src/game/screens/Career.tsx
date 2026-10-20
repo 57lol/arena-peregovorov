@@ -5,6 +5,7 @@ import type { BehaviorId } from '../../engine/behaviors'
 import { TECHNIQUES, signature } from '../../engine/books'
 import { ENDING_IDS } from '../../engine/endings'
 import type { Scenario } from '../../engine/types'
+import { sayText } from '../bookPicks'
 import { firstName } from '../cast'
 import { RANKS, SKILLS, SKILL_RU, axisName, nextCase, profileOf, rankOf, runGain, skillsOf, type Skill } from '../career'
 import { plural } from '../cast'
@@ -143,7 +144,7 @@ export function Career({ progress, onOpen, onBack }: Props) {
                 {prof.weakest && <Trait label="Проседает" value={axisName(prof.weakest)} bad />}
                 {prof.best && <Trait label="Любимый приём" value={`${prof.best.title}: ${prof.best.count} ${plural(prof.best.count, 'раз', 'раза', 'раз')}`} good />}
                 {prof.worst && <Trait label="Чаще всего мешало" value={`${prof.worst.title}: ${prof.worst.count} ${plural(prof.worst.count, 'раз', 'раза', 'раз')}`} bad />}
-                {prof.tryNext && <Trait label="Попробуйте" value={`${prof.tryNext.title}: «${TECHNIQUES[prof.tryNext.id as BehaviorId]?.say ?? ''}» ${signature(prof.tryNext.id, { title: false })}`.trim()} />}
+                {prof.tryNext && <Trait label="Попробуйте" value={`${prof.tryNext.title}: ${sayText(TECHNIQUES[prof.tryNext.id as BehaviorId]?.say ?? '')} ${signature(prof.tryNext.id, { title: false })}`.trim()} />}
               </dl>
             ) : (
               <p className="g-muted">Характеристику пишут после первой встречи. Обычно честно.</p>

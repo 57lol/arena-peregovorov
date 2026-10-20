@@ -13,7 +13,7 @@ import { peek, put } from './cache'
 import type { LLM } from './llm'
 import { WAIT } from './timeouts'
 
-const PROMPT_VERSION = 'a17'
+const PROMPT_VERSION = 'a18'
 
 const Raw = z.object({
   behaviors: z.array(z.object({ id: z.string(), quote: z.string() })),
@@ -101,7 +101,7 @@ const EN_RULES = `
 
 Переговоры идут на английском: реплика игрока и оппонента — по-английски.
 - quote — дословный кусок английской реплики, как сказано (с его ошибками), без перевода.
-- Примеры: «Why is full payment upfront so important for you?» — ask_interest; «So you mean the line is already built?» — check; «If you deliver in 8 weeks, we can pay 70% upfront» — package, offer: доставка 8 weeks и 70% upfront; «We have another quote from Qingdao» — alternative; «Let's split the difference» — split; «That's a generous offer, trust me» — irritator; «This is our final offer» / «take it or leave it» — ultimatum; «That's ridiculous» — attack; «Nice to meet you, how was your flight?» — rapport и talk personal. «What's the market rate for this?» — criteria; «What does a delay cost you?» — implication; «How would it help you if we delivered earlier?» — need_payoff; «Let's work on this together» — joint_frame; «What if we split the payment?» — whatif.
+- Примеры: «Why is full payment upfront so important for you?» — ask_interest; «So you mean the line is already built?» — check; «If you deliver in 8 weeks, we can pay 70% upfront» — package, offer: доставка 8 weeks и 70% upfront; «We have another quote from Qingdao» — alternative; «Let's split the difference» — split; «That's a generous offer, trust me» — irritator; «This is our final offer» / «take it or leave it» — ultimatum; «That's ridiculous» — attack; «Nice to meet you, how was your flight?» — rapport и talk personal. «What's the market rate for this?» — criteria; «What does a delay cost you?» — implication; «How would it help you if we delivered earlier?» — need_payoff; «Let's work on this together» — joint_frame; «What if we split the payment?» — whatif. «How am I supposed to do that?» — calibrated; «You probably think we're greedy» — accusation_audit; «Would it be crazy to ask for 30 days?» — no_question; «I'm worried the line will stop» — i_message; «Let me sleep on it» — balcony; «Today only» — deadline.
 - Числа: «€450,000», «450k», «four hundred fifty thousand», «450 thousand euros» — одна и та же цена; «half upfront», «fifty-fifty» — 50%; «two months» ≈ 8 недель; «a year and a half» — 18 months.
 - accepts: «deal», «agreed», «it's a deal», «we have a deal», «I accept your offer». «No way», «that's not a good deal», «deal?» — false.
 - walksAway: «I'm leaving», «we'll go with Qingdao», «goodbye» без условия; «or we go with Qingdao» — ultimatum.
