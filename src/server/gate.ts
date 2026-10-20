@@ -1,7 +1,7 @@
 import { sessionPrepareRejected } from './prepareLog'
 // Ворота прототипа: пока идёт экспертиза, сайт открыт только жюри и команде.
 // Вход — по волшебной ссылке ?key=<JURY_KEY> или по логину и паролю на странице входа;
-// после входа — подписанная cookie на 30 дней. Открыты только /api/health, ассеты страницы входа и скринкаст /screencast.mp4.
+// после входа — подписанная cookie на 30 дней. Открыты только /api/health, ассеты страницы входа и ролики /screencast.mp4, /demo.mp4.
 // Секреты — только в окружении: GATE_SECRET (подпись cookie), JURY_KEY, JURY_KEYS, SITE_LOGIN, SITE_PASSWORD_HASH
 // (scrypt:<соль hex>:<хэш hex> из hashPassword).
 
@@ -17,7 +17,7 @@ import { votePath } from './votes'
 import { GATE_SCENE_JS } from './gate-scene'
 
 const TTL = 30 * 24 * 3600
-const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
+const OPEN = [/^\/api\/health$/, /^\/screencast\.mp4$/, /^\/demo\.mp4$/, /^\/assets\/fonts\//, /^\/assets\/title\//, /^\/favicon\.svg$/]
 const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
 const loginBody = bodyLimit({ maxSize: 8192 })
@@ -237,6 +237,8 @@ input[aria-invalid='true']{box-shadow:0 0 0 var(--u) var(--stamp)}
  linear-gradient(var(--paper),var(--paper)) 8px 2px/4px 10px no-repeat,linear-gradient(var(--paper),var(--paper)) 8px 14px/4px 4px no-repeat;box-shadow:inset 0 0 0 var(--u) var(--paper)}
 .hint{margin-top:calc(7*var(--u));padding-top:calc(5*var(--u));border-top:var(--u) dashed var(--paper2);font-family:'Ark Pixel','Pixeloid',monospace;color:var(--steel2);font-size:24px;line-height:26px}
 .hint b{color:var(--ink);font-weight:400}
+.hint a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.hint.vids{border-top:0;margin-top:calc(2*var(--u));padding-top:0}
 .is-error .pass{animation:hang 1.6s cubic-bezier(.3,.7,.4,1) both,nope .5s .15s steps(10) both}
 @keyframes hang{0%{transform:rotate(-5deg)}35%{transform:rotate(3deg)}60%{transform:rotate(-1.5deg)}80%{transform:rotate(.6deg)}100%{transform:none}}
 @keyframes nope{0%,100%{translate:0}15%{translate:-12px}30%{translate:10px}45%{translate:-8px}60%{translate:6px}75%{translate:-3px}}
@@ -284,6 +286,7 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
 <button class="go" type="submit">Пройти</button>
 </form>
 <p class="hint"><b>Для экспертов ЛЦТ:</b> логин и пароль — в описании решения на платформе.</p>
+<p class="hint vids">Видео без входа: <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре</a> · <a href="/demo.mp4" target="_blank" rel="noopener">полное прохождение</a></p>
 </div>
 </main>
 </div>
