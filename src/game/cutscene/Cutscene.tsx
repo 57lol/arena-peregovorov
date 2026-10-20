@@ -20,7 +20,6 @@ interface Props {
   at?: number
 }
 
-/** Масштаб и ширина кадра: высота 180 точек целым масштабом, под субтитры остаётся полоса. */
 /**
  * Масштаб и ширина кадра: высота 180 точек целым масштабом, под кадром полоса субтитров.
  * Низкий экран (телефон боком) — субтитры поверх кадра, зато кадр крупнее.
@@ -29,7 +28,11 @@ function fit(cw: number, ch: number, phone = false): { s: number; vw: number; ov
   const wide = Math.floor(cw / H)
   const below = Math.max(1, Math.min(Math.floor((ch - 120) / H), wide))
   const over = Math.max(1, Math.min(Math.floor((ch - 8) / H), wide))
-  const s = below < 3 && over > below ? over : below
+  const whole = below < 3 && over > below ? over : below
+  // от трёх и выше — дробный масштаб с шагом в четверть: на ноутбуке (окно ~780 px) кадр вместо 3× выходит 3,5×,
+  // разница в толщине пикселей на таком размере не видна, а поля вокруг кадра заметно меньше
+  const free = Math.floor(Math.min((ch - 120) / H, cw / H) * 4) / 4
+  const s = whole >= 3 && !(whole > below) && free > whole ? free : whole
   const vw = Math.max(160, Math.min(320, Math.floor(cw / s)))
   // телефон в руках на узком экране (смартфон стоя): кадр крупнее и уже — нарисованный телефон почти во весь экран,
   // по бокам видно салон, а текст на его экране читается без отдельной карточки
@@ -37,7 +40,7 @@ function fit(cw: number, ch: number, phone = false): { s: number; vw: number; ov
     const big = Math.min(Math.floor(cw / PHONE_BODY), Math.floor((ch - 100) / H))
     if (big > s && SCREEN_W * big >= GUIDE_MIN) return { s: big, vw: Math.min(320, Math.floor(cw / big)), over: false }
   }
-  return { s, vw, over: s > below }
+  return { s, vw, over: whole > below }
 }
 
 /** Ширина экрана и корпуса телефона в точках кадра (корпус — экран и рамка с кнопками по 6 точек). */
