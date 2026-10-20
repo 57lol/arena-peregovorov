@@ -62,12 +62,12 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
         {!invited && (played || onFilms) && (
           <nav className="tt-corner">
             {onFilms && (
-              <Button icon="right" onClick={onFilms}>
+              <Button icon="right" className="tt-films" aria-label="Ролики" title="Ролики" onClick={onFilms}>
                 Ролики
               </Button>
             )}
             {played && (
-              <Button variant="ghost" icon="stamp" onClick={onCareer}>
+              <Button variant="ghost" icon="stamp" aria-label="Личное дело" title="Личное дело" onClick={onCareer}>
                 Личное дело
               </Button>
             )}

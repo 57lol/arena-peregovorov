@@ -46,6 +46,22 @@
   justify-content: flex-end;
   gap: 8px;
 }
+/* телефон: «Ролики» вместе с «Личным делом» наезжали на звук слева — «Ролики» одним значком, правее звука */
+@media (max-width: 480px) {
+  .tt-corner {
+    left: 112px;
+    gap: 4px;
+  }
+  .tt-corner > .tt-films > span {
+    display: none;
+  }
+}
+/* узкий телефон (SE, mini): и «Личное дело» значком — иначе переносится на вывеску */
+@media (max-width: 389px) {
+  .tt-corner > .px-btn > span {
+    display: none;
+  }
+}
 
 /* ---------- название ---------- */
 

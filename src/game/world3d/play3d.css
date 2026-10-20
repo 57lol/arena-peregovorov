@@ -269,6 +269,11 @@
 .w3-status.is-error {
   color: var(--c-brass-hi);
 }
+/* сообщение об ошибке (нет микрофона и т. п.) не обрезаем на второй строке: в конце — что делать */
+.w3-status.is-error,
+.w3-status.is-note {
+  -webkit-line-clamp: 4;
+}
 .w3-status .g-link {
   color: var(--c-grid);
   font: inherit;
@@ -1344,10 +1349,11 @@
 /* громкость голоса в меню встречи */
 .w3-volume {
   cursor: default;
+  flex-wrap: wrap;
 }
 .w3-volume input {
   flex: 1;
-  min-width: 0;
+  min-width: 96px;
   accent-color: var(--c-stamp);
   cursor: pointer;
 }
