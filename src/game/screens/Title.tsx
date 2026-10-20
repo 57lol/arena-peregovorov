@@ -39,7 +39,7 @@ interface Props {
  * Титул: живая сцена на весь экран — вечер на Каме, автобус привозит новенького в Алабугу.
  * Слов минимум: название, одна строка и две кнопки. По ссылке-приглашению — записка с делом.
  */
-export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onBooks, onStart, onLibrary, onCareer, resume }: Props) {
+export function Title({ progress, invited, notice, room, roomWait, playerName, onPlayerName, onPlay, onJury, onFilms, onBooks, onStart, onLibrary, onCareer, onCoach, resume }: Props) {
   const nameRef = useRef<HTMLInputElement>(null)
   const [needName, setNeedName] = useState(false)
   const inRoom = !!(invited && (room || roomWait))
@@ -143,6 +143,10 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
             <button type="button" className="tt-btn is-story" onClick={onPlay}>
               <b>Сюжет</b>
               <span>Неделя новенького в Алабуге</span>
+            </button>
+            <button type="button" className="tt-btn is-coach" onClick={onCoach}>
+              <b>Руководителю</b>
+              <span>Тренировка для команды</span>
             </button>
             <button type="button" className="tt-btn is-jury" onClick={onJury ?? onStart}>
               <b>Для жюри</b>

@@ -14,9 +14,20 @@ describe('лица для своих дел', () => {
   })
 
   it('разные дела одной сферы дают разные лица, подходящий типаж — чаще', () => {
-    const got = ids.map((id) => pickFace({ id, female: false, text: 'Подряд ремонт офиса руководитель строительной фирмы' }))
+    const got = ids.map((id) => pickFace({ id, female: false, text: 'Подряд ремонт офиса, прораб строительной фирмы' }))
     expect(new Set(got).size).toBeGreaterThan(1)
     expect(got.filter((x) => x === 'foreman').length).toBeGreaterThan(got.length / 2)
+  })
+
+  it('новые деловые лица выпадают по своей теме', () => {
+    const bank = ids.map((id) => pickFace({ id, female: false, text: 'Кредит для резидента, менеджер банка' }))
+    expect(bank.filter((x) => x === 'banker').length).toBeGreaterThan(bank.length / 2)
+    const money = ids.map((id) => pickFace({ id, female: true, text: 'Отсрочка платежа, финансовый директор' }))
+    expect(money.filter((x) => x === 'cfo').length).toBeGreaterThan(money.length / 2)
+    // каждое лицо пула хоть раз выпадает на нейтральном описании
+    const any = new Set([true, false].flatMap((female) => Array.from({ length: 400 }, (_, n) =>
+      pickFace({ id: `gen-${(n * 2654435761 >>> 0).toString(16).padStart(10, '0')}`, female, text: 'Переговоры' }))))
+    expect([...any].sort()).toEqual(FACES.map((f) => f.id).sort())
   })
 
   it('возраст сдвигает выбор', () => {

@@ -26,6 +26,15 @@ export const PORTRAITS = {
   hr: { sheet: '/assets/portraits/hr.png', label: 'Кадровик, 42', female: true },
   realtor: { sheet: '/assets/portraits/realtor.png', label: 'Арендодатель, 34', female: true },
   buyer: { sheet: '/assets/portraits/buyer.png', label: 'Закупщица, 52', female: true },
+  // вторая волна пула (tools/art/people_biz.py)
+  director: { sheet: '/assets/portraits/director.png', label: 'Генеральный директор, 56', female: false },
+  banker: { sheet: '/assets/portraits/banker.png', label: 'Банкир, 45', female: false },
+  lawyer: { sheet: '/assets/portraits/lawyer.png', label: 'Юрист, 38', female: false },
+  logist: { sheet: '/assets/portraits/logist.png', label: 'Логист, 33', female: false },
+  owner: { sheet: '/assets/portraits/owner.png', label: 'Собственник предприятия, 62', female: false },
+  cfo: { sheet: '/assets/portraits/cfo.png', label: 'Финансовый директор, 48', female: true },
+  sales: { sheet: '/assets/portraits/sales.png', label: 'Менеджер по продажам, 29', female: true },
+  engineer: { sheet: '/assets/portraits/engineer.png', label: 'Инженер-технолог, 37', female: true },
   // кампания «Новенький» (src/content/story.ts, рисует tools/art/people_story.py); в пул своих дел не входят
   sosed: { sheet: '/assets/portraits/sosed.png', label: 'Тимур, сосед по общаге', female: false },
   gopnik: { sheet: '/assets/portraits/gopnik.png', label: 'Серый', female: false },

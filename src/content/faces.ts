@@ -17,6 +17,15 @@ export const FACES = [
   { id: 'hr', female: true, age: 42, fits: /найм|(^|[^\p{L}])hr|кадр|персонал|рекрут|ваканс|оклад|сотрудник|оффер/iu },
   { id: 'realtor', female: true, age: 34, fits: /аренд|недвиж|помещени|офис|бизнес-центр|риелт|квартир|собственни/i },
   { id: 'buyer', female: true, age: 52, fits: /закуп|ритейл|магазин|сеть|поставк|поставщ|торгов|продаж|опт|товар/i },
+  // вторая волна (tools/art/people_biz.py)
+  { id: 'director', female: false, age: 56, fits: /директор|генеральн|руковод|правлени|холдинг|топ-менедж|(^|[^\p{L}])ceo/iu },
+  { id: 'banker', female: false, age: 45, fits: /банк|кредит|финанс|инвест|лизинг|страхов|казнач|фонд|капитал/i },
+  { id: 'lawyer', female: false, age: 38, fits: /юрист|юридич|договор|право|арбитраж|претензи|иск[аиуе ]|суд|лиценз|комплаенс|нотари/i },
+  { id: 'logist', female: false, age: 33, fits: /логист|перевоз|доставк|транспорт|склад|экспедит|маршрут|фур[аыу]|грузо/i },
+  { id: 'owner', female: false, age: 62, fits: /собственник|владел|семейн|фермер|агро|предпринимат|торговый дом/i },
+  { id: 'cfo', female: true, age: 48, fits: /финанс|бухгалт|бюджет|казнач|аудит|экономист|смет|отсрочк|плат[её]ж|предоплат/i },
+  { id: 'sales', female: true, age: 29, fits: /продаж|клиент|маркетинг|дистрибут|дилер|сбыт|коммерч|реклам|бренд/i },
+  { id: 'engineer', female: true, age: 37, fits: /инженер|технолог|качеств|лаборатор|наладк|оборудован|сертифик|охран[аы] труда|техническ/i },
 ] as const satisfies readonly Face[]
 
 export type FaceId = (typeof FACES)[number]['id']
@@ -31,13 +40,13 @@ export function looksFemale(name: string): boolean {
 
 /**
  * Лицо для дела. Детерминированно: то же дело — то же лицо, разные дела — чаще разные.
- * Подходящий по сфере типаж и близкий возраст весят больше, но остальные лица того же пола тоже выпадают,
+ * Подходящий по сфере типаж (в 20 раз) и близкий возраст весят больше, но остальные лица того же пола тоже выпадают,
  * иначе три дела про аренду подряд дали бы одно и то же лицо.
  */
 export function pickFace(o: { id: string; female: boolean; text: string; age?: number }): FaceId {
   const pool = FACES.filter((f) => f.female === o.female)
   const byAge = (a: number) => (!o.age ? 1 : Math.abs(o.age - a) <= 8 ? 3 : Math.abs(o.age - a) <= 15 ? 1.5 : 0.5)
-  const weights = pool.map((f) => (f.fits.test(o.text) ? 8 : 1) * byAge(f.age))
+  const weights = pool.map((f) => (f.fits.test(o.text) ? 20 : 1) * byAge(f.age))
   // id своего дела — «gen-» и hex-хэш: его хвост и есть число от 0 до 1
   const u = parseInt(o.id.replace(/[^0-9a-f]/gi, '').slice(-8) || '0', 16) / 2 ** 32
   let n = u * weights.reduce((s, w) => s + w, 0)
