@@ -2,6 +2,7 @@
 // Всё детерминировано: никаких случайных чисел, только время, доверие и напряжение.
 
 import type { Interest, Offer, OpponentState, Scenario } from './types'
+import { tunedCurve } from './settings'
 import { allDeals, maxScore, score, type FullOffer } from './utility'
 
 /**
@@ -28,13 +29,18 @@ export const HARDER_REVEAL = 10
 
 /** Сколько доверия нужно, чтобы собеседник рассказал об этом интересе. */
 export function revealAt(sc: Scenario, it: Interest): number {
-  return Math.min(100, it.trustToReveal + HARDER_REVEAL * (sc.harder ?? 0))
+  return Math.max(0, Math.min(100, it.trustToReveal + HARDER_REVEAL * (sc.harder ?? 0) + (sc.tuning?.revealShift ?? 0)))
+}
+
+/** Кривая уступок: из настроек дела, а без них — по ступени упрямства. */
+export function curveOf(sc: Scenario): { e: number; reserve: number } {
+  return tunedCurve(sc) ?? CURVE[tierOf(sc)]
 }
 
 export function floorUtility(sc: Scenario, state: OpponentState): number {
   const opp = sc.opponent.profile
   const max = maxScore(opp, sc.issues)
-  const { reserve } = CURVE[tierOf(sc)]
+  const { reserve } = curveOf(sc)
   // Доверие немного опускает пол, напряжение поднимает. Но ниже BATNA — никогда.
   const mood = 1 - (state.trust - 50) / 100 + Math.max(0, state.tension - 50) / 100
   const floor = opp.batna + reserve * mood * (max - opp.batna)
@@ -47,7 +53,7 @@ export function targetUtility(sc: Scenario, state: OpponentState, turn: number):
   const max = maxScore(opp, sc.issues)
   const floor = floorUtility(sc, state)
   const t = Math.min(1, Math.max(0, turn / sc.turnLimit))
-  const { e } = CURVE[tierOf(sc)]
+  const { e } = curveOf(sc)
   // Доверие ускоряет уступки, напряжение тормозит.
   const mood = 1 + (state.trust - 50) / 100 - Math.max(0, state.tension - 40) / 100
   const f = Math.min(1, Math.max(0, Math.pow(t, 1 / e) * mood))
