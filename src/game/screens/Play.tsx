@@ -4,7 +4,7 @@ import { g, meetingClock, plural, portraitFor, sceneFor } from '../cast'
 import { canRecord, stopAudio } from '../speech'
 import { endText, useMeeting, type MeetingProps } from '../useMeeting'
 import { Button, DialogBox, IssueStepper, MeetingClock, Notebook, PixelIcon, Scene, SpeechField, Stamp } from '../ui'
-import { introSeen, introSteps, markIntroSeen, mentorLine, tutorialAllowed, useTutorial } from '../tutorial'
+import { introSeen, introSteps, markIntroSeen, mentorLine, useTutorial } from '../tutorial'
 import { Tour } from './Tour'
 import { MicButton } from './Mic'
 import { TextModeNote, VoiceTurn } from './VoiceTurn'
@@ -34,8 +34,8 @@ export function Play(props: Props) {
     },
   })
   const [voicePaused, setVoicePaused] = useState(false)
-  // «Как играть»: само — перед первой встречей в этом браузере, потом — из меню встречи
-  const [tour, setTour] = useState(() => history.length === 0 && tutorialAllowed() && !introSeen())
+  // «Как играть»: само — перед первой встречей новичка (обучение ещё не пройдено), потом — из меню встречи
+  const [tour, setTour] = useState(() => history.length === 0 && props.tutorial && !introSeen())
   useEffect(() => {
     if (typeof document === 'undefined') return
     document.documentElement.classList.toggle('is-touring', tour)
