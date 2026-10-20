@@ -40,7 +40,8 @@ Apollo от AdamCYounis (lospec.com/palette-list/apollo), 46 цветов. Вс�
 
 - `tools/art/portraits.py` — портреты, листы 3×6 кадров по 96×96: `rinat` (Марат Гимадиев) и `olga` (Дарина Лукманова), плюс пул лиц из `people.py`; общие примитивы (маски, заливки, глаза, брови) — в `pixel.py`;
 - `tools/art/people.py` — шесть лиц для своих дел: `foreman` (прораб в сигнальном жилете, ~50), `dev` (айтишник в худи, ~28), `official` (госзаказчик в очках, ~60), `hr` (кадровик с пучком, ~42), `realtor` (арендодатель в красном жакете, ~34), `buyer` (закупщица в красных очках, ~52). Лицо собирается по профилю: купол черепа, скулы, угол челюсти, подбородок; тень от подбородка на шее, трапеции, морщины по возрасту;
-- `tools/art/people_story.py` — лица кампании «Новенький» тем же `person()`: `sosed` (Тимур), `gopnik` (Серый), `admin` (Лариса Петровна) и массовка `pacan`, `babka`, `cashier`, `guard`, `worker`, `workerf`, `student`, `vahter`, бригадир `palych` (Палыч). В пул своих дел (`faces.ts`) не входят. Скрипт пишет только свои листы, сводка — `tools/art/out/story_all.png`;
+- `tools/art/people_story.py` — лица кампании «Новенький» тем же `person()`: `sosed` (Тимур), `gopnik` (Серый), `admin` (Лариса Петровна) и массовка `pacan`, `babka`, `cashier`, `guard`, `worker`, `workerf`, `student`, `vahter`, бригадир `palych` (Палыч). В пул своих дел (`faces.ts`) не входят.
+- `tools/art/people_biz.py` — ещё восемь лиц для своих дел: `director`, `banker`, `lawyer`, `logist`, `owner`, `cfo`, `sales`, `engineer`. Вместе с шестью из `people.py` в пуле `faces.ts` 14 лиц, по семь мужских и женских; Скрипт пишет только свои листы, сводка — `tools/art/out/story_all.png`;
 - `tools/art/scenes.py` — сцены `factory` и `office`: фон плюс отдельный слой со столом, который стоит перед портретом;
 - `tools/art/frames.py` — рамки для 9-slice: окно реплики, табличка с именем, бумага и пружина блокнота;
 - `src/game/ui/PixelIcon.tsx` — иконки, тоже по сетке.
