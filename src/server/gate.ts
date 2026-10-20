@@ -286,7 +286,7 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
 <button class="go" type="submit">Пройти</button>
 </form>
 <p class="hint"><b>Для экспертов ЛЦТ:</b> логин и пароль — в описании решения на платформе.</p>
-<p class="hint vids">Видео без входа: <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре, 3,5 минуты</a> · <a href="/demo.mp4" target="_blank" rel="noopener">полное прохождение, 5 минут</a></p>
+<p class="hint vids">Видео без входа: <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре, 3,5 минуты</a> · <a href="/demo.mp4" target="_blank" rel="noopener">демо одной встречи, 5 минут</a></p>
 </div>
 </main>
 </div>

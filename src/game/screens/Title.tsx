@@ -157,7 +157,7 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <span>
                 <a href="/screencast.mp4" target="_blank" rel="noopener">ролик, 3,5 мин</a>
                 {' · '}
-                <a href="/demo.mp4" target="_blank" rel="noopener">полное прохождение, 5 мин</a>
+                <a href="/demo.mp4" target="_blank" rel="noopener">демо одной встречи, 5 мин</a>
               </span>
             </div>
             {onBooks && (
