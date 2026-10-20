@@ -152,10 +152,14 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <b>Для жюри</b>
               <span>Все дела, настройки, кабинет</span>
             </button>
-            <a className="tt-btn is-video" href="/screencast.mp4" target="_blank" rel="noopener">
+            <div className="tt-btn is-video">
               <b>Видео</b>
-              <span>Ролик об игре, 3,5 минуты</span>
-            </a>
+              <span>
+                <a href="/screencast.mp4" target="_blank" rel="noopener">ролик, 3,5 мин</a>
+                {' · '}
+                <a href="/demo.mp4" target="_blank" rel="noopener">демо одной встречи, 5 мин</a>
+              </span>
+            </div>
             {onBooks && (
               <button type="button" className="tt-books" onClick={onBooks}>
                 <PixelIcon name="notebook" px={2} />
