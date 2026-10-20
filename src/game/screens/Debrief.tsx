@@ -444,7 +444,9 @@ function Moments({ sc, report, history, onReplayFrom, wide }: { sc: Scenario; re
                   {hits.map((b) => {
                     const def = behaviorById(b.id)
                     if (!def) return null
-                    const src = SOURCES[def.sources[0]]
+                    // книга уже в подписи — ссылку показываем, только если первым источником стоит исследование
+                    const research = def.sources.find((k) => !['voss16', 'ury91', 'stone99', 'fisherUry81', 'rackham88', 'huthwaite', 'ponPrincipled'].includes(k))
+                    const src = research ? SOURCES[research] : undefined
                     const sig = bookSig(def.id)
                     return (
                       <li key={b.id} className={`is-${def.polarity}`}>
