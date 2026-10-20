@@ -42,8 +42,10 @@ export function pickPlace(sc: Scenario): BusinessScene {
   const c = sc.opponent.character
   const text = `${sc.sphere} ${sc.title} ${c.role} ${c.company} ${sc.player.role}`
   const weights = BUSINESS_SCENES.map((k) => (PLACE_FITS[k].fits.test(text) ? PLACE_FITS[k].hit : PLACE_FITS[k].base))
-  // другие биты хэша, чем у лица (faces.ts): место и лицо выпадают независимо
-  const u = parseInt(sc.id.replace(/[^0-9a-f]/gi, '').slice(-16, -8) || '0', 16) / 2 ** 32
+  // свой хэш, а не хвост id, как у лица (faces.ts): место и лицо выпадают независимо
+  let h = 0
+  for (const ch of `${sc.id}#place`) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  const u = (Math.imul(h, 2654435761) >>> 0) / 2 ** 32
   let n = u * weights.reduce((s, w) => s + w, 0)
   for (let i = 0; i < BUSINESS_SCENES.length; i++) {
     n -= weights[i]

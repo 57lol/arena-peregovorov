@@ -7,7 +7,8 @@ import { PORTRAITS, SCENES } from './ui'
 const base = SCENARIOS.find((s) => s.id === 'client') ?? SCENARIOS[0]
 const own = (n: number, text: { sphere?: string; title?: string; role?: string }, extra: Partial<Scenario> = {}): Scenario => ({
   ...base,
-  id: `gen-${(n * 2654435761 >>> 0).toString(16).padStart(10, '0')}${(n * 40503 >>> 0).toString(16).padStart(8, '0')}`,
+  // как у настоящих своих дел: gen- и 10 знаков хэша
+  id: `gen-${(n * 2654435761 >>> 0).toString(16).padStart(8, '0')}${(n % 256).toString(16).padStart(2, '0')}`,
   sphere: text.sphere ?? 'Переговоры',
   title: text.title ?? 'Встреча',
   player: { ...base.player, role: 'сотрудник' },
@@ -28,6 +29,15 @@ describe('место встречи своего дела', () => {
   it('Стамбул и Лагос — только когда дело про них', () => {
     expect(many({ sphere: 'Аренда', title: 'Аренда склада' }).some((s) => s === 'istanbul' || s === 'lagos')).toBe(false)
     expect(many({ sphere: 'Продажи', title: 'Экспорт оборудования в Турцию, встреча в Стамбуле' }).filter((s) => s === 'istanbul').length).toBeGreaterThan(30)
+  })
+
+  it('настоящие id с прода расходятся по местам, а не все в офис', () => {
+    const fit = (id: string) => sceneFor({ ...own(0, { sphere: 'Подряд', title: 'Монтаж вентиляции в новом цехе', role: 'бригадир подрядчика' }), id })
+    expect(['factory', 'bytovka']).toContain(fit('gen-c0723c7f5f'))
+    const spread = many({ sphere: 'Подряд', title: 'Монтаж вентиляции в новом цехе', role: 'бригадир подрядчика' })
+    expect(spread.filter((s) => s === 'factory' || s === 'bytovka').length).toBeGreaterThan(spread.length * 0.8)
+    expect(new Set(spread)).toContain('factory')
+    expect(new Set(spread)).toContain('bytovka')
   })
 
   it('выбор руководителя важнее подбора; чужие места не принимаются', () => {
