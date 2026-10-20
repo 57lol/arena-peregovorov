@@ -1369,14 +1369,17 @@ export const ENGAGES: BehaviorId[] = ['ask_interest', 'check', 'label', 'summari
 // «Пополам» по внешней мерке («середина между двумя индексами») — уже не механическое деление (Фишер, гл. 5): засчитываем мерку.
 const SAME_SENTENCE: [BehaviorId, BehaviorId][] = [['calibrated', 'ask_interest'], ['accusation_audit', 'label'], ['criteria', 'split']]
 const normQ = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\d]+/gu, ' ').trim()
+const overlaps = (x: string, y: string) => {
+  const a = normQ(x), b = normQ(y)
+  return !!a && !!b && (a.includes(b) || b.includes(a))
+}
 function oneSentenceOne(hits: BehaviorHit[]): BehaviorHit[] {
   let out = hits
   for (const [keep, drop] of SAME_SENTENCE) {
     const k = out.find((h) => h.id === keep)
     const d = out.find((h) => h.id === drop)
     if (!k || !d) continue
-    const a = normQ(k.quote), b = normQ(d.quote)
-    if (a && b && (a.includes(b) || b.includes(a))) out = out.filter((h) => h !== d)
+    if (overlaps(k.quote, d.quote)) out = out.filter((h) => h !== d)
   }
   return out
 }
@@ -1441,6 +1444,9 @@ export function guardBehaviors(text: string, hits: BehaviorHit[]): BehaviorHit[]
     h.quote && p.includes(h.quote) && methodIntent(h.id, p, parts[i + 1])))
   // «две тысячи — ты загнул» — реакция на цену, а не выпад и не похвала себе: без правила такую «атаку» модели не засчитываем
   out = out.filter((h) => !(h.id === 'attack' || h.id === 'irritator') || byRule(h.id) || !PRICE_REACTION.test(h.quote))
+  // «Решайте сейчас, это последний шанс» модель зовёт ультиматумом, а по словарю это давление сроком без угрозы
+  const rush = byRule('deadline')
+  if (rush && !byRule('ultimatum')) out = out.map((h) => h.id === 'ultimatum' && overlaps(h.quote, rush.quote) ? rush : h)
   for (const id of ['ultimatum', 'attack'] as const) {
     const pressure = byRule(id)
     if (pressure && !out.some((h) => h.id === id)) out = [...out, pressure]
@@ -1577,7 +1583,7 @@ const CUES: Partial<Record<BehaviorId, string>> = {
   attack: 'выпад в адрес собеседника или его мотивов («вы наживаетесь», «бред») или «не наша вина», «ваши проблемы». Не: «дороговато», «ты загнул», «перебор» — это реакция на цену',
   rapport: 'по-человечески к собеседнику: извиняется за свою оплошность, шутит к месту, называет себя или спрашивает имя, спрашивает о его делах («ты сам-то…?»), сочувствует. Не: дежурное «здравствуйте», лесть',
   dilution: 'три и больше довода подряд («во-первых…, во-вторых…, к тому же…»)',
-  ultimatum: '«или так, или никак», «последнее предложение», угроза уйти, срок на ответ',
+  ultimatum: '«или так, или никак», «последнее предложение», угроза уйти, срок с угрозой',
   criteria: 'внешняя мерка: рынок, индекс, себестоимость, прошлый договор, норматив — или «из чего складывается ваша цена?». Не: свой другой поставщик (alternative), «честная цена» (irritator)',
   implication: 'вопрос о последствиях проблемы оппонента («во что вам обходится день простоя?»). Не: «что будет, если не договоримся» (ask_interest)',
   need_payoff: 'вопрос о пользе решения для оппонента («что вам даст, если…?»)',
@@ -1589,7 +1595,7 @@ const CUES: Partial<Record<BehaviorId, string>> = {
   golden_bridge: 'помогает оппоненту сохранить лицо: что сказать начальству, своим',
   i_message: 'о своих чувствах без обвинения («меня беспокоит, что…», «мне неприятно, когда…»)',
   balcony: 'берёт паузу («дайте подумать», «не буду решать сгоряча»)',
-  deadline: 'торопит сроком: «только сегодня», «решайте сейчас». С угрозой уйти — ultimatum',
+  deadline: 'торопит без угрозы: «решайте сейчас», «последний шанс», «только сегодня». С угрозой уйти — ultimatum',
 }
 
 /** Словарь в виде блока для промпта: одна строка на индикатор. Контекстные (anchor, instant_counter, mirror) ставит движок. */

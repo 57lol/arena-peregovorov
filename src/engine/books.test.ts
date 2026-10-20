@@ -113,6 +113,13 @@ describe('новые приёмы из книг: корпус «да / нет»'
       for (const id of no) expect(got, `${text} → ${got.join(', ')}`).not.toContain(id)
     })
 
+  it('страховка над разметкой модели: срок без угрозы — давление сроком, а не ультиматум', () => {
+    const t = 'Решайте сейчас, это последний шанс.'
+    expect(guardBehaviors(t, [{ id: 'ultimatum', quote: 'Решайте сейчас, это последний шанс' }]).map((h) => h.id)).toEqual(['deadline'])
+    const u = 'Решайте сейчас, или мы уходим к другому поставщику.'
+    expect(guardBehaviors(u, [{ id: 'ultimatum', quote: 'или мы уходим к другому поставщику' }]).map((h) => h.id)).toEqual(['ultimatum'])
+  })
+
   it('страховка над разметкой модели: «как?» и вопрос об интересах в одной фразе — один приём', () => {
     const text = 'Как нам решить вопрос с отсрочкой?'
     const out = guardBehaviors(text, [{ id: 'ask_interest', quote: 'Как нам решить вопрос с отсрочкой' }, { id: 'calibrated', quote: 'Как нам решить вопрос с отсрочкой?' }])
