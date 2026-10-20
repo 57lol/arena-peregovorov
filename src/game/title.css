@@ -161,8 +161,23 @@
   --sub: var(--c-paper-2);
   --base: var(--c-ink-2);
 }
+.tt-btn.is-video {
+  --face: var(--c-denim);
+  --lo: var(--c-night-2);
+  --edge: var(--c-ink);
+  --label: var(--c-paper);
+  --sub: var(--c-paper-2);
+  --base: var(--c-ink-2);
+}
+a.tt-btn {
+  box-sizing: border-box;
+  text-decoration: none;
+}
 .tt-btn:hover {
   --lo: var(--c-mist);
+}
+.tt-btn.is-video:hover {
+  --lo: var(--c-sky);
 }
 /* «Администратор» шире кнопки в 340 px крупным кеглем — на ступень мельче */
 .tt-btn.is-coach b {
@@ -206,30 +221,6 @@
   color: var(--c-paper);
   font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
   cursor: pointer;
-}
-.tt-videos {
-  flex-basis: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0 calc(3 * var(--u));
-  min-height: 40px;
-  margin: 0 auto;
-  padding: calc(1 * var(--u)) calc(6 * var(--u));
-  background: color-mix(in srgb, var(--c-ink) 78%, transparent);
-  color: var(--c-mist);
-  font: 400 var(--fs-ui) / var(--lh-ui) var(--f-ui);
-}
-.tt-videos a {
-  color: var(--c-paper);
-  font-weight: 700;
-  text-decoration: underline;
-  text-decoration-thickness: var(--u);
-  text-underline-offset: calc(2 * var(--u));
-}
-.tt-videos a:hover {
-  color: var(--c-brass-hi);
 }
 .tt-books b {
   font-weight: 700;

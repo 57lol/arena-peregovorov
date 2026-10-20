@@ -152,6 +152,10 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
               <b>Для жюри</b>
               <span>Все дела, настройки, кабинет</span>
             </button>
+            <a className="tt-btn is-video" href="/screencast.mp4" target="_blank" rel="noopener">
+              <b>Видео</b>
+              <span>Ролик об игре, 3,5 минуты</span>
+            </a>
             {onBooks && (
               <button type="button" className="tt-books" onClick={onBooks}>
                 <PixelIcon name="notebook" px={2} />
@@ -159,11 +163,6 @@ export function Title({ progress, invited, notice, room, roomWait, playerName, o
                 <span>— пять книг, на которых стоит игра</span>
               </button>
             )}
-            <p className="tt-videos">
-              <PixelIcon name="right" px={2} />
-              <span>Видео:</span>
-              <a href="/screencast.mp4" target="_blank" rel="noopener">ролик об игре, 3,5 минуты</a>
-            </p>
             <MusicHint />
           </div>
         )}
