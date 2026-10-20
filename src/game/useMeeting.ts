@@ -35,7 +35,7 @@ export interface MeetingProps {
   onQuit: () => void
 }
 
-export interface SendOpts {
+interface SendOpts {
   offer?: Offer
   accept?: boolean
   walkAway?: boolean

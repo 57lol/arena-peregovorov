@@ -5,7 +5,7 @@ import type { BehaviorId } from './behaviors'
 
 export type BookId = 'fisher' | 'ury' | 'voss' | 'spin' | 'stone'
 
-export interface Book {
+interface Book {
   id: BookId
   authors: string
   /** для подписи «— Восс, …» */
@@ -99,7 +99,7 @@ export interface BookRef {
   name: string
 }
 
-export interface Technique {
+interface Technique {
   /** первая ссылка — главная, её показываем в подписи */
   refs: BookRef[]
   /** как в книге — своими словами, одно-два предложения */

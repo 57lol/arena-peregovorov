@@ -11,7 +11,7 @@ import { firstName, g, plural } from './cast'
 import { fragment, plainWords } from './instant'
 import { worseWithout } from '../content/scenarios/story'
 
-export interface Summary {
+interface Summary {
   result: string
   good: string
   /** цитата игрока к «получилось», если есть */

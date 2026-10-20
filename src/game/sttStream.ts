@@ -8,7 +8,7 @@ export interface StreamSocket {
   send(data: ArrayBuffer | string): void
   close(): void
 }
-export interface StreamIO {
+interface StreamIO {
   url: (signal: AbortSignal) => Promise<string>
   socket: (url: string) => StreamSocket
   partial: (text: string) => void

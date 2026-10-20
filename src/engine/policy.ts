@@ -9,7 +9,7 @@ import { allDeals, maxScore, score, type FullOffer } from './utility'
  *   цель(t) = max − (max − пол) · t^(1/e)
  * e < 1 — Boulware: почти не двигается до самого конца; e > 1 — Conceder: быстро идёт навстречу.
  */
-export type Tier = 1 | 2 | 3 | 4
+type Tier = 1 | 2 | 3 | 4
 
 export const CURVE: Record<Tier, { e: number; reserve: number }> = {
   1: { e: 2.2, reserve: 0.0 },   // уступчивый, готов опуститься до своей альтернативы

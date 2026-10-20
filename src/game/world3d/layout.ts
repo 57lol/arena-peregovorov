@@ -43,7 +43,7 @@ export const SPRITE_M_PER_PX = 0.62 / 96
 /** Стулья в торцах смотрят к столу, дальний ряд — к игроку. */
 export const seatYaw = (x: number) => Math.abs(x) > 1.8 ? (x < 0 ? Math.PI / 2 : -Math.PI / 2) : 0
 export const SEATED_FORWARD = 0.06
-export const SEATED_TURN = 0.55
+const SEATED_TURN = 0.55
 
 /** Край биллборда остаётся перед спинкой даже при взгляде на соседа. */
 export function seatedTurn(want: number, facing: number) {

@@ -6,7 +6,7 @@ import { POSITIONAL, TECHNIQUES, signature, cite } from '../engine/books'
 import type { TurnRecord } from '../engine/types'
 import { fragment } from './instant'
 
-export interface BookPick {
+interface BookPick {
   id: BehaviorId | 'positional'
   title: string
   /** цитата игрока */
@@ -21,7 +21,7 @@ export interface BookPick {
   sig: string
 }
 
-export interface BookPicks {
+interface BookPicks {
   good: BookPick[]
   bad: BookPick[]
   missing: BookPick[]
@@ -30,7 +30,7 @@ export interface BookPicks {
 const QUESTIONS: BehaviorId[] = ['ask_interest', 'implication', 'need_payoff', 'calibrated', 'mirror', 'no_question']
 
 /** «гл. 3», «шаг 2» не разрываем переносом строки. */
-export const keepTogether = (s: string) => s.replace(/(гл\.|ч\.|шаг|разд\.) /gu, '$1\u00a0')
+const keepTogether = (s: string) => s.replace(/(гл\.|ч\.|шаг|разд\.) /gu, '$1\u00a0')
 
 /** Подпись приёма для разбора: «— Восс, «Никаких компромиссов», гл. 3» (пустая, если книги нет). */
 export const bookSig = (id: string) => keepTogether(signature(id))

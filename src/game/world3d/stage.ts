@@ -31,7 +31,7 @@ export interface Frame {
   moved: boolean
 }
 
-export interface WorldOptions {
+interface WorldOptions {
   kind: WorldKind
   /** дело — от него зависит массовка */
   caseId?: string

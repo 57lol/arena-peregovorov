@@ -57,9 +57,9 @@ const TtsBody = z.object({
 })
 type TtsBody = z.infer<typeof TtsBody>
 /** Голос реплики без текста: то, что игра шлёт в /api/turn (tts) — сервер озвучит реплику сам, как только она пишется. */
-export type TtsVoice = Omit<TtsBody, 'text' | 'emotion' | 'provider'> & { provider?: string }
+type TtsVoice = Omit<TtsBody, 'text' | 'emotion' | 'provider'> & { provider?: string }
 
-export interface SpeechOptions {
+interface SpeechOptions {
   key?: string
   fetch?: typeof fetch
   /** фраз озвучки и распознаваний SpeechKit на один IP в сутки (по умолчанию без лимита: жюри может сидеть за одним IP) */

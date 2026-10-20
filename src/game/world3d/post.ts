@@ -95,7 +95,7 @@ void main() {
 }
 `
 
-export interface PostOptions {
+interface PostOptions {
   /** 0..1 — сила рентгена */
   xray?: number
   /** 0..1 — затемнение в чёрное */

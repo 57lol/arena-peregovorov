@@ -17,7 +17,7 @@ function seedOf(id: string) {
 /** Коллеги за столом переговорной: лица дел из папки и пул своих дел. Лица кампании сидят только у себя. */
 const OFFICE: PortraitId[] = ['rinat', 'olga', 'foreman', 'dev', 'official', 'hr', 'realtor', 'buyer']
 
-export function extrasFor(caseId: string, opponent: PortraitId): PortraitId[] {
+function extrasFor(caseId: string, opponent: PortraitId): PortraitId[] {
   // у мест кампании своя массовка: пацаны на остановке, кассирша в магазине, бригада в бытовке
   const own = (chapterOf(caseId)?.extras ?? []).filter((p): p is PortraitId => p in PORTRAITS && p !== opponent)
   if (own.length >= 2) return own.slice(0, 4)

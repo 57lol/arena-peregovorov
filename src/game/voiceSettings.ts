@@ -4,7 +4,7 @@
 import { useSyncExternalStore } from 'react'
 import type { PauseLevel } from './endOfTurn'
 
-export type InputMode = 'voice' | 'text'
+type InputMode = 'voice' | 'text'
 export type { PauseLevel }
 
 const MODE_KEY = 'peregovorka.input.v1'
@@ -31,7 +31,7 @@ const store = {
 }
 
 /** ?voiceonly — голос, ?text — текст, ?voiceonly=off или ?text=off — снять. */
-export function readForced(search: string): InputMode | null | undefined {
+function readForced(search: string): InputMode | null | undefined {
   const q = new URLSearchParams(search)
   if (q.get('voiceonly') === 'off' || q.get('text') === 'off') return null
   if (q.has('voiceonly')) return 'voice'

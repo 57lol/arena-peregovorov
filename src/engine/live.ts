@@ -1,5 +1,5 @@
 /** Лёгкий пульс: никаких реплик, предложений или скрытых очков собеседника. */
-export type LivePhase = 'brief' | 'playing' | 'left' | 'finished'
+type LivePhase = 'brief' | 'playing' | 'left' | 'finished'
 
 export interface Pulse {
   clientId: string

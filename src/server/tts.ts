@@ -11,7 +11,7 @@ import { sayNumbers } from './numWords'
 
 export { YANDEX_VOICES, type VoiceInfo }
 
-export type TtsProvider = 'yandex' | 'elevenlabs'
+type TtsProvider = 'yandex' | 'elevenlabs'
 
 /** Стоковые голоса ElevenLabs для лаборатории (в игре у каждого лица свой, CAST). */
 const ELEVEN_DEFAULT: VoiceInfo[] = [
@@ -138,7 +138,7 @@ export async function yandexV3(key: string, q: TtsRequest, f: Fetch = fetch): Pr
  * Серый — как дубль, который выбрал капитан (voice-blind, «v4 Turbo, stability 0,3, similarity 1,0» без пометки):
  * говорок держит сам дизайн-голос при низкой стабильности, пометка акцента его не давала.
  */
-export interface ElevenTune {
+interface ElevenTune {
   model?: string
   stability?: number
   similarity?: number
@@ -276,7 +276,7 @@ export function mp3Ms(b: Uint8Array): number {
  * не берёт и говорит SpeechKit.
  */
 export const MAIN_TTS = ['elevenlabs'] as const
-export type MainTts = (typeof MAIN_TTS)[number]
+type MainTts = (typeof MAIN_TTS)[number]
 
 /** ₽ за 1000 символов ElevenLabs (Turbo, Flash и v3 conversational вдвое дешевле полной модели); своё — TTS_PRICE_1K_RUB. */
 export function price1k(model: string, env = process.env): number {

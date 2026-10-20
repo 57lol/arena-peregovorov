@@ -5,13 +5,13 @@ import { initialState } from './turn'
 import type { Offer, Scenario, TurnRecord } from './types'
 import { bestOption, isComplete, score } from './utility'
 
-export interface DealValue {
+interface DealValue {
   player: number
   opponent: number
   left: number
 }
 
-export interface MeetingPoint {
+interface MeetingPoint {
   turn: number
   trust: number
   tension: number

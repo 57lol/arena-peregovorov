@@ -27,7 +27,7 @@ function classifyIssue(player: number[], opponent: number[]): Issue['kind'] {
   return Math.max(pw, ow) >= 2 * Math.max(1, Math.min(pw, ow)) ? 'integrative' : 'distributive'
 }
 
-export interface ScenarioCheck {
+interface ScenarioCheck {
   ok: boolean
   problems: string[]
   scenario: Scenario // с пересчитанными типами пунктов

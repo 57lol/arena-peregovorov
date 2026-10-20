@@ -8,7 +8,7 @@ import { PixelIcon } from '../ui'
  * Bluetooth-гарнитура пишет звук хуже встроенного микрофона. Список появляется, только если микрофонов больше одного;
  * в 3D меню ставит микрофон на паузу, и после «Вернуться за стол» он открывается уже выбранный.
  */
-export function MicPicker({ className = 'w3-menu-item w3-volume' }: { className?: string }) {
+function MicPicker({ className = 'w3-menu-item w3-volume' }: { className?: string }) {
   const [mics, setMics] = useState<MediaDeviceInfo[]>([])
   const [id, setId] = useState(() => loadMicId() ?? '')
   useEffect(() => {

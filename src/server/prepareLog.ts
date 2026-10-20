@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { diagnosticId } from '../shared/prepareDiag'
 
-export const PROCESS_ID = randomUUID()
+const PROCESS_ID = randomUUID()
 export const canonical = (value: unknown) => JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v)
   ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v)
 export interface PrepareParts {

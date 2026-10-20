@@ -6,12 +6,12 @@ import { MathUtils } from 'three'
 const D = MathUtils.DEG2RAD
 
 export const YAW_MAX = 100 * D
-export const PITCH_MIN = -64 * D
-export const PITCH_MAX = 14 * D
+const PITCH_MIN = -64 * D
+const PITCH_MAX = 14 * D
 
 export type Pose = 'face' | 'desk'
 
-export interface PoseAngles {
+interface PoseAngles {
   face: { yaw: number; pitch: number }
   desk: { yaw: number; pitch: number }
 }

@@ -15,7 +15,7 @@ export type PortraitFrame = keyof typeof FRAMES
 
 export const PORTRAIT_SIZE = 96
 
-/** id портрета = Character.portrait в сценарии. Первые два — герои дел из папки, остальные — пул для своих дел (src/content/faces.ts). */
+/** id портрета = Character.portrait в сценарии. Пул для своих дел — src/content/faces.ts. */
 export const PORTRAITS = {
   china: { sheet: '/assets/portraits/china.png', label: 'Ли Вэй, торговец из Шэньчжэня', female: false },
   rinat: { sheet: '/assets/portraits/rinat.png', label: 'Марат Гимадиев', female: false },
@@ -39,7 +39,7 @@ export const PORTRAITS = {
   student: { sheet: '/assets/portraits/student.png', label: 'Аня, соседка из 215-й', female: true },
   vahter: { sheet: '/assets/portraits/vahter.png', label: 'Галина Ивановна, комендант', female: true },
   palych: { sheet: '/assets/portraits/palych.png', label: 'Палыч, бригадир', female: false },
-  // дело на английском (src/content/scenarios/istanbul.ts), рисует tools/art/people.py; в пул своих дел не входит
+  // английские дела в Лагосе и Стамбуле; в пул своих дел не входят
   lagos: { sheet: '/assets/portraits/lagos.png', label: 'Адебайо Адейеми', female: false },
   emre: { sheet: '/assets/portraits/emre.png', label: 'Эмре Кая', female: false },
 } as const satisfies Record<string, { sheet: string; label: string; female: boolean }>
@@ -57,7 +57,7 @@ export const SCENES = {
   shop: { bg: '/assets/scenes/shop.png', desk: '/assets/scenes/shop-desk.png', title: 'Магазин у общежития' },
   bytovka: { bg: '/assets/scenes/bytovka.png', desk: '/assets/scenes/bytovka-desk.png', title: 'Бытовка цеха' },
   inei: { bg: '/assets/scenes/inei.png', desk: '/assets/scenes/inei-desk.png', title: 'Кабинет закупок «Инея»' },
-  // английское дело «The Istanbul Line»: офис продаж Marmara Coating Systems в Ускюдаре
+  // английские дела в Лагосе и Стамбуле
   lagos: { bg: '/assets/scenes/lagos.png', desk: '/assets/scenes/lagos-desk.png', title: 'Meridian Industrial Partners · Виктория-Айленд, Лагос' },
   istanbul: { bg: '/assets/scenes/istanbul.png', desk: '/assets/scenes/istanbul-desk.png', title: 'Офис Marmara Coating Systems в Ускюдаре' },
   // видеозвонок (дело «Поставщик из Шэньчжэня»): большой экран в переговорной «Кама», картинки — tools/art/call_screen.py

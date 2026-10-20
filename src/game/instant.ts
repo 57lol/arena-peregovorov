@@ -55,7 +55,7 @@ export interface Tip {
 export const shortCite = (ref: BookRef) => `${BOOKS[ref.book].short.split(',')[0]}, ${ref.where.replace(' ', '\u00a0')}`
 
 /** Подпись к приёму; k — какая из ссылок (первая — главная). */
-export function bookSrc(id: BehaviorId, k = 0): string | undefined {
+function bookSrc(id: BehaviorId, k = 0): string | undefined {
   const ref = TECHNIQUES[id]?.refs[k]
   return ref ? shortCite(ref) : undefined
 }

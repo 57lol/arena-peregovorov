@@ -21,7 +21,7 @@ const ENDING_RULES = {
 } as const
 
 /** Всё, что нужно для выбора финала, — из итога партии. */
-export interface EndingFacts {
+interface EndingFacts {
   status: OpponentState['status']
   endedBy?: 'player' | 'opponent'
   playerPoints: number

@@ -12,7 +12,7 @@ import type { Judge } from './pass'
 import { writeJson } from './storage'
 import { z } from 'zod'
 
-export type Mode = 'pro' | 'lite' | 'offline'
+type Mode = 'pro' | 'lite' | 'offline'
 
 interface Model {
   in: number
@@ -21,7 +21,7 @@ interface Model {
   rub: number
 }
 
-export interface JudgeUsage extends Judge {
+interface JudgeUsage extends Judge {
   turns: number
   starts: number
   finishes: number
@@ -35,7 +35,7 @@ export interface JudgeUsage extends Judge {
   lastAt: string
 }
 
-export interface Day {
+interface Day {
   date: string
   judges: Record<string, JudgeUsage>
   rub: number
@@ -44,7 +44,7 @@ export interface Day {
   sttSec: number
 }
 
-export interface Total {
+interface Total {
   since: string
   judges: Record<string, JudgeUsage>
   rub: number

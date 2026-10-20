@@ -80,7 +80,7 @@ const _c = new Vector3()
 const _n = new Vector3()
 
 /** 0 — сверху или к нам, 1 — боком или от нас, 2 — снизу. */
-export function shadeOf(n: Vector3) {
+function shadeOf(n: Vector3) {
   if (n.y > 0.6) return 0
   if (n.y < -0.6) return 2
   return n.z > 0.5 ? 0 : 1

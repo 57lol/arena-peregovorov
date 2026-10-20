@@ -109,7 +109,7 @@ export function better(a: Attempt, b: Attempt): Attempt {
   return a
 }
 
-export interface TeamSummary {
+interface TeamSummary {
   n: number
   deals: number
   /** сделок хуже запасного */

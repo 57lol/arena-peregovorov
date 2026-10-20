@@ -50,10 +50,10 @@ export interface Character {
 }
 
 // Ключи совпадают с видами решений движка и причинами hold; {offer} — подставить предложение.
-export type LineKey = Decision['kind'] | 'final' | 'no_news' | HoldReason
-export type CharacterLines = Partial<Record<LineKey, string[]>>
+type LineKey = Decision['kind'] | 'final' | 'no_news' | HoldReason
+type CharacterLines = Partial<Record<LineKey, string[]>>
 
-export interface Upsell {
+interface Upsell {
   id: string
   title: string
   keywords: string[]
@@ -140,7 +140,7 @@ export type Decision =
   | { kind: 'warn_tone' }
   | { kind: 'walk_away' }
 
-export type HoldReason = 'no_offer' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
+type HoldReason = 'no_offer' | 'no_movement' | 'not_ready_to_reveal' | 'player_left' | 'timeout'
 
 // Эмоция оппонента для спрайта
 export type Emotion = 'neutral' | 'pleased' | 'happy' | 'thinking' | 'annoyed' | 'angry'

@@ -21,7 +21,7 @@ const MAX_FAILS = 8
 const FAIL_WINDOW = 15 * 60 * 1000
 const loginBody = bodyLimit({ maxSize: 8192 })
 
-export type GateConfig = { secret: string; juryKey?: string; juryKeys?: string; login?: string; passwordHash?: string; voteKey?: string }
+type GateConfig = { secret: string; juryKey?: string; juryKeys?: string; login?: string; passwordHash?: string; voteKey?: string }
 
 export function hashPassword(password: string, salt = randomBytes(16).toString('hex')) {
   return `scrypt:${salt}:${scryptSync(password, salt, 32).toString('hex')}`

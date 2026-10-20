@@ -13,7 +13,7 @@ export function isTyping(t: EventTarget | null) {
   return !!e && (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT' || e.isContentEditable)
 }
 
-export interface InputHooks {
+interface InputHooks {
   /** стрелка вниз / вверх — взгляд на стол или на собеседника */
   onPose?: (p: 'face' | 'desk') => void
   /** пользователь сам повернул голову (для подсказок «можно осмотреться») */

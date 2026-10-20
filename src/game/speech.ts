@@ -414,7 +414,7 @@ function metaDuration(src: string, ms = 1500): Promise<number> {
   })
 }
 
-export interface LineOptions {
+interface LineOptions {
   /** провайдер озвучки; по умолчанию — что выбрано в лаборатории, иначе SpeechKit */
   provider?: LabTts
   api?: 'v1' | 'v3'
@@ -582,7 +582,7 @@ const MSE = (): typeof MediaSource | undefined =>
   typeof MediaSource !== 'undefined' ? MediaSource : typeof window === 'undefined' ? undefined : (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
 const streamable = () => !!MSE()?.isTypeSupported('audio/mpeg')
 /** Firefox и браузеры на нём (Zen): у них mp3 в MediaSource нет. */
-export const gecko = (ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) => /\bFirefox\//.test(ua)
+const gecko = (ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) => /\bFirefox\//.test(ua)
 let liveStop: AbortController | null = null
 
 /** Скачивать звук по кускам в MediaSource; part — всё пришедшее после каждого куска (губы), в конце — весь звук. */
@@ -842,7 +842,7 @@ export function startReaction(voice: string, casual: boolean, allowed: () => boo
   return { ...startFiller(voice, casual, allowed, 320, reaction!.path), text: reaction!.text }
 }
 
-export function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY, reactionPath?: string): Filler {
+function startFiller(voice: string, casual: boolean, allowed: () => boolean, delay = FILLER_DELAY, reactionPath?: string): Filler {
   let started = false
   let cancelled = false
   let finish!: () => void

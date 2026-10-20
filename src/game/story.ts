@@ -35,9 +35,3 @@ export function chapterRows(p: Progress): ChapterRow[] {
     ]
   })
 }
-
-/** Следующая глава по сюжету — для подсказки под «Играть»; неделя пройдена — null. */
-export function nextStory(p: Progress): { scenario: Scenario; why: string } | null {
-  const r = chapterRows(p).find((x) => !x.played)
-  return r ? { scenario: r.sc, why: `${r.ch.day}, ${r.ch.time}, ${r.ch.place}.` } : null
-}

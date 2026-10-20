@@ -10,25 +10,25 @@ import { noiseFloor, QUIET_LOUD, speechPause } from './silence'
 /** 16 кГц: отсчётов в мс */
 const PER_MS = 16
 /** кольцо последних кадров: сколько звука помним до решения «игрок заговорил» и до запоздавшего open() */
-export const RING_MS = 1000
+const RING_MS = 1000
 /** столько звука до первого громкого кадра уходит в распознавание: первый слог мягкий */
-export const PREROLL_MS = 300
+const PREROLL_MS = 300
 /** громкость речи (RMS) в тихой комнате; в шумной порог выше — над шумом (noiseFloor в silence.ts) */
-export const LOUD = QUIET_LOUD
+const LOUD = QUIET_LOUD
 /**
  * Текст от Scribe не меняется столько сверх паузы конца реплики — игрок замолчал, даже если микрофон слышит шум:
  * Scribe пишет слова, а гул и стук не пишет. Запас — на задержку промежуточного текста (~0,3–0,6 с).
  */
-export const TEXT_STALE_MS = 1000
+const TEXT_STALE_MS = 1000
 /** громкого набралось столько (с провалами не дольше GAP_MS) — игрок заговорил */
-export const ONSET_MS = 60
+const ONSET_MS = 60
 const GAP_MS = 120
 /** «заговорил», а 160 мс речи так и не набралось за это время — шум, слушаем дальше */
-export const FALSE_START_MS = 2500
+const FALSE_START_MS = 2500
 /** заранее открытый поток без речи столько — закрываем: воркер держит соединение 35 с от подключения, а Scribe считает время */
 export const IDLE_MS = 6000
 /** не дольше стольких мс звука за реплику: у воркера 30 с звука и 35 с жизни соединения от подключения */
-export const MAX_SPEECH_MS = 29_500
+const MAX_SPEECH_MS = 29_500
 const SESSION_LIFE_MS = 34_000
 /** кусок в Scribe — 200 мс */
 const CHUNK = 200 * PER_MS

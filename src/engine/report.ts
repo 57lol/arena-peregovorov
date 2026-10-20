@@ -6,7 +6,7 @@ import type { BehaviorDict } from './dictionary'
 import type { Decision, IssueId, Outcome, Scenario, TurnRecord } from './types'
 import { allDeals, bestOption, formatOffer, isComplete, issueWeight, maxScore, paretoFrontier, score, type FullOffer, type Point } from './utility'
 
-export interface IssueLine {
+interface IssueLine {
   id: IssueId
   title: string
   kind: 'distributive' | 'integrative' | 'compatible'
@@ -19,14 +19,14 @@ export interface IssueLine {
   opponentWeight: number
 }
 
-export interface Trade {
+interface Trade {
   offer: FullOffer
   player: number
   opponent: number
   changes: { issue: IssueId; title: string; from?: string; to: string; player: number; opponent: number }[]
 }
 
-export interface TrapCheck {
+interface TrapCheck {
   issue: IssueId
   title: string
   bothWant: string
@@ -36,7 +36,7 @@ export interface TrapCheck {
   feigned: boolean         // оппонент выдал этот пункт за свою уступку
 }
 
-export interface KeyMoment {
+interface KeyMoment {
   turn: number
   quote: string
   shift: { trust: number; tension: number }

@@ -1,5 +1,5 @@
 /** Только счётчики событий; ни текста речи, ни ключа задания. */
-export const PREPARE_REASONS = ['noPartial', 'shortPause', 'textChanged', 'manual', 'limit', 'unavailable', 'duplicate'] as const
+const PREPARE_REASONS = ['noPartial', 'shortPause', 'textChanged', 'manual', 'limit', 'unavailable', 'duplicate'] as const
 export type PrepareReason = typeof PREPARE_REASONS[number]
 export type PrepareCounts = Partial<Record<PrepareReason, number>>
 export interface PrepareDiag { id?: string; process?: string; status?: number; counts?: PrepareCounts }

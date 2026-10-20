@@ -31,7 +31,7 @@ import { TABLE } from './layout'
 import { hex } from './palette'
 
 /** Ноутбук на столе, м. Петля — дальний край корпуса, крышка откинута назад. */
-export const LAPTOP = { w: 0.36, depth: 0.25, base: 0.018, front: -0.08, lid: 0.235, tilt: (14 * Math.PI) / 180 }
+const LAPTOP = { w: 0.36, depth: 0.25, base: 0.018, front: -0.08, lid: 0.235, tilt: (14 * Math.PI) / 180 }
 /** Экран внутри рамки (16:10) и холст окна связи, точки. */
 const SW = 0.336
 const SH = 0.21
@@ -83,7 +83,7 @@ function loadImage(src: string) {
 const CREW: PortraitId[] = ['hr', 'dev']
 
 /** Собеседник на экране: то, что у людей за столом, — без ухода к двери. */
-export class CallLead {
+class CallLead {
   emotion: PortraitEmotion = 'neutral'
   talking = false
   leaving = false

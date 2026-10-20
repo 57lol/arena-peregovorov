@@ -4,7 +4,7 @@ import type { OpponentState } from '../engine/types'
 import { REACTIONS, reactionAudio, type ReactionFace, type ReactionType } from '../content/reactions'
 import type { PortraitEmotion } from './ui/assets'
 
-export type PlayerTone = 'rude' | 'friendly' | 'thanks' | 'apology' | 'interest' | 'offer' | 'pressure' | 'neutral'
+type PlayerTone = 'rude' | 'friendly' | 'thanks' | 'apology' | 'interest' | 'offer' | 'pressure' | 'neutral'
 
 // Scribe пишет числа словами («давай за двести»), Яндекс — цифрами.
 const NUMBER_WORD = /(?:^|[^а-я])(?:сто|двести|триста|четыреста|(?:пять|шесть|семь|восемь|девять)сот|тысяч[аиу]?|полторы|полтыщи|двадцать|тридцать|сорок|(?:пять|шесть|семь|восемь)десят|девяносто|пятнадцать|десять|косар[ья]?)(?![а-я])/u

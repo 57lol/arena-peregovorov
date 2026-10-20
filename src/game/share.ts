@@ -39,7 +39,7 @@ export async function shareLink(sc: Scenario, fromLibrary: boolean): Promise<str
   return `${base}#case=${b64url(packed)}`
 }
 
-export type LinkCase = { id: string; scenario?: Scenario } | { scenario: Scenario } | { error: string }
+type LinkCase = { id: string; scenario?: Scenario } | { scenario: Scenario } | { error: string }
 
 /** Что зашито в адресе страницы, если там есть дело. */
 export async function readLink(): Promise<LinkCase | null> {

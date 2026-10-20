@@ -13,7 +13,7 @@ const times = (n: number) => (n === 1 ? 'раз' : `${n} ${plural(n, 'раз', '
 
 // ——— звание ———
 
-export interface Rank {
+interface Rank {
   at: number
   title: string
   note: string
@@ -29,7 +29,7 @@ export const RANKS: Rank[] = [
   { at: 26, title: 'Зовут на сложные встречи', note: 'Когда всё горит, звонят вам. Даже в отпуск.' },
 ]
 
-export interface CareerScore {
+interface CareerScore {
   stars: number
   endings: number
   total: number
@@ -41,7 +41,7 @@ export function careerScore(p: Progress): CareerScore {
   return { stars, endings, total: stars + endings }
 }
 
-export interface RankInfo extends Rank {
+interface RankInfo extends Rank {
   index: number
   score: CareerScore
   next?: Rank & { need: number }
@@ -93,7 +93,7 @@ const GROWS = new Set<string>([...BEHAVIORS.filter((b) => b.polarity === 'strong
 /** Один приём за партию даёт не больше трёх очков: повторять одно и то же десять раз — не навык. */
 const CAP = 3
 
-export interface Gain {
+interface Gain {
   xp: number
   /** за что, по убыванию вклада */
   why: string[]
@@ -203,7 +203,7 @@ export const axisName = (a: Axis) => SKILL_RU[a]?.name ?? AXES[a]
 
 // ——— что дальше ———
 
-export interface Advice {
+interface Advice {
   scenario: Scenario
   why: string
 }

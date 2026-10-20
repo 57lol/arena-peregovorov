@@ -16,16 +16,5 @@ export type RGB = readonly [number, number, number]
 
 export const RGB_OF: RGB[] = APOLLO.map((h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)] as const)
 
-/** Рампы по ролям, от тёмного к светлому — индексы в APOLLO. */
-export const RAMP = {
-  blue: [0, 1, 2, 3, 4, 5],
-  green: [6, 7, 8, 9, 10, 11],
-  skin: [12, 13, 14, 15, 16, 17],
-  gold: [18, 19, 20, 21, 22, 23],
-  red: [24, 25, 26, 27, 28, 29],
-  plum: [30, 31, 32, 33, 34, 35],
-  grey: [36, 37, 38, 39, 40, 41, 42, 43, 44, 45],
-} as const
-
 /** Цвет палитры строкой '#rrggbb'. */
 export const hex = (i: number) => `#${APOLLO[i]}`

@@ -11,7 +11,7 @@ import { DAY, limiter } from './limits'
 import { VOTE_CAST } from './voteCatalog'
 import { resultsPage, resultsLoginPage, votePage } from './votePage'
 
-export const sameSecret = (a: string, b: string) => {
+const sameSecret = (a: string, b: string) => {
   const x = Buffer.from(a), y = Buffer.from(b)
   return x.length === y.length && timingSafeEqual(x, y)
 }

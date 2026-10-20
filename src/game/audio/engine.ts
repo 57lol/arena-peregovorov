@@ -11,7 +11,7 @@ import { GUARD, LOOPS } from './loops.gen'
 export type Channel = 'music' | 'sfx' | 'voice'
 export type MusicId = 'menu' | 'map' | 'cutscene'
 export type AmbId = 'office' | 'factory' | 'shop' | 'street' | 'dorm' | 'bus'
-export type SfxId = 'click' | 'page' | 'paper' | 'stamp' | 'step'
+type SfxId = 'click' | 'page' | 'paper' | 'stamp' | 'step'
 
 /** Сколько вариантов у звука: шаги и листы не звучат одинаково подряд. */
 const VARIANTS: Record<SfxId, string[]> = {
@@ -27,7 +27,7 @@ const FADE = 1.2
 
 // ---------- настройки ----------
 
-export interface SoundSettings {
+interface SoundSettings {
   on: boolean
   music: number
   sfx: number
@@ -258,7 +258,7 @@ const music = new LoopSlot('music', () => musicDuck)
 const amb = new LoopSlot('amb', () => ambDuck, 0.8)
 
 /** Во сколько раз тише фон и музыка, пока слушаем игрока (−20 дБ): гул цеха из колонок микрофон считал речью. */
-export const DUCK = 0.1
+const DUCK = 0.1
 
 /**
  * Пока игрок говорит, фон комнаты и музыка почти молчат: микрофон без эхоподавления (recording.ts) слышит колонки,

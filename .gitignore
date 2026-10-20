@@ -27,5 +27,16 @@ dist-server
 .env
 .env.*
 !.env.example
-.DS_Store
 .cache/
+
+# Generated checks and temporary files
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+*.tmp
+*.bak
+/tmp/
+/sides*-live.json

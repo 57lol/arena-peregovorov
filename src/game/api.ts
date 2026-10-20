@@ -45,7 +45,7 @@ export interface TurnInput {
   tts?: { voice: string }
 }
 
-export interface TurnResult {
+interface TurnResult {
   interrupted?: boolean
   record: TurnRecord
   /** откуда разбор и реплика: llm, cache, offline, local (сервер недоступен) */

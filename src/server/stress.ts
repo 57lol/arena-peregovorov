@@ -39,7 +39,7 @@ const FULL = forms([{ marked: FREQUENT, yo: false }, { marked: RISKY, yo: false 
  * реплике — большая часть; risky (STRESS_MARK=risky) — только разобранные поштучно: имена, термины, омографы, частые
  * ошибки. Синтезом разницы в естественности не слышно (ab/results.json); risky короче на знаки U+0301 у ElevenLabs.
  */
-export type MarkSet = 'risky' | 'all'
+type MarkSet = 'risky' | 'all'
 export const markSet = (env = process.env): MarkSet => (env.STRESS_MARK === 'risky' ? 'risky' : 'all')
 const lookup = (word: string, set: MarkSet) => {
   const m = set === 'all' ? FULL : CORE
@@ -201,7 +201,7 @@ export interface Open {
   word: string
   key: string
 }
-export interface Accented {
+interface Accented {
   text: string
   /** омографы, которые правила не решили, — их решит resolveStress (или останется вариант по умолчанию) */
   open: Open[]

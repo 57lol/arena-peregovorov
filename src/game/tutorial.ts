@@ -78,7 +78,7 @@ export interface MentorLine {
   example?: string
 }
 
-export interface MentorCtx {
+interface MentorCtx {
   sc: Scenario
   /** смотрим на собеседника или на стол */
   pose: 'face' | 'desk'

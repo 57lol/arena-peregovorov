@@ -13,7 +13,7 @@ export interface SynthReq {
   live?: boolean
 }
 
-export interface SynthResult {
+interface SynthResult {
   ok: boolean
   /** что показать под кнопкой: «3,1 с · из кэша» или текст ошибки */
   note: string

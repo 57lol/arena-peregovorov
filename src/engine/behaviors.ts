@@ -109,7 +109,7 @@ export const SOURCES: Record<SourceKey, { cite: string; url: string }> = {
  * per_hour — раз в час переговоров (у нас час = 12 ходов по 5 минут);
  * reasons — доводов на один аргумент (у нас — порог срабатывания индикатора).
  */
-export interface Benchmark {
+interface Benchmark {
   skilled: number
   average: number
   unit: 'share' | 'per_hour' | 'reasons'
@@ -1341,7 +1341,7 @@ export const behaviorById = (id: string): Behavior | undefined => BEHAVIORS.find
 // ——— офлайн-разметка ———
 
 /** Контекст хода, без которого часть индикаторов не определить. */
-export interface MoveContext {
+interface MoveContext {
   offered?: boolean            // в реплике есть конкретное предложение (из parseOffer или блокнота)
   firstOffer?: boolean         // это первое предложение игрока за встречу
   opponentJustOffered?: boolean // прошлым ходом оппонент положил на стол своё предложение
@@ -1514,7 +1514,7 @@ export interface ProfileRow {
 }
 
 /** Частота запросов информации: объединение приёмов, максимум один вопросный ход за ход. */
-export function questionFrequency(turns: { behaviors: BehaviorHit[]; talk?: string[] }[]) {
+function questionFrequency(turns: { behaviors: BehaviorHit[]; talk?: string[] }[]) {
   const count = turns.filter((t) =>
     !t.behaviors.some((h) => h.id === 'attack' || h.id === 'ultimatum') &&
     (t.behaviors.some((h) => ['ask_interest', 'implication', 'need_payoff', 'mirror', 'calibrated'].includes(h.id) ||

@@ -361,9 +361,9 @@ function spriteMaterial(tex: Texture) {
   })
 }
 
-export type Gaze = 'you' | 'table' | 'down'
+type Gaze = 'you' | 'table' | 'down'
 
-export interface PersonOpts {
+interface PersonOpts {
   id: PortraitId
   x: number
   z: number

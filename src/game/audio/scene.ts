@@ -45,7 +45,7 @@ export function useSoundScene(screen: string, scenario?: Scenario | null, filmId
 /** Шаг — каждые полцикла ходьбы: 32 точки на восемь кадров, две ноги. */
 const STRIDE = 16
 
-export interface CutsceneCue {
+interface CutsceneCue {
   amb: AmbId | null
   steps: number
   page: boolean

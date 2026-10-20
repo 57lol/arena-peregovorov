@@ -144,7 +144,7 @@ export function walkFor(s: number) {
   return s <= ramp ? Math.sqrt((2 * ACCEL_S * Math.max(0, s)) / WALK_SPEED) : s / WALK_SPEED + ACCEL_S / 2
 }
 
-export interface ExitFrame {
+interface ExitFrame {
   x: number
   z: number
   /** 0 — сидит, 1 — встал */

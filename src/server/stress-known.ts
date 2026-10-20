@@ -11,7 +11,7 @@ import { openingAnchor } from '../engine/policy'
 import { formatOffer } from '../engine/utility'
 import { isEn } from '../engine/lang'
 
-export interface KnownText {
+interface KnownText {
   src: string
   text: string
 }

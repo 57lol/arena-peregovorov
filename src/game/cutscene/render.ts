@@ -50,7 +50,7 @@ const town = (name: 'street' | 'oez'): Layer[] => [
   { src: `${name}_lights.png`, par: 1, lights: true },
 ]
 
-export const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'> | 'pov', SetDef> = {
+const SETS: Record<Exclude<SetId, 'phone' | 'map' | 'black'> | 'pov', SetDef> = {
   road: { w: Infinity, back: outside() },
   /** салон от первого лица: за телефоном в автобусе. Окно боковое: дальше — медленнее, кусты у обочины — быстрее всех */
   pov: {

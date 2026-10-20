@@ -1,4 +1,4 @@
-// Прогон переговоров через API тремя стилями игрока.
+// Прогон переговоров через API разными стилями игрока.
 // Запуск: npm run server:offline, потом npx tsx scripts/playtest.ts [--api http://localhost:8787] [--scenario tara] [--out dir] [--styles rude,splitter,explorer,patient]
 // На живой модели (npm run server и --live) — только точечно: партия из трёх стилей на Pro стоит десятки рублей.
 

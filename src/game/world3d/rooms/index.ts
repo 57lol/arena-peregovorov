@@ -7,7 +7,7 @@ import { EXITS, type ExitPlan } from '../exit'
 /** Места кампании: комната в общаге, остановка у ларька, магазин у дома, бытовка цеха, кабинет закупок «Инея»,
  * переговорная «Кама» с экраном видеосвязи (звонок поставщику из Шэньчжэня); офисы в Стамбуле и Лагосе — у английских дел, не глав кампании (sceneFor). */
 export const STORY_KINDS = ['dorm', 'street', 'shop', 'bytovka', 'inei', 'istanbul', 'meet', 'lagos'] as const
-export type StoryKind = (typeof STORY_KINDS)[number]
+type StoryKind = (typeof STORY_KINDS)[number]
 export type WorldKind = RoomKind | StoryKind
 
 type Builder = () => RoomBuild

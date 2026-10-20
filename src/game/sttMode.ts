@@ -1,7 +1,7 @@
 // Распознавание: Scribe потоком, если сервер его даёт (с 18.10 по умолчанию), иначе Яндекс с хеджем.
 // ?stt=scribe — Scribe принудительно, ?stt=off — только Яндекс; до закрытия вкладки. Читаем до share.ts.
 const KEY = 'peregovorka.stt'
-export type SttChoice = 'scribe' | 'off' | 'auto'
+type SttChoice = 'scribe' | 'off' | 'auto'
 export function loadSttMode(): SttChoice {
   if (typeof window === 'undefined') return 'auto'
   const value = new URLSearchParams(location.search).get('stt')
@@ -16,7 +16,7 @@ export function loadSttMode(): SttChoice {
     return pick ?? 'auto'
   }
 }
-export const sttChoice = loadSttMode()
+const sttChoice = loadSttMode()
 
 /** Сервер сказал в /api/health, есть ли у него поток (scribe). Пока не ответил — пробуем: отказ сразу уводит в Яндекс. */
 let serverScribe: boolean | undefined
