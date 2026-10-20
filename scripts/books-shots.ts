@@ -7,6 +7,7 @@ import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
+import { behaviorById } from '../src/engine/behaviors'
 import { requireOffline } from './offline-guard'
 
 const arg = (name: string, def: string) => {
@@ -148,7 +149,7 @@ try {
     await page.locator('.g-books').screenshot({ path: join(OUT, `ui-${w}-jury-books.png`) })
     const books = await text(page, '.g-books')
     console.log('  книги:', books)
-    for (const t of ['Маркировка', 'Зеркал']) if (!books.includes(t)) fail(`${w} жюри: в «Что получилось» нет «${t}»`)
+    for (const t of ['label', 'mirror'].map((id) => behaviorById(id)!.title)) if (!books.includes(t)) fail(`${w} жюри: в «Что получилось» нет «${t}»`)
     await page.locator('.g-report-more > summary').click()
     await page.waitForSelector('.g-moments')
     if (w < 600) for (const s of await page.locator('.g-moment .g-fold > summary').all()) await s.click()
